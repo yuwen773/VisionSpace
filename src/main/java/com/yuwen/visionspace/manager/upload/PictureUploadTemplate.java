@@ -8,6 +8,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
+import com.yuwen.visionspace.utils.ColorExtractUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 
@@ -104,6 +105,9 @@ public abstract class PictureUploadTemplate {
                 uploadPictureResult.setPicWidth(picWidth);
                 uploadPictureResult.setPicHeight(picHeight);
                 uploadPictureResult.setPicScale(picScale);
+                // 提取图片主色调
+                String picColor = ColorExtractUtils.extractDominantColor(image);
+                uploadPictureResult.setPicColor(picColor);
             }
         } catch (Exception e) {
             log.warn("读取图片宽高失败: {}", originalFilename, e);
