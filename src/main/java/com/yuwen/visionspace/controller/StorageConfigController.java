@@ -8,6 +8,7 @@ import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.storage.init.FileStorageInit;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigAddRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
@@ -31,7 +32,7 @@ public class StorageConfigController {
     private final StorageConfigService storageConfigService;
 
     @javax.annotation.Resource
-    private com.yuwen.visionspace.init.FileStorageInit fileStorageInit;
+    private FileStorageInit fileStorageInit;
 
     /**
      * 获取存储配置列表
