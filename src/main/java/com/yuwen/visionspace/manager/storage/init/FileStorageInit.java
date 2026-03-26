@@ -1,22 +1,21 @@
-package com.yuwen.visionspace.init;
+package com.yuwen.visionspace.manager.storage.init;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.yuwen.visionspace.config.FileStoragePropertiesHolder;
 import com.yuwen.visionspace.mapper.StorageConfigMapper;
 import com.yuwen.visionspace.model.entity.StorageConfig;
+import com.yuwen.visionspace.model.enums.StoragePlatformEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileStorageProperties;
-import org.dromara.x.file.storage.core.FileStorageProperties.*;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
+import org.dromara.x.file.storage.core.FileStorageService;
+import org.dromara.x.file.storage.core.FileStorageServiceBuilder;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
+import java.util.Collections;
 
 /**
- * 从数据库加载存储平台配置，构建 FileStorageService
+ * 从数据库加载存储平台配置，动态添加到 FileStorageService
  */
 @Component
 @RequiredArgsConstructor
@@ -24,7 +23,7 @@ import java.util.ArrayList;
 public class FileStorageInit {
 
     private final StorageConfigMapper storageConfigMapper;
-    private final FileStoragePropertiesHolder propertiesHolder;
+    private final FileStorageService fileStorageService;
 
     @PostConstruct
     public void init() {
@@ -32,22 +31,21 @@ public class FileStorageInit {
     }
 
     public void refresh() {
-        // 清空所有平台配置
-        propertiesHolder.getProperties().setMinio(new ArrayList<>());
-        propertiesHolder.getProperties().setAliyunOss(new ArrayList<>());
-        propertiesHolder.getProperties().setTencentCos(new ArrayList<>());
-        propertiesHolder.getProperties().setHuaweiObs(new ArrayList<>());
-        propertiesHolder.getProperties().setDefaultPlatform(null);
-
-        String defaultPlatform = null;
+        // 清空现有存储平台列表
+        fileStorageService.getFileStorageList().clear();
 
         for (StorageConfig config : storageConfigMapper.selectList(
                 new LambdaQueryWrapper<StorageConfig>().eq(StorageConfig::getStatus, 1))) {
             String platform = config.getPlatform();
             try {
-                switch (platform) {
-                    case "minio": {
-                        MinioConfig c = new MinioConfig();
+                StoragePlatformEnum platformEnum = StoragePlatformEnum.getEnumByCode(platform);
+                if (platformEnum == null) {
+                    log.warn("不支持的平台类型: {}", platform);
+                    continue;
+                }
+                switch (platformEnum) {
+                    case MINIO: {
+                        FileStorageProperties.MinioConfig c = new FileStorageProperties.MinioConfig();
                         c.setPlatform(config.getPlatform());
                         c.setAccessKey(config.getAccessKey());
                         c.setSecretKey(config.getSecretKey());
@@ -55,13 +53,12 @@ public class FileStorageInit {
                         c.setBucketName(config.getBucket());
                         c.setDomain(config.getDomain());
                         c.setBasePath(config.getBasePath());
-                        ArrayList<MinioConfig> list = new ArrayList<>();
-                        list.add(c);
-                        propertiesHolder.getProperties().setMinio(list);
+                        fileStorageService.getFileStorageList().addAll(
+                                FileStorageServiceBuilder.buildMinioFileStorage(Collections.singletonList(c), null));
                         break;
                     }
-                    case "cos": {
-                        TencentCosConfig c = new TencentCosConfig();
+                    case COS: {
+                        FileStorageProperties.TencentCosConfig c = new FileStorageProperties.TencentCosConfig();
                         c.setPlatform(config.getPlatform());
                         c.setSecretId(config.getAccessKey());
                         c.setSecretKey(config.getSecretKey());
@@ -69,13 +66,12 @@ public class FileStorageInit {
                         c.setBucketName(config.getBucket());
                         c.setDomain(config.getDomain());
                         c.setBasePath(config.getBasePath());
-                        ArrayList<TencentCosConfig> list = new ArrayList<>();
-                        list.add(c);
-                        propertiesHolder.getProperties().setTencentCos(list);
+                        fileStorageService.getFileStorageList().addAll(
+                                FileStorageServiceBuilder.buildTencentCosFileStorage(Collections.singletonList(c), null));
                         break;
                     }
-                    case "oss": {
-                        AliyunOssConfig c = new AliyunOssConfig();
+                    case OSS: {
+                        FileStorageProperties.AliyunOssConfig c = new FileStorageProperties.AliyunOssConfig();
                         c.setPlatform(config.getPlatform());
                         c.setAccessKey(config.getAccessKey());
                         c.setSecretKey(config.getSecretKey());
@@ -83,13 +79,12 @@ public class FileStorageInit {
                         c.setBucketName(config.getBucket());
                         c.setDomain(config.getDomain());
                         c.setBasePath(config.getBasePath());
-                        ArrayList<AliyunOssConfig> list = new ArrayList<>();
-                        list.add(c);
-                        propertiesHolder.getProperties().setAliyunOss(list);
+                        fileStorageService.getFileStorageList().addAll(
+                                FileStorageServiceBuilder.buildAliyunOssFileStorage(Collections.singletonList(c), null));
                         break;
                     }
-                    case "obs": {
-                        HuaweiObsConfig c = new HuaweiObsConfig();
+                    case OBS: {
+                        FileStorageProperties.HuaweiObsConfig c = new FileStorageProperties.HuaweiObsConfig();
                         c.setPlatform(config.getPlatform());
                         c.setAccessKey(config.getAccessKey());
                         c.setSecretKey(config.getSecretKey());
@@ -97,18 +92,15 @@ public class FileStorageInit {
                         c.setBucketName(config.getBucket());
                         c.setDomain(config.getDomain());
                         c.setBasePath(config.getBasePath());
-                        ArrayList<HuaweiObsConfig> list = new ArrayList<>();
-                        list.add(c);
-                        propertiesHolder.getProperties().setHuaweiObs(list);
+                        fileStorageService.getFileStorageList().addAll(
+                                FileStorageServiceBuilder.buildHuaweiObsFileStorage(Collections.singletonList(c), null));
                         break;
                     }
-                    default:
-                        log.warn("不支持的平台类型: {}", platform);
-                        continue;
                 }
 
                 if (config.getIsActive() != null && config.getIsActive() == 1) {
-                    defaultPlatform = platform;
+                    fileStorageService.getProperties().setDefaultPlatform(platform);
+                    log.info("激活存储平台: {}", platform);
                 }
                 log.info("注册存储平台成功: {} ({})", config.getPlatformName(), platform);
             } catch (Exception e) {
@@ -116,15 +108,6 @@ public class FileStorageInit {
             }
         }
 
-        if (defaultPlatform != null) {
-            propertiesHolder.getProperties().setDefaultPlatform(defaultPlatform);
-            log.info("激活存储平台: {}", defaultPlatform);
-        }
-
-        int total = propertiesHolder.getProperties().getMinio().size()
-                + propertiesHolder.getProperties().getAliyunOss().size()
-                + propertiesHolder.getProperties().getTencentCos().size()
-                + propertiesHolder.getProperties().getHuaweiObs().size();
-        log.info("存储平台初始化完成，共加载 {} 个平台配置", total);
+        log.info("存储平台初始化完成，共加载 {} 个平台配置", fileStorageService.getFileStorageList().size());
     }
 }
