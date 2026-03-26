@@ -12,6 +12,7 @@ import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
 import com.yuwen.visionspace.service.StorageConfigService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,6 +21,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, StorageConfig>
         implements StorageConfigService {
@@ -117,11 +119,13 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         List<StorageConfig> list = this.list(wrapper);
 
         boolean isAdmin = StpUtil.hasRole(UserConstant.ADMIN_ROLE);
+        log.info("listStorageConfigVO isAdmin={}, listSize={}", isAdmin, list.size());
         return list.stream().map(config -> {
             StorageConfigVO vo = new StorageConfigVO();
             BeanUtils.copyProperties(config, vo);
             // 非管理员脱敏
             if (!isAdmin) {
+                log.info("非管理员访问，脱敏 accessKey/secretKey");
                 vo.setAccessKey(null);
                 vo.setSecretKey(null);
             }
