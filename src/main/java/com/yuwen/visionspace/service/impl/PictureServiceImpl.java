@@ -572,50 +572,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 按颜色搜索图片
-     *
-     * @param color     目标颜色（HEX 格式，如 "#FF5733"）
-     * @param threshold 相似度阈值（0~1），只返回相似度 >= threshold 的图片
-     * @return 符合条件的图片列表，按相似度降序排列
-     */
-    public List<PictureVO> searchPictureByColor(String color, double threshold) {
-        // 1. 验证颜色格式
-        if (color == null || color.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "颜色不能为空");
-        }
-        if (threshold < 0 || threshold > 1) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "阈值必须在 0 到 1 之间");
-        }
-
-        // 2. 查询有主色调的图片
-        QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.isNotNull("pic_color");
-        queryWrapper.ne("pic_color", "");
-        List<Picture> pictureList = this.list(queryWrapper);
-
-        if (pictureList.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        // 3. 计算相似度并过滤、排序
-        List<AbstractMap.SimpleEntry<Picture, Double>> scoredList = new ArrayList<>();
-        for (Picture picture : pictureList) {
-            double similarity = ColorSimilarUtils.calculateSimilarity(color, picture.getPicColor());
-            if (similarity >= threshold) {
-                scoredList.add(new AbstractMap.SimpleEntry<>(picture, similarity));
-            }
-        }
-
-        // 按相似度降序排序
-        scoredList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
-
-        // 4. 转换为 VO
-        return scoredList.stream()
-                .map(entry -> PictureVO.objToVo(entry.getKey()))
-                .collect(Collectors.toList());
-    }
-
     @Override
     public void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser) {
         // 1. 获取和校验参数
