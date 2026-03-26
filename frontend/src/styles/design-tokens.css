@@ -1,0 +1,252 @@
+/**
+ * Aurora Cloud - Deep Space Dark Theme
+ * 极光云图 - 深空黑主题
+ * 版本: 2.0.0
+ * 风格: 深邃星空、神秘星云、沉浸光晕
+ */
+
+:root {
+  /* ========== 深空黑基础色板 ========== */
+
+  /* 极光主色 - 保持原有 */
+  --color-primary-50: #e8f4ff;
+  --color-primary-100: #c4ddff;
+  --color-primary-200: #9ac2ff;
+  --color-primary-300: #6aa3ff;
+  --color-primary-400: #4485ff;
+  --color-primary-500: #2268f5;
+  --color-primary-600: #0a4ee6;
+  --color-primary-700: #0039c2;
+  --color-primary-800: #00289b;
+  --color-primary-900: #001d75;
+
+  /* 次要色 - 调整为更深的星云紫 */
+  --color-secondary-50: #f0e7ff;
+  --color-secondary-100: #dbc4fe;
+  --color-secondary-200: #c09afd;
+  --color-secondary-300: #a270fc;
+  --color-secondary-400: #8750f5;
+  --color-secondary-500: #6e35eb;
+  --color-secondary-600: #5b24cc;
+  --color-secondary-700: #4815a8;
+  --color-secondary-800: #380d86;
+  --color-secondary-900: #2a0667;
+
+  /* 强调色 - 极光粉 */
+  --color-accent-pink: #ff6b9d;
+  --color-accent-pink-light: #ffb3d1;
+  --color-accent-pink-dark: #e84a82;
+
+  /* 强调色 - 极光青 */
+  --color-accent-cyan: #00d4aa;
+  --color-accent-cyan-light: #7effdb;
+  --color-accent-cyan-dark: #00a888;
+
+  /* 强调色 - 极光紫 */
+  --color-accent-purple: #a855f7;
+  --color-accent-purple-light: #d8b4fe;
+  --color-accent-purple-dark: #9333ea;
+
+  /* ========== 深空黑中性色 ========== */
+
+  /* 背景 - 深邃星空黑 */
+  --color-bg-primary: #030712;        /* 最深的星空背景 */
+  --color-bg-secondary: #0a0f1a;        /* 次级背景 - 深蓝黑 */
+  --color-bg-tertiary: #111827;        /* 第三级背景 */
+  --color-bg-elevated: #1a2332;        /* 提升的卡片背景 */
+  --color-bg-hover: #243044;           /* 悬停状态 */
+  --color-bg-active: #2d3b52;          /* 激活状态 */
+
+  /* 文字颜色 - 调整以提高对比度 */
+  --color-text-primary: #f8fafc;        /* 主文字 - 更亮 */
+  --color-text-secondary: #cbd5e1;     /* 次级文字 */
+  --color-text-tertiary: #94a3b8;       /* 第三级文字 */
+  --color-text-disabled: #64748b;       /* 禁用文字 */
+  --color-text-inverse: #030712;        /* 反色文字 */
+
+  /* 边框 - 更加微妙 */
+  --color-border-subtle: rgba(148, 163, 184, 0.08);
+  --color-border-default: rgba(148, 163, 184, 0.15);
+  --color-border-strong: rgba(148, 163, 184, 0.25);
+  --color-border-accent: rgba(34, 104, 245, 0.4);
+
+  /* ========== 星空氛围色 ========== */
+
+  /* 星云色调 - 为深空增添神秘感 */
+  --color-nebula-blue: #1e3a5f;
+  --color-nebula-purple: #312e81;
+  --color-nebula-pink: #4c1d4e;
+  --color-nebula-cyan: #164e63;
+
+  /* 星光色 */
+  --color-star-white: rgba(255, 255, 255, 0.9);
+  --color-star-glow: rgba(148, 163, 184, 0.3);
+
+  /* 状态色 */
+  --color-success: #10b981;
+  --color-success-light: #34d399;
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+
+  --color-warning: #f59e0b;
+  --color-warning-light: #fbbf24;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+
+  --color-error: #ef4444;
+  --color-error-light: #f87171;
+  --color-error-bg: rgba(239, 68, 68, 0.15);
+
+  --color-info: #3b82f6;
+  --color-info-light: #60a5fa;
+  --color-info-bg: rgba(59, 130, 246, 0.15);
+
+  /* ========== 深空黑渐变 ========== */
+
+  /* 极光渐变 - 调整为更柔和的深空版本 */
+  --gradient-aurora: linear-gradient(135deg, #2268f5 0%, #6e35eb 50%, #a855f7 100%);
+  --gradient-aurora-subtle: linear-gradient(135deg, rgba(34, 104, 245, 0.15) 0%, rgba(110, 53, 235, 0.15) 50%, rgba(168, 85, 247, 0.15) 100%);
+
+  /* 深空渐变 - 星空背景 */
+  --gradient-deep-space: radial-gradient(ellipse at top, #0a0f1a 0%, #030712 50%, #000000 100%);
+  --gradient-cosmic: radial-gradient(ellipse at 50% 0%, rgba(30, 58, 95, 0.4) 0%, transparent 60%),
+                     radial-gradient(ellipse at 80% 50%, rgba(49, 46, 129, 0.2) 0%, transparent 50%),
+                     radial-gradient(ellipse at 20% 80%, rgba(76, 29, 78, 0.15) 0%, transparent 50%),
+                     radial-gradient(ellipse at 0% 0%, rgba(22, 78, 99, 0.1) 0%, transparent 40%);
+
+  /* 网格渐变 - 深空网格效果 */
+  --gradient-mesh: radial-gradient(at 40% 20%, rgba(34, 104, 245, 0.2) 0px, transparent 50%),
+                    radial-gradient(at 80% 0%, rgba(110, 53, 235, 0.15) 0px, transparent 50%),
+                    radial-gradient(at 0% 50%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+                    radial-gradient(at 80% 50%, rgba(34, 104, 245, 0.1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, rgba(110, 53, 235, 0.1) 0px, transparent 50%),
+                    radial-gradient(at 80% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
+
+  /* 卡片渐变 - 深空风格 */
+  --gradient-card: linear-gradient(145deg, rgba(26, 35, 50, 0.9) 0%, rgba(10, 15, 26, 0.95) 100%);
+  --gradient-card-hover: linear-gradient(145deg, rgba(36, 48, 68, 0.95) 0%, rgba(15, 22, 36, 0.98) 100%);
+
+  /* 玻璃效果 - 深空版 */
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+
+  /* 光晕效果 */
+  --gradient-glow-primary: radial-gradient(circle at 50% 50%, rgba(34, 104, 245, 0.15) 0%, transparent 70%);
+  --gradient-glow-purple: radial-gradient(circle at 50% 50%, rgba(110, 53, 235, 0.12) 0%, transparent 70%);
+  --gradient-glow-cyan: radial-gradient(circle at 50% 50%, rgba(0, 212, 170, 0.1) 0%, transparent 60%);
+
+  /* ========== 间距系统 ========== */
+  --space-0: 0;
+  --space-1: 0.25rem;    /* 4px */
+  --space-2: 0.5rem;     /* 8px */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;     /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+  --space-32: 8rem;      /* 128px */
+
+  /* ========== 圆角 ========== */
+  --radius-xs: 0.25rem;   /* 4px */
+  --radius-sm: 0.375rem;  /* 6px */
+  --radius-md: 0.5rem;    /* 8px */
+  --radius-lg: 0.75rem;   /* 12px */
+  --radius-xl: 1rem;      /* 16px */
+  --radius-2xl: 1.5rem;   /* 24px */
+  --radius-3xl: 2rem;     /* 32px */
+  --radius-full: 9999px;
+
+  /* ========== 深空阴影系统 ========== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+
+  /* 发光阴影 - 深空版 */
+  --shadow-glow-sm: 0 0 15px rgba(34, 104, 245, 0.25);
+  --shadow-glow-md: 0 0 30px rgba(34, 104, 245, 0.35);
+  --shadow-glow-lg: 0 0 50px rgba(34, 104, 245, 0.45);
+  --shadow-glow-purple: 0 0 30px rgba(110, 53, 235, 0.35);
+  --shadow-glow-cyan: 0 0 25px rgba(0, 212, 170, 0.3);
+  --shadow-glow-pink: 0 0 25px rgba(255, 107, 157, 0.3);
+
+  /* ========== 字体 ========== */
+  --font-display: 'Outfit', 'SF Pro Display', -apple-system, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+
+  /* 字体大小 */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+  --text-5xl: 3rem;       /* 48px */
+  --text-6xl: 3.75rem;    /* 60px */
+  --text-7xl: 4.5rem;     /* 72px */
+
+  /* 字重 */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+
+  /* 行高 */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+
+  /* ========== 过渡动画 ========== */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slower: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 缓动函数 */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ========== Z-Index ========== */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+
+  /* ========== 磨砂玻璃效果 - 深空版 ========== */
+  --glass-bg: rgba(10, 15, 26, 0.75);
+  --glass-bg-light: rgba(26, 35, 50, 0.6);
+  --glass-border: rgba(148, 163, 184, 0.12);
+  --glass-blur: blur(20px) saturate(180%);
+  --glass-blur-light: blur(12px) saturate(150%);
+
+  /* ========== 容器宽度 ========== */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1536px;
+}
+
+/* ========== 暗色主题变量（可选扩展） ========== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 已经是暗色主题，无需额外设置 */
+  }
+}
