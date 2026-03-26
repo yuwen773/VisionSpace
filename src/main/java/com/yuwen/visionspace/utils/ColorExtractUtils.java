@@ -16,6 +16,12 @@ public class ColorExtractUtils {
     private ColorExtractUtils() {
     }
 
+    /**
+     * 从 BufferedImage 提取主色调
+     *
+     * @param image BufferedImage 对象
+     * @return 主色调 HEX 字符串（如 "#FF5733"），提取失败返回 null
+     */
     public static String extractDominantColor(BufferedImage image) {
         if (image == null) {
             return null;
@@ -79,11 +85,18 @@ public class ColorExtractUtils {
                 dominantColor.getBlue());
     }
 
+    /**
+     * 从图片路径提取主色调
+     *
+     * @param imagePath 图片路径
+     * @return 主色调 HEX 字符串，提取失败返回 null
+     */
     public static String extractDominantColor(String imagePath) {
         try {
             BufferedImage image = ImageIO.read(new File(imagePath));
             return extractDominantColor(image);
         } catch (Exception e) {
+            // 静默返回 null，这是工具类的设计意图（便捷调用，失败时返回 null）
             return null;
         }
     }
@@ -121,7 +134,8 @@ public class ColorExtractUtils {
             // 重新计算质心
             List<Color> newCentroids = new ArrayList<>();
             for (int j = 0; j < k; j++) {
-                int r = 0, g = 0, b = 0, count = 0;
+                long r = 0, g = 0, b = 0;
+                int count = 0;
                 for (int i = 0; i < pixels.size(); i++) {
                     if (assignments.get(i) == j) {
                         Color c = pixels.get(i);
@@ -132,7 +146,7 @@ public class ColorExtractUtils {
                     }
                 }
                 if (count > 0) {
-                    newCentroids.add(new Color(r / count, g / count, b / count));
+                    newCentroids.add(new Color((int)(r / count), (int)(g / count), (int)(b / count)));
                 } else {
                     newCentroids.add(centroids.get(j));
                 }
