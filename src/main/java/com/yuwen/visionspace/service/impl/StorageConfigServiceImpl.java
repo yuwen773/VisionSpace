@@ -1,9 +1,7 @@
 package com.yuwen.visionspace.service.impl;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.mapper.StorageConfigMapper;
@@ -116,15 +114,10 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         wrapper.orderByAsc(StorageConfig::getOrderNum);
         List<StorageConfig> list = this.list(wrapper);
 
-        boolean isAdmin = StpUtil.hasRole(UserConstant.ADMIN_ROLE);
+        // 直接返回，管理员已通过 @AuthCheck 校验
         return list.stream().map(config -> {
             StorageConfigVO vo = new StorageConfigVO();
             BeanUtils.copyProperties(config, vo);
-            // 非管理员脱敏
-            if (!isAdmin) {
-                vo.setAccessKey(null);
-                vo.setSecretKey(null);
-            }
             return vo;
         }).collect(Collectors.toList());
     }
