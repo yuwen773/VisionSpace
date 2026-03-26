@@ -42,6 +42,13 @@ public class ColorSimilarUtils {
      * @return 相似度（0到1之间，1为完全相同）
      */
     public static double calculateSimilarity(String hexColor1, String hexColor2) {
+        // Remove # prefix if present
+        if (hexColor1 != null && hexColor1.startsWith("#")) {
+            hexColor1 = "0x" + hexColor1.substring(1);
+        }
+        if (hexColor2 != null && hexColor2.startsWith("#")) {
+            hexColor2 = "0x" + hexColor2.substring(1);
+        }
         Color color1 = Color.decode(hexColor1);
         Color color2 = Color.decode(hexColor2);
         return calculateSimilarity(color1, color2);
