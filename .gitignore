@@ -28,7 +28,7 @@ target/
 *.iws
 *.iml
 *.ipr
-# JetBrains IDE 工作目录（由 .idea/.gitignore 补充更细粒度规则）
+.idea/
 
 ### NetBeans ###
 /nbproject/private/
