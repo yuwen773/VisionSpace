@@ -98,7 +98,3 @@ knife4j:
 ## 阿里云 AI 配置
 #aliYunAi:
 #  apiKey: xxx
-
-# 文件存储配置（dromara/x-file-storage）
-file-storage:
-  default-platform: cos-1

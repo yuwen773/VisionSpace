@@ -1,6 +1,5 @@
 package com.yuwen.visionspace.manager.storage;
 
-import cn.hutool.core.io.FileUtil;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +11,6 @@ import javax.annotation.Resource;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.util.UUID;
 
 /**
  * 统一存储服务，底层使用 x-file-storage
@@ -33,9 +31,13 @@ public class PictureStorageService {
      */
     public FileInfo putPictureObject(File file, String key) {
         try {
+            log.info("开始上传文件: key={}, file exists={}, file size={}", key, file.exists(), file.exists() ? file.length() : 0);
+            log.info("FileStorageService 状态: platformListSize={}, defaultPlatform={}",
+                    fileStorageService.getFileStorageList().size(),
+                    fileStorageService.getProperties().getDefaultPlatform());
+
             FileInfo fileInfo = fileStorageService.of(file)
-                    .setPath(FileUtil.mainName(key))
-                    .setSaveFilename(UUID.randomUUID().toString().replace("-", "") + "." + FileUtil.getSuffix(key))
+                    .setPath(key)
                     .upload();
             return fileInfo;
         } catch (Exception e) {
