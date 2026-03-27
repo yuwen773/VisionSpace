@@ -20,7 +20,7 @@
             </div>
             <div class="preview-image">
               <a-image
-                :src="picture.url"
+                :src="picture.previewUrl || picture.url"
                 :preview="true"
                 class="main-image"
               />
