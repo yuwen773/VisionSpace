@@ -2,6 +2,7 @@ package com.yuwen.visionspace.utils.strategy;
 
 import com.yuwen.visionspace.utils.ColorExtractUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.awt.image.BufferedImage;
 
@@ -9,6 +10,7 @@ import java.awt.image.BufferedImage;
  * 基于 K-Means 算法的颜色提取策略（保留原实现作为降级备选）
  */
 @Slf4j
+@Component
 public class KMeansStrategy implements ColorExtractStrategy {
 
     @Override

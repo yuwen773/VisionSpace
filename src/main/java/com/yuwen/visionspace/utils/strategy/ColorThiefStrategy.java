@@ -2,6 +2,7 @@ package com.yuwen.visionspace.utils.strategy;
 
 import de.androidpit.colorthief.ColorThief;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -12,6 +13,7 @@ import java.net.URL;
  * 基于 color-thief-java 的颜色提取策略（Median Cut 算法）
  */
 @Slf4j
+@Component
 public class ColorThiefStrategy implements ColorExtractStrategy {
 
     private static final int QUALITY = 10;
