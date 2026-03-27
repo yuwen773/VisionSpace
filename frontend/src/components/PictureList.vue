@@ -21,7 +21,7 @@
         <div class="picture-container">
           <img
             :alt="picture.name"
-            :src="picture.url"
+            :src="picture.thumbnailUrl || picture.url"
             class="picture-image"
             :class="{ 'image-loaded': imageLoadedStates[picture.id] }"
             @load="() => (imageLoadedStates[picture.id] = true)"

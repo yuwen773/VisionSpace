@@ -37,6 +37,7 @@ public class PictureStorageService {
                     fileStorageService.getProperties().getDefaultPlatform());
 
             FileInfo fileInfo = fileStorageService.of(file)
+                    .thumbnail(256, 256)
                     .setPath(key)
                     .upload();
             return fileInfo;
