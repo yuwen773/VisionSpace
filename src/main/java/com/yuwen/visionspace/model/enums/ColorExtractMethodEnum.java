@@ -1,9 +1,9 @@
-package com.yuwen.visionspace.utils.strategy;
+package com.yuwen.visionspace.model.enums;
 
 /**
  * 颜色提取方法枚举
  */
-public enum ColorExtractMethod {
+public enum ColorExtractMethodEnum {
 
     MEDIAN_CUT("median-cut"),
 
@@ -11,7 +11,7 @@ public enum ColorExtractMethod {
 
     private final String value;
 
-    ColorExtractMethod(String value) {
+    ColorExtractMethodEnum(String value) {
         this.value = value;
     }
 
@@ -19,11 +19,11 @@ public enum ColorExtractMethod {
         return value;
     }
 
-    public static ColorExtractMethod fromValue(String value) {
+    public static ColorExtractMethodEnum fromValue(String value) {
         if (value == null) {
             return MEDIAN_CUT;
         }
-        for (ColorExtractMethod method : values()) {
+        for (ColorExtractMethodEnum method : values()) {
             if (method.value.equalsIgnoreCase(value)) {
                 return method;
             }
