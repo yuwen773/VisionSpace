@@ -20,14 +20,14 @@
           @click="handleClick(picture)"
         >
           <div class="picture-image-wrapper" :style="{ paddingBottom: getAspectRatio(picture) }">
+            <div class="picture-skeleton" v-if="!loadedImages.has(picture.id)" />
             <img
               :src="picture.thumbnailUrl || picture.url"
               :alt="picture.name"
               class="picture-image"
+              :class="{ 'image-loaded': loadedImages.has(picture.id) }"
               @load="onImageLoad(picture.id)"
-              v-if="loadedImages.has(picture.id)"
             />
-            <div class="picture-skeleton" v-else />
           </div>
           <div class="picture-info">
             <div class="picture-name">{{ picture.name }}</div>
@@ -184,7 +184,7 @@ const loadPictures = async () => {
       page: page.value,
       size: size.value,
     })
-    const data = res?.data
+    const data = res?.data?.data
     if (data && data.length > 0) {
       assignPicturesToColumns(data)
 
@@ -365,12 +365,21 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.picture-image.image-loaded {
+  opacity: 1;
 }
 
 /* 骨架屏 */
 .picture-skeleton {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
-  padding-bottom: 75%;
+  height: 100%;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s infinite;

@@ -6,6 +6,20 @@ server:
     session:
       cookie:
         max-age: 2592000
+## 项目自定义配置
+vision-space:
+  # 颜色提取配置
+  color-extract:
+    method: median-cut  # median-cut（默认）或 kmeans
+    fallback-enabled: true
+  recommend:
+    engagement-weight: 0.40
+    freshness-weight: 0.20
+    quality-weight: 0.20
+    conversion-weight: 0.10
+    manual-weight: 0.10
+    time-decay-rate: 0.05
+    cache-ttl-minutes: 5
 spring:
   application:
     name: vision-space
@@ -81,11 +95,12 @@ knife4j:
       default:
         api-rule: package
         api-rule-resources:
-          - com.yupi.visionspace.controller
-  basic:
-    enable: true
-    username: zkylyf
-    password: 240509
+          - com.yuwen.visionspace.controller
+#  basic:
+#    enable: true
+    #username: zkylyf
+    #password: 240509
+
 ## 对象存储配置（需要从腾讯云获取）
 #cos:
 #  client:
@@ -98,17 +113,3 @@ knife4j:
 ## 阿里云 AI 配置
 #aliYunAi:
 #  apiKey: xxx
-
-## 颜色提取配置
-vision-space:
-  color-extract:
-    method: median-cut  # median-cut（默认）或 kmeans
-    fallback-enabled: true
-  recommend:
-    engagement-weight: 0.40
-    freshness-weight: 0.20
-    quality-weight: 0.20
-    conversion-weight: 0.10
-    manual-weight: 0.10
-    time-decay-rate: 0.05
-    cache-ttl-minutes: 5
