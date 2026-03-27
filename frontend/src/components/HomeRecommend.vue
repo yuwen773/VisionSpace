@@ -63,6 +63,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { getRecommendListUsingGet } from '@/api/pictureRecommend'
+import { reportPictureAction } from '@/api/pictureAction'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -214,9 +215,39 @@ const loadMore = () => {
 /**
  * 点击图片
  */
-const handleClick = (picture: any) => {
-  console.log('click:', picture.id)
+const handleClick = async (picture: any) => {
+  await reportClick(picture.id)
   router.push(`/picture/${picture.id}`)
+}
+
+/**
+ * 上报曝光
+ */
+const reportImpression = async (pictureId: number) => {
+  try {
+    await reportPictureAction({
+      pictureId,
+      actionType: 'impression',
+      source: 'HOME_RECOMMEND'
+    })
+  } catch (error) {
+    console.error('上报曝光失败:', error)
+  }
+}
+
+/**
+ * 上报点击
+ */
+const reportClick = async (pictureId: number) => {
+  try {
+    await reportPictureAction({
+      pictureId,
+      actionType: 'click',
+      source: 'HOME_RECOMMEND'
+    })
+  } catch (error) {
+    console.error('上报点击失败:', error)
+  }
 }
 
 /**
@@ -245,7 +276,7 @@ const initImpressionObserver = () => {
 
           if (pictureId && !observedPictures.value.has(pictureId)) {
             observedPictures.value.add(pictureId)
-            console.log('impression:', pictureId)
+            reportImpression(pictureId)
           }
         }
       })
