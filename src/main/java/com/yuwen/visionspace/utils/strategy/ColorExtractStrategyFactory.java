@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.utils.strategy;
 
 import com.yuwen.visionspace.config.ColorExtractProperties;
+import com.yuwen.visionspace.model.enums.ColorExtractMethodEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -26,13 +27,13 @@ public class ColorExtractStrategyFactory {
 
     private volatile ColorExtractStrategy cachedStrategy;
 
-    private volatile ColorExtractMethod cachedMethod;
+    private volatile ColorExtractMethodEnum cachedMethod;
 
     @PostConstruct
     public void init() {
-        cachedMethod = ColorExtractMethod.fromValue(properties.getMethod());
+        cachedMethod = ColorExtractMethodEnum.fromValue(properties.getMethod());
         cachedStrategy = createStrategy(cachedMethod);
-        log.info("颜色提取策略初始化: {}", cachedMethod == ColorExtractMethod.KMEANS ? "K-Means" : "Median Cut");
+        log.info("颜色提取策略初始化: {}", cachedMethod == ColorExtractMethodEnum.KMEANS ? "K-Means" : "Median Cut");
     }
 
     /**
@@ -42,8 +43,8 @@ public class ColorExtractStrategyFactory {
         return cachedStrategy;
     }
 
-    private ColorExtractStrategy createStrategy(ColorExtractMethod method) {
-        if (method == ColorExtractMethod.KMEANS) {
+    private ColorExtractStrategy createStrategy(ColorExtractMethodEnum method) {
+        if (method == ColorExtractMethodEnum.KMEANS) {
             return kMeansStrategy;
         }
         return colorThiefStrategy;
@@ -69,7 +70,7 @@ public class ColorExtractStrategyFactory {
         }
 
         // 降级处理：只有当主策略不是 K-Means 时才降级
-        if (properties.isFallbackEnabled() && cachedMethod != ColorExtractMethod.KMEANS) {
+        if (properties.isFallbackEnabled() && cachedMethod != ColorExtractMethodEnum.KMEANS) {
             log.info("主策略提取失败，降级到 K-Means");
             return kMeansStrategy.extractDominantColor(image);
         }
