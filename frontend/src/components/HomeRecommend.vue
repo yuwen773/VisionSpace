@@ -83,16 +83,15 @@ const loading = ref(false)
 const hasMore = ref(true)
 
 // 图片加载状态
-const loadedImages = ref<Set<number>>(new Set())
+const loadedImages = ref<Set<string>>(new Set())
 
 // 列分配映射：记录每张图片属于哪一列
-const columnAssignment = ref<Map<number, number>>(new Map())
+const columnAssignment = ref<Map<string, number>>(new Map())
 // 列高度追踪
 const columnHeights = ref<number[]>([0, 0, 0, 0])
 
 // 曝光追踪
-const impressionRefs = ref<Map<number, HTMLElement>>(new Map())
-const observedPictures = ref<Set<number>>(new Set())
+const observedPictures = ref<Set<string>>(new Set())
 
 // Refs
 const containerRef = ref<HTMLElement>()
@@ -154,7 +153,7 @@ const assignPicturesToColumns = (newPictures: any[]) => {
 /**
  * 图片加载完成
  */
-const onImageLoad = (pictureId: number) => {
+const onImageLoad = (pictureId: string) => {
   loadedImages.value.add(pictureId)
 }
 
@@ -169,7 +168,6 @@ const handleTypeChange = () => {
   observedPictures.value.clear()
   hasMore.value = true
   loadedImages.value.clear()
-  impressionRefs.value.clear()
   loadPictures()
 }
 
@@ -224,10 +222,10 @@ const handleClick = async (picture: any) => {
 /**
  * 上报曝光
  */
-const reportImpression = async (pictureId: number) => {
+const reportImpression = async (pictureId: string) => {
   try {
     await reportPictureAction({
-      pictureId,
+      pictureId: Number(pictureId),
       actionType: 'impression',
       source: 'HOME_RECOMMEND'
     })
@@ -239,10 +237,10 @@ const reportImpression = async (pictureId: number) => {
 /**
  * 上报点击
  */
-const reportClick = async (pictureId: number) => {
+const reportClick = async (pictureId: string) => {
   try {
     await reportPictureAction({
-      pictureId,
+      pictureId: Number(pictureId),
       actionType: 'click',
       source: 'HOME_RECOMMEND'
     })
@@ -254,7 +252,7 @@ const reportClick = async (pictureId: number) => {
 /**
  * 设置曝光追踪 ref
  */
-const setImpressionRef = (el: HTMLElement | null, pictureId: number) => {
+const setImpressionRef = (el: HTMLElement | null, pictureId: string) => {
   if (!el) return
   if (impressionObserver) {
     impressionObserver.observe(el)
@@ -269,7 +267,7 @@ const initImpressionObserver = () => {
     (entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          const pictureId = Number(entry.target.dataset.pictureId)
+          const pictureId = entry.target.dataset.pictureId as string
           if (pictureId && !observedPictures.value.has(pictureId)) {
             observedPictures.value.add(pictureId)
             reportImpression(pictureId)
