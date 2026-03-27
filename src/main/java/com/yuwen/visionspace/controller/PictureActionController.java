@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.controller;
 
-import com.yuwen.visionspace.model.vo.BaseResponse;
+import com.yuwen.visionspace.common.BaseResponse;
+import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.service.PictureActionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public class PictureActionController {
             request.getActionType(),
             request.getSource()
         );
-        return BaseResponse.success(true);
+        return ResultUtils.success(true);
     }
 
     private Long getLoginUserId(HttpServletRequest request) {
