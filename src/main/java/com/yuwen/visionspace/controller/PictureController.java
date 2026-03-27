@@ -75,7 +75,7 @@ public class PictureController {
     private SpaceUserAuthManager spaceUserAuthManager;
 
     /**
-     * 本地缓存
+     * 本地缓存 Caffeine
      */
     private final Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
             .initialCapacity(1024)
@@ -113,6 +113,12 @@ public class PictureController {
         return ResultUtils.success(pictureVO);
     }
 
+    /**
+     * 删除图片 (用户删除自己的图片)
+     * @param deleteRequest 删除请求
+     * @param request 请求（登录态）
+     * @return 删除结果
+     */
     @PostMapping("/delete")
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_DELETE)
     public BaseResponse<Boolean> deletePicture(@RequestBody DeleteRequest deleteRequest
@@ -128,8 +134,8 @@ public class PictureController {
     /**
      * 更新图片（仅管理员可用）
      *
-     * @param pictureUpdateRequest
-     * @param request
+     * @param pictureUpdateRequest 更新请求
+     * @param request 登录态
      * @return
      */
     @PostMapping("/update")
@@ -226,7 +232,7 @@ public class PictureController {
         long current = pictureQueryRequest.getCurrent();
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(size > 30, ErrorCode.PARAMS_ERROR);
         // 空间权限校验
         Long spaceId = pictureQueryRequest.getSpaceId();
         if (spaceId == null) {
