@@ -2,6 +2,8 @@ package com.yuwen.visionspace.controller;
 
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
+import com.yuwen.visionspace.enums.ActionSourceEnum;
+import com.yuwen.visionspace.enums.ActionTypeEnum;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.service.PictureActionService;
 import com.yuwen.visionspace.service.UserService;
@@ -14,6 +16,7 @@ import javax.servlet.http.HttpServletRequest;
 /**
  * 图片行为上报接口
  * 用于收集用户在首页、详情页等场景下对图片的曝光、点击、浏览、点赞、收藏、下载、分享等行为
+ *
  * @ApiNote 完整的行为追踪是推荐系统的基础，用于计算 CTR、用户兴趣画像等
  */
 @Slf4j
@@ -74,16 +77,16 @@ public class PictureActionController {
     public static class PictureActionRequest {
         /** 图片ID */
         private Long pictureId;
-        /** 行为类型：impression/click/view/like/collect/download/share */
-        private String actionType;
-        /** 来源：HOME_RECOMMEND/DETAIL/SEARCH 等 */
-        private String source;
+        /** 行为类型：0=impression 1=click 2=view 3=like 4=collect 5=download 6=share */
+        private Integer actionType;
+        /** 来源：0=HOME_RECOMMEND 1=DETAIL 2=SEARCH 3=OTHER */
+        private Integer source;
 
         public Long getPictureId() { return pictureId; }
         public void setPictureId(Long pictureId) { this.pictureId = pictureId; }
-        public String getActionType() { return actionType; }
-        public void setActionType(String actionType) { this.actionType = actionType; }
-        public String getSource() { return source; }
-        public void setSource(String source) { this.source = source; }
+        public Integer getActionType() { return actionType; }
+        public void setActionType(Integer actionType) { this.actionType = actionType; }
+        public Integer getSource() { return source; }
+        public void setSource(Integer source) { this.source = source; }
     }
 }

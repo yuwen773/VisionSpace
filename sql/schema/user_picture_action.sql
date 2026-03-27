@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS user_picture_action (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id     BIGINT NOT NULL COMMENT '用户ID',
-    picture_id  BIGINT NOT NULL COMMENT '图片ID',
-    action_type  VARCHAR(32) NOT NULL COMMENT '行为类型: impression/click/view/like/collect/download/share',
-    action_value INT NOT NULL DEFAULT 1 COMMENT '行为值',
-    source      VARCHAR(32) DEFAULT 'HOME' COMMENT '来源: HOME/SEARCH/DETAIL/OTHER',
-    created_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_user_time (user_id, created_time DESC),
-    INDEX idx_picture_time (picture_id, created_time DESC),
-    INDEX idx_action_type (action_type)
+    userId      BIGINT NOT NULL COMMENT '用户ID',
+    pictureId   BIGINT NOT NULL COMMENT '图片ID',
+    actionType  INT NOT NULL DEFAULT 0 COMMENT '行为类型: 0=impression 1=click 2=view 3=like 4=collect 5=download 6=share',
+    actionValue INT NOT NULL DEFAULT 1 COMMENT '行为值',
+    source      INT NOT NULL DEFAULT 0 COMMENT '来源: 0=HOME_RECOMMEND 1=DETAIL 2=SEARCH 3=OTHER',
+    createdTime DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_user_time (userId, createdTime DESC),
+    INDEX idx_picture_time (pictureId, createdTime DESC),
+    INDEX idx_action_type (actionType)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

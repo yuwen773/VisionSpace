@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { getRecommendListUsingGet } from '@/api/pictureRecommend'
-import { reportPictureAction } from '@/api/pictureAction'
+import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api/pictureAction'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -226,8 +226,8 @@ const reportImpression = async (pictureId: string) => {
   try {
     await reportPictureAction({
       pictureId: Number(pictureId),
-      actionType: 'impression',
-      source: 'HOME_RECOMMEND'
+      actionType: ActionTypeEnum.IMPRESSION,
+      source: ActionSourceEnum.HOME_RECOMMEND
     })
   } catch (error) {
     console.error('上报曝光失败:', error)
@@ -241,8 +241,8 @@ const reportClick = async (pictureId: string) => {
   try {
     await reportPictureAction({
       pictureId: Number(pictureId),
-      actionType: 'click',
-      source: 'HOME_RECOMMEND'
+      actionType: ActionTypeEnum.CLICK,
+      source: ActionSourceEnum.HOME_RECOMMEND
     })
   } catch (error) {
     console.error('上报点击失败:', error)
