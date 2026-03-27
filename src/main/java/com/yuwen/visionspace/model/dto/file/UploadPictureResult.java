@@ -18,6 +18,9 @@ public class UploadPictureResult {
      */
     private String thumbnailUrl;
 
+    /**
+     * 图片存储路径
+     */
     private String storagePath;
 
     /**
