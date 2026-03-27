@@ -126,7 +126,6 @@ import {
   listPictureVoByPageUsingPost,
 } from '@/api/pictureController.ts'
 import { message } from 'ant-design-vue'
-import PictureList from '@/components/PictureList.vue'
 import HomeRecommend from '@/components/HomeRecommend.vue'
 import { useRouter } from 'vue-router'
 
