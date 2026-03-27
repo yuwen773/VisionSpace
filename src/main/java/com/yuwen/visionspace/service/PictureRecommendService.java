@@ -1,0 +1,26 @@
+package com.yuwen.visionspace.service;
+
+import com.yuwen.visionspace.model.entity.Picture;
+import java.util.List;
+
+public interface PictureRecommendService {
+
+    /**
+     * 获取推荐图片ID列表
+     * @param type 推荐类型: hot, latest, quality, random
+     * @param page 页码
+     * @param size 每页数量
+     * @return 图片ID列表
+     */
+    List<Long> getRecommendPictureIds(String type, int page, int size);
+
+    /**
+     * 获取推荐图片详情列表
+     */
+    List<Picture> getRecommendPictures(String type, int page, int size);
+
+    /**
+     * 刷新推荐缓存
+     */
+    void refreshRecommendCache();
+}
