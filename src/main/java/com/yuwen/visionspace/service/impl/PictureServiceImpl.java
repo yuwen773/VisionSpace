@@ -15,6 +15,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.CosManager;
+import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
 import com.yuwen.visionspace.manager.upload.PictureUploadTemplate;
 import com.yuwen.visionspace.manager.upload.UrlPictureUpload;
@@ -27,6 +28,7 @@ import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
@@ -72,6 +74,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private UrlPictureUpload urlPictureUpload;
+
+    @Resource
+    private PicturePreviewService picturePreviewService;
+
+    @Resource
+    private PictureStorageService pictureStorageService;
 
     @Autowired(required = false)
     private CosManager cosManager;
@@ -170,6 +178,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         picture.setSpaceId(spaceId); // 指定空间 id
         picture.setUrl(uploadPictureResult.getUrl());
         picture.setThumbnailUrl(uploadPictureResult.getThumbnailUrl());
+        picture.setPreviewUrl(null);
         // 支持外层传递图片名称
         String picName = uploadPictureResult.getPicName();
         if (pictureUploadRequest != null && StrUtil.isNotBlank(pictureUploadRequest.getPicName())) {
@@ -211,6 +220,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return picture;
         });
+        picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getStoragePath());
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         return PictureVO.objToVo(picture);
@@ -450,14 +460,15 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (count > 1) {
             return;
         }
-        // 删除图片
-        if (cosManager != null) {
-            cosManager.deleteObject(pictureUrl);
-        }
+        pictureStorageService.deleteObject(pictureUrl);
         // 删除缩略图
         String thumbnailUrl = oldPicture.getThumbnailUrl();
-        if (StrUtil.isNotBlank(thumbnailUrl) && cosManager != null) {
-            cosManager.deleteObject(thumbnailUrl);
+        if (StrUtil.isNotBlank(thumbnailUrl)) {
+            pictureStorageService.deleteObject(thumbnailUrl);
+        }
+        String previewUrl = oldPicture.getPreviewUrl();
+        if (StrUtil.isNotBlank(previewUrl)) {
+            pictureStorageService.deleteObject(previewUrl);
         }
     }
 
