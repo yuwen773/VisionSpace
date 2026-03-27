@@ -334,6 +334,7 @@ declare namespace API {
     picColor?: string
     picFormat?: string
     picHeight?: number
+    previewUrl?: string
     picScale?: number
     picSize?: number
     picWidth?: number
@@ -376,6 +377,7 @@ declare namespace API {
     pageSize?: number
     picFormat?: string
     picHeight?: number
+    previewUrl?: string
     picScale?: number
     picSize?: number
     picWidth?: number

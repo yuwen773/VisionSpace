@@ -8,7 +8,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
-import com.yuwen.visionspace.utils.ColorExtractUtils;
+import com.yuwen.visionspace.utils.strategy.ColorExtractStrategyFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 
@@ -26,6 +26,9 @@ public abstract class PictureUploadTemplate {
 
     @Resource
     private PictureStorageService pictureStorageService;
+
+    @Resource
+    private ColorExtractStrategyFactory colorExtractStrategyFactory;
 
     /**
      * 上传图片
@@ -53,7 +56,7 @@ public abstract class PictureUploadTemplate {
             // 4. 上传图片到对象存储
             FileInfo fileInfo = pictureStorageService.putPictureObject(file, uploadPath);
             // 5. 封装返回结果
-            return buildResult(originalFilename, file, fileInfo);
+            return buildResult(originalFilename, file, fileInfo, uploadPath);
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
@@ -87,12 +90,13 @@ public abstract class PictureUploadTemplate {
      * @param fileInfo          x-file-storage 返回的文件信息
      * @return
      */
-    private UploadPictureResult buildResult(String originalFilename, File file, FileInfo fileInfo) {
+    private UploadPictureResult buildResult(String originalFilename, File file, FileInfo fileInfo, String uploadPath) {
         // 封装返回结果
         UploadPictureResult uploadPictureResult = new UploadPictureResult();
         // 设置 URL 和缩略图地址（x-file-storage 已经处理了 WebP 压缩和缩略图生成）
         uploadPictureResult.setUrl(fileInfo.getUrl());
         uploadPictureResult.setThumbnailUrl(fileInfo.getThUrl());
+        uploadPictureResult.setStoragePath(uploadPath);
         uploadPictureResult.setPicName(FileUtil.mainName(originalFilename));
         uploadPictureResult.setPicSize(fileInfo.getSize());
         // 读取图片宽高
@@ -106,7 +110,7 @@ public abstract class PictureUploadTemplate {
                 uploadPictureResult.setPicHeight(picHeight);
                 uploadPictureResult.setPicScale(picScale);
                 // 提取图片主色调
-                String picColor = ColorExtractUtils.extractDominantColor(image);
+                String picColor = colorExtractStrategyFactory.extractDominantColor(image);
                 uploadPictureResult.setPicColor(picColor);
             }
         } catch (Exception e) {
