@@ -167,6 +167,7 @@ const handleTypeChange = () => {
   observedPictures.value.clear()
   hasMore.value = true
   loadedImages.value.clear()
+  impressionRefs.value.clear()
   loadPictures()
 }
 
