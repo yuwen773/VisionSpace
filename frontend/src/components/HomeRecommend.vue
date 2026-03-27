@@ -39,6 +39,7 @@
           <!-- 曝光埋点追踪器 -->
           <div
             class="impression-tracker"
+            :data-picture-id="picture.id"
             :ref="el => setImpressionRef(el, picture.id)"
           />
         </div>
@@ -255,8 +256,6 @@ const reportClick = async (pictureId: number) => {
  */
 const setImpressionRef = (el: HTMLElement | null, pictureId: number) => {
   if (!el) return
-  impressionRefs.value.set(pictureId, el)
-
   if (impressionObserver) {
     impressionObserver.observe(el)
   }
@@ -270,10 +269,7 @@ const initImpressionObserver = () => {
     (entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          const pictureId = Array.from(impressionRefs.value.entries()).find(
-            ([_, el]) => el === entry.target
-          )?.[0]
-
+          const pictureId = Number(entry.target.dataset.pictureId)
           if (pictureId && !observedPictures.value.has(pictureId)) {
             observedPictures.value.add(pictureId)
             reportImpression(pictureId)
