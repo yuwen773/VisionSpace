@@ -8,18 +8,8 @@ import java.time.LocalDateTime;
  * 用户图片行为明细表
  * 用于记录用户对图片的各种行为，为推荐系统提供基础数据
  *
- * <p>支持的的行为类型(actionType)：
- * <ul>
- *   <li>impression - 曝光（图片在用户视野中展示）</li>
- *   <li>click - 点击（用户点击查看图片）</li>
- *   <li>view - 浏览（用户在详情页浏览）</li>
- *   <li>like - 点赞</li>
- *   <li>collect - 收藏</li>
- *   <li>download - 下载</li>
- *   <li>share - 分享</li>
- * </ul>
- *
- * @see com.yuwen.visionspace.mapper.UserPictureActionMapper
+ * @see ActionTypeEnum 行为类型枚举
+ * @see ActionSourceEnum 来源枚举
  */
 @Data
 @TableName("user_picture_action")
@@ -42,9 +32,9 @@ public class UserPictureAction {
     private Long pictureId;
 
     /**
-     * 行为类型：impression/click/view/like/collect/download/share
+     * 行为类型：0=impression 1=click 2=view 3=like 4=collect 5=download 6=share
      */
-    private String actionType;
+    private Integer actionType;
 
     /**
      * 行为值，默认为1
@@ -52,9 +42,9 @@ public class UserPictureAction {
     private Integer actionValue;
 
     /**
-     * 来源标识：HOME_RECOMMEND/DETAIL/SEARCH/OTHER
+     * 来源：0=HOME_RECOMMEND 1=DETAIL 2=SEARCH 3=OTHER
      */
-    private String source;
+    private Integer source;
 
     /**
      * 创建时间
