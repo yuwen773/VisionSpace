@@ -104,58 +104,9 @@
       </div>
     </div>
 
-    <!-- 图片列表 -->
+    <!-- 图片推荐瀑布流 -->
     <div class="gallery-section">
-      <div class="gallery-header">
-        <h2 class="gallery-title">
-          <span>🖼️</span>
-          <span>图片广场</span>
-        </h2>
-        <div class="gallery-info">
-          <span class="info-text">共 {{ total }} 张精彩图片</span>
-        </div>
-      </div>
-
-      <PictureList
-        :dataList="dataList"
-        :loading="loading"
-        :showOp="true"
-        :canEdit="true"
-        :canDelete="true"
-        :onReload="fetchData"
-      />
-
-      <!-- 分页器 -->
-      <div class="pagination-wrapper" v-if="total > 0">
-        <a-pagination
-          v-model:current="searchParams.current"
-          v-model:pageSize="searchParams.pageSize"
-          :pageSizeOptions="['12', '24', '48']"
-          :total="total"
-          :showSizeChanger="true"
-          :showQuickJumper="true"
-          :showTotal="(total) => `共 ${total} 张`"
-          @change="onPageChange"
-          class="pop-pagination"
-        />
-      </div>
-
-      <!-- 空状态 -->
-      <div v-if="!loading && dataList.length === 0" class="empty-state">
-        <div class="empty-icon">📭</div>
-        <h3 class="empty-title">暂无图片</h3>
-        <p class="empty-description">
-          {{ emptyMessage }}
-        </p>
-        <a-button type="primary" size="large" @click="goToUpload" v-if="selectedCategory === 'all' && !hasSelectedTags" class="pop-btn primary">
-          <span>📸</span>
-          <span>上传第一张图片</span>
-        </a-button>
-        <a-button size="large" @click="resetFilters" v-else class="pop-btn outline">
-          <span>🔄</span>
-          <span>清除筛选</span>
-        </a-button>
-      </div>
+      <HomeRecommend />
     </div>
 
     <!-- 底部波浪 -->
@@ -176,6 +127,7 @@ import {
 } from '@/api/pictureController.ts'
 import { message } from 'ant-design-vue'
 import PictureList from '@/components/PictureList.vue'
+import HomeRecommend from '@/components/HomeRecommend.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
