@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.service.impl;
 
+import cn.hutool.core.io.FileUtil;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
@@ -20,6 +21,8 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Iterator;
 
 @Service
@@ -36,12 +39,13 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
 
     @Async("picturePreviewExecutor")
     @Override
-    public void generateAndUpdatePreview(Long pictureId, String originalStoragePath) {
-        if (pictureId == null || originalStoragePath == null || originalStoragePath.trim().isEmpty()) {
+    public void generateAndUpdatePreview(Long pictureId, String picUrl) {
+        if (pictureId == null || picUrl == null || picUrl.trim().isEmpty()) {
             return;
         }
         try {
-            String previewUrl = generatePreview(originalStoragePath);
+            log.info(Thread.currentThread().getName(),"start generate preview picture......");
+            String previewUrl = generatePreview(picUrl);
             if (previewUrl == null || previewUrl.trim().isEmpty()) {
                 return;
             }
@@ -50,45 +54,46 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
             updatePicture.setPreviewUrl(previewUrl);
             pictureMapper.updateById(updatePicture);
         } catch (Exception e) {
-            log.error("generate preview failed, pictureId={}, storagePath={}", pictureId, originalStoragePath, e);
+            log.error(Thread.currentThread().getName(),"generate preview failed, pictureId={}, picUrl={}", pictureId, picUrl, e);
         }
     }
 
-    private String generatePreview(String originalStoragePath) throws IOException {
-        File previewTempFile = File.createTempFile("picture-preview-", ".webp");
-        try (InputStream inputStream = pictureStorageService.getObject(originalStoragePath)) {
+    private static final String PREVIEW_FORMAT = "jpg";
+    private static final String PREVIEW_FILENAME_PREFIX = "preview_";
+    // TODO 升级到 Java 21+ 后改为 "webp"
+
+    private String generatePreview(String picUrl) throws IOException, URISyntaxException {
+        String originalFilename = FileUtil.getName(picUrl);
+        String previewFilename = PREVIEW_FILENAME_PREFIX + FileUtil.mainName(originalFilename) + "." + PREVIEW_FORMAT;
+        File previewTempFile = File.createTempFile("picture-preview-", "." + PREVIEW_FORMAT);
+        try (InputStream inputStream = pictureStorageService.getObjectByUrl(picUrl)) {
             BufferedImage originalImage = ImageIO.read(inputStream);
             if (originalImage == null) {
                 throw new IOException("unsupported image content");
             }
-            BufferedImage previewImage = resizeForPreview(originalImage);
-            writeWebp(previewImage, previewTempFile);
+            String path = new URI(picUrl).getPath();
+            String uploadPathPrefix = path.substring(1, path.lastIndexOf("/"));
+
+            int[] dimensions = PicturePreviewUtils.limitDimensions(
+                    originalImage.getWidth(), originalImage.getHeight(), PREVIEW_MAX_EDGE);
+            Thumbnails.of(originalImage)
+                    .size(dimensions[0], dimensions[1])
+                    .outputFormat(PREVIEW_FORMAT)
+                    .toFile(previewTempFile);
+
             FileInfo previewFileInfo = pictureStorageService.putObject(
-                    previewTempFile,
-                    PictureVariantPathUtils.buildPreviewPath(originalStoragePath)
-            );
+                    previewTempFile, "/" + uploadPathPrefix + "/", previewFilename);
             return previewFileInfo.getUrl();
         } finally {
             if (!previewTempFile.delete()) {
-                log.warn("failed to delete preview temp file: {}", previewTempFile.getAbsolutePath());
+                log.warn(Thread.currentThread().getName(),"failed to delete preview temp file: {}", previewTempFile.getAbsolutePath());
             }
         }
     }
 
-    private BufferedImage resizeForPreview(BufferedImage originalImage) throws IOException {
-        int[] dimensions = PicturePreviewUtils.limitDimensions(
-                originalImage.getWidth(),
-                originalImage.getHeight(),
-                PREVIEW_MAX_EDGE
-        );
-        if (dimensions[0] == originalImage.getWidth() && dimensions[1] == originalImage.getHeight()) {
-            return originalImage;
-        }
-        return Thumbnails.of(originalImage)
-                .size(dimensions[0], dimensions[1])
-                .asBufferedImage();
-    }
-
+    /**
+     * WebP 写入（Java 21+ 原生支持，暂未使用）
+     */
     private void writeWebp(BufferedImage image, File targetFile) throws IOException {
         Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
         if (!writers.hasNext()) {
@@ -102,4 +107,5 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
             writer.dispose();
         }
     }
+
 }

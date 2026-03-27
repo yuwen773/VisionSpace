@@ -8,9 +8,9 @@ import org.dromara.x.file.storage.core.FileStorageService;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.net.URI;
 
 /**
  * 统一存储服务，底层使用 x-file-storage
@@ -26,23 +26,24 @@ public class PictureStorageService {
      * 上传图片（支持 WebP 压缩 + 缩略图）
      *
      * @param file 文件
-     * @param key  存储路径 key
+     * @param uploadPathPrefix  存储路径 uploadPathPrefix
+     * @param uploadFilename  上传文件名 uploadFilename [包含后缀]
      * @return FileInfo 包含 url, thumbnailUrl 等
      */
-    public FileInfo putPictureObject(File file, String key) {
+    public FileInfo putPictureObject(File file, String uploadPathPrefix, String uploadFilename) {
         try {
-            log.info("开始上传文件: key={}, file exists={}, file size={}", key, file.exists(), file.exists() ? file.length() : 0);
+            log.info("开始上传文件: file uploadPathPrefix={}, file uploadFilename={}", uploadPathPrefix, uploadFilename);
             log.info("FileStorageService 状态: platformListSize={}, defaultPlatform={}",
                     fileStorageService.getFileStorageList().size(),
                     fileStorageService.getProperties().getDefaultPlatform());
 
-            FileInfo fileInfo = fileStorageService.of(file)
+            return fileStorageService.of(file)
                     .thumbnail(256, 256)
-                    .setPath(key)
+                    .setPath(uploadPathPrefix)
+                    .setSaveFilename(uploadFilename)
                     .upload();
-            return fileInfo;
         } catch (Exception e) {
-            log.error("图片上传失败: key={}", key, e);
+            log.error("图片上传失败: uploadPathPrefix={}", uploadPathPrefix, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片上传失败");
         }
     }
@@ -50,27 +51,26 @@ public class PictureStorageService {
     /**
      * 上传原始文件
      */
-    public FileInfo putObject(File file, String key) {
+    public FileInfo putObject(File file, String uploadPathPrefix, String uploadFilename) {
         try {
-            FileInfo fileInfo = fileStorageService.of(file)
-                    .setPath(key)
+            return fileStorageService.of(file)
+                    .setPath(uploadPathPrefix)
+                    .setSaveFilename(uploadFilename)
                     .upload();
-            return fileInfo;
         } catch (Exception e) {
-            log.error("文件上传失败: key={}", key, e);
+            log.error("文件上传失败: uploadPathPrefix={}", uploadPathPrefix, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败");
         }
     }
 
     /**
-     * 下载文件
+     * 通过公网 URL 下载文件
      */
-    public InputStream getObject(String key) {
+    public InputStream getObjectByUrl(String fileUrl) {
         try {
-            byte[] bytes = fileStorageService.download(key).bytes();
-            return new ByteArrayInputStream(bytes);
+            return new URI(fileUrl).toURL().openStream();
         } catch (Exception e) {
-            log.error("文件读取失败: key={}", key, e);
+            log.error("文件读取失败: fileUrl={}", fileUrl, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件读取失败");
         }
     }
