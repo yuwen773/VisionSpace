@@ -56,6 +56,8 @@ const handleUpload = async ({ file }: any) => {
     if (res.data.code === 0 && res.data.data) {
       message.success('🎉 图片上传成功')
       props.onSuccess?.(res.data.data)
+    } else {
+      message.error('😅 ' + (res.data.message || '上传失败'))
     }
   } catch (err: any) {
     message.error('😅 图片上传失败：' + err.message)

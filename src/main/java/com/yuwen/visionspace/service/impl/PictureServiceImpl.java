@@ -117,11 +117,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (spaceId != null) {
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            // 改为使用统一的权限校验
-//            // 校验是否有空间的权限，仅空间管理员才能上传
-//            if (!loginUser.getId().equals(space.getUserId())) {
-//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-//            }
             // 校验额度
             if (space.getTotalCount() >= space.getMaxCount()) {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间条数不足");
@@ -139,11 +134,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (pictureId != null) {
             Picture oldPicture = this.getById(pictureId);
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
-            // 改为使用统一的权限校验
-//            // 仅本人或管理员可编辑图片
-//            if (!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-//            }
             // 校验空间是否一致
             // 没传 spaceId，则复用原有图片的 spaceId（这样也兼容了公共图库）
             if (spaceId == null) {
@@ -162,10 +152,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         String uploadPathPrefix;
         if (spaceId == null) {
             // 公共图库
-            uploadPathPrefix = String.format("public/%s", loginUser.getId());
+            uploadPathPrefix = String.format("/public/%s/", loginUser.getId());
         } else {
             // 空间
-            uploadPathPrefix = String.format("space/%s", spaceId);
+            uploadPathPrefix = String.format("/space/%s/", spaceId);
         }
         // 根据 inputSource 的类型区分上传方式
         PictureUploadTemplate pictureUploadTemplate = filePictureUpload;
@@ -175,24 +165,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
         // 构造要入库的图片信息
         Picture picture = new Picture();
-        picture.setSpaceId(spaceId); // 指定空间 id
-        picture.setUrl(uploadPictureResult.getUrl());
-        picture.setThumbnailUrl(uploadPictureResult.getThumbnailUrl());
+        // 属性拷贝
+        BeanUtil.copyProperties(uploadPictureResult, picture);
+        // 转换为标准颜色（6位十六进制）
+        picture.setPicColor(ColorTransformUtils.getStandardColor(uploadPictureResult.getPicColor()));
+        picture.setSpaceId(spaceId);
         picture.setPreviewUrl(null);
         // 支持外层传递图片名称
-        String picName = uploadPictureResult.getPicName();
-        if (pictureUploadRequest != null && StrUtil.isNotBlank(pictureUploadRequest.getPicName())) {
-            picName = pictureUploadRequest.getPicName();
-        }
+        String picName = StrUtil.isNotBlank(pictureUploadRequest.getPicName()) ? pictureUploadRequest.getPicName()
+                : uploadPictureResult.getPicName();
         picture.setName(picName);
-        picture.setPicSize(uploadPictureResult.getPicSize());
-        picture.setPicWidth(uploadPictureResult.getPicWidth());
-        picture.setPicHeight(uploadPictureResult.getPicHeight());
-        picture.setPicScale(uploadPictureResult.getPicScale());
-        picture.setPicFormat(uploadPictureResult.getPicFormat());
-//        picture.setPicColor(uploadPictureResult.getPicColor());
-        // 转换为标准颜色
-        picture.setPicColor(ColorTransformUtils.getStandardColor(uploadPictureResult.getPicColor()));
         picture.setUserId(loginUser.getId());
         // 补充审核参数
         this.fillReviewParams(picture, loginUser);
@@ -220,7 +202,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return picture;
         });
-        picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getStoragePath());
+        picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         return PictureVO.objToVo(picture);
