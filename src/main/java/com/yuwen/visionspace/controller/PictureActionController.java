@@ -2,7 +2,9 @@ package com.yuwen.visionspace.controller;
 
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
+import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.service.PictureActionService;
+import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +18,9 @@ public class PictureActionController {
 
     @Resource
     private PictureActionService pictureActionService;
+
+    @Resource
+    private UserService userService;
 
     @PostMapping("/report")
     public BaseResponse<Boolean> reportAction(
@@ -36,8 +41,11 @@ public class PictureActionController {
     }
 
     private Long getLoginUserId(HttpServletRequest request) {
-        // TODO: 从登录状态获取用户ID
-        return null;
+        User user = userService.getLoginUser(request);
+        if (user == null) {
+            return 0L;
+        }
+        return user.getId();
     }
 
     public static class PictureActionRequest {
