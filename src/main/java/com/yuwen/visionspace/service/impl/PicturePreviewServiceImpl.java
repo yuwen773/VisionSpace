@@ -35,7 +35,7 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
     @Resource
     private PictureMapper pictureMapper;
 
-    @Async
+    @Async("picturePreviewExecutor")
     @Override
     public void generateAndUpdatePreview(Long pictureId, String originalStoragePath) {
         if (pictureId == null || originalStoragePath == null || originalStoragePath.trim().isEmpty()) {
