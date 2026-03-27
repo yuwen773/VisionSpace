@@ -8,7 +8,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
-import com.yuwen.visionspace.utils.ColorExtractUtils;
+import com.yuwen.visionspace.utils.strategy.ColorExtractStrategyFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 
@@ -26,6 +26,9 @@ public abstract class PictureUploadTemplate {
 
     @Resource
     private PictureStorageService pictureStorageService;
+
+    @Resource
+    private ColorExtractStrategyFactory colorExtractStrategyFactory;
 
     /**
      * 上传图片
@@ -106,7 +109,7 @@ public abstract class PictureUploadTemplate {
                 uploadPictureResult.setPicHeight(picHeight);
                 uploadPictureResult.setPicScale(picScale);
                 // 提取图片主色调
-                String picColor = ColorExtractUtils.extractDominantColor(image);
+                String picColor = colorExtractStrategyFactory.extractDominantColor(image);
                 uploadPictureResult.setPicColor(picColor);
             }
         } catch (Exception e) {
