@@ -2,6 +2,7 @@
 application-local.yml
 application-prod.yml
 /docs/
+CLAUDE.md
 ### Maven ###
 .mvn/
 *.jar

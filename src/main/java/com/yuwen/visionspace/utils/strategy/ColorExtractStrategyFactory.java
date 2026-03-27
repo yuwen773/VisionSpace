@@ -4,6 +4,7 @@ import com.yuwen.visionspace.config.ColorExtractProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.awt.image.BufferedImage;
 
@@ -14,10 +15,6 @@ import java.awt.image.BufferedImage;
 @Component
 public class ColorExtractStrategyFactory {
 
-    private static final String METHOD_MEDIAN_CUT = "median-cut";
-
-    private static final String METHOD_KMEANS = "kmeans";
-
     @Resource
     private ColorExtractProperties properties;
 
@@ -27,16 +24,28 @@ public class ColorExtractStrategyFactory {
     @Resource
     private KMeansStrategy kMeansStrategy;
 
+    private volatile ColorExtractStrategy cachedStrategy;
+
+    private volatile ColorExtractMethod cachedMethod;
+
+    @PostConstruct
+    public void init() {
+        cachedMethod = ColorExtractMethod.fromValue(properties.getMethod());
+        cachedStrategy = createStrategy(cachedMethod);
+        log.info("颜色提取策略初始化: {}", cachedMethod == ColorExtractMethod.KMEANS ? "K-Means" : "Median Cut");
+    }
+
     /**
-     * 创建主要的颜色提取策略
+     * 获取颜色提取策略
      */
     public ColorExtractStrategy createStrategy() {
-        String method = properties.getMethod();
-        if (METHOD_KMEANS.equalsIgnoreCase(method)) {
-            log.info("使用 K-Means 颜色提取策略");
+        return cachedStrategy;
+    }
+
+    private ColorExtractStrategy createStrategy(ColorExtractMethod method) {
+        if (method == ColorExtractMethod.KMEANS) {
             return kMeansStrategy;
         }
-        log.info("使用 Median Cut 颜色提取策略（color-thief）");
         return colorThiefStrategy;
     }
 
@@ -59,8 +68,8 @@ public class ColorExtractStrategyFactory {
             return color;
         }
 
-        // 降级处理
-        if (properties.isFallbackEnabled()) {
+        // 降级处理：只有当主策略不是 K-Means 时才降级
+        if (properties.isFallbackEnabled() && cachedMethod != ColorExtractMethod.KMEANS) {
             log.info("主策略提取失败，降级到 K-Means");
             return kMeansStrategy.extractDominantColor(image);
         }

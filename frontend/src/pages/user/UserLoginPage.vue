@@ -120,10 +120,13 @@ const handleSubmit = async (values: any) => {
   if (res.data.code === 0 && res.data.data) {
     await loginUserStore.fetchUserLogin()
     message.success('🎉 登录成功！欢迎回来！')
-    await router.push({
-      path: '/',
-      replace: true,
-    })
+    // 登录成功后跳转回原页面（防止开放重定向攻击）
+    let redirect = router.currentRoute.value.query.redirect as string
+    if (redirect && !redirect.startsWith('http://') && !redirect.startsWith('https://')) {
+      await router.push({ path: redirect, replace: true })
+    } else {
+      await router.push({ path: '/', replace: true })
+    }
   } else {
     message.error(res.data.message)
   }
