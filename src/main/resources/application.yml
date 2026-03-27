@@ -104,3 +104,11 @@ vision-space:
   color-extract:
     method: median-cut  # median-cut（默认）或 kmeans
     fallback-enabled: true
+  recommend:
+    engagement-weight: 0.40
+    freshness-weight: 0.20
+    quality-weight: 0.20
+    conversion-weight: 0.10
+    manual-weight: 0.10
+    time-decay-rate: 0.05
+    cache-ttl-minutes: 5
