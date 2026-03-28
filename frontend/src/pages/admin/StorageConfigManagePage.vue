@@ -198,6 +198,7 @@
       :title="editingConfig ? '编辑配置' : '添加配置'"
       width="600px"
       class="storage-modal"
+      :confirm-loading="submitLoading"
       @ok="handleSubmit"
     >
       <div class="modal-form">
@@ -378,6 +379,7 @@ import {
 const configList = ref<StorageConfigVO[]>([])
 const modalVisible = ref(false)
 const editingConfig = ref<StorageConfigVO | null>(null)
+const submitLoading = ref(false)
 
 const activeCount = computed(() => configList.value.filter(item => item.isActive === 1).length)
 
@@ -470,22 +472,23 @@ const openEditModal = (item: StorageConfigVO) => {
 }
 
 const handleSubmit = async () => {
-  if (!formData.platform || !formData.bucket || !formData.accessKey || !formData.secretKey) {
+  if (!formData.platformName || !formData.platform || !formData.bucket || !formData.accessKey || !formData.secretKey) {
     message.error('请填写必填项')
     return
   }
+  submitLoading.value = true
   try {
+    const { isActiveEnabled, ...submitData } = formData
     const payload = {
-      ...formData,
-      isActive: formData.isActiveEnabled ? 1 : 0,
+      ...submitData,
+      isActive: isActiveEnabled ? 1 : 0,
     }
-    delete (payload as any).isActiveEnabled
 
     let res
     if (editingConfig.value?.id) {
-      res = await updateStorageConfigUsingPost({ id: editingConfig.value.id, ...payload } as any)
+      res = await updateStorageConfigUsingPost({ id: editingConfig.value.id, ...payload })
     } else {
-      res = await addStorageConfigUsingPost(payload as any)
+      res = await addStorageConfigUsingPost(payload)
     }
     if (res.data.code === 0) {
       message.success(editingConfig.value?.id ? '更新成功' : '添加成功')
@@ -497,6 +500,8 @@ const handleSubmit = async () => {
     }
   } catch (e) {
     message.error('操作失败')
+  } finally {
+    submitLoading.value = false
   }
 }
 
@@ -1055,7 +1060,7 @@ onMounted(() => {
 
 .form-label {
   font-size: var(--text-sm);
-  color: #c9d1d9);
+  color: #c9d1d9;
 
   .required {
     color: #f85149;
