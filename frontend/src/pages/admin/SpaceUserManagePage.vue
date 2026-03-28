@@ -113,7 +113,8 @@
               <a-select
                 v-model:value="record.spaceRole"
                 :options="SPACE_ROLE_OPTIONS"
-                @change="(value: any) => editSpaceRole(value, record)"
+                :loading="roleEditLoading"
+                @change="(value: string) => editSpaceRole(value, record)"
                 class="role-select"
               />
               <span class="role-badge" :class="record.spaceRole">
@@ -245,19 +246,29 @@ const columns = [
 const dataList = ref<API.SpaceUserVO[]>([])
 const loading = ref(false)
 const submitLoading = ref(false)
+const roleEditLoading = ref(false)
 const searchKeyword = ref('')
 const formData = reactive<API.SpaceUserAddRequest & { spaceRole?: string }>({
   userId: undefined,
   spaceRole: 'viewer',
 })
 
-const paginationConfig = computed(() => ({
+const searchParams = ref({
   current: 1,
   pageSize: 20,
-  total: filteredDataList.value.length,
-  showSizeChanger: false,
+})
+
+const paginationConfig = computed(() => ({
+  current: searchParams.value.current,
+  pageSize: searchParams.value.pageSize,
+  total: dataList.value.length,
+  showSizeChanger: true,
   position: ['bottomCenter'] as const,
   showTotal: (total: number) => `共 ${total} 位成员`,
+  onChange: (page: number, pageSize: number) => {
+    searchParams.value.current = page
+    searchParams.value.pageSize = pageSize
+  },
 }))
 
 // 根据角色获取权限列表
@@ -324,7 +335,8 @@ const handleSubmit = async () => {
   }
 }
 
-const editSpaceRole = async (value: any, record: any) => {
+const editSpaceRole = async (value: string, record: API.SpaceUserVO) => {
+  roleEditLoading.value = true
   try {
     const res = await editSpaceUserUsingPost({
       id: record.id,
@@ -339,6 +351,8 @@ const editSpaceRole = async (value: any, record: any) => {
   } catch (error) {
     message.error('修改失败')
     await fetchData()
+  } finally {
+    roleEditLoading.value = false
   }
 }
 
