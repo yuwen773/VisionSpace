@@ -2,8 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
+import BasicLayout from '@/layout/BasicLayout.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
-import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
 import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
@@ -17,15 +17,12 @@ import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
 import DashboardPage from '@/pages/admin/DashboardPage.vue'
+import UserManagePage from '@/pages/admin/UserManagePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    {
-      path: '/',
-      name: 'home',
-      component: HomePage,
-    },
+    // 独立页面（无布局）
     {
       path: '/user/login',
       name: 'login',
@@ -36,57 +33,69 @@ const router = createRouter({
       name: 'register',
       component: UserRegisterPage,
     },
+    // 用户端路由（BasicLayout 包裹）
     {
-      path: '/add_picture',
-      name: 'AddPicture',
-      component: AddPicturePage,
+      path: '/',
+      component: BasicLayout,
+      children: [
+        {
+          path: '',
+          name: 'home',
+          component: HomePage,
+        },
+        {
+          path: 'add_picture',
+          name: 'AddPicture',
+          component: AddPicturePage,
+        },
+        {
+          path: 'add_picture/batch',
+          name: 'AddPictureBatch',
+          component: AddPictureBatchPage,
+        },
+        {
+          path: 'picture/:id',
+          name: 'PictureDetail',
+          component: PictureDetailPage,
+          props: true,
+        },
+        {
+          path: 'add_space',
+          name: 'AddSpace',
+          component: AddSpacePage,
+        },
+        {
+          path: 'my_space',
+          name: 'MySpace',
+          component: MySpacePage,
+        },
+        {
+          path: 'space/:id',
+          name: 'SpaceDetail',
+          component: SpaceDetailPage,
+          props: true,
+        },
+        {
+          path: 'search_picture',
+          name: 'SearchPicture',
+          component: SearchPicturePage,
+          props: true,
+        },
+        {
+          path: 'space_analyze',
+          name: 'SpaceAnalyze',
+          component: SpaceAnalyzePage,
+          props: true,
+        },
+        {
+          path: 'spaceUserManage/:spaceId',
+          name: 'SpaceUserManage',
+          component: SpaceUserManagePage,
+          props: true,
+        },
+      ],
     },
-    {
-      path: '/add_picture/batch',
-      name: 'AddPictureBatch',
-      component: AddPictureBatchPage,
-    },
-    {
-      path: '/picture/:id',
-      name: 'PictureDetail',
-      component: PictureDetailPage,
-      props: true,
-    },
-    {
-      path: '/add_space',
-      name: 'AddSpace',
-      component: AddSpacePage,
-    },
-    {
-      path: '/my_space',
-      name: 'MySpace',
-      component: MySpacePage,
-    },
-    {
-      path: '/space/:id',
-      name: 'SpaceDetail',
-      component: SpaceDetailPage,
-      props: true,
-    },
-    {
-      path: '/search_picture',
-      name: 'SearchPicture',
-      component: SearchPicturePage,
-      props: true,
-    },
-    {
-      path: '/space_analyze',
-      name: 'SpaceAnalyze',
-      component: SpaceAnalyzePage,
-      props: true,
-    },
-    {
-      path: '/spaceUserManage/:spaceId',
-      name: 'SpaceUserManage',
-      component: SpaceUserManagePage,
-      props: true,
-    },
-    // Admin routes with AdminLayout wrapper
+    // 管理端路由（AdminLayout 包裹）
     {
       path: '/admin',
       component: AdminLayout,

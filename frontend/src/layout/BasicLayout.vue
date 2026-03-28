@@ -9,7 +9,7 @@
 
     <a-layout class="main-layout">
       <!-- 头部导航 -->
-      <a-layout-header class="layout-header" v-if="!isLoginOrRegister">
+      <a-layout-header class="layout-header">
         <GlobalHeader />
       </a-layout-header>
 
@@ -27,7 +27,7 @@
       </a-layout>
 
       <!-- 底部 -->
-      <a-layout-footer class="layout-footer" v-if="!isLoginOrRegister">
+      <a-layout-footer class="layout-footer">
         <!-- 浮动主题切换按钮 -->
         <ThemeToggleButton />
         <div class="footer-content">
@@ -78,19 +78,6 @@
 <script setup lang="ts">
 import GlobalHeader from '@/components/GlobalHeader.vue'
 import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
-import { ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-
-const route = useRoute()
-const isLoginOrRegister = ref<boolean>(false)
-
-watch(
-  route,
-  () => {
-    isLoginOrRegister.value = route.name === 'login' || route.name === 'register'
-  },
-  { immediate: true }
-)
 </script>
 
 <style lang="less" scoped>
