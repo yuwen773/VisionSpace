@@ -1,0 +1,367 @@
+/**
+ * VisionSpace Admin Theme
+ * 管理端专用主题
+ * 风格: 简洁高效、高信息密度、低视觉疲劳
+ */
+
+/* ========== 管理台 CSS 变量 ========== */
+:root {
+  /* 背景色 - 简洁灰白 */
+  --admin-bg-primary: #ffffff;
+  --admin-bg-secondary: #fafbfc;
+  --admin-bg-tertiary: #f4f5f7;
+  --admin-bg-hover: #ebeef2;
+  --admin-bg-active: #dce0e5;
+
+  /* 侧边栏背景 */
+  --admin-sidebar-bg: #252a31;
+  --admin-sidebar-header-bg: #1c2128;
+
+  /* 文字色 - 高对比 */
+  --admin-text-primary: #1f2328;
+  --admin-text-secondary: #656d76;
+  --admin-text-tertiary: #8b949e;
+  --admin-text-disabled: #b1b8be;
+
+  /* 边框色 */
+  --admin-border-default: #d0d7de;
+  --admin-border-strong: #afb8c1;
+  --admin-border-subtle: #e8eaed;
+
+  /* 侧边栏文字 */
+  --admin-sidebar-text: #e6edf3;
+  --admin-sidebar-text-secondary: #8b949e;
+  --admin-sidebar-text-hover: #ffffff;
+  --admin-sidebar-text-active: #ffffff;
+
+  /* 侧边栏背景 */
+  --admin-sidebar-bg-hover: #3d444d;
+  --admin-sidebar-bg-active: #0969da;
+
+  /* 主题色 - Ant Design Blue */
+  --admin-primary: #0969da;
+  --admin-primary-hover: #0860ca;
+  --admin-primary-active: #0755b9;
+  --admin-primary-bg: rgba(9, 105, 218, 0.08);
+
+  /* 成功色 */
+  --admin-success: #1a7f37;
+  --admin-success-bg: #dafbe1;
+
+  /* 警告色 */
+  --admin-warning: #9a6700;
+  --admin-warning-bg: #fff8c5;
+
+  /* 危险色 */
+  --admin-danger: #cf222e;
+  --admin-danger-bg: #ffebe9;
+
+  /* 间距系统 - 紧凑 */
+  --admin-space-1: 4px;
+  --admin-space-2: 8px;
+  --admin-space-3: 12px;
+  --admin-space-4: 16px;
+  --admin-space-5: 20px;
+  --admin-space-6: 24px;
+  --admin-space-8: 32px;
+  --admin-space-10: 40px;
+  --admin-space-12: 48px;
+
+  /* 圆角 - 小 */
+  --admin-radius-sm: 4px;
+  --admin-radius-md: 6px;
+  --admin-radius-lg: 8px;
+  --admin-radius-full: 9999px;
+
+  /* 字体 */
+  --admin-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --admin-font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+
+  /* 字号 */
+  --admin-text-xs: 11px;
+  --admin-text-sm: 12px;
+  --admin-text-base: 14px;
+  --admin-text-lg: 16px;
+  --admin-text-xl: 18px;
+  --admin-text-2xl: 20px;
+  --admin-text-3xl: 24px;
+
+  /* 过渡动画 */
+  --admin-transition-fast: 150ms ease;
+  --admin-transition-base: 200ms ease;
+
+  /* 容器宽度 */
+  --container-2xl: 1536px;
+}
+
+/* ========== 共享动画 ========== */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== Ant Design 管理台覆盖 ========== */
+
+/* Button */
+.ant-btn-primary {
+  background: var(--admin-primary) !important;
+  border-color: var(--admin-primary) !important;
+}
+
+.ant-btn-primary:hover {
+  background: var(--admin-primary-hover) !important;
+  border-color: var(--admin-primary-hover) !important;
+}
+
+/* Card */
+.ant-card {
+  border-color: var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
+}
+
+.ant-card-head {
+  border-bottom-color: var(--admin-border-subtle);
+}
+
+.ant-card-head-title {
+  color: var(--admin-text-primary);
+  font-weight: 600;
+}
+
+.ant-card-body {
+  color: var(--admin-text-primary);
+}
+
+/* Table */
+.ant-table {
+  color: var(--admin-text-primary);
+}
+
+.ant-table-thead > tr > th {
+  background: var(--admin-bg-secondary) !important;
+  color: var(--admin-text-secondary);
+  font-weight: 600;
+  font-size: var(--admin-text-sm);
+  border-bottom-color: var(--admin-border-default) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom-color: var(--admin-border-subtle) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--admin-bg-hover) !important;
+}
+
+/* Menu - 下拉菜单 */
+.ant-dropdown-menu {
+  background: var(--admin-bg-primary) !important;
+  border: 1px solid var(--admin-border-default) !important;
+  border-radius: var(--admin-radius-lg) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.ant-dropdown-menu-item {
+  color: var(--admin-text-primary) !important;
+  border-radius: var(--admin-radius-sm) !important;
+}
+
+.ant-dropdown-menu-item:hover {
+  background: var(--admin-bg-hover) !important;
+}
+
+.ant-dropdown-menu-item-divider {
+  background: var(--admin-border-subtle) !important;
+}
+
+/* Modal */
+.ant-modal-content {
+  border-radius: var(--admin-radius-lg);
+}
+
+.ant-modal-header {
+  border-bottom-color: var(--admin-border-subtle);
+}
+
+.ant-modal-title {
+  color: var(--admin-text-primary);
+  font-weight: 600;
+}
+
+.ant-modal-body {
+  color: var(--admin-text-primary);
+}
+
+.ant-modal-footer {
+  border-top-color: var(--admin-border-subtle);
+}
+
+/* Form */
+.ant-form-item-label > label {
+  color: var(--admin-text-primary);
+  font-weight: 500;
+}
+
+.ant-form-item-explain-error {
+  color: var(--admin-danger);
+}
+
+/* Input */
+.ant-input {
+  border-color: var(--admin-border-default);
+}
+
+.ant-input:hover {
+  border-color: var(--admin-primary);
+}
+
+.ant-input:focus {
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15) !important;
+}
+
+/* Select */
+.ant-select-selector {
+  border-color: var(--admin-border-default) !important;
+}
+
+.ant-select:hover .ant-select-selector {
+  border-color: var(--admin-primary) !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: var(--admin-primary) !important;
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15) !important;
+}
+
+.ant-select-dropdown {
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
+}
+
+.ant-select-item {
+  color: var(--admin-text-primary);
+}
+
+.ant-select-item-option-selected {
+  background: var(--admin-primary-bg);
+  color: var(--admin-primary);
+}
+
+/* Tabs */
+.ant-tabs-tab {
+  color: var(--admin-text-secondary);
+}
+
+.ant-tabs-tab:hover {
+  color: var(--admin-text-primary);
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--admin-primary);
+  font-weight: 600;
+}
+
+.ant-tabs-ink-bar {
+  background: var(--admin-primary);
+}
+
+/* Tag */
+.ant-tag {
+  border-radius: var(--admin-radius-sm);
+}
+
+/* Pagination */
+.ant-pagination-item {
+  border-color: var(--admin-border-default);
+}
+
+.ant-pagination-item a {
+  color: var(--admin-text-secondary);
+}
+
+.ant-pagination-item-active {
+  background: var(--admin-primary);
+  border-color: var(--admin-primary);
+}
+
+.ant-pagination-item-active a {
+  color: #ffffff;
+}
+
+/* Message */
+.ant-message-notice-content {
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Tooltip */
+.ant-tooltip-inner {
+  background: var(--admin-sidebar-bg);
+  border-radius: var(--admin-radius-md);
+}
+
+.ant-tooltip-arrow-content {
+  background: var(--admin-sidebar-bg);
+}
+
+/* Popover */
+.ant-popover-inner {
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
+}
+
+/* Alert */
+.ant-alert-info {
+  background: var(--admin-primary-bg);
+  border-color: rgba(9, 105, 218, 0.2);
+  color: var(--admin-primary);
+}
+
+/* Breadcrumb */
+.ant-breadcrumb {
+  color: var(--admin-text-secondary);
+}
+
+.ant-breadcrumb a {
+  color: var(--admin-text-secondary);
+}
+
+.ant-breadcrumb a:hover {
+  color: var(--admin-primary);
+}
+
+/* Avatar */
+.ant-avatar {
+  background: var(--admin-primary);
+}
+
+/* Badge */
+.ant-badge-status-processing {
+  background: var(--admin-primary);
+}
+
+/* Progress */
+.ant-progress-inner {
+  background: var(--admin-bg-hover);
+}
+
+/* Switch */
+.ant-switch-checked {
+  background: var(--admin-primary);
+}

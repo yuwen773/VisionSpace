@@ -518,7 +518,7 @@ const goToEdit = (id: number) => {
 #spaceManagePage {
   max-width: var(--container-2xl);
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--admin-space-6);
 }
 
 /* ========== 页面头部 ========== */
@@ -526,7 +526,7 @@ const goToEdit = (id: number) => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--admin-space-6);
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -535,25 +535,25 @@ const goToEdit = (id: number) => {
 }
 
 .page-title {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-family: var(--admin-font);
+  font-size: var(--admin-text-3xl);
   font-weight: 700;
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 0 var(--admin-space-2) 0;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  color: #c9d1d9;
+  gap: var(--admin-space-3);
+  color: var(--admin-text-primary);
 
   .title-icon {
     width: 32px;
     height: 32px;
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 }
 
 .page-subtitle {
-  font-size: var(--text-sm);
-  color: #8b949e;
+  font-size: var(--admin-text-sm);
+  color: var(--admin-text-secondary);
   margin: 0;
 }
 
@@ -565,12 +565,12 @@ const goToEdit = (id: number) => {
 .table-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+  padding: var(--admin-space-4);
+  background: var(--admin-bg-secondary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   animation: slideUp 0.5s ease-out 0.1s backwards;
 }
 
@@ -585,23 +585,23 @@ const goToEdit = (id: number) => {
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    color: #8b949e;
+    color: var(--admin-text-secondary);
     pointer-events: none;
   }
 
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    color: #c9d1d9;
+    background: var(--admin-bg-primary);
+    border: 1px solid var(--admin-border-default);
+    color: var(--admin-text-primary);
 
     &::placeholder {
-      color: #6e7681;
+      color: var(--admin-text-disabled);
     }
 
     &:focus {
-      border-color: #58a6ff;
+      border-color: var(--admin-primary);
       box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
     }
   }
@@ -614,39 +614,39 @@ const goToEdit = (id: number) => {
 .filter-selects {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 }
 
 .filter-select {
   width: 130px;
 
   :deep(.ant-select-selector) {
-    background: #0d1117 !important;
-    border-color: #30363d !important;
-    color: #c9d1d9 !important;
+    background: var(--admin-bg-primary) !important;
+    border-color: var(--admin-border-default) !important;
+    color: var(--admin-text-primary) !important;
   }
 }
 
 .filter-buttons {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
   margin-left: auto;
 }
 
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-4);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  color: #c9d1d9;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-primary);
+  background: var(--admin-bg-hover);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -654,14 +654,14 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    background: #30363d;
-    border-color: #8b949e;
+    background: var(--admin-border-default);
+    border-color: var(--admin-text-secondary);
   }
 
   &.primary {
     color: #ffffff;
-    background: #238636;
-    border-color: #238636;
+    background: var(--admin-success);
+    border-color: var(--admin-success);
 
     &:hover {
       background: #2ea043;
@@ -675,52 +675,52 @@ const goToEdit = (id: number) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+  padding: var(--admin-space-3) var(--admin-space-4);
   background: rgba(88, 166, 255, 0.1);
   border: 1px solid rgba(88, 166, 255, 0.3);
-  border-radius: var(--radius-lg);
+  border-radius: var(--admin-radius-lg);
   animation: slideUp 0.3s ease-out;
 }
 
 .batch-info {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  color: #c9d1d9;
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  color: var(--admin-text-primary);
+  font-size: var(--admin-text-sm);
 
   svg {
     width: 16px;
     height: 16px;
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 
   strong {
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 }
 
 .batch-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .batch-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-3);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  color: #c9d1d9;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-primary);
+  background: var(--admin-bg-hover);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -728,8 +728,8 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    background: #30363d;
-    border-color: #8b949e;
+    background: var(--admin-border-default);
+    border-color: var(--admin-text-secondary);
   }
 
   &.success {
@@ -744,22 +744,22 @@ const goToEdit = (id: number) => {
   }
 
   &.danger {
-    color: #f85149;
+    color: var(--admin-danger);
     background: rgba(248, 81, 73, 0.1);
     border-color: rgba(248, 81, 73, 0.5);
 
     &:hover {
       background: rgba(248, 81, 73, 0.2);
-      border-color: #f85149;
+      border-color: var(--admin-danger);
     }
   }
 }
 
 /* ========== 表格容器 ========== */
 .table-card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  background: var(--admin-bg-secondary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   overflow: hidden;
   animation: slideUp 0.5s ease-out 0.2s backwards;
 }
@@ -768,7 +768,7 @@ const goToEdit = (id: number) => {
 .data-table {
   :deep(.ant-table) {
     background: transparent;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   :deep(.ant-table-wrapper) {
@@ -778,51 +778,51 @@ const goToEdit = (id: number) => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: #21262d;
-    border-bottom: 1px solid #30363d;
-    color: #8b949e;
+    background: var(--admin-bg-hover);
+    border-bottom: 1px solid var(--admin-border-default);
+    color: var(--admin-text-secondary);
     font-weight: 600;
-    font-size: var(--text-sm);
-    padding: var(--space-4);
+    font-size: var(--admin-text-sm);
+    padding: var(--admin-space-4);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid #21262d;
-    color: #c9d1d9;
-    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--admin-bg-hover);
+    color: var(--admin-text-primary);
+    padding: var(--admin-space-3) var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr) {
-    transition: background var(--transition-fast);
+    transition: background var(--admin-transition-fast);
 
     &:hover > td {
-      background: #1c2128;
+      background: var(--admin-bg-hover);
     }
   }
 
   :deep(.ant-pagination) {
-    padding: var(--space-4);
-    background: #161b22;
+    padding: var(--admin-space-4);
+    background: var(--admin-bg-secondary);
     margin: 0;
 
     .ant-pagination-item {
-      background: #21262d;
-      border-color: #30363d;
+      background: var(--admin-bg-hover);
+      border-color: var(--admin-border-default);
 
       a {
-        color: #c9d1d9;
+        color: var(--admin-text-primary);
       }
 
       &:hover {
-        background: #30363d;
-        border-color: #8b949e;
+        background: var(--admin-border-default);
+        border-color: var(--admin-text-secondary);
       }
 
       &.ant-pagination-item-active {
-        background: #238636;
-        border-color: #238636;
+        background: var(--admin-success);
+        border-color: var(--admin-success);
 
         a {
           color: #ffffff;
@@ -833,13 +833,13 @@ const goToEdit = (id: number) => {
     .ant-pagination-prev,
     .ant-pagination-next {
       .ant-pagination-item-link {
-        background: #21262d;
-        border-color: #30363d;
-        color: #c9d1d9;
+        background: var(--admin-bg-hover);
+        border-color: var(--admin-border-default);
+        color: var(--admin-text-primary);
 
         &:hover {
-          background: #30363d;
-          border-color: #8b949e;
+          background: var(--admin-border-default);
+          border-color: var(--admin-text-secondary);
         }
       }
     }
@@ -847,9 +847,9 @@ const goToEdit = (id: number) => {
     .ant-pagination-options {
       .ant-select {
         .ant-select-selector {
-          background: #21262d;
-          border-color: #30363d;
-          color: #c9d1d9;
+          background: var(--admin-bg-hover);
+          border-color: var(--admin-border-default);
+          color: var(--admin-text-primary);
         }
       }
     }
@@ -864,13 +864,13 @@ const goToEdit = (id: number) => {
 
   .space-name {
     font-weight: 600;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   .space-id {
-    font-size: var(--text-xs);
-    color: #6e7681;
-    font-family: var(--font-mono);
+    font-size: var(--admin-text-xs);
+    color: var(--admin-text-disabled);
+    font-family: var(--admin-font-mono);
   }
 }
 
@@ -879,9 +879,9 @@ const goToEdit = (id: number) => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--radius-full);
+  border-radius: var(--admin-radius-full);
 
   .tag-icon {
     width: 12px;
@@ -889,7 +889,7 @@ const goToEdit = (id: number) => {
   }
 
   &.private {
-    color: #58a6ff;
+    color: var(--admin-primary);
     background: rgba(88, 166, 255, 0.15);
     border: 1px solid rgba(88, 166, 255, 0.3);
   }
@@ -905,12 +905,12 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--radius-full);
+  border-radius: var(--admin-radius-full);
 
   &.basic {
-    color: #8b949e;
+    color: var(--admin-text-secondary);
     background: rgba(139, 148, 158, 0.15);
     border: 1px solid rgba(139, 148, 158, 0.3);
   }
@@ -922,7 +922,7 @@ const goToEdit = (id: number) => {
   }
 
   &.flagship {
-    color: #f85149;
+    color: var(--admin-danger);
     background: rgba(248, 81, 73, 0.15);
     border: 1px solid rgba(248, 81, 73, 0.3);
   }
@@ -931,19 +931,19 @@ const goToEdit = (id: number) => {
 .capacity-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .capacity-bar-wrapper {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .capacity-bar {
   flex: 1;
   height: 6px;
-  background: #21262d;
+  background: var(--admin-bg-hover);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -962,14 +962,14 @@ const goToEdit = (id: number) => {
   }
 
   &.danger {
-    background: #f85149;
+    background: var(--admin-danger);
   }
 }
 
 .capacity-percent {
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
   min-width: 36px;
   text-align: right;
 }
@@ -978,19 +978,19 @@ const goToEdit = (id: number) => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
 
   .capacity-used {
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     font-weight: 500;
   }
 
   .capacity-sep {
-    color: #6e7681;
+    color: var(--admin-text-disabled);
   }
 
   .capacity-total {
-    color: #8b949e;
+    color: var(--admin-text-secondary);
   }
 }
 
@@ -1000,23 +1000,23 @@ const goToEdit = (id: number) => {
 
 .user-cell {
   .user-id {
-    color: #8b949e;
-    font-size: var(--text-xs);
-    font-family: var(--font-mono);
+    color: var(--admin-text-secondary);
+    font-size: var(--admin-text-xs);
+    font-family: var(--admin-font-mono);
   }
 }
 
 .time-text {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: #8b949e;
+  font-family: var(--admin-font-mono);
+  font-size: var(--admin-text-xs);
+  color: var(--admin-text-secondary);
 }
 
 /* ========== 操作按钮 ========== */
 .action-buttons {
   display: flex;
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .action-btn {
@@ -1026,12 +1026,12 @@ const goToEdit = (id: number) => {
   width: 32px;
   height: 32px;
   padding: 0;
-  color: #8b949e;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-secondary);
+  background: var(--admin-bg-hover);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -1039,7 +1039,7 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    color: #58a6ff;
+    color: var(--admin-primary);
     background: rgba(88, 166, 255, 0.1);
     border-color: rgba(88, 166, 255, 0.3);
   }
@@ -1057,7 +1057,7 @@ const goToEdit = (id: number) => {
   }
 
   &.danger:hover {
-    color: #f85149;
+    color: var(--admin-danger);
     background: rgba(248, 81, 73, 0.1);
     border-color: rgba(248, 81, 73, 0.3);
   }
@@ -1103,16 +1103,16 @@ const goToEdit = (id: number) => {
 
 @media (max-width: 768px) {
   #spaceManagePage {
-    padding: var(--space-4);
+    padding: var(--admin-space-4);
   }
 
   .page-header {
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--admin-space-4);
   }
 
   .page-title {
-    font-size: var(--text-2xl);
+    font-size: var(--admin-text-2xl);
   }
 
   .batch-toolbar {

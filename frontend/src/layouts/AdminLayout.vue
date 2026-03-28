@@ -21,6 +21,9 @@ import { ref, provide } from 'vue'
 import AdminSidebar from '@/components/admin/AdminSidebar.vue'
 import AdminHeader from '@/components/admin/AdminHeader.vue'
 
+// 引入管理端主题
+import '@/styles/admin-theme.css'
+
 const sidebarRef = ref<InstanceType<typeof AdminSidebar> | null>(null)
 const sidebarCollapsed = ref(false)
 
@@ -32,7 +35,7 @@ provide('sidebarCollapsed', sidebarCollapsed)
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #0d1117;
+  background: var(--admin-bg-primary);
 }
 
 .admin-main {
@@ -50,8 +53,8 @@ provide('sidebarCollapsed', sidebarCollapsed)
 
 .admin-content {
   flex: 1;
-  padding: 24px;
-  background: #0d1117;
+  padding: var(--admin-space-6);
+  background: var(--admin-bg-secondary);
   overflow-y: auto;
 }
 </style>
