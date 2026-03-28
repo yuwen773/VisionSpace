@@ -7,7 +7,7 @@ import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.SpaceUserVO;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**

@@ -6,7 +6,6 @@ import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.extra.servlet.ServletUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.Header;
 import cn.hutool.json.JSONUtil;
@@ -28,8 +27,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.*;
 
 import static com.yuwen.visionspace.constant.UserConstant.USER_LOGIN_STATE;
@@ -175,10 +174,10 @@ public class StpInterfaceImpl implements StpInterface {
         SpaceUserAuthContext authRequest;
         // 获取请求参数
         if (ContentType.JSON.getValue().equals(contentType)) {
-            String body = ServletUtil.getBody(request);
+            String body = getRequestBody(request);
             authRequest = JSONUtil.toBean(body, SpaceUserAuthContext.class);
         } else {
-            Map<String, String> paramMap = ServletUtil.getParamMap(request);
+            Map<String, String> paramMap = getParamMap(request);
             authRequest = BeanUtil.toBean(paramMap, SpaceUserAuthContext.class);
         }
         // 根据请求路径区分 id 字段的含义
@@ -204,6 +203,35 @@ public class StpInterfaceImpl implements StpInterface {
             }
         }
         return authRequest;
+    }
+
+    /**
+     * 获取请求体
+     */
+    private String getRequestBody(HttpServletRequest request) {
+        try (java.io.BufferedReader reader = request.getReader()) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * 获取请求参数Map
+     */
+    private Map<String, String> getParamMap(HttpServletRequest request) {
+        Map<String, String> paramMap = new java.util.HashMap<>();
+        request.getParameterMap().forEach((key, values) -> {
+            if (values != null && values.length > 0) {
+                paramMap.put(key, values[0]);
+            }
+        });
+        return paramMap;
     }
 
     /**
