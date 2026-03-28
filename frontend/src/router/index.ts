@@ -15,6 +15,7 @@ import SearchPicturePage from '@/pages/SearchPicturePage.vue'
 import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
+import DashboardPage from '@/pages/admin/DashboardPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +34,11 @@ const router = createRouter({
       path: '/user/register',
       name: 'register',
       component: UserRegisterPage,
+    },
+    {
+      path: '/admin/dashboard',
+      name: 'Dashboard',
+      component: DashboardPage,
     },
     {
       path: '/admin/user_manage',
