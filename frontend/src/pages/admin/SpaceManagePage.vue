@@ -106,14 +106,14 @@
           </svg>
           批量编辑
         </button>
-        <button class="batch-btn" @click="batchDisable">
+        <button class="batch-btn" @click="batchDisable" :disabled="batchLoading">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
           </svg>
           批量禁用
         </button>
-        <button class="batch-btn" @click="batchEnable">
+        <button class="batch-btn" @click="batchEnable" :disabled="batchLoading">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="16 12 12 8 8 12"></polyline>
@@ -121,13 +121,21 @@
           </svg>
           批量启用
         </button>
-        <button class="batch-btn danger" @click="batchDelete">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          批量删除
-        </button>
+        <a-popconfirm
+          title="确定要删除选中的空间吗？此操作不可恢复。"
+          ok-text="删除"
+          cancel-text="取消"
+          @confirm="batchDelete"
+          placement="topRight"
+        >
+          <button class="batch-btn danger" :disabled="batchLoading">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            批量删除
+          </button>
+        </a-popconfirm>
       </div>
     </div>
 
@@ -287,6 +295,7 @@ const columns = [
 const dataList = ref<API.Space[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
+const batchLoading = ref(false)
 const selectedRowKeys = ref<(string | number)[]>([])
 
 const searchParams = reactive<API.SpaceQueryRequest>({
@@ -406,74 +415,68 @@ const batchEdit = () => {
 }
 
 const batchDisable = async () => {
-  if (!selectedRowKeys.value.length) return
-  try {
-    const promises = selectedRowKeys.value.map(id =>
+  await batchOperation({
+    action: 'disable',
+    successMessage: `已禁用 ${selectedRowKeys.value.length} 个空间`,
+    errorMessage: '批量禁用失败',
+    operation: (id) =>
       updateSpaceUsingPost({
         id,
         status: 0,
-      } as API.SpaceUpdateRequest)
-    )
-    const results = await Promise.allSettled(promises)
-    const failed = results.filter(
-      r => r.status === 'rejected' || r.value?.data?.code !== 0
-    )
-    if (failed.length === 0) {
-      message.success(`已禁用 ${selectedRowKeys.value.length} 个空间`)
-      selectedRowKeys.value = []
-      await fetchData()
-    } else {
-      message.error(`${failed.length} 个空间操作失败`)
-    }
-  } catch (error) {
-    message.error('批量禁用失败')
-  }
+      } as API.SpaceUpdateRequest),
+  })
 }
 
 const batchEnable = async () => {
-  if (!selectedRowKeys.value.length) return
-  try {
-    const promises = selectedRowKeys.value.map(id =>
+  await batchOperation({
+    action: 'enable',
+    successMessage: `已启用 ${selectedRowKeys.value.length} 个空间`,
+    errorMessage: '批量启用失败',
+    operation: (id) =>
       updateSpaceUsingPost({
         id,
         status: 1,
-      } as API.SpaceUpdateRequest)
-    )
-    const results = await Promise.allSettled(promises)
-    const failed = results.filter(
-      r => r.status === 'rejected' || r.value?.data?.code !== 0
-    )
-    if (failed.length === 0) {
-      message.success(`已启用 ${selectedRowKeys.value.length} 个空间`)
-      selectedRowKeys.value = []
-      await fetchData()
-    } else {
-      message.error(`${failed.length} 个空间操作失败`)
-    }
-  } catch (error) {
-    message.error('批量启用失败')
-  }
+      } as API.SpaceUpdateRequest),
+  })
 }
 
 const batchDelete = async () => {
+  await batchOperation({
+    action: 'delete',
+    successMessage: `已删除 ${selectedRowKeys.value.length} 个空间`,
+    errorMessage: '批量删除失败',
+    operation: (id) => deleteSpaceUsingPost({ id: id as number }),
+  })
+}
+
+interface BatchOperationOptions {
+  action: string
+  successMessage: string
+  errorMessage: string
+  operation: (id: number | string) => Promise<unknown>
+}
+
+const batchOperation = async (options: BatchOperationOptions) => {
+  const { action, successMessage, errorMessage, operation } = options
   if (!selectedRowKeys.value.length) return
+  batchLoading.value = true
   try {
-    const promises = selectedRowKeys.value.map(id =>
-      deleteSpaceUsingPost({ id: id as number })
-    )
+    const promises = selectedRowKeys.value.map(id => operation(id))
     const results = await Promise.allSettled(promises)
     const failed = results.filter(
       r => r.status === 'rejected' || r.value?.data?.code !== 0
     )
     if (failed.length === 0) {
-      message.success(`已删除 ${selectedRowKeys.value.length} 个空间`)
+      message.success(successMessage)
       selectedRowKeys.value = []
       await fetchData()
     } else {
-      message.error(`${failed.length} 个空间删除失败`)
+      message.error(`${failed.length} 个空间${action}失败`)
     }
   } catch (error) {
-    message.error('批量删除失败')
+    message.error(errorMessage)
+  } finally {
+    batchLoading.value = false
   }
 }
 
