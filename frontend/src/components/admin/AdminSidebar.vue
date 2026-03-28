@@ -31,27 +31,14 @@
       </div>
     </nav>
 
-    <!-- 底部用户信息 -->
-    <div class="sidebar-footer">
-      <div class="user-info" @click="handleUserClick">
-        <a-avatar :src="loginUserStore.loginUser?.userAvatar" :size="36" />
-        <div v-show="!isCollapsed" class="user-details">
-          <span class="user-name">{{ loginUserStore.loginUser?.userAccount || 'Admin' }}</span>
-          <span class="user-role">管理员</span>
-        </div>
-      </div>
-    </div>
   </aside>
 </template>
 
 <script lang="ts" setup>
 import { ref, inject, type Ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useLoginUserStore } from '@/stores/userLogin'
+import { useRoute } from 'vue-router'
 
-const loginUserStore = useLoginUserStore()
 const route = useRoute()
-const router = useRouter()
 
 const sidebarCollapsed = inject<Ref<boolean>>('sidebarCollapsed', ref(false))
 const isCollapsed = sidebarCollapsed
@@ -72,9 +59,6 @@ const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
-const handleUserClick = () => {
-  router.push('/my_space')
-}
 </script>
 
 <style lang="less" scoped>
@@ -113,10 +97,6 @@ const handleUserClick = () => {
       padding: 12px;
     }
 
-    .user-info {
-      justify-content: center;
-      padding: 12px;
-    }
   }
 }
 
@@ -219,15 +199,14 @@ const handleUserClick = () => {
     color: var(--admin-sidebar-text-active);
 
     .nav-icon {
-      filter: grayscale(0);
+      transform: scale(1.1);
     }
   }
 
   .nav-icon {
     font-size: 16px;
     flex-shrink: 0;
-    filter: grayscale(0.3);
-    transition: filter 0.15s ease;
+    transition: transform 0.15s ease;
   }
 
   .nav-label {
@@ -235,42 +214,4 @@ const handleUserClick = () => {
   }
 }
 
-.sidebar-footer {
-  padding: 12px 8px;
-  border-top: 1px solid var(--admin-border-default);
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background: var(--admin-sidebar-bg-hover);
-  }
-
-  .user-details {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .user-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--admin-sidebar-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .user-role {
-    font-size: 12px;
-    color: var(--admin-sidebar-text-secondary);
-  }
-}
 </style>

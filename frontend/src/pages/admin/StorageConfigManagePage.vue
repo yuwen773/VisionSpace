@@ -103,23 +103,33 @@
         <div class="card-body">
           <div class="config-item">
             <span class="config-label">Bucket</span>
-            <span class="config-value">{{ item.bucket }}</span>
+            <a-tooltip :title="item.bucket" placement="topLeft">
+              <span class="config-value mono">{{ item.bucket }}</span>
+            </a-tooltip>
           </div>
           <div class="config-item" v-if="item.region">
             <span class="config-label">Region</span>
-            <span class="config-value">{{ item.region }}</span>
+            <a-tooltip :title="item.region" placement="topLeft">
+              <span class="config-value mono">{{ item.region }}</span>
+            </a-tooltip>
           </div>
           <div class="config-item" v-if="item.endpoint">
             <span class="config-label">Endpoint</span>
-            <span class="config-value endpoint">{{ item.endpoint }}</span>
+            <a-tooltip :title="item.endpoint" placement="topLeft">
+              <span class="config-value mono url">{{ item.endpoint }}</span>
+            </a-tooltip>
           </div>
           <div class="config-item" v-if="item.domain">
             <span class="config-label">域名</span>
-            <span class="config-value domain">{{ item.domain }}</span>
+            <a-tooltip :title="item.domain" placement="topLeft">
+              <span class="config-value mono url">{{ item.domain }}</span>
+            </a-tooltip>
           </div>
           <div class="config-item" v-if="item.basePath">
             <span class="config-label">基础路径</span>
-            <span class="config-value">{{ item.basePath }}</span>
+            <a-tooltip :title="item.basePath" placement="topLeft">
+              <span class="config-value mono">{{ item.basePath }}</span>
+            </a-tooltip>
           </div>
         </div>
 
@@ -178,20 +188,6 @@
       <p class="empty-text">暂无存储配置</p>
       <p class="empty-hint">点击上方按钮添加第一个存储平台配置</p>
     </div>
-
-    <!-- 刷新按钮 -->
-    <div class="refresh-section" v-if="configList.length > 0">
-      <button class="toolbar-btn" @click="handleRefresh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-          <path d="M21 3v5h-5"></path>
-          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-          <path d="M8 16H3v5"></path>
-        </svg>
-        刷新缓存
-      </button>
-    </div>
-
     <!-- 添加/编辑弹窗 -->
     <a-modal
       v-model:open="modalVisible"
@@ -205,10 +201,11 @@
         <div class="form-section">
           <h3 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
-            基本信息
+            平台与凭证
           </h3>
           <div class="form-row">
             <div class="form-item">
@@ -234,16 +231,6 @@
               </a-select>
             </div>
           </div>
-        </div>
-
-        <div class="form-section">
-          <h3 class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-            访问凭证
-          </h3>
           <div class="form-row">
             <div class="form-item">
               <label class="form-label">AccessKey <span class="required">*</span></label>
@@ -271,7 +258,7 @@
               <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
               <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
             </svg>
-            存储设置
+            存储配置
           </h3>
           <div class="form-row">
             <div class="form-item">
@@ -291,18 +278,7 @@
               />
             </div>
           </div>
-        </div>
-
-        <div class="form-section" v-if="showEndpoint || showRegion">
-          <h3 class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="2" y1="12" x2="22" y2="12"></line>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-            </svg>
-            地域配置
-          </h3>
-          <div class="form-row">
+          <div class="form-row" v-if="showEndpoint || showRegion">
             <div class="form-item" v-if="showEndpoint">
               <label class="form-label">Endpoint <span class="required">*</span></label>
               <a-input
@@ -328,9 +304,9 @@
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>
-            访问域名
+            域名与状态
           </h3>
-          <div class="form-item full-width">
+          <div class="form-item">
             <label class="form-label">自定义域名</label>
             <a-input
               v-model:value="formData.domain"
@@ -338,17 +314,7 @@
               class="form-input"
             />
           </div>
-        </div>
-
-        <div class="form-section">
-          <h3 class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            状态设置
-          </h3>
-          <div class="toggle-item">
+          <div class="toggle-item toggle-item--spaced">
             <div class="toggle-info">
               <span class="toggle-label">立即启用</span>
               <span class="toggle-hint">启用后此配置将可用于文件上传</span>
@@ -826,8 +792,8 @@ onMounted(() => {
 
 .config-item {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
   padding: var(--admin-space-2) 0;
   border-bottom: 1px solid var(--admin-bg-hover);
 
@@ -838,20 +804,22 @@ onMounted(() => {
 
 .config-label {
   font-size: var(--admin-text-xs);
-  color: var(--admin-text-secondary);
+  color: var(--admin-text-tertiary);
   flex-shrink: 0;
 }
 
 .config-value {
-  font-size: var(--admin-text-xs);
+  font-size: var(--admin-text-sm);
   color: var(--admin-text-primary);
-  font-family: var(--admin-font-mono);
-  text-align: right;
-  word-break: break-all;
-  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-  &.endpoint,
-  &.domain {
+  &.mono {
+    font-family: var(--admin-font-mono);
+  }
+
+  &.url {
     color: var(--admin-primary);
   }
 }
@@ -861,7 +829,7 @@ onMounted(() => {
   gap: var(--admin-space-2);
   padding: var(--admin-space-3) var(--admin-space-4);
   background: var(--admin-bg-hover);
-  border-top: 1px solid var(--admin-border-default);
+  border-top: 1px solid var(--admin-border-subtle);
 }
 
 .action-btn {
@@ -872,38 +840,35 @@ onMounted(() => {
   height: 32px;
   padding: 0;
   color: var(--admin-text-secondary);
-  background: var(--admin-bg-secondary);
-  border: 1px solid var(--admin-border-default);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--admin-radius-md);
   cursor: pointer;
   transition: all var(--admin-transition-fast);
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
   }
 
   &:hover:not(:disabled) {
     color: var(--admin-primary);
-    background: rgba(9, 105, 218, 0.1);
-    border-color: rgba(9, 105, 218, 0.3);
+    background: rgba(9, 105, 218, 0.08);
   }
 
   &:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: not-allowed;
   }
 
   &.success:hover:not(:disabled) {
     color: var(--admin-success);
-    background: rgba(26, 127, 55, 0.1);
-    border-color: rgba(26, 127, 55, 0.3);
+    background: rgba(26, 127, 55, 0.08);
   }
 
   &.danger:hover:not(:disabled) {
     color: var(--admin-danger);
-    background: rgba(207, 34, 46, 0.1);
-    border-color: rgba(207, 34, 46, 0.3);
+    background: rgba(207, 34, 46, 0.08);
   }
 }
 
@@ -1053,9 +1018,6 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--admin-space-2);
 
-  &.full-width {
-    grid-column: 1 / -1;
-  }
 }
 
 .form-label {
@@ -1106,6 +1068,10 @@ onMounted(() => {
   background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
   border-radius: var(--admin-radius-md);
+
+  &--spaced {
+    margin-top: var(--admin-space-4);
+  }
 }
 
 .toggle-info {

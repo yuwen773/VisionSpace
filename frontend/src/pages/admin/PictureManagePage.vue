@@ -82,13 +82,13 @@
     </div>
 
     <!-- 批量操作工具栏 -->
-    <div class="batch-toolbar" v-if="selectedRowKeys.length > 0">
+    <div class="batch-toolbar" v-if="selectedIds.length > 0">
       <div class="batch-info">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 11 12 14 22 4"></polyline>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
         </svg>
-        <span>已选择 <strong>{{ selectedRowKeys.length }}</strong> 项</span>
+        <span>已选择 <strong>{{ selectedIds.length }}</strong> 项</span>
       </div>
       <div class="batch-actions">
         <button class="batch-btn success" @click="batchApprove">
@@ -107,104 +107,130 @@
       </div>
     </div>
 
-    <!-- 数据表格 -->
-    <div class="table-card">
-      <a-table
-        :columns="columns"
-        :data-source="dataList"
-        :pagination="pagination"
-        :loading="loading"
-        :rowKey="(record: API.Picture) => record.id"
-        :row-selection="rowSelection"
-        @change="doTableChange"
-        :scroll="{ x: 1400 }"
-        class="data-table"
+    <!-- 图片卡片网格 -->
+    <div class="picture-grid" v-if="dataList.length > 0">
+      <div
+        v-for="record in dataList"
+        :key="record.id"
+        class="picture-card"
+        :class="{ selected: selectedIds.includes(record.id) }"
       >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'url'">
-            <div class="picture-cell">
-              <a-image
-                :src="record.url"
-                :width="56"
-                :height="56"
-                class="table-image"
-                :preview="true"
-              />
-            </div>
-          </template>
-          <template v-else-if="column.dataIndex === 'name'">
-            <div class="name-cell">
-              <span class="picture-name">{{ record.name || '未命名' }}</span>
-            </div>
-          </template>
-          <template v-else-if="column.dataIndex === 'introduction'">
-            <span class="intro-text">{{ record.introduction || '-' }}</span>
-          </template>
-          <template v-else-if="column.dataIndex === 'category'">
-            <span class="category-tag" v-if="record.category">{{ record.category }}</span>
-            <span class="text-muted" v-else>-</span>
-          </template>
-          <template v-else-if="column.dataIndex === 'tags'">
-            <div class="tags-cell">
-              <span v-for="tag in parseTags(record.tags)" :key="tag" class="tag-item">{{ tag }}</span>
-              <span v-if="!parseTags(record.tags).length" class="text-muted">-</span>
-            </div>
-          </template>
-          <template v-else-if="column.dataIndex === 'picInfo'">
-            <div class="pic-info-cell">
-              <span class="pic-format">{{ record.picFormat?.toUpperCase() }}</span>
-              <span class="pic-size">{{ record.picWidth }} x {{ record.picHeight }}</span>
-              <span class="pic-size">{{ formatSize(record.picSize) }}</span>
-            </div>
-          </template>
-          <template v-else-if="column.dataIndex === 'spaceName'">
-            <span class="space-name" v-if="record.spaceId">空间 #{{ record.spaceId }}</span>
-            <span class="text-muted" v-else>公共图库</span>
-          </template>
-          <template v-else-if="column.dataIndex === 'userId'">
-            <span class="user-id">UID {{ record.userId }}</span>
-          </template>
-          <template v-else-if="column.dataIndex === 'reviewStatus'">
-            <span class="status-tag" :class="getStatusClass(record.reviewStatus)">
-              <svg v-if="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS" class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12"></polyline>
+        <div class="card-checkbox">
+          <a-checkbox
+            :checked="selectedIds.includes(record.id)"
+            @change="(e: any) => toggleSelect(record.id, e.target.checked)"
+          />
+        </div>
+
+        <div class="card-image">
+          <a-image
+            :src="record.thumbnailUrl || record.url"
+            :width="200"
+            :height="160"
+            class="picture-img"
+            :preview="true"
+          />
+          <div class="format-badge">{{ record.picFormat?.toUpperCase() }}</div>
+          <div class="status-badge" :class="getStatusClass(record.reviewStatus)">
+            {{ PIC_REVIEW_STATUS_MAP[record.reviewStatus] }}
+          </div>
+        </div>
+
+        <div class="card-info">
+          <div class="info-header">
+            <h3 class="picture-name" :title="record.name">{{ record.name || '未命名' }}</h3>
+          </div>
+
+          <p class="picture-intro" v-if="record.introduction">{{ record.introduction }}</p>
+
+          <div class="info-tags" v-if="record.category || parseTags(record.tags).length">
+            <a-tag v-if="record.category" color="blue" class="category-tag">{{ record.category }}</a-tag>
+            <a-tag v-for="tag in parseTags(record.tags).slice(0, 2)" :key="tag" class="tag-item">{{ tag }}</a-tag>
+            <span v-if="parseTags(record.tags).length > 2" class="tag-more">+{{ parseTags(record.tags).length - 2 }}</span>
+          </div>
+
+          <div class="specs-row">
+            <span class="spec-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               </svg>
-              <svg v-else-if="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT" class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-              <svg v-else class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              {{ PIC_REVIEW_STATUS_MAP[record.reviewStatus] }}
+              {{ record.picWidth }} × {{ record.picHeight }}
             </span>
-            <div class="review-message" v-if="record.reviewMessage">
-              {{ record.reviewMessage }}
-            </div>
-          </template>
-          <template v-else-if="column.dataIndex === 'createTime'">
-            <span class="time-text">{{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm') }}</span>
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <div class="action-buttons">
-              <a-tooltip title="编辑图片" v-if="record.reviewStatus !== PIC_REVIEW_STATUS_ENUM.PASS">
-                <button class="action-btn" @click="goToEdit(record.id)">
+            <span class="spec-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              {{ formatSize(record.picSize) }}
+            </span>
+          </div>
+
+          <div class="stats-row">
+            <span class="stat-item" title="点赞">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+              {{ record.likeCount || 0 }}
+            </span>
+            <span class="stat-item" title="收藏">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              {{ record.collectCount || 0 }}
+            </span>
+            <span class="stat-item" title="下载">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              {{ record.downloadCount || 0 }}
+            </span>
+            <span class="stat-item" title="浏览">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              {{ record.viewCount || 0 }}
+            </span>
+          </div>
+
+          <div class="card-actions">
+            <span class="create-time">{{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm') }}</span>
+            <div class="action-btns">
+              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '编辑'">
+                <button
+                  class="action-btn"
+                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
+                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                  @click="goToEdit(record.id)"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                   </svg>
                 </button>
               </a-tooltip>
-              <a-tooltip title="通过审核" v-if="record.reviewStatus !== PIC_REVIEW_STATUS_ENUM.PASS">
-                <button class="action-btn success" @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.PASS)">
+              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '通过'">
+                <button
+                  class="action-btn success"
+                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
+                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                  @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.PASS)"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
                 </button>
               </a-tooltip>
-              <a-tooltip title="拒绝审核" v-if="record.reviewStatus !== PIC_REVIEW_STATUS_ENUM.REJECT">
-                <button class="action-btn danger" @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.REJECT)">
+              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ? '已拒绝' : '拒绝'">
+                <button
+                  class="action-btn danger"
+                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT || record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
+                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT || record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                  @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.REJECT)"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -212,33 +238,53 @@
                 </button>
               </a-tooltip>
               <a-popconfirm
-                title="确定要删除此图片吗？此操作不可恢复。"
+                title="删除该图片？"
                 ok-text="删除"
                 cancel-text="取消"
                 @confirm="doDelete(record.id)"
                 placement="topRight"
               >
-                <a-tooltip title="删除图片">
+                <a-tooltip title="删除">
                   <button class="action-btn danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      <line x1="10" y1="11" x2="10" y2="17"></line>
-                      <line x1="14" y1="11" x2="14" y2="17"></line>
                     </svg>
                   </button>
                 </a-tooltip>
               </a-popconfirm>
             </div>
-          </template>
-        </template>
-      </a-table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <a-empty v-else-if="!loading" description="暂无图片" class="empty-state" />
+
+    <!-- 加载状态 -->
+    <div class="loading-wrapper" v-if="loading">
+      <a-spin size="large" />
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination-wrapper" v-if="total > 0">
+      <a-pagination
+        v-model:current="searchParams.current"
+        :page-size="searchParams.pageSize"
+        :total="Number(total)"
+        @change="handlePageChange"
+        show-quick-jumper
+        show-size-changer
+        :page-size-options="['10', '20', '40', '60']"
+        :show-total="(total: number) => `共 ${total} 张图片`"
+      />
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import {
   deletePictureUsingPost,
   doPictureReviewUsingPost,
@@ -256,53 +302,18 @@ import { formatSize } from '@/utils'
 
 const router = useRouter()
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, sorter: true },
-  { title: '图片', dataIndex: 'url', width: 80 },
-  { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
-  { title: '简介', dataIndex: 'introduction', ellipsis: true },
-  { title: '分类', dataIndex: 'category', width: 100 },
-  { title: '标签', dataIndex: 'tags', width: 160 },
-  { title: '图片信息', dataIndex: 'picInfo', width: 140 },
-  { title: '空间', dataIndex: 'spaceName', width: 100 },
-  { title: '用户', dataIndex: 'userId', width: 80 },
-  { title: '审核状态', dataIndex: 'reviewStatus', width: 160 },
-  { title: '创建时间', dataIndex: 'createTime', width: 140, sorter: true },
-  { title: '操作', key: 'action', width: 150, fixed: 'right' as const },
-]
-
 const dataList = ref<API.Picture[]>([])
 const spaceList = ref<API.Space[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
-const selectedRowKeys = ref<(string | number)[]>([])
+const selectedIds = ref<(string | number)[]>([])
 
 const searchParams = reactive<API.PictureQueryRequest>({
   current: 1,
-  pageSize: 10,
+  pageSize: 20,
   sortOrder: 'descend',
   sortField: 'createTime',
 })
-
-const pagination = computed(() => ({
-  current: searchParams.current,
-  pageSize: searchParams.pageSize,
-  total: Number(total.value),
-  showSizeChanger: true,
-  position: ['bottomCenter'] as const,
-  pageSizeOptions: ['10', '20', '50'],
-  showTotal: (total: number) => `共 ${total} 张图片`,
-}))
-
-const rowSelection = computed(() => ({
-  selectedRowKeys: selectedRowKeys.value,
-  onChange: (keys: (string | number)[]) => {
-    selectedRowKeys.value = keys
-  },
-  getCheckboxProps: (record: API.Picture) => ({
-    disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS,
-  }),
-}))
 
 const fetchSpaceList = async () => {
   try {
@@ -315,7 +326,6 @@ const fetchSpaceList = async () => {
     }
   } catch (error) {
     console.error('获取空间列表失败', error)
-    message.error('获取空间列表失败')
   }
 }
 
@@ -326,7 +336,7 @@ const fetchData = async () => {
       ...searchParams,
       reviewStatus: searchParams.reviewStatus ? Number(searchParams.reviewStatus) : undefined,
       tags: searchParams.tags
-        ? searchParams.tags.split(/,|，/).map((tag) => tag.trim())
+        ? searchParams.tags.split(/,|，/).map((tag: string) => tag.trim())
         : undefined,
     })
     if (res.data.code === 0 && res.data.data) {
@@ -345,23 +355,19 @@ onMounted(() => {
   fetchData()
 })
 
-const doTableChange = (
-  pag: { current?: number; pageSize?: number },
-  filters: Record<string, unknown>,
-  sorter: { field?: string; order?: 'ascend' | 'descend' }
-) => {
-  searchParams.current = pag.current
-  searchParams.pageSize = pag.pageSize
-  if (sorter.field) {
-    searchParams.sortField = sorter.field
-    searchParams.sortOrder = sorter.order === 'ascend' ? 'ascend' : 'descend'
+const handlePageChange = (page: number, pageSize: number) => {
+  searchParams.current = page
+  if (pageSize !== searchParams.pageSize) {
+    searchParams.pageSize = pageSize
+    searchParams.current = 1
   }
+  selectedIds.value = []
   fetchData()
 }
 
 const doSearch = () => {
   searchParams.current = 1
-  selectedRowKeys.value = []
+  selectedIds.value = []
   fetchData()
 }
 
@@ -372,8 +378,16 @@ const resetSearch = () => {
   searchParams.category = undefined
   searchParams.tags = undefined
   searchParams.current = 1
-  selectedRowKeys.value = []
+  selectedIds.value = []
   fetchData()
+}
+
+const toggleSelect = (id: string | number, checked: boolean) => {
+  if (checked) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value = selectedIds.value.filter(k => k !== id)
+  }
 }
 
 const doDelete = async (id: number | undefined) => {
@@ -382,7 +396,7 @@ const doDelete = async (id: number | undefined) => {
     const res = await deletePictureUsingPost({ id })
     if (res.data.code === 0) {
       message.success('图片已删除')
-      selectedRowKeys.value = selectedRowKeys.value.filter(k => k !== id)
+      selectedIds.value = selectedIds.value.filter(k => k !== id)
       await fetchData()
     } else {
       message.error('删除失败：' + res.data.message)
@@ -413,9 +427,9 @@ const handleReview = async (record: API.Picture, reviewStatus: number) => {
 }
 
 const batchReview = async (reviewStatus: number, reviewMessage: string) => {
-  if (!selectedRowKeys.value.length) return
+  if (!selectedIds.value.length) return
   try {
-    const promises = selectedRowKeys.value.map(id =>
+    const promises = selectedIds.value.map(id =>
       doPictureReviewUsingPost({
         id,
         reviewStatus,
@@ -427,8 +441,8 @@ const batchReview = async (reviewStatus: number, reviewMessage: string) => {
       r => r.status === 'rejected' || r.value?.data?.code !== 0
     )
     if (failed.length === 0) {
-      message.success(`已审核 ${selectedRowKeys.value.length} 张图片`)
-      selectedRowKeys.value = []
+      message.success(`已审核 ${selectedIds.value.length} 张图片`)
+      selectedIds.value = []
       await fetchData()
     } else {
       message.error(`${failed.length} 张图片审核失败`)
@@ -482,7 +496,7 @@ const goToEdit = (id: number) => {
 
 .page-title {
   font-family: var(--admin-font);
-  font-size: var(--admin-text-3xl);
+  font-size: var(--admin-text-xl);
   font-weight: 700;
   margin: 0 0 var(--admin-space-2) 0;
   display: flex;
@@ -491,8 +505,8 @@ const goToEdit = (id: number) => {
   color: var(--admin-text-primary);
 
   .title-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     color: var(--admin-primary);
   }
 }
@@ -510,7 +524,7 @@ const goToEdit = (id: number) => {
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-4);
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
   border-radius: var(--admin-radius-lg);
   animation: slideUp 0.5s ease-out 0.1s backwards;
@@ -518,7 +532,7 @@ const goToEdit = (id: number) => {
 
 .search-box {
   position: relative;
-  flex: 0 0 220px;
+  flex: 0 0 200px;
 
   .search-icon {
     position: absolute;
@@ -527,14 +541,14 @@ const goToEdit = (id: number) => {
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    color: var(--admin-text-secondary);
+    color: var(--admin-text-tertiary);
     pointer-events: none;
   }
 
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: var(--admin-bg-primary);
+    background: var(--admin-bg-tertiary);
     border: 1px solid var(--admin-border-default);
     color: var(--admin-text-primary);
 
@@ -544,7 +558,7 @@ const goToEdit = (id: number) => {
 
     &:focus {
       border-color: var(--admin-primary);
-      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
     }
   }
 }
@@ -556,17 +570,17 @@ const goToEdit = (id: number) => {
 }
 
 .filter-select {
-  width: 140px;
+  width: 130px;
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-primary) !important;
+    background: var(--admin-bg-tertiary) !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
 }
 
 .category-input {
-  width: 140px;
+  width: 130px;
 }
 
 .filter-buttons {
@@ -584,11 +598,11 @@ const goToEdit = (id: number) => {
   font-size: var(--admin-text-sm);
   font-weight: 500;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-hover);
+  background: var(--admin-bg-tertiary);
   border: 1px solid var(--admin-border-default);
   border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
@@ -596,18 +610,18 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    background: var(--admin-border-default);
-    border-color: var(--admin-text-secondary);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 
   &.primary {
     color: #ffffff;
-    background: var(--admin-success);
-    border-color: var(--admin-success);
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: var(--admin-primary-hover);
+      border-color: var(--admin-primary-hover);
     }
   }
 }
@@ -620,8 +634,8 @@ const goToEdit = (id: number) => {
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-3) var(--admin-space-4);
-  background: rgba(88, 166, 255, 0.1);
-  border: 1px solid rgba(88, 166, 255, 0.3);
+  background: var(--admin-primary-bg);
+  border: 1px solid rgba(9, 105, 218, 0.2);
   border-radius: var(--admin-radius-lg);
   animation: slideUp 0.3s ease-out;
 }
@@ -659,7 +673,7 @@ const goToEdit = (id: number) => {
   font-weight: 500;
   border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
@@ -679,306 +693,291 @@ const goToEdit = (id: number) => {
 
   &.danger {
     color: #ffffff;
-    background: #da3633;
-    border: 1px solid #da3633;
+    background: var(--admin-danger);
+    border: 1px solid var(--admin-danger);
 
     &:hover {
-      background: var(--admin-danger);
-      border-color: var(--admin-danger);
+      background: #b91c1c;
+      border-color: #b91c1c;
     }
   }
 }
 
-/* ========== 表格容器 ========== */
-.table-card {
-  background: var(--admin-bg-secondary);
+/* ========== 图片卡片网格 ========== */
+.picture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-6);
+}
+
+.picture-card {
+  position: relative;
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
   border-radius: var(--admin-radius-lg);
   overflow: hidden;
-  animation: slideUp 0.5s ease-out 0.2s backwards;
-}
+  transition: all 0.2s ease;
 
-/* ========== 表格样式 ========== */
-.data-table {
-  :deep(.ant-table) {
-    background: transparent;
-    color: var(--admin-text-primary);
+  &:hover {
+    border-color: var(--admin-border-strong);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
 
-  :deep(.ant-table-wrapper) {
-    .ant-table-container {
-      border: none;
-    }
-  }
-
-  :deep(.ant-table-thead > tr > th) {
-    background: var(--admin-bg-hover);
-    border-bottom: 1px solid var(--admin-border-default);
-    color: var(--admin-text-secondary);
-    font-weight: 600;
-    font-size: var(--admin-text-sm);
-    padding: var(--admin-space-4);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid var(--admin-bg-hover);
-    color: var(--admin-text-primary);
-    padding: var(--admin-space-3) var(--admin-space-4);
-  }
-
-  :deep(.ant-table-tbody > tr) {
-    transition: background var(--admin-transition-fast);
-
-    &:hover > td {
-      background: var(--admin-bg-hover);
-    }
-  }
-
-  :deep(.ant-table-column-sorter) {
-    color: var(--admin-text-secondary);
-  }
-
-  :deep(.ant-pagination) {
-    padding: var(--admin-space-4);
-    background: var(--admin-bg-secondary);
-    margin: 0;
-
-    .ant-pagination-item {
-      background: var(--admin-bg-hover);
-      border-color: var(--admin-border-default);
-
-      a {
-        color: var(--admin-text-primary);
-      }
-
-      &:hover {
-        background: var(--admin-border-default);
-        border-color: var(--admin-text-secondary);
-      }
-
-      &.ant-pagination-item-active {
-        background: var(--admin-success);
-        border-color: var(--admin-success);
-
-        a {
-          color: #ffffff;
-        }
-      }
-    }
-
-    .ant-pagination-prev,
-    .ant-pagination-next {
-      .ant-pagination-item-link {
-        background: var(--admin-bg-hover);
-        border-color: var(--admin-border-default);
-        color: var(--admin-text-primary);
-
-        &:hover {
-          background: var(--admin-border-default);
-          border-color: var(--admin-text-secondary);
-        }
-      }
-    }
-
-    .ant-pagination-options {
-      .ant-select {
-        .ant-select-selector {
-          background: var(--admin-bg-hover);
-          border-color: var(--admin-border-default);
-          color: var(--admin-text-primary);
-        }
-      }
-    }
+  &.selected {
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
   }
 }
 
-/* ========== 单元格样式 ========== */
-.picture-cell {
+.card-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--admin-radius-sm);
+  padding: 2px;
+}
+
+.card-image {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  background: var(--admin-bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.table-image {
-  border-radius: var(--admin-radius-md);
   overflow: hidden;
-  border: 1px solid var(--admin-border-default);
-}
 
-.name-cell {
-  .picture-name {
-    font-weight: 600;
-    color: var(--admin-text-primary);
+  :deep(.ant-image) {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  :deep(.ant-image-img) {
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
   }
 }
 
-.intro-text {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-sm);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-
-.category-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  font-size: var(--admin-text-xs);
-  font-weight: 500;
-  color: var(--admin-primary);
-  background: rgba(88, 166, 255, 0.15);
-  border: 1px solid rgba(88, 166, 255, 0.3);
-  border-radius: var(--admin-radius-full);
-}
-
-.text-muted {
-  color: var(--admin-text-disabled);
-  font-size: var(--admin-text-sm);
-}
-
-.tags-cell {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-
-  .tag-item {
-    display: inline-block;
-    padding: 2px 6px;
-    font-size: var(--admin-text-xs);
-    color: #d29922;
-    background: rgba(210, 153, 34, 0.15);
-    border: 1px solid rgba(210, 153, 34, 0.3);
-    border-radius: var(--admin-radius-full);
-  }
-}
-
-.pic-info-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: var(--admin-text-xs);
-
-  .pic-format {
-    color: #3fb950;
-    font-weight: 600;
-  }
-
-  .pic-size {
-    color: var(--admin-text-secondary);
-  }
-}
-
-.space-name {
-  color: #a855f7;
-  font-size: var(--admin-text-sm);
-}
-
-.user-id {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-family: var(--admin-font-mono);
-}
-
-/* ========== 审核状态标签 ========== */
-.status-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: var(--admin-text-xs);
+.format-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  font-size: 10px;
   font-weight: 600;
-  border-radius: var(--admin-radius-full);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: var(--admin-radius-sm);
+}
 
-  .status-icon {
-    width: 12px;
-    height: 12px;
-  }
+.status-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--admin-radius-sm);
 
   &.reviewing {
     color: #d29922;
-    background: rgba(210, 153, 34, 0.15);
-    border: 1px solid rgba(210, 153, 34, 0.3);
+    background: rgba(210, 153, 34, 0.9);
+    color: #ffffff;
   }
 
   &.approved {
-    color: #3fb950;
-    background: rgba(63, 185, 80, 0.15);
-    border: 1px solid rgba(63, 185, 80, 0.3);
+    background: rgba(26, 127, 55, 0.9);
+    color: #ffffff;
   }
 
   &.rejected {
-    color: var(--admin-danger);
-    background: rgba(248, 81, 73, 0.15);
-    border: 1px solid rgba(248, 81, 73, 0.3);
+    background: rgba(207, 34, 46, 0.9);
+    color: #ffffff;
   }
 }
 
-.review-message {
-  margin-top: 4px;
-  font-size: var(--admin-text-xs);
-  color: var(--admin-text-disabled);
-  max-width: 140px;
+.card-info {
+  padding: var(--admin-space-3);
+}
+
+.info-header {
+  margin-bottom: 8px;
+}
+
+.picture-name {
+  font-size: var(--admin-text-sm);
+  font-weight: 600;
+  color: var(--admin-text-primary);
+  margin: 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* ========== 时间文本 ========== */
-.time-text {
-  font-family: var(--admin-font-mono);
+.picture-intro {
   font-size: var(--admin-text-xs);
   color: var(--admin-text-secondary);
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* ========== 操作按钮 ========== */
-.action-buttons {
+.info-tags {
   display: flex;
-  justify-content: flex-start;
-  gap: var(--admin-space-2);
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+
+  :deep(.ant-tag) {
+    margin: 0;
+    font-size: 10px;
+    padding: 0 4px;
+    line-height: 18px;
+  }
+
+  .category-tag {
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
+    border-color: rgba(9, 105, 218, 0.2);
+  }
+
+  .tag-item {
+    background: rgba(210, 153, 34, 0.15);
+    color: #d29922;
+    border-color: rgba(210, 153, 34, 0.3);
+  }
+
+  .tag-more {
+    font-size: 10px;
+    color: var(--admin-text-tertiary);
+    line-height: 18px;
+  }
+}
+
+.specs-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.spec-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--admin-text-tertiary);
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+.stats-row {
+  display: flex;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--admin-border-subtle);
+  margin-bottom: 8px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--admin-text-tertiary);
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--admin-border-subtle);
+}
+
+.create-time {
+  font-size: 11px;
+  color: var(--admin-text-disabled);
+}
+
+.action-btns {
+  display: flex;
+  gap: 4px;
 }
 
 .action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   color: var(--admin-text-secondary);
-  background: var(--admin-bg-hover);
-  border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
     height: 14px;
   }
 
-  &:hover {
+  &:hover:not(.disabled) {
     color: var(--admin-primary);
-    background: rgba(88, 166, 255, 0.1);
-    border-color: rgba(88, 166, 255, 0.3);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-default);
   }
 
-  &.success:hover {
-    color: #3fb950;
-    background: rgba(63, 185, 80, 0.1);
-    border-color: rgba(63, 185, 80, 0.3);
+  &.success:hover:not(.disabled) {
+    color: var(--admin-success);
+    background: var(--admin-success-bg);
+    border-color: rgba(26, 127, 55, 0.3);
   }
 
-  &.danger:hover {
+  &.danger:hover:not(.disabled) {
     color: var(--admin-danger);
-    background: rgba(248, 81, 73, 0.1);
-    border-color: rgba(248, 81, 73, 0.3);
+    background: var(--admin-danger-bg);
+    border-color: rgba(207, 34, 46, 0.3);
   }
+
+  &.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+/* ========== 空状态 & 加载 ========== */
+.empty-state {
+  padding: 60px 0;
+}
+
+.loading-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 0;
+}
+
+/* ========== 分页 ========== */
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--admin-space-4) 0;
 }
 
 /* ========== 动画 ========== */
@@ -1017,6 +1016,10 @@ const goToEdit = (id: number) => {
       justify-content: flex-end;
     }
   }
+
+  .picture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1024,18 +1027,9 @@ const goToEdit = (id: number) => {
     padding: var(--admin-space-4);
   }
 
-  .page-title {
-    font-size: var(--admin-text-2xl);
-  }
-
-  .batch-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-
-    .batch-actions {
-      width: 100%;
-      justify-content: flex-end;
-    }
+  .picture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--admin-space-3);
   }
 }
 </style>
