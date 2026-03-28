@@ -1,8 +1,10 @@
 package com.yuwen.visionspace.utils;
 
+import com.yuwen.visionspace.config.RecommendConfig;
 import com.yuwen.visionspace.model.entity.Picture;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -11,17 +13,13 @@ import java.util.Date;
 
 /**
  * 首页推荐评分计算器
- * 评分公式来自 docs/feature/recommendation-plus.md
  */
 @Component
 public class HomeRecommendScoreCalculator {
 
     // 权重配置
-    private static final double ENGAGEMENT_WEIGHT = 0.40;
-    private static final double FRESHNESS_WEIGHT = 0.20;
-    private static final double QUALITY_WEIGHT = 0.20;
-    private static final double CONVERSION_WEIGHT = 0.10;
-    private static final double MANUAL_WEIGHT = 0.10;
+    @Resource
+    private RecommendConfig recommendConfig;
 
     // 互动权重细分
     private static final double VIEW_WEIGHT = 0.15;
@@ -29,9 +27,6 @@ public class HomeRecommendScoreCalculator {
     private static final double COLLECT_WEIGHT = 0.15;
     private static final double DOWNLOAD_WEIGHT = 0.15;
     private static final double SHARE_WEIGHT = 0.10;
-
-    // 时间衰减参数 (小时)
-    private static final double TIME_DECAY_RATE = 0.05;
 
     /**
      * 计算推荐评分
@@ -43,11 +38,11 @@ public class HomeRecommendScoreCalculator {
         double conversionScore = calculateConversionScore(picture);
         double manualScore = calculateManualScore(picture);
 
-        return ENGAGEMENT_WEIGHT * engagementScore
-             + FRESHNESS_WEIGHT * freshnessScore
-             + QUALITY_WEIGHT * qualityScore
-             + CONVERSION_WEIGHT * conversionScore
-             + MANUAL_WEIGHT * manualScore;
+        return recommendConfig.getEngagementWeight() * engagementScore
+             + recommendConfig.getFreshnessWeight() * freshnessScore
+             + recommendConfig.getQualityWeight() * qualityScore
+             + recommendConfig.getConversionWeight() * conversionScore
+             + recommendConfig.getManualWeight() * manualScore;
     }
 
     /**
@@ -78,7 +73,7 @@ public class HomeRecommendScoreCalculator {
         LocalDateTime createTime = createInstant.atZone(ZoneId.systemDefault()).toLocalDateTime();
         long hours = Duration.between(createTime, now).toHours();
         // e^(-rate * hours), hours=0 时为 1, hours=24 时约为 0.3
-        return Math.exp(-TIME_DECAY_RATE * hours);
+        return Math.exp(-recommendConfig.getTimeDecayRate() * hours);
     }
 
     /**

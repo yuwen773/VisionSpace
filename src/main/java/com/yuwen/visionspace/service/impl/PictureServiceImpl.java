@@ -442,12 +442,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (count > 1) {
             return;
         }
+        // 删除原图
         pictureStorageService.deleteObject(pictureUrl);
         // 删除缩略图
         String thumbnailUrl = oldPicture.getThumbnailUrl();
         if (StrUtil.isNotBlank(thumbnailUrl)) {
             pictureStorageService.deleteObject(thumbnailUrl);
         }
+        // 删除预览图
         String previewUrl = oldPicture.getPreviewUrl();
         if (StrUtil.isNotBlank(previewUrl)) {
             pictureStorageService.deleteObject(previewUrl);
