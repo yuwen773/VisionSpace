@@ -24,61 +24,81 @@
     <!-- 统计卡片区域 -->
     <div class="stats-grid">
       <div class="stat-card" :style="{ animationDelay: '0.1s' }">
-        <div class="stat-icon users">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
         </div>
-        <div class="stat-content">
-          <span class="stat-label">用户总数</span>
-          <span class="stat-value">{{ statsData.userCount || 0 }}</span>
-          <span class="stat-desc">注册用户</span>
-        </div>
+        <template v-else>
+          <div class="stat-icon users">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">用户总数</span>
+            <span class="stat-value">{{ statsData.userCount || 0 }}</span>
+            <span class="stat-desc">注册用户</span>
+          </div>
+        </template>
       </div>
 
       <div class="stat-card" :style="{ animationDelay: '0.2s' }">
-        <div class="stat-icon pictures">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
         </div>
-        <div class="stat-content">
-          <span class="stat-label">图片总数</span>
-          <span class="stat-value">{{ statsData.pictureCount || 0 }}</span>
-          <span class="stat-desc">已上传图片</span>
-        </div>
+        <template v-else>
+          <div class="stat-icon pictures">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">图片总数</span>
+            <span class="stat-value">{{ statsData.pictureCount || 0 }}</span>
+            <span class="stat-desc">已上传图片</span>
+          </div>
+        </template>
       </div>
 
       <div class="stat-card" :style="{ animationDelay: '0.3s' }">
-        <div class="stat-icon spaces">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-          </svg>
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
         </div>
-        <div class="stat-content">
-          <span class="stat-label">空间总数</span>
-          <span class="stat-value">{{ statsData.spaceCount || 0 }}</span>
-          <span class="stat-desc">创建的空间</span>
-        </div>
+        <template v-else>
+          <div class="stat-icon spaces">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">空间总数</span>
+            <span class="stat-value">{{ statsData.spaceCount || 0 }}</span>
+            <span class="stat-desc">创建的空间</span>
+          </div>
+        </template>
       </div>
 
       <div class="stat-card" :style="{ animationDelay: '0.4s' }">
-        <div class="stat-icon storage">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
         </div>
-        <div class="stat-content">
-          <span class="stat-label">存储使用</span>
-          <span class="stat-value">{{ formatSize(usageData?.usedSize || 0) }}</span>
-          <span class="stat-desc">/ {{ formatSize(usageData?.maxSize || 0) }}</span>
-        </div>
+        <template v-else>
+          <div class="stat-icon storage">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">存储使用</span>
+            <span class="stat-value">{{ formatSize(usageData?.usedSize || 0) }}</span>
+            <span class="stat-desc">/ {{ formatSize(usageData?.maxSize || 0) }}</span>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -154,7 +174,7 @@
               <polyline points="12 6 12 12 16 14"/>
             </svg>
           </div>
-          <h3 class="card-title">最近上传</h3>
+          <h3 class="card-title">上传趋势</h3>
           <router-link to="/admin/picture_manage" class="view-more">查看全部</router-link>
         </div>
         <div class="activity-list">
@@ -281,6 +301,9 @@ const statsData = reactive({
   spaceCount: 0,
 })
 
+// 统计数据加载状态
+const statsLoading = ref(false)
+
 // 使用量数据
 const usageData = ref<API.SpaceUsageAnalyzeResponse>({})
 
@@ -300,7 +323,7 @@ const categoryLoading = ref(false)
 
 // 最近活动（从用户上传趋势中提取）
 const recentActivities = computed(() => {
-  return userTrendData.value.slice(0, 5).map((item: any, index: number) => ({
+  return userTrendData.value.slice(0, 5).map((item: API.SpaceUserAnalyzeResponse, index: number) => ({
     type: 'upload',
     text: `${item.period} 上传 ${item.count} 张图片`,
     time: '',
@@ -402,11 +425,18 @@ const fetchCategoryData = async () => {
 }
 
 // 刷新所有数据
-const refreshData = () => {
-  fetchUserCount()
-  fetchPictureCount()
-  fetchSpaceCount()
-  fetchUsageData()
+const refreshData = async () => {
+  statsLoading.value = true
+  try {
+    await Promise.all([
+      fetchUserCount(),
+      fetchPictureCount(),
+      fetchSpaceCount(),
+      fetchUsageData(),
+    ])
+  } finally {
+    statsLoading.value = false
+  }
   fetchUserTrendData()
   fetchCategoryData()
 }
@@ -418,8 +448,8 @@ watch(timeDimension, () => {
 
 // 用户上传趋势图表配置
 const userTrendOptions = computed(() => {
-  const periods = userTrendData.value?.map((item: any) => item.period) || []
-  const counts = userTrendData.value?.map((item: any) => item.count) || []
+  const periods = userTrendData.value?.map((item: API.SpaceUserAnalyzeResponse) => item.period) || []
+  const counts = userTrendData.value?.map((item: API.SpaceUserAnalyzeResponse) => item.count) || []
 
   return {
     tooltip: {
@@ -485,8 +515,8 @@ const userTrendOptions = computed(() => {
 
 // 分类分布图表配置
 const categoryOptions = computed(() => {
-  const categories = categoryData.value?.map((item: any) => item.category) || []
-  const countData = categoryData.value?.map((item: any) => item.count) || []
+  const categories = categoryData.value?.map((item: API.SpaceCategoryAnalyzeResponse) => item.category) || []
+  const countData = categoryData.value?.map((item: API.SpaceCategoryAnalyzeResponse) => item.count) || []
 
   return {
     tooltip: {
@@ -704,6 +734,22 @@ onMounted(() => {
 .stat-desc {
   font-size: 12px;
   color: #6e7681;
+}
+
+.stat-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stat-loader {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* 图表网格 */
