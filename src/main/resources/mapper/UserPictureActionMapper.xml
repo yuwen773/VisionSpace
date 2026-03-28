@@ -5,21 +5,21 @@
     <!-- 按图片ID分组统计各行为数量 -->
     <select id="aggregateByPictureId" resultType="com.yuwen.visionspace.model.dto.PictureActionStatsDTO">
         SELECT
-            picture_id AS pictureId,
-            SUM(CASE WHEN action_type = 0 THEN action_value ELSE 0 END) AS impressionCount,
-            SUM(CASE WHEN action_type = 1 THEN action_value ELSE 0 END) AS clickCount,
-            SUM(CASE WHEN action_type = 2 THEN action_value ELSE 0 END) AS viewCount,
-            SUM(CASE WHEN action_type = 3 THEN action_value ELSE 0 END) AS likeCount,
-            SUM(CASE WHEN action_type = 4 THEN action_value ELSE 0 END) AS collectCount,
-            SUM(CASE WHEN action_type = 5 THEN action_value ELSE 0 END) AS downloadCount,
-            SUM(CASE WHEN action_type = 6 THEN action_value ELSE 0 END) AS shareCount
+            pictureId AS pictureId,
+            SUM(CASE WHEN actionType = 0 THEN actionValue ELSE 0 END) AS impressionCount,
+            SUM(CASE WHEN actionType = 1 THEN actionValue ELSE 0 END) AS clickCount,
+            SUM(CASE WHEN actionType = 2 THEN actionValue ELSE 0 END) AS viewCount,
+            SUM(CASE WHEN actionType = 3 THEN actionValue ELSE 0 END) AS likeCount,
+            SUM(CASE WHEN actionType = 4 THEN actionValue ELSE 0 END) AS collectCount,
+            SUM(CASE WHEN actionType = 5 THEN actionValue ELSE 0 END) AS downloadCount,
+            SUM(CASE WHEN actionType = 6 THEN actionValue ELSE 0 END) AS shareCount
         FROM user_picture_action
-        GROUP BY picture_id
+        GROUP BY pictureId
     </select>
 
     <!-- 查询有行为记录的图片ID列表（用于增量更新） -->
     <select id="selectPictureIdsWithActions" resultType="java.lang.Long">
-        SELECT DISTINCT picture_id FROM user_picture_action
+        SELECT DISTINCT pictureId FROM user_picture_action
     </select>
 
 </mapper>
