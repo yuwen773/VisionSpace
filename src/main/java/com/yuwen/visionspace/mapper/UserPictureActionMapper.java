@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuwen.visionspace.model.dto.PictureActionStatsDTO;
 import com.yuwen.visionspace.model.entity.UserPictureAction;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -22,29 +22,11 @@ public interface UserPictureActionMapper extends BaseMapper<UserPictureAction> {
      * @param pictureIds 图片ID列表
      * @return 聚合统计列表
      */
-    @Select("<script>" +
-            "SELECT " +
-            "picture_id AS pictureId, " +
-            "SUM(CASE WHEN action_type = 0 THEN action_value ELSE 0 END) AS impressionCount, " +
-            "SUM(CASE WHEN action_type = 1 THEN action_value ELSE 0 END) AS clickCount, " +
-            "SUM(CASE WHEN action_type = 2 THEN action_value ELSE 0 END) AS viewCount, " +
-            "SUM(CASE WHEN action_type = 3 THEN action_value ELSE 0 END) AS likeCount, " +
-            "SUM(CASE WHEN action_type = 4 THEN action_value ELSE 0 END) AS collectCount, " +
-            "SUM(CASE WHEN action_type = 5 THEN action_value ELSE 0 END) AS downloadCount, " +
-            "SUM(CASE WHEN action_type = 6 THEN action_value ELSE 0 END) AS shareCount " +
-            "FROM user_picture_action " +
-            "WHERE picture_id IN " +
-            "<foreach item='item' collection='list' open='(' separator=',' close=')'>" +
-            "#{item}" +
-            "</foreach>" +
-            "GROUP BY picture_id" +
-            "</script>")
-    List<PictureActionStatsDTO> aggregateByPictureId(List<Long> pictureIds);
+    List<PictureActionStatsDTO> aggregateByPictureId(@Param("list") List<Long> pictureIds);
 
     /**
      * 查询有行为记录的图片ID列表
      * @return 图片ID列表
      */
-    @Select("SELECT DISTINCT picture_id FROM user_picture_action")
     List<Long> selectPictureIdsWithActions();
 }
