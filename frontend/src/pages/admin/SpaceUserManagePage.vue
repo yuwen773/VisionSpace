@@ -380,12 +380,12 @@ const goBack = () => {
 #spaceUserManagePage {
   max-width: var(--container-2xl);
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--admin-space-6);
 }
 
 /* ========== 页面头部 ========== */
 .page-header {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--admin-space-6);
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -394,25 +394,25 @@ const goBack = () => {
 }
 
 .page-title {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-family: var(--admin-font);
+  font-size: var(--admin-text-3xl);
   font-weight: 700;
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 0 var(--admin-space-2) 0;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  color: #c9d1d9;
+  gap: var(--admin-space-3);
+  color: var(--admin-text-primary);
 
   .title-icon {
     width: 32px;
     height: 32px;
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 }
 
 .page-subtitle {
-  font-size: var(--text-sm);
-  color: #8b949e;
+  font-size: var(--admin-text-sm);
+  color: var(--admin-text-secondary);
   margin: 0;
 }
 
@@ -421,40 +421,40 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+  padding: var(--admin-space-4);
+  background: var(--admin-bg-secondary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   animation: slideUp 0.5s ease-out 0.1s backwards;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--admin-space-4);
 }
 
 .member-count {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
 
   .count-icon {
     width: 16px;
     height: 16px;
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 }
 
 .search-box {
@@ -467,23 +467,23 @@ const goBack = () => {
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    color: #8b949e;
+    color: var(--admin-text-secondary);
     pointer-events: none;
   }
 
   .search-input {
     width: 240px;
     padding-left: 36px;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    color: #c9d1d9;
+    background: var(--admin-bg-primary);
+    border: 1px solid var(--admin-border-default);
+    color: var(--admin-text-primary);
 
     &::placeholder {
-      color: #6e7681;
+      color: var(--admin-text-disabled);
     }
 
     &:focus {
-      border-color: #58a6ff;
+      border-color: var(--admin-primary);
       box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
     }
   }
@@ -491,11 +491,11 @@ const goBack = () => {
 
 /* ========== 添加成员卡片 ========== */
 .add-member-card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  margin-bottom: var(--space-4);
+  background: var(--admin-bg-secondary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
+  padding: var(--admin-space-5);
+  margin-bottom: var(--admin-space-4);
   animation: slideUp 0.5s ease-out 0.15s backwards;
 }
 
@@ -503,23 +503,23 @@ const goBack = () => {
   .form-label {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
+    gap: var(--admin-space-2);
+    font-size: var(--admin-text-sm);
     font-weight: 600;
-    color: #8b949e;
-    margin-bottom: var(--space-4);
+    color: var(--admin-text-secondary);
+    margin-bottom: var(--admin-space-4);
 
     .label-icon {
       width: 16px;
       height: 16px;
-      color: #58a6ff;
+      color: var(--admin-primary);
     }
   }
 
   .form-row {
     display: flex;
     align-items: flex-end;
-    gap: var(--space-4);
+    gap: var(--admin-space-4);
     flex-wrap: wrap;
   }
 
@@ -529,25 +529,25 @@ const goBack = () => {
 
   :deep(.ant-form-item-label) {
     > label {
-      color: #8b949e;
+      color: var(--admin-text-secondary);
       font-weight: 500;
-      font-size: var(--text-sm);
+      font-size: var(--admin-text-sm);
     }
   }
 }
 
 .form-input {
   width: 200px;
-  background: #0d1117 !important;
-  border-color: #30363d !important;
-  color: #c9d1d9 !important;
+  background: var(--admin-bg-primary) !important;
+  border-color: var(--admin-border-default) !important;
+  color: var(--admin-text-primary) !important;
 
   &::placeholder {
-    color: #6e7681;
+    color: var(--admin-text-disabled);
   }
 
   &:focus {
-    border-color: #58a6ff !important;
+    border-color: var(--admin-primary) !important;
     box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15) !important;
   }
 }
@@ -556,29 +556,29 @@ const goBack = () => {
   width: 140px;
 
   :deep(.ant-select-selector) {
-    background: #0d1117 !important;
-    border-color: #30363d !important;
-    color: #c9d1d9 !important;
+    background: var(--admin-bg-primary) !important;
+    border-color: var(--admin-border-default) !important;
+    color: var(--admin-text-primary) !important;
   }
 
   :deep(.ant-select-arrow) {
-    color: #8b949e;
+    color: var(--admin-text-secondary);
   }
 }
 
 .submit-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-5);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
   color: #ffffff;
-  background: #238636;
-  border: 1px solid #238636;
-  border-radius: var(--radius-md);
+  background: var(--admin-success);
+  border: 1px solid var(--admin-success);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -598,9 +598,9 @@ const goBack = () => {
 
 /* ========== 表格容器 ========== */
 .table-card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  background: var(--admin-bg-secondary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   overflow: hidden;
   animation: slideUp 0.5s ease-out 0.2s backwards;
 }
@@ -609,7 +609,7 @@ const goBack = () => {
 .data-table {
   :deep(.ant-table) {
     background: transparent;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   :deep(.ant-table-wrapper) {
@@ -619,51 +619,51 @@ const goBack = () => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: #21262d;
-    border-bottom: 1px solid #30363d;
-    color: #8b949e;
+    background: var(--admin-bg-hover);
+    border-bottom: 1px solid var(--admin-border-default);
+    color: var(--admin-text-secondary);
     font-weight: 600;
-    font-size: var(--text-sm);
-    padding: var(--space-4);
+    font-size: var(--admin-text-sm);
+    padding: var(--admin-space-4);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid #21262d;
-    color: #c9d1d9;
-    padding: var(--space-4);
+    border-bottom: 1px solid var(--admin-bg-hover);
+    color: var(--admin-text-primary);
+    padding: var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr) {
-    transition: background var(--transition-fast);
+    transition: background var(--admin-transition-fast);
 
     &:hover > td {
-      background: #1c2128;
+      background: var(--admin-bg-hover);
     }
   }
 
   :deep(.ant-pagination) {
-    padding: var(--space-4);
-    background: #161b22;
+    padding: var(--admin-space-4);
+    background: var(--admin-bg-secondary);
     margin: 0;
 
     .ant-pagination-item {
-      background: #21262d;
-      border-color: #30363d;
+      background: var(--admin-bg-hover);
+      border-color: var(--admin-border-default);
 
       a {
-        color: #c9d1d9;
+        color: var(--admin-text-primary);
       }
 
       &:hover {
-        background: #30363d;
-        border-color: #8b949e;
+        background: var(--admin-border-default);
+        border-color: var(--admin-text-secondary);
       }
 
       &.ant-pagination-item-active {
-        background: #238636;
-        border-color: #238636;
+        background: var(--admin-success);
+        border-color: var(--admin-success);
 
         a {
           color: #ffffff;
@@ -674,13 +674,13 @@ const goBack = () => {
     .ant-pagination-prev,
     .ant-pagination-next {
       .ant-pagination-item-link {
-        background: #21262d;
-        border-color: #30363d;
-        color: #c9d1d9;
+        background: var(--admin-bg-hover);
+        border-color: var(--admin-border-default);
+        color: var(--admin-text-primary);
 
         &:hover {
-          background: #30363d;
-          border-color: #8b949e;
+          background: var(--admin-border-default);
+          border-color: var(--admin-text-secondary);
         }
       }
     }
@@ -688,9 +688,9 @@ const goBack = () => {
     .ant-pagination-options {
       .ant-select {
         .ant-select-selector {
-          background: #21262d;
-          border-color: #30363d;
-          color: #c9d1d9;
+          background: var(--admin-bg-hover);
+          border-color: var(--admin-border-default);
+          color: var(--admin-text-primary);
         }
       }
     }
@@ -701,11 +701,11 @@ const goBack = () => {
 .user-info {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 }
 
 .user-avatar {
-  border: 2px solid #30363d;
+  border: 2px solid var(--admin-border-default);
   flex-shrink: 0;
 }
 
@@ -717,15 +717,15 @@ const goBack = () => {
 
   .user-name {
     font-weight: 600;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .user-account {
-    font-size: var(--text-xs);
-    color: #8b949e;
+    font-size: var(--admin-text-xs);
+    color: var(--admin-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -736,7 +736,7 @@ const goBack = () => {
 .role-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 }
 
 .role-badge {
@@ -744,9 +744,9 @@ const goBack = () => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--radius-full);
+  border-radius: var(--admin-radius-full);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 
@@ -757,7 +757,7 @@ const goBack = () => {
 
   &.admin {
     background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
+    color: var(--admin-primary);
     border: 1px solid rgba(88, 166, 255, 0.3);
   }
 
@@ -769,7 +769,7 @@ const goBack = () => {
 
   &.viewer {
     background: rgba(139, 148, 158, 0.15);
-    color: #8b949e;
+    color: var(--admin-text-secondary);
     border: 1px solid rgba(139, 148, 158, 0.3);
   }
 }
@@ -778,22 +778,22 @@ const goBack = () => {
 .permissions-cell {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .permission-tag {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: var(--admin-radius-sm);
   cursor: default;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   &.view {
     background: rgba(88, 166, 255, 0.1);
-    color: #58a6ff;
+    color: var(--admin-primary);
     border: 1px solid rgba(88, 166, 255, 0.2);
   }
 
@@ -811,7 +811,7 @@ const goBack = () => {
 
   &.delete {
     background: rgba(248, 81, 73, 0.1);
-    color: #f85149;
+    color: var(--admin-danger);
     border: 1px solid rgba(248, 81, 73, 0.2);
   }
 
@@ -828,16 +828,16 @@ const goBack = () => {
 
 /* ========== 时间文本 ========== */
 .time-text {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: #8b949e;
+  font-family: var(--admin-font-mono);
+  font-size: var(--admin-text-xs);
+  color: var(--admin-text-secondary);
 }
 
 /* ========== 操作按钮 ========== */
 .action-buttons {
   display: flex;
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .action-btn {
@@ -847,12 +847,12 @@ const goBack = () => {
   width: 32px;
   height: 32px;
   padding: 0;
-  color: #8b949e;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-secondary);
+  background: var(--admin-bg-hover);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -860,13 +860,13 @@ const goBack = () => {
   }
 
   &:hover {
-    color: #58a6ff;
+    color: var(--admin-primary);
     background: rgba(88, 166, 255, 0.1);
     border-color: rgba(88, 166, 255, 0.3);
   }
 
   &.danger:hover {
-    color: #f85149;
+    color: var(--admin-danger);
     background: rgba(248, 81, 73, 0.1);
     border-color: rgba(248, 81, 73, 0.3);
   }
@@ -876,22 +876,22 @@ const goBack = () => {
 .back-section {
   display: flex;
   justify-content: flex-start;
-  margin-top: var(--space-6);
+  margin-top: var(--admin-space-6);
 }
 
 .back-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-4);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  color: #c9d1d9;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-primary);
+  background: var(--admin-bg-hover);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -899,8 +899,8 @@ const goBack = () => {
   }
 
   &:hover {
-    background: #30363d;
-    border-color: #8b949e;
+    background: var(--admin-border-default);
+    border-color: var(--admin-text-secondary);
   }
 }
 
@@ -924,11 +924,11 @@ const goBack = () => {
 /* ========== 响应式 ========== */
 @media (max-width: 768px) {
   #spaceUserManagePage {
-    padding: var(--space-4);
+    padding: var(--admin-space-4);
   }
 
   .page-title {
-    font-size: var(--text-2xl);
+    font-size: var(--admin-text-2xl);
   }
 
   .table-toolbar {
@@ -966,11 +966,11 @@ const goBack = () => {
   }
 
   .table-wrapper {
-    padding: var(--space-4);
+    padding: var(--admin-space-4);
   }
 
   :deep(.ant-table) {
-    font-size: var(--text-sm);
+    font-size: var(--admin-text-sm);
   }
 }
 </style>

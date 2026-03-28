@@ -353,12 +353,12 @@ const doDelete = async (id: number | undefined) => {
 #userManagePage {
   max-width: var(--container-2xl);
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--admin-space-6);
 }
 
 /* ========== 页面头部 ========== */
 .page-header {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--admin-space-8);
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -367,25 +367,25 @@ const doDelete = async (id: number | undefined) => {
 }
 
 .page-title {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-family: var(--admin-font);
+  font-size: var(--admin-text-xl);
   font-weight: 700;
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 0 var(--admin-space-2) 0;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  color: #c9d1d9;
+  gap: var(--admin-space-3);
+  color: var(--admin-text-primary);
 
   .title-icon {
     width: 32px;
     height: 32px;
-    color: #58a6ff;
+    color: var(--admin-primary);
   }
 }
 
 .page-subtitle {
-  font-size: var(--text-sm);
-  color: #8b949e;
+  font-size: var(--admin-text-sm);
+  color: var(--admin-text-secondary);
   margin: 0;
 }
 
@@ -393,12 +393,12 @@ const doDelete = async (id: number | undefined) => {
 .table-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+  padding: var(--admin-space-4);
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   animation: slideUp 0.5s ease-out 0.1s backwards;
 }
 
@@ -413,24 +413,24 @@ const doDelete = async (id: number | undefined) => {
     transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    color: #8b949e;
+    color: var(--admin-text-tertiary);
     pointer-events: none;
   }
 
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    color: #c9d1d9;
+    background: var(--admin-bg-tertiary);
+    border: 1px solid var(--admin-border-default);
+    color: var(--admin-text-primary);
 
     &::placeholder {
-      color: #6e7681;
+      color: var(--admin-text-disabled);
     }
 
     &:focus {
-      border-color: #58a6ff;
-      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+      border-color: var(--admin-primary);
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
     }
   }
 }
@@ -438,7 +438,7 @@ const doDelete = async (id: number | undefined) => {
 .filter-buttons {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
   margin-left: auto;
 }
 
@@ -446,25 +446,25 @@ const doDelete = async (id: number | undefined) => {
   width: 140px;
 
   :deep(.ant-select-selector) {
-    background: #0d1117 !important;
-    border-color: #30363d !important;
-    color: #c9d1d9 !important;
+    background: var(--admin-bg-tertiary) !important;
+    border-color: var(--admin-border-default) !important;
+    color: var(--admin-text-primary) !important;
   }
 }
 
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-4);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  color: #c9d1d9;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-primary);
+  background: var(--admin-bg-tertiary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
@@ -472,27 +472,27 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &:hover {
-    background: #30363d;
-    border-color: #8b949e;
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 
   &.primary {
     color: #ffffff;
-    background: #238636;
-    border-color: #238636;
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: var(--admin-primary-hover);
+      border-color: var(--admin-primary-hover);
     }
   }
 }
 
 /* ========== 表格容器 ========== */
 .table-card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-lg);
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-lg);
   overflow: hidden;
   animation: slideUp 0.5s ease-out 0.2s backwards;
 }
@@ -501,7 +501,7 @@ const doDelete = async (id: number | undefined) => {
 .data-table {
   :deep(.ant-table) {
     background: transparent;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   :deep(.ant-table-wrapper) {
@@ -511,55 +511,55 @@ const doDelete = async (id: number | undefined) => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: #21262d;
-    border-bottom: 1px solid #30363d;
-    color: #8b949e;
+    background: var(--admin-bg-secondary);
+    border-bottom: 1px solid var(--admin-border-default);
+    color: var(--admin-text-secondary);
     font-weight: 600;
-    font-size: var(--text-sm);
-    padding: var(--space-4);
+    font-size: var(--admin-text-sm);
+    padding: var(--admin-space-4);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid #21262d;
-    color: #c9d1d9;
-    padding: var(--space-4);
+    border-bottom: 1px solid var(--admin-border-subtle);
+    color: var(--admin-text-primary);
+    padding: var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr) {
-    transition: background var(--transition-fast);
+    transition: background 0.15s ease;
 
     &:hover > td {
-      background: #1c2128;
+      background: var(--admin-bg-hover);
     }
   }
 
   :deep(.ant-table-column-sorter) {
-    color: #8b949e;
+    color: var(--admin-text-tertiary);
   }
 
   :deep(.ant-pagination) {
-    padding: var(--space-4);
-    background: #161b22;
+    padding: var(--admin-space-4);
+    background: var(--admin-bg-primary);
     margin: 0;
 
     .ant-pagination-item {
-      background: #21262d;
-      border-color: #30363d;
+      background: var(--admin-bg-tertiary);
+      border-color: var(--admin-border-default);
 
       a {
-        color: #c9d1d9;
+        color: var(--admin-text-secondary);
       }
 
       &:hover {
-        background: #30363d;
-        border-color: #8b949e;
+        background: var(--admin-bg-hover);
+        border-color: var(--admin-border-strong);
       }
 
       &.ant-pagination-item-active {
-        background: #238636;
-        border-color: #238636;
+        background: var(--admin-primary);
+        border-color: var(--admin-primary);
 
         a {
           color: #ffffff;
@@ -570,13 +570,13 @@ const doDelete = async (id: number | undefined) => {
     .ant-pagination-prev,
     .ant-pagination-next {
       .ant-pagination-item-link {
-        background: #21262d;
-        border-color: #30363d;
-        color: #c9d1d9;
+        background: var(--admin-bg-tertiary);
+        border-color: var(--admin-border-default);
+        color: var(--admin-text-secondary);
 
         &:hover {
-          background: #30363d;
-          border-color: #8b949e;
+          background: var(--admin-bg-hover);
+          border-color: var(--admin-border-strong);
         }
       }
     }
@@ -584,9 +584,9 @@ const doDelete = async (id: number | undefined) => {
     .ant-pagination-options {
       .ant-select {
         .ant-select-selector {
-          background: #21262d;
-          border-color: #30363d;
-          color: #c9d1d9;
+          background: var(--admin-bg-tertiary);
+          border-color: var(--admin-border-default);
+          color: var(--admin-text-primary);
         }
       }
     }
@@ -595,7 +595,7 @@ const doDelete = async (id: number | undefined) => {
 
 /* ========== 用户信息 ========== */
 .user-avatar {
-  border: 2px solid #30363d;
+  border: 2px solid var(--admin-border-default);
 }
 
 .user-info {
@@ -605,18 +605,18 @@ const doDelete = async (id: number | undefined) => {
 
   .user-name {
     font-weight: 600;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   .user-account {
-    font-size: var(--text-xs);
-    color: #8b949e;
+    font-size: var(--admin-text-xs);
+    color: var(--admin-text-tertiary);
   }
 }
 
 .user-profile {
-  color: #8b949e;
-  font-size: var(--text-sm);
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-sm);
 }
 
 /* ========== 角色标签 ========== */
@@ -625,9 +625,9 @@ const doDelete = async (id: number | undefined) => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--radius-full);
+  border-radius: var(--admin-radius-full);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 
@@ -637,15 +637,15 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &.admin {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
-    border: 1px solid rgba(88, 166, 255, 0.3);
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
+    border: 1px solid rgba(9, 105, 218, 0.2);
   }
 
   &.user {
-    background: rgba(139, 148, 158, 0.15);
-    color: #8b949e;
-    border: 1px solid rgba(139, 148, 158, 0.3);
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-secondary);
+    border: 1px solid var(--admin-border-default);
   }
 }
 
@@ -655,12 +655,12 @@ const doDelete = async (id: number | undefined) => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: var(--text-xs);
+  font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--radius-full);
-  background: rgba(211, 152, 75, 0.15);
-  color: #d29922;
-  border: 1px solid rgba(211, 152, 75, 0.3);
+  border-radius: var(--admin-radius-full);
+  background: #fff8c5;
+  color: #9a6700;
+  border: 1px solid rgba(154, 103, 0, 0.2);
 
   .vip-icon {
     width: 10px;
@@ -668,24 +668,24 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &.basic {
-    background: rgba(139, 148, 158, 0.1);
-    color: #6e7681;
-    border: 1px solid rgba(139, 148, 158, 0.2);
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-tertiary);
+    border: 1px solid var(--admin-border-default);
   }
 }
 
 /* ========== 时间文本 ========== */
 .time-text {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: #8b949e;
+  font-family: var(--admin-font-mono);
+  font-size: var(--admin-text-xs);
+  color: var(--admin-text-tertiary);
 }
 
 /* ========== 操作按钮 ========== */
 .action-buttons {
   display: flex;
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 }
 
 .action-btn {
@@ -695,12 +695,12 @@ const doDelete = async (id: number | undefined) => {
   width: 32px;
   height: 32px;
   padding: 0;
-  color: #8b949e;
-  background: #21262d;
-  border: 1px solid #30363d;
-  border-radius: var(--radius-md);
+  color: var(--admin-text-secondary);
+  background: var(--admin-bg-tertiary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
@@ -708,80 +708,80 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &:hover {
-    color: #58a6ff;
-    background: rgba(88, 166, 255, 0.1);
-    border-color: rgba(88, 166, 255, 0.3);
+    color: var(--admin-primary);
+    background: var(--admin-primary-bg);
+    border-color: rgba(9, 105, 218, 0.3);
   }
 
   &.danger:hover {
-    color: #f85149;
-    background: rgba(248, 81, 73, 0.1);
-    border-color: rgba(248, 81, 73, 0.3);
+    color: var(--admin-danger);
+    background: var(--admin-danger-bg);
+    border-color: rgba(207, 34, 46, 0.3);
   }
 }
 
 /* ========== 编辑弹窗 ========== */
 .edit-modal {
   :deep(.ant-modal-content) {
-    background: #161b22;
-    border: 1px solid #30363d;
+    background: var(--admin-bg-primary);
+    border: 1px solid var(--admin-border-default);
   }
 
   :deep(.ant-modal-header) {
-    background: #161b22;
-    border-bottom: 1px solid #30363d;
+    background: var(--admin-bg-primary);
+    border-bottom: 1px solid var(--admin-border-subtle);
 
     .ant-modal-title {
-      color: #c9d1d9;
+      color: var(--admin-text-primary);
       font-weight: 600;
     }
   }
 
   :deep(.ant-modal-close) {
-    color: #8b949e;
+    color: var(--admin-text-secondary);
 
     &:hover {
-      color: #c9d1d9;
+      color: var(--admin-text-primary);
     }
   }
 }
 
 .edit-form {
-  padding: var(--space-4) 0;
+  padding: var(--admin-space-4) 0;
 
   .form-avatar {
     display: flex;
     justify-content: center;
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--admin-space-6);
 
     :deep(.ant-avatar) {
-      border: 3px solid #30363d;
+      border: 3px solid var(--admin-border-default);
     }
   }
 
   .form-item {
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--admin-space-5);
 
     label {
       display: block;
-      margin-bottom: var(--space-2);
-      font-size: var(--text-sm);
+      margin-bottom: var(--admin-space-2);
+      font-size: var(--admin-text-sm);
       font-weight: 500;
-      color: #8b949e;
+      color: var(--admin-text-secondary);
     }
 
     .form-input {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
+      background: var(--admin-bg-tertiary);
+      border: 1px solid var(--admin-border-default);
+      color: var(--admin-text-primary);
 
       &:focus {
-        border-color: #58a6ff;
-        box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+        border-color: var(--admin-primary);
+        box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
       }
 
       &::placeholder {
-        color: #6e7681;
+        color: var(--admin-text-disabled);
       }
     }
   }
@@ -789,23 +789,23 @@ const doDelete = async (id: number | undefined) => {
   .form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: var(--space-3);
-    margin-top: var(--space-6);
-    padding-top: var(--space-4);
-    border-top: 1px solid #21262d;
+    gap: var(--admin-space-3);
+    margin-top: var(--admin-space-6);
+    padding-top: var(--admin-space-4);
+    border-top: 1px solid var(--admin-border-subtle);
   }
 }
 
 .modal-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-5);
+  font-size: var(--admin-text-sm);
   font-weight: 500;
-  border-radius: var(--radius-md);
+  border-radius: var(--admin-radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
 
   svg {
     width: 14px;
@@ -813,23 +813,23 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &.cancel {
-    color: #c9d1d9;
-    background: #21262d;
-    border: 1px solid #30363d;
+    color: var(--admin-text-primary);
+    background: var(--admin-bg-tertiary);
+    border: 1px solid var(--admin-border-default);
 
     &:hover {
-      background: #30363d;
+      background: var(--admin-bg-hover);
     }
   }
 
   &.primary {
     color: #ffffff;
-    background: #238636;
-    border: 1px solid #238636;
+    background: var(--admin-primary);
+    border: 1px solid var(--admin-primary);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: var(--admin-primary-hover);
+      border-color: var(--admin-primary-hover);
     }
   }
 }
@@ -854,7 +854,7 @@ const doDelete = async (id: number | undefined) => {
 /* ========== 响应式 ========== */
 @media (max-width: 768px) {
   #userManagePage {
-    padding: var(--space-4);
+    padding: var(--admin-space-4);
   }
 
   .table-toolbar {
@@ -872,7 +872,7 @@ const doDelete = async (id: number | undefined) => {
   }
 
   .page-title {
-    font-size: var(--text-2xl);
+    font-size: var(--admin-text-lg);
   }
 }
 </style>

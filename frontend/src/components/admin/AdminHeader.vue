@@ -143,8 +143,8 @@ const doLogout = async () => {
 <style lang="less" scoped>
 .admin-header {
   height: 64px;
-  background: #0d1117;
-  border-bottom: 1px solid #30363d;
+  background: var(--admin-bg-primary);
+  border-bottom: 1px solid var(--admin-border-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,7 +169,7 @@ const doLogout = async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
   text-decoration: none;
   font-size: 14px;
   padding: 4px 8px;
@@ -177,12 +177,12 @@ const doLogout = async () => {
   transition: all 0.15s ease;
 
   &:hover {
-    background: #21262d;
-    color: #c9d1d9;
+    background: var(--admin-bg-hover);
+    color: var(--admin-text-primary);
   }
 
   &.active {
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     background: transparent;
   }
 
@@ -192,7 +192,7 @@ const doLogout = async () => {
 }
 
 .breadcrumb-separator {
-  color: #484f58;
+  color: var(--admin-text-disabled);
   font-size: 14px;
 }
 
@@ -206,21 +206,21 @@ const doLogout = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--admin-bg-tertiary);
+  border: 1px solid var(--admin-border-default);
   border-radius: 6px;
   padding: 8px 12px;
   transition: all 0.15s ease;
 
   &:focus-within {
-    border-color: #58a6ff;
-    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
   }
 
   .search-icon {
     width: 16px;
     height: 16px;
-    color: #8b949e;
+    color: var(--admin-text-tertiary);
     flex-shrink: 0;
   }
 
@@ -228,22 +228,22 @@ const doLogout = async () => {
     background: transparent;
     border: none;
     outline: none;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     font-size: 14px;
     width: 180px;
 
     &::placeholder {
-      color: #484f58;
+      color: var(--admin-text-disabled);
     }
   }
 
   .search-shortcut {
     font-size: 11px;
-    color: #484f58;
-    background: #21262d;
+    color: var(--admin-text-disabled);
+    background: var(--admin-bg-hover);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid #30363d;
+    border: 1px solid var(--admin-border-default);
   }
 }
 
@@ -257,14 +257,14 @@ const doLogout = async () => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 
   &:hover {
-    background: #21262d;
-    color: #c9d1d9;
-    border-color: #30363d;
+    background: var(--admin-bg-hover);
+    color: var(--admin-text-primary);
+    border-color: var(--admin-border-default);
   }
 
   svg {
@@ -281,7 +281,7 @@ const doLogout = async () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f85149;
+    background: var(--admin-danger);
     color: white;
     font-size: 10px;
     font-weight: 600;
@@ -300,7 +300,7 @@ const doLogout = async () => {
   transition: all 0.15s ease;
 
   &:hover {
-    background: #21262d;
+    background: var(--admin-bg-hover);
   }
 
   .user-info {
@@ -310,30 +310,30 @@ const doLogout = async () => {
     .user-name {
       font-size: 14px;
       font-weight: 600;
-      color: #c9d1d9;
+      color: var(--admin-text-primary);
       line-height: 1.2;
     }
 
     .user-role {
       font-size: 12px;
-      color: #8b949e;
+      color: var(--admin-text-secondary);
     }
   }
 
   .dropdown-arrow {
     width: 16px;
     height: 16px;
-    color: #8b949e;
+    color: var(--admin-text-secondary);
   }
 }
 
 .user-dropdown-menu {
   min-width: 240px;
-  background: #161b22 !important;
-  border: 1px solid #30363d;
+  background: var(--admin-bg-primary) !important;
+  border: 1px solid var(--admin-border-default) !important;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .dropdown-header {
@@ -341,8 +341,8 @@ const doLogout = async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: #0d1117;
-  border-bottom: 1px solid #30363d;
+  background: var(--admin-bg-secondary);
+  border-bottom: 1px solid var(--admin-border-subtle);
 
   .dropdown-avatar-wrapper {
     flex-shrink: 0;
@@ -355,7 +355,7 @@ const doLogout = async () => {
   .dropdown-user-name {
     font-size: 16px;
     font-weight: 600;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -371,10 +371,10 @@ const doLogout = async () => {
     font-size: 12px;
     font-weight: 500;
     padding: 2px 8px;
-    background: rgba(35, 134, 54, 0.2);
-    color: #3fb950;
+    background: var(--admin-success-bg);
+    color: var(--admin-success);
     border-radius: 12px;
-    border: 1px solid rgba(35, 134, 54, 0.3);
+    border: 1px solid rgba(26, 127, 55, 0.2);
   }
 }
 
@@ -383,13 +383,13 @@ const doLogout = async () => {
   padding: 8px !important;
 
   :deep(.ant-dropdown-menu-item) {
-    color: #c9d1d9 !important;
+    color: var(--admin-text-primary) !important;
     padding: 10px 12px;
     border-radius: 6px;
     font-size: 14px;
 
     &:hover {
-      background: #21262d !important;
+      background: var(--admin-bg-hover) !important;
     }
 
     span {
@@ -398,15 +398,15 @@ const doLogout = async () => {
   }
 
   :deep(.ant-dropdown-menu-item-divider) {
-    background: #30363d !important;
+    background: var(--admin-border-subtle) !important;
     margin: 8px 0;
   }
 
   .logout-item {
-    color: #f85149 !important;
+    color: var(--admin-danger) !important;
 
     &:hover {
-      background: rgba(248, 81, 73, 0.1) !important;
+      background: var(--admin-danger-bg) !important;
     }
   }
 }
