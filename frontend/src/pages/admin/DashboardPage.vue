@@ -38,7 +38,7 @@
           </div>
           <div class="stat-content">
             <span class="stat-label">用户总数</span>
-            <span class="stat-value">{{ statsData.userCount || 0 }}</span>
+            <span class="stat-value">{{ dashboardStats.userCount || 0 }}</span>
             <span class="stat-desc">注册用户</span>
           </div>
         </template>
@@ -58,7 +58,7 @@
           </div>
           <div class="stat-content">
             <span class="stat-label">图片总数</span>
-            <span class="stat-value">{{ statsData.pictureCount || 0 }}</span>
+            <span class="stat-value">{{ dashboardStats.pictureCount || 0 }}</span>
             <span class="stat-desc">已上传图片</span>
           </div>
         </template>
@@ -76,7 +76,7 @@
           </div>
           <div class="stat-content">
             <span class="stat-label">空间总数</span>
-            <span class="stat-value">{{ statsData.spaceCount || 0 }}</span>
+            <span class="stat-value">{{ dashboardStats.spaceCount || 0 }}</span>
             <span class="stat-desc">创建的空间</span>
           </div>
         </template>
@@ -95,8 +95,7 @@
           </div>
           <div class="stat-content">
             <span class="stat-label">存储使用</span>
-            <span class="stat-value">{{ formatSize(usageData?.usedSize || 0) }}</span>
-            <span class="stat-desc">/ {{ formatSize(usageData?.maxSize || 0) }}</span>
+            <span class="stat-value">{{ formatSize(dashboardStats?.usedSize || 0) }}</span>
           </div>
         </template>
       </div>
@@ -281,31 +280,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
-import { useRouter } from 'vue-router'
-import { listUserVoByPageUsingPost } from '@/api/userController'
-import { listSpaceVoByPageUsingPost } from '@/api/spaceController'
-import { listPictureVoByPageUsingPost } from '@/api/pictureController'
-import { getSpaceUsageAnalyzeUsingPost, getSpaceUserAnalyzeUsingPost, getSpaceCategoryAnalyzeUsingPost } from '@/api/spaceAnalyzeController'
+import { getSpaceUserAnalyzeUsingPost, getSpaceCategoryAnalyzeUsingPost } from '@/api/spaceAnalyzeController'
+import { getDashboardStatsUsingPost } from '@/api/adminStatsController'
 import { formatSize } from '@/utils'
 
-const router = useRouter()
-
 // 统计数据
-const statsData = reactive({
-  userCount: 0,
-  pictureCount: 0,
-  spaceCount: 0,
-})
+const dashboardStats = ref<API.AdminDashboardStatsVO>({})
 
 // 统计数据加载状态
 const statsLoading = ref(false)
-
-// 使用量数据
-const usageData = ref<API.SpaceUsageAnalyzeResponse>({})
 
 // 用户上传趋势数据
 const userTrendData = ref<API.SpaceUserAnalyzeResponse[]>([])
@@ -323,69 +310,25 @@ const categoryLoading = ref(false)
 
 // 最近活动（从用户上传趋势中提取）
 const recentActivities = computed(() => {
-  return userTrendData.value.slice(0, 5).map((item: API.SpaceUserAnalyzeResponse, index: number) => ({
+  return userTrendData.value.slice(0, 5).map((item: API.SpaceUserAnalyzeResponse) => ({
     type: 'upload',
     text: `${item.period} 上传 ${item.count} 张图片`,
     time: '',
   }))
 })
 
-// 获取用户总数
-const fetchUserCount = async () => {
+// 获取仪表盘聚合统计
+const fetchDashboardStats = async () => {
+  statsLoading.value = true
   try {
-    const res = await listUserVoByPageUsingPost({
-      current: 1,
-      pageSize: 1,
-    })
+    const res = await getDashboardStatsUsingPost()
     if (res.data.code === 0 && res.data.data) {
-      statsData.userCount = res.data.data.total || 0
+      dashboardStats.value = res.data.data
     }
   } catch (error) {
-    console.error('获取用户数失败', error)
-  }
-}
-
-// 获取图片总数
-const fetchPictureCount = async () => {
-  try {
-    const res = await listPictureVoByPageUsingPost({
-      current: 1,
-      pageSize: 1,
-    })
-    if (res.data.code === 0 && res.data.data) {
-      statsData.pictureCount = res.data.data.total || 0
-    }
-  } catch (error) {
-    console.error('获取图片数失败', error)
-  }
-}
-
-// 获取空间总数
-const fetchSpaceCount = async () => {
-  try {
-    const res = await listSpaceVoByPageUsingPost({
-      current: 1,
-      pageSize: 1,
-    })
-    if (res.data.code === 0 && res.data.data) {
-      statsData.spaceCount = res.data.data.total || 0
-    }
-  } catch (error) {
-    console.error('获取空间数失败', error)
-  }
-}
-
-// 获取存储使用量
-const fetchUsageData = async () => {
-  try {
-    const res = await getSpaceUsageAnalyzeUsingPost({
-      queryAll: true,
-    })
-    if (res.data.code === 0 && res.data.data) {
-      usageData.value = res.data.data
-    }
-  } catch (error) {
-    console.error('获取存储使用量失败', error)
+    message.error('获取仪表盘统计失败')
+  } finally {
+    statsLoading.value = false
   }
 }
 
@@ -425,18 +368,8 @@ const fetchCategoryData = async () => {
 }
 
 // 刷新所有数据
-const refreshData = async () => {
-  statsLoading.value = true
-  try {
-    await Promise.all([
-      fetchUserCount(),
-      fetchPictureCount(),
-      fetchSpaceCount(),
-      fetchUsageData(),
-    ])
-  } finally {
-    statsLoading.value = false
-  }
+const refreshData = () => {
+  fetchDashboardStats()
   fetchUserTrendData()
   fetchCategoryData()
 }
