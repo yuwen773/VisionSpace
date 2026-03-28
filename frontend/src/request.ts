@@ -27,10 +27,10 @@ axios.interceptors.response.use(
     // 2xx 范围内的状态码都会触发该函数。
     // 对响应数据做点什么
     const { data } = response
-    if (data.status === 200) {
+    if (data.code === 0 || data.code === 200) {
       return data
     }
-    if (data.status === 404) {
+    if (data.code === 404) {
       warn(data.message)
       return
     }

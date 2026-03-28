@@ -60,7 +60,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
         // 根据ID列表查询图片详情, 保持顺序
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.in("id", ids);
+        queryWrapper.lambda().in(Picture::getId, ids);
         List<Picture> pictures = pictureMapper.selectList(queryWrapper);
 
         // 按ID顺序排序
@@ -83,8 +83,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
      */
     private List<Picture> calculateRecommendPictures(String type) {
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("review_status", 1); // 仅返回已审核图片
-        queryWrapper.eq("is_delete", 0);     // 未删除
+        queryWrapper.lambda().eq(Picture::getReviewStatus, 1); // 仅返回已审核图片
 
         List<Picture> pictures;
 
@@ -97,14 +96,14 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
             case "latest":
                 // 最新: 按创建时间倒序
-                queryWrapper.orderByDesc("create_time");
+                queryWrapper.orderByDesc("createTime");
                 pictures = pictureMapper.selectList(queryWrapper);
                 break;
 
             case "quality":
                 // 优质: 筛选高质量图片 (宽高乘积 > 200万)
-                queryWrapper.apply("pic_width * pic_height > 2000000");
-                queryWrapper.orderByDesc("pic_width", "pic_height");
+                queryWrapper.apply("picWidth * picHeight > 2000000");
+                queryWrapper.orderByDesc("picWidth", "picHeight");
                 pictures = pictureMapper.selectList(queryWrapper);
                 break;
 
