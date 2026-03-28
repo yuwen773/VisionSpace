@@ -70,9 +70,23 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 // 瀑布流配置
-const COLUMN_COUNT = 4
 const COLUMN_GAP = 16
-const columnCount = ref(COLUMN_COUNT)
+const BREAKPOINT_LG = 1024
+const BREAKPOINT_SM = 640
+const columnCount = ref(4)
+
+// 响应式列数
+let resizeTimer: number | null = null
+const updateColumnCount = () => {
+  if (resizeTimer) return
+  resizeTimer = window.setTimeout(() => {
+    const width = window.innerWidth
+    if (width >= BREAKPOINT_LG) columnCount.value = 4
+    else if (width >= BREAKPOINT_SM) columnCount.value = 3
+    else columnCount.value = 2
+    resizeTimer = null
+  }, 100)
+}
 
 // 数据状态
 const currentType = ref('hot')
@@ -88,7 +102,7 @@ const loadedImages = ref<Set<string>>(new Set())
 // 列分配映射：记录每张图片属于哪一列
 const columnAssignment = ref<Map<string, number>>(new Map())
 // 列高度追踪
-const columnHeights = ref<number[]>([0, 0, 0, 0])
+const columnHeights = ref<number[]>(new Array(columnCount.value).fill(0))
 
 // 曝光追踪
 const observedPictures = ref<Set<string>>(new Set())
@@ -164,7 +178,7 @@ const handleTypeChange = () => {
   page.value = 1
   pictureList.value = []
   columnAssignment.value.clear()
-  columnHeights.value = [0, 0, 0, 0]
+  columnHeights.value = new Array(columnCount.value).fill(0)
   observedPictures.value.clear()
   hasMore.value = true
   loadedImages.value.clear()
@@ -302,12 +316,15 @@ const initScrollObserver = () => {
 }
 
 onMounted(() => {
+  updateColumnCount()
+  window.addEventListener('resize', updateColumnCount)
   initImpressionObserver()
   initScrollObserver()
   loadPictures()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateColumnCount)
   if (impressionObserver) impressionObserver.disconnect()
   if (scrollObserver) scrollObserver.disconnect()
 })
