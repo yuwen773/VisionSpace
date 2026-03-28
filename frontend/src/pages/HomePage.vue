@@ -270,13 +270,27 @@ const selectedCategory = ref('全部')
 const isGalleryVisible = ref(false)
 
 // 瀑布流配置
-const COLUMN_COUNT = 4
-const columnCount = ref(COLUMN_COUNT)
+const BREAKPOINT_LG = 1024
+const BREAKPOINT_SM = 640
+const columnCount = ref(4)
+
+// 响应式列数
+let resizeTimer: number | null = null
+const updateColumnCount = () => {
+  if (resizeTimer) return
+  resizeTimer = window.setTimeout(() => {
+    const width = window.innerWidth
+    if (width >= BREAKPOINT_LG) columnCount.value = 4
+    else if (width >= BREAKPOINT_SM) columnCount.value = 3
+    else columnCount.value = 2
+    resizeTimer = null
+  }, 100)
+}
 
 // 列分配映射
 const columnAssignment = ref<Map<string, number>>(new Map())
 // 列高度追踪
-const columnHeights = ref<number[]>([0, 0, 0, 0])
+const columnHeights = ref<number[]>(new Array(columnCount.value).fill(0))
 
 const titleWords = ['发现', '视觉', '灵感']
 
@@ -324,7 +338,7 @@ const calculatePictureHeight = (picture: any): number => {
   if (!picture.picWidth || !picture.picHeight) {
     return 300 * 0.75 + 60
   }
-  const estimatedCardWidth = (window.innerWidth - 96) / COLUMN_COUNT - 20
+  const estimatedCardWidth = (window.innerWidth - 96) / columnCount.value - 20
   const ratio = picture.picHeight / picture.picWidth
   return estimatedCardWidth * ratio + 60
 }
@@ -349,7 +363,7 @@ const selectCategory = (cat: string) => {
   page.value = 1
   pictureList.value = []
   columnAssignment.value.clear()
-  columnHeights.value = [0, 0, 0, 0]
+  columnHeights.value = new Array(columnCount.value).fill(0)
   hasMore.value = true
   loadedImages.value.clear()
   loadPictures()
@@ -362,7 +376,7 @@ const doSearch = () => {
   page.value = 1
   pictureList.value = []
   columnAssignment.value.clear()
-  columnHeights.value = [0, 0, 0, 0]
+  columnHeights.value = new Array(columnCount.value).fill(0)
   hasMore.value = true
   loadedImages.value.clear()
   loadPictures()
@@ -423,7 +437,7 @@ const refreshGallery = () => {
   page.value = 1
   pictureList.value = []
   columnAssignment.value.clear()
-  columnHeights.value = [0, 0, 0, 0]
+  columnHeights.value = new Array(columnCount.value).fill(0)
   hasMore.value = true
   loadedImages.value.clear()
   backToTop()
@@ -599,12 +613,14 @@ onMounted(async () => {
     console.error('获取分类失败', error)
   }
 
+  updateColumnCount()
   initImpressionObserver()
   initScrollObserver()
   initParticles()
   loadPictures()
 
   window.addEventListener('scroll', handleScroll)
+  window.addEventListener('resize', updateColumnCount)
 })
 
 onUnmounted(() => {
@@ -612,6 +628,7 @@ onUnmounted(() => {
   if (scrollObserver) scrollObserver.disconnect()
   if (particleAnimationId) cancelAnimationFrame(particleAnimationId)
   window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('resize', updateColumnCount)
 })
 </script>
 

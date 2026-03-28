@@ -4,6 +4,10 @@ declare namespace API {
     pictureCount?: number
     spaceCount?: number
     usedSize?: number
+    todayImpressionCount?: number
+    todayClickCount?: number
+    todayCtr?: number
+    todayCollectCount?: number
   }
 
   type BaseResponseAdminDashboardStatsVO_ = {

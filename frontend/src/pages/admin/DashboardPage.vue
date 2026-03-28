@@ -99,6 +99,79 @@
           </div>
         </template>
       </div>
+
+      <!-- 推荐统计卡片 -->
+      <div class="stat-card" :style="{ animationDelay: '0.5s' }">
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
+        </div>
+        <template v-else>
+          <div class="stat-icon recommend">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">今日曝光</span>
+            <span class="stat-value">{{ dashboardStats.todayImpressionCount || 0 }}</span>
+            <span class="stat-desc">推荐曝光</span>
+          </div>
+        </template>
+      </div>
+
+      <div class="stat-card" :style="{ animationDelay: '0.6s' }">
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
+        </div>
+        <template v-else>
+          <div class="stat-icon click">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">今日点击</span>
+            <span class="stat-value">{{ dashboardStats.todayClickCount || 0 }}</span>
+            <span class="stat-desc">推荐点击量</span>
+          </div>
+        </template>
+      </div>
+
+      <div class="stat-card" :style="{ animationDelay: '0.65s' }">
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
+        </div>
+        <template v-else>
+          <div class="stat-icon ctr">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">点击率 CTR</span>
+            <span class="stat-value">{{ dashboardStats.todayCtr || 0 }}%</span>
+            <span class="stat-desc">点击/曝光</span>
+          </div>
+        </template>
+      </div>
+
+      <div class="stat-card" :style="{ animationDelay: '0.7s' }">
+        <div v-if="statsLoading" class="stat-loading">
+          <div class="stat-loader"></div>
+        </div>
+        <template v-else>
+          <div class="stat-icon collect">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-label">今日收藏</span>
+            <span class="stat-value">{{ dashboardStats.todayCollectCount || 0 }}</span>
+            <span class="stat-desc">推荐收藏</span>
+          </div>
+        </template>
+      </div>
     </div>
 
     <!-- 图表区域 -->
@@ -639,6 +712,26 @@ onMounted(() => {
   &.storage {
     background: var(--admin-danger-bg);
     color: var(--admin-danger);
+  }
+
+  &.recommend {
+    background: #fef3c7;
+    color: #f59e0b;
+  }
+
+  &.click {
+    background: #dbeafe;
+    color: #3b82f6;
+  }
+
+  &.ctr {
+    background: #dcfce7;
+    color: #22c55e;
+  }
+
+  &.collect {
+    background: #fce7f3;
+    color: #ec4899;
   }
 }
 

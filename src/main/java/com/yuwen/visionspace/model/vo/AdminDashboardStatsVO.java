@@ -30,5 +30,27 @@ public class AdminDashboardStatsVO implements Serializable {
      */
     private Long usedSize;
 
+    // ========== 推荐统计 ==========
+
+    /**
+     * 今日曝光量
+     */
+    private Long todayImpressionCount;
+
+    /**
+     * 今日点击量
+     */
+    private Long todayClickCount;
+
+    /**
+     * 今日点击率 CTR
+     */
+    private Double todayCtr;
+
+    /**
+     * 今日收藏量
+     */
+    private Long todayCollectCount;
+
     private static final long serialVersionUID = 1L;
 }
