@@ -1,9 +1,9 @@
 package com.yuwen.visionspace.manager.auth;
 
 import cn.dev33.satoken.stp.StpInterface;
+import lombok.extern.slf4j.Slf4j;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjUtil;
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
@@ -37,6 +37,7 @@ import static com.yuwen.visionspace.constant.UserConstant.USER_LOGIN_STATE;
  * 自定义权限加载接口实现类
  */
 @Component    // 保证此类被 SpringBoot 扫描，完成 Sa-Token 的自定义权限验证扩展
+@Slf4j
 public class StpInterfaceImpl implements StpInterface {
 
     // 默认是 /api
@@ -217,6 +218,7 @@ public class StpInterfaceImpl implements StpInterface {
             }
             return sb.toString();
         } catch (Exception e) {
+            log.error("Failed to read request body", e);
             return "";
         }
     }
