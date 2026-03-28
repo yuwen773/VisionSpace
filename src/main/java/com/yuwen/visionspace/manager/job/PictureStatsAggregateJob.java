@@ -4,7 +4,7 @@ import com.yuwen.visionspace.service.PictureStatsAggregateService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 /**
  * 图片行为聚合定时任务

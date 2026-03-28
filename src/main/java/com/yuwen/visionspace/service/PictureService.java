@@ -9,7 +9,7 @@ import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.PictureVO;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**

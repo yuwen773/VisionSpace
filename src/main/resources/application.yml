@@ -29,6 +29,10 @@ spring:
     name: vision-space
   profiles:
     active: local # ,prod
+  # 虚拟线程配置
+  threads:
+    virtual:
+      enabled: true
   # 数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -50,6 +54,13 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
+  # Spring AI 配置
+  ai:
+    dashscope:
+      api-key: ${AI_API_KEY:your-api-key}
+    Alibaba:
+      cloud:
+        api-key: ${ALIYUN_AI_API_KEY:your-api-key}
   # 空间图片分表
   shardingsphere:
     datasource:
