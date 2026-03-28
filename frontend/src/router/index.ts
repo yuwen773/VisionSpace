@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
+import AdminLayout from '@/layouts/AdminLayout.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
@@ -36,16 +37,6 @@ const router = createRouter({
       component: UserRegisterPage,
     },
     {
-      path: '/admin/dashboard',
-      name: 'Dashboard',
-      component: DashboardPage,
-    },
-    {
-      path: '/admin/user_manage',
-      name: 'UserManage',
-      component: UserManagePage,
-    },
-    {
       path: '/add_picture',
       name: 'AddPicture',
       component: AddPicturePage,
@@ -56,20 +47,10 @@ const router = createRouter({
       component: AddPictureBatchPage,
     },
     {
-      path: '/admin/picture_manage',
-      name: 'PictureManage',
-      component: PictureManagePage,
-    },
-    {
       path: '/picture/:id',
       name: 'PictureDetail',
       component: PictureDetailPage,
       props: true,
-    },
-    {
-      path: '/admin/space_manage',
-      name: 'SpaceManage',
-      component: SpaceManagePage,
     },
     {
       path: '/add_space',
@@ -105,10 +86,38 @@ const router = createRouter({
       component: SpaceUserManagePage,
       props: true,
     },
+    // Admin routes with AdminLayout wrapper
     {
-      path: '/admin/storage_config_manage',
-      name: 'StorageConfigManage',
-      component: StorageConfigManagePage,
+      path: '/admin',
+      component: AdminLayout,
+      redirect: '/admin/dashboard',
+      children: [
+        {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: DashboardPage,
+        },
+        {
+          path: 'user_manage',
+          name: 'UserManage',
+          component: UserManagePage,
+        },
+        {
+          path: 'picture_manage',
+          name: 'PictureManage',
+          component: PictureManagePage,
+        },
+        {
+          path: 'space_manage',
+          name: 'SpaceManage',
+          component: SpaceManagePage,
+        },
+        {
+          path: 'storage_config_manage',
+          name: 'StorageConfigManage',
+          component: StorageConfigManagePage,
+        },
+      ],
     },
   ],
 })
