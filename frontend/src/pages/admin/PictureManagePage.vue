@@ -275,7 +275,7 @@ const dataList = ref<API.Picture[]>([])
 const spaceList = ref<API.Space[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
-const selectedRowKeys = ref<number[]>([])
+const selectedRowKeys = ref<(string | number)[]>([])
 
 const searchParams = reactive<API.PictureQueryRequest>({
   current: 1,
@@ -296,7 +296,7 @@ const pagination = computed(() => ({
 
 const rowSelection = computed(() => ({
   selectedRowKeys: selectedRowKeys.value,
-  onChange: (keys: number[]) => {
+  onChange: (keys: (string | number)[]) => {
     selectedRowKeys.value = keys
   },
   getCheckboxProps: (record: API.Picture) => ({
@@ -315,6 +315,7 @@ const fetchSpaceList = async () => {
     }
   } catch (error) {
     console.error('获取空间列表失败', error)
+    message.error('获取空间列表失败')
   }
 }
 
@@ -344,7 +345,11 @@ onMounted(() => {
   fetchData()
 })
 
-const doTableChange = (pag: any, filters: any, sorter: any) => {
+const doTableChange = (
+  pag: { current?: number; pageSize?: number },
+  filters: Record<string, unknown>,
+  sorter: { field?: string; order?: 'ascend' | 'descend' }
+) => {
   searchParams.current = pag.current
   searchParams.pageSize = pag.pageSize
   if (sorter.field) {
@@ -407,20 +412,22 @@ const handleReview = async (record: API.Picture, reviewStatus: number) => {
   }
 }
 
-const batchApprove = async () => {
+const batchReview = async (reviewStatus: number, reviewMessage: string) => {
   if (!selectedRowKeys.value.length) return
   try {
     const promises = selectedRowKeys.value.map(id =>
       doPictureReviewUsingPost({
         id,
-        reviewStatus: PIC_REVIEW_STATUS_ENUM.PASS,
-        reviewMessage: '管理员批量通过',
+        reviewStatus,
+        reviewMessage,
       })
     )
-    const results = await Promise.all(promises)
-    const failed = results.filter(r => r.data.code !== 0)
+    const results = await Promise.allSettled(promises)
+    const failed = results.filter(
+      r => r.status === 'rejected' || r.value?.data?.code !== 0
+    )
     if (failed.length === 0) {
-      message.success(`已通过 ${selectedRowKeys.value.length} 张图片`)
+      message.success(`已审核 ${selectedRowKeys.value.length} 张图片`)
       selectedRowKeys.value = []
       await fetchData()
     } else {
@@ -431,29 +438,8 @@ const batchApprove = async () => {
   }
 }
 
-const batchReject = async () => {
-  if (!selectedRowKeys.value.length) return
-  try {
-    const promises = selectedRowKeys.value.map(id =>
-      doPictureReviewUsingPost({
-        id,
-        reviewStatus: PIC_REVIEW_STATUS_ENUM.REJECT,
-        reviewMessage: '管理员批量拒绝',
-      })
-    )
-    const results = await Promise.all(promises)
-    const failed = results.filter(r => r.data.code !== 0)
-    if (failed.length === 0) {
-      message.success(`已拒绝 ${selectedRowKeys.value.length} 张图片`)
-      selectedRowKeys.value = []
-      await fetchData()
-    } else {
-      message.error(`${failed.length} 张图片审核失败`)
-    }
-  } catch (error) {
-    message.error('批量审核失败')
-  }
-}
+const batchApprove = () => batchReview(PIC_REVIEW_STATUS_ENUM.PASS, '管理员批量通过')
+const batchReject = () => batchReview(PIC_REVIEW_STATUS_ENUM.REJECT, '管理员批量拒绝')
 
 const parseTags = (tags: string) => {
   try {
