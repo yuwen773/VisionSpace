@@ -13,9 +13,9 @@
   --admin-bg-hover: #ebeef2;
   --admin-bg-active: #dce0e5;
 
-  /* 侧边栏背景 */
-  --admin-sidebar-bg: #252a31;
-  --admin-sidebar-header-bg: #1c2128;
+  /* 侧边栏背景 - 与主体一致 */
+  --admin-sidebar-bg: var(--admin-bg-primary);
+  --admin-sidebar-header-bg: var(--admin-bg-secondary);
 
   /* 文字色 - 高对比 */
   --admin-text-primary: #1f2328;
@@ -29,14 +29,14 @@
   --admin-border-subtle: #e8eaed;
 
   /* 侧边栏文字 */
-  --admin-sidebar-text: #e6edf3;
-  --admin-sidebar-text-secondary: #8b949e;
-  --admin-sidebar-text-hover: #ffffff;
-  --admin-sidebar-text-active: #ffffff;
+  --admin-sidebar-text: var(--admin-text-primary);
+  --admin-sidebar-text-secondary: var(--admin-text-secondary);
+  --admin-sidebar-text-hover: var(--admin-text-primary);
+  --admin-sidebar-text-active: var(--admin-primary);
 
   /* 侧边栏背景 */
-  --admin-sidebar-bg-hover: #3d444d;
-  --admin-sidebar-bg-active: #0969da;
+  --admin-sidebar-bg-hover: var(--admin-bg-hover);
+  --admin-sidebar-bg-active: var(--admin-primary-bg);
 
   /* 主题色 - Ant Design Blue */
   --admin-primary: #0969da;

@@ -149,17 +149,20 @@
         :rowKey="(record: API.Space) => record.id"
         :row-selection="rowSelection"
         @change="doTableChange"
-        :scroll="{ x: 1500 }"
+        :scroll="{ x: 1200 }"
         class="data-table"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'spaceName'">
             <div class="space-name-cell">
               <span class="space-name">{{ record.spaceName }}</span>
-              <span class="space-id">ID: {{ record.id }}</span>
+              <a-tooltip :title="record.id" placement="topLeft">
+                <span class="space-id">{{ record.id }}</span>
+              </a-tooltip>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'spaceType'">
+            <div class="center-cell">
             <span class="type-tag" :class="record.spaceType === 0 ? 'private' : 'team'">
               <svg v-if="record.spaceType === 0" class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -173,39 +176,47 @@
               </svg>
               {{ record.spaceType === 0 ? '私人' : '团队' }}
             </span>
+            </div>
           </template>
           <template v-else-if="column.dataIndex === 'spaceLevel'">
+            <div class="center-cell">
             <span class="level-tag" :class="getLevelClass(record.spaceLevel)">
               {{ SPACE_LEVEL_MAP[record.spaceLevel] }}
             </span>
+            </div>
           </template>
           <template v-else-if="column.dataIndex === 'capacity'">
             <div class="capacity-cell">
-              <div class="capacity-bar-wrapper">
-                <div class="capacity-bar">
+              <div class="capacity-main">
+                <div class="capacity-bar-track">
                   <div
-                    class="capacity-fill"
+                    class="capacity-bar-fill"
                     :class="getCapacityClass(record)"
                     :style="{ width: getCapacityPercent(record) + '%' }"
                   ></div>
                 </div>
-                <span class="capacity-percent">{{ getCapacityPercent(record) }}%</span>
+                <span class="capacity-percent" :class="getCapacityClass(record)">
+                  {{ getCapacityPercent(record) }}%
+                </span>
               </div>
-              <div class="capacity-info">
-                <span class="capacity-used">{{ formatSize(record.totalSize) }}</span>
-                <span class="capacity-sep">/</span>
-                <span class="capacity-total">{{ formatSize(record.maxSize) }}</span>
-              </div>
-              <div class="capacity-info count-info">
-                <span class="capacity-used">{{ record.totalCount }}</span>
-                <span class="capacity-sep">/</span>
-                <span class="capacity-total">{{ record.maxCount }} 张</span>
+              <div class="capacity-stats">
+                <span class="stat-item">
+                  <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  {{ formatSize(record.totalSize) }} / {{ formatSize(record.maxSize) }}
+                </span>
+                <span class="stat-divider"></span>
+                <span class="stat-item">
+                  <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  {{ record.totalCount }} / {{ record.maxCount }} 张
+                </span>
               </div>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'userId'">
             <div class="user-cell">
-              <span class="user-id">UID {{ record.userId }}</span>
+              <a-tooltip :title="record.userId" placement="topLeft">
+                <span class="user-id">{{ record.userId.slice(0, 8) }}...{{ record.userId.slice(-4) }}</span>
+              </a-tooltip>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'createTime'">
@@ -282,13 +293,12 @@ import { formatSize } from '@/utils'
 const router = useRouter()
 
 const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, sorter: true },
-  { title: '空间名称', dataIndex: 'spaceName', width: 200 },
-  { title: '类型', dataIndex: 'spaceType', width: 100 },
-  { title: '级别', dataIndex: 'spaceLevel', width: 100 },
-  { title: '容量使用', dataIndex: 'capacity', width: 200 },
-  { title: '所有者', dataIndex: 'userId', width: 100 },
-  { title: '创建时间', dataIndex: 'createTime', width: 140, sorter: true },
+  { title: '空间名称', dataIndex: 'spaceName', width: 220, ellipsis: true },
+  { title: '类型', dataIndex: 'spaceType', width: 90, align: 'center' as const },
+  { title: '级别', dataIndex: 'spaceLevel', width: 90, align: 'center' as const },
+  { title: '容量使用', dataIndex: 'capacity', width: 240 },
+  { title: '所有者', dataIndex: 'userId', width: 130 },
+  { title: '创建时间', dataIndex: 'createTime', width: 150, sorter: true },
   { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
 ]
 
@@ -783,9 +793,7 @@ const goToEdit = (id: number) => {
     color: var(--admin-text-secondary);
     font-weight: 600;
     font-size: var(--admin-text-sm);
-    padding: var(--admin-space-4);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    padding: var(--admin-space-3) var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr > td) {
@@ -857,20 +865,33 @@ const goToEdit = (id: number) => {
 }
 
 /* ========== 单元格样式 ========== */
+.center-cell {
+  display: flex;
+  justify-content: center;
+}
+
 .space-name-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 
   .space-name {
     font-weight: 600;
+    font-size: var(--admin-text-base);
     color: var(--admin-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .space-id {
     font-size: var(--admin-text-xs);
     color: var(--admin-text-disabled);
     font-family: var(--admin-font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default;
   }
 }
 
@@ -878,10 +899,11 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 3px 10px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
   border-radius: var(--admin-radius-full);
+  white-space: nowrap;
 
   .tag-icon {
     width: 12px;
@@ -890,41 +912,42 @@ const goToEdit = (id: number) => {
 
   &.private {
     color: var(--admin-primary);
-    background: rgba(88, 166, 255, 0.15);
-    border: 1px solid rgba(88, 166, 255, 0.3);
+    background: var(--admin-primary-bg);
+    border: 1px solid rgba(9, 105, 218, 0.2);
   }
 
   &.team {
-    color: #a855f7;
-    background: rgba(168, 85, 247, 0.15);
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #8957e5;
+    background: rgba(137, 87, 229, 0.08);
+    border: 1px solid rgba(137, 87, 229, 0.2);
   }
 }
 
 .level-tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 3px 10px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
   border-radius: var(--admin-radius-full);
+  white-space: nowrap;
 
   &.basic {
     color: var(--admin-text-secondary);
-    background: rgba(139, 148, 158, 0.15);
-    border: 1px solid rgba(139, 148, 158, 0.3);
+    background: var(--admin-bg-hover);
+    border: 1px solid var(--admin-border-default);
   }
 
   &.pro {
-    color: #d29922;
-    background: rgba(210, 153, 34, 0.15);
-    border: 1px solid rgba(210, 153, 34, 0.3);
+    color: #9a6700;
+    background: var(--admin-warning-bg);
+    border: 1px solid rgba(154, 103, 0, 0.2);
   }
 
   &.flagship {
     color: var(--admin-danger);
-    background: rgba(248, 81, 73, 0.15);
-    border: 1px solid rgba(248, 81, 73, 0.3);
+    background: var(--admin-danger-bg);
+    border: 1px solid rgba(207, 34, 46, 0.2);
   }
 }
 
@@ -934,75 +957,93 @@ const goToEdit = (id: number) => {
   gap: var(--admin-space-2);
 }
 
-.capacity-bar-wrapper {
+.capacity-main {
   display: flex;
   align-items: center;
-  gap: var(--admin-space-2);
+  gap: var(--admin-space-3);
 }
 
-.capacity-bar {
+.capacity-bar-track {
   flex: 1;
-  height: 6px;
+  height: 8px;
   background: var(--admin-bg-hover);
-  border-radius: 3px;
+  border-radius: var(--admin-radius-full);
   overflow: hidden;
 }
 
-.capacity-fill {
+.capacity-bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--admin-radius-full);
   transition: width 0.3s ease;
+  min-width: 0;
 
   &.normal {
-    background: #3fb950;
+    background: linear-gradient(90deg, #1a7f37, #3fb950);
   }
 
   &.warning {
-    background: #d29922;
+    background: linear-gradient(90deg, #9a6700, #d29922);
   }
 
   &.danger {
-    background: var(--admin-danger);
+    background: linear-gradient(90deg, #cf222e, #f85149);
   }
 }
 
 .capacity-percent {
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
+  font-size: var(--admin-text-sm);
+  font-weight: 700;
   color: var(--admin-text-secondary);
-  min-width: 36px;
+  min-width: 40px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
+
+  &.normal { color: #1a7f37; }
+  &.warning { color: #9a6700; }
+  &.danger { color: #cf222e; }
 }
 
-.capacity-info {
+.capacity-stats {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--admin-space-2);
   font-size: var(--admin-text-xs);
-
-  .capacity-used {
-    color: var(--admin-text-primary);
-    font-weight: 500;
-  }
-
-  .capacity-sep {
-    color: var(--admin-text-disabled);
-  }
-
-  .capacity-total {
-    color: var(--admin-text-secondary);
-  }
+  color: var(--admin-text-secondary);
 }
 
-.count-info {
-  margin-top: -4px;
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.stat-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 10px;
+  background: var(--admin-border-default);
+  flex-shrink: 0;
 }
 
 .user-cell {
   .user-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     color: var(--admin-text-secondary);
     font-size: var(--admin-text-xs);
     font-family: var(--admin-font-mono);
+    background: var(--admin-bg-hover);
+    padding: 2px 8px;
+    border-radius: var(--admin-radius-sm);
+    cursor: default;
   }
 }
 
@@ -1016,50 +1057,50 @@ const goToEdit = (id: number) => {
 .action-buttons {
   display: flex;
   justify-content: flex-start;
-  gap: var(--admin-space-2);
+  gap: var(--admin-space-1);
 }
 
 .action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   color: var(--admin-text-secondary);
-  background: var(--admin-bg-hover);
-  border: 1px solid var(--admin-border-default);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--admin-radius-md);
   cursor: pointer;
   transition: all var(--admin-transition-fast);
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
   }
 
   &:hover {
     color: var(--admin-primary);
-    background: rgba(88, 166, 255, 0.1);
-    border-color: rgba(88, 166, 255, 0.3);
+    background: var(--admin-primary-bg);
+    border-color: rgba(9, 105, 218, 0.15);
   }
 
   &.success:hover {
-    color: #3fb950;
-    background: rgba(63, 185, 80, 0.1);
-    border-color: rgba(63, 185, 80, 0.3);
+    color: #1a7f37;
+    background: var(--admin-success-bg);
+    border-color: rgba(26, 127, 55, 0.15);
   }
 
   &.warning:hover {
-    color: #d29922;
-    background: rgba(210, 153, 34, 0.1);
-    border-color: rgba(210, 153, 34, 0.3);
+    color: #9a6700;
+    background: var(--admin-warning-bg);
+    border-color: rgba(154, 103, 0, 0.15);
   }
 
   &.danger:hover {
     color: var(--admin-danger);
-    background: rgba(248, 81, 73, 0.1);
-    border-color: rgba(248, 81, 73, 0.3);
+    background: var(--admin-danger-bg);
+    border-color: rgba(207, 34, 46, 0.15);
   }
 }
 
