@@ -20,6 +20,10 @@ vision-space:
     manual-weight: 0.10
     time-decay-rate: 0.05
     cache-ttl-minutes: 5
+    reorder:
+      author-window-size: 20
+      author-max-count: 2
+      category-max-consecutive: 3
 spring:
   application:
     name: vision-space
