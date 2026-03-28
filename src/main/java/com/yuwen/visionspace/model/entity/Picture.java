@@ -3,6 +3,7 @@ package com.yuwen.visionspace.model.entity;
 import com.baomidou.mybatisplus.annotation.*;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Date;
 import lombok.Data;
 
@@ -123,6 +124,11 @@ public class Picture implements Serializable {
      * 展示数（曝光数）
      */
     private Long impressionCount;
+
+    /**
+     * 点击率 (CTR) = clickCount / impressionCount
+     */
+    private BigDecimal ctr;
 
     /**
      * 审核状态：0-待审核; 1-通过; 2-拒绝
