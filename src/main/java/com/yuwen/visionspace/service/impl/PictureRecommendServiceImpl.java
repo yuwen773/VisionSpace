@@ -1,11 +1,13 @@
 package com.yuwen.visionspace.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.yuwen.visionspace.config.ReorderConfig;
 import com.yuwen.visionspace.manager.cache.RecommendCacheManager;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.service.PictureRecommendService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
+import com.yuwen.visionspace.utils.PictureReorderUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -23,6 +25,9 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     @Resource
     private RecommendCacheManager cacheManager;
+
+    @Resource
+    private ReorderConfig reorderConfig;
 
     @Override
     public List<Long> getRecommendPictureIds(String type, int page, int size) {
@@ -116,6 +121,17 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             default:
                 pictures = Collections.emptyList();
         }
+
+        // 重排打散
+        pictures = PictureReorderUtils.reorderByAuthor(
+            pictures,
+            reorderConfig.getAuthorWindowSize(),
+            reorderConfig.getAuthorMaxCount()
+        );
+        pictures = PictureReorderUtils.reorderByCategory(
+            pictures,
+            reorderConfig.getCategoryMaxConsecutive()
+        );
 
         return pictures;
     }
