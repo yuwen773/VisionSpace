@@ -45,7 +45,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { ref, inject, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/userLogin'
 
@@ -53,7 +53,8 @@ const loginUserStore = useLoginUserStore()
 const route = useRoute()
 const router = useRouter()
 
-const isCollapsed = ref(false)
+const sidebarCollapsed = inject<Ref<boolean>>('sidebarCollapsed', ref(false))
+const isCollapsed = sidebarCollapsed
 
 const menuItems = [
   { path: '/admin/dashboard', label: '仪表盘', icon: '📊' },
