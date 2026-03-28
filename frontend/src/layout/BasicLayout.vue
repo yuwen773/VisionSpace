@@ -33,7 +33,7 @@
         <div class="footer-content">
           <div class="footer-section">
             <div class="footer-logo">
-              <img src="@/assets/logo.png" alt="VisionSpace" />
+              <img src="@/assets/logo.svg" alt="VisionSpace" />
               <span class="footer-logo-text text-gradient">VisionSpace</span>
             </div>
             <p class="footer-description">企业级智能协同图片空间</p>
@@ -228,7 +228,7 @@ import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
 }
 
 .footer-logo-text {
-  font-family: var(--font-display);
+  font-family: var(--font-brand);
   font-size: var(--text-lg);
   font-weight: var(--font-bold);
 }

@@ -17,7 +17,7 @@
         <!-- Logo 区域 -->
         <div class="logo-section">
           <div class="logo-wrapper">
-            <img src="@/assets/logo.png" alt="Logo" class="logo-image" />
+            <img src="@/assets/logo.svg" alt="Logo" class="logo-image" />
             <div class="logo-badge bg-coral">NEW</div>
           </div>
           <h1 class="logo-title">VisionSpace</h1>
@@ -284,7 +284,7 @@ const handleSubmit = async (values: any) => {
 }
 
 .logo-title {
-  font-family: var(--font-display);
+  font-family: var(--font-brand);
   font-size: var(--text-4xl);
   font-weight: 800;
   margin: 0 0 var(--space-3) 0;
