@@ -4,7 +4,7 @@ import com.yuwen.visionspace.service.PictureRecommendService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 /**
  * 推荐缓存刷新定时任务
