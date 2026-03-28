@@ -1,11 +1,10 @@
 <template>
   <div id="app">
-    <BasicLayout />
+    <router-view />
   </div>
 </template>
 
 <script setup lang="ts">
-import BasicLayout from './layout/BasicLayout.vue'
 // 权限校验
 import './access.ts'
 </script>
