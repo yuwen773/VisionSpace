@@ -1,4 +1,17 @@
 declare namespace API {
+  type AdminDashboardStatsVO = {
+    userCount?: number
+    pictureCount?: number
+    spaceCount?: number
+    usedSize?: number
+  }
+
+  type BaseResponseAdminDashboardStatsVO_ = {
+    code?: number
+    data?: AdminDashboardStatsVO
+    message?: string
+  }
+
   type BaseResponseBoolean_ = {
     code?: number
     data?: boolean
