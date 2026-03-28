@@ -81,8 +81,8 @@ const handleUserClick = () => {
 .admin-sidebar {
   width: 240px;
   height: 100vh;
-  background: #0d1117;
-  border-right: 1px solid #30363d;
+  background: var(--admin-sidebar-bg);
+  border-right: 1px solid var(--admin-border-default);
   display: flex;
   flex-direction: column;
   transition: width 0.2s ease;
@@ -125,7 +125,7 @@ const handleUserClick = () => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid var(--admin-border-default);
   min-height: 64px;
 }
 
@@ -145,7 +145,7 @@ const handleUserClick = () => {
     font-family: var(--font-brand);
     font-size: 16px;
     font-weight: 700;
-    color: #c9d1d9;
+    color: var(--admin-sidebar-text);
     white-space: nowrap;
   }
 }
@@ -157,17 +157,17 @@ const handleUserClick = () => {
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid #30363d;
+  border: 1px solid var(--admin-border-default);
   border-radius: 6px;
-  color: #8b949e;
+  color: var(--admin-sidebar-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 
   &:hover {
-    background: #21262d;
-    color: #c9d1d9;
-    border-color: #8b949e;
+    background: var(--admin-sidebar-bg-hover);
+    color: var(--admin-sidebar-text);
+    border-color: var(--admin-border-default);
   }
 
   svg {
@@ -190,7 +190,7 @@ const handleUserClick = () => {
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #8b949e;
+  color: var(--admin-sidebar-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0 12px;
@@ -204,19 +204,19 @@ const handleUserClick = () => {
   padding: 10px 12px;
   margin: 2px 0;
   border-radius: 6px;
-  color: #c9d1d9;
+  color: var(--admin-sidebar-text);
   text-decoration: none;
   transition: all 0.15s ease;
   font-size: 14px;
 
   &:hover {
-    background: #21262d;
-    color: #ffffff;
+    background: var(--admin-sidebar-bg-hover);
+    color: var(--admin-sidebar-text-hover);
   }
 
   &.active {
-    background: #238636;
-    color: #ffffff;
+    background: var(--admin-sidebar-bg-active);
+    color: var(--admin-sidebar-text-active);
 
     .nav-icon {
       filter: grayscale(0);
@@ -237,7 +237,7 @@ const handleUserClick = () => {
 
 .sidebar-footer {
   padding: 12px 8px;
-  border-top: 1px solid #30363d;
+  border-top: 1px solid var(--admin-border-default);
 }
 
 .user-info {
@@ -250,7 +250,7 @@ const handleUserClick = () => {
   transition: all 0.15s ease;
 
   &:hover {
-    background: #21262d;
+    background: var(--admin-sidebar-bg-hover);
   }
 
   .user-details {
@@ -262,7 +262,7 @@ const handleUserClick = () => {
   .user-name {
     font-size: 14px;
     font-weight: 600;
-    color: #c9d1d9;
+    color: var(--admin-sidebar-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -270,7 +270,7 @@ const handleUserClick = () => {
 
   .user-role {
     font-size: 12px;
-    color: #8b949e;
+    color: var(--admin-sidebar-text-secondary);
   }
 }
 </style>

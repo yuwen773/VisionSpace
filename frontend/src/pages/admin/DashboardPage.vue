@@ -454,9 +454,9 @@ const userTrendOptions = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(22, 27, 34, 0.95)',
-      borderColor: '#30363d',
-      textStyle: { color: '#c9d1d9' },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#d0d7de',
+      textStyle: { color: '#1f2328' },
     },
     grid: {
       left: '3%',
@@ -469,15 +469,15 @@ const userTrendOptions = computed(() => {
       type: 'category',
       data: periods,
       boundaryGap: false,
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 11 },
+      axisLine: { lineStyle: { color: '#d0d7de' } },
+      axisLabel: { color: '#656d76', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
       name: '上传数量',
-      axisLine: { show: true, lineStyle: { color: '#238636' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
-      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } },
+      axisLine: { show: true, lineStyle: { color: '#0969da' } },
+      axisLabel: { color: '#656d76' },
+      splitLine: { lineStyle: { color: '#e8eaed' } },
     },
     series: [
       {
@@ -488,13 +488,11 @@ const userTrendOptions = computed(() => {
         symbol: 'circle',
         symbolSize: 8,
         lineStyle: {
-          color: '#238636',
+          color: '#0969da',
           width: 3,
-          shadowColor: 'rgba(35, 134, 54, 0.5)',
-          shadowBlur: 10,
         },
         itemStyle: {
-          color: '#238636',
+          color: '#0969da',
           borderColor: '#fff',
           borderWidth: 2,
         },
@@ -503,8 +501,8 @@ const userTrendOptions = computed(() => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(35, 134, 54, 0.3)' },
-              { offset: 1, color: 'rgba(35, 134, 54, 0)' },
+              { offset: 0, color: 'rgba(9, 105, 218, 0.15)' },
+              { offset: 1, color: 'rgba(9, 105, 218, 0)' },
             ],
           },
         },
@@ -521,9 +519,9 @@ const categoryOptions = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(22, 27, 34, 0.95)',
-      borderColor: '#30363d',
-      textStyle: { color: '#c9d1d9' },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#d0d7de',
+      textStyle: { color: '#1f2328' },
     },
     grid: {
       left: '3%',
@@ -535,16 +533,16 @@ const categoryOptions = computed(() => {
     xAxis: {
       type: 'category',
       data: categories,
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 11 },
+      axisLine: { lineStyle: { color: '#d0d7de' } },
+      axisLabel: { color: '#656d76', fontSize: 11 },
     },
     yAxis: [
       {
         type: 'value',
         name: '图片数量',
-        axisLine: { show: true, lineStyle: { color: '#58a6ff' } },
-        axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
-        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } },
+        axisLine: { show: true, lineStyle: { color: '#0969da' } },
+        axisLabel: { color: '#656d76' },
+        splitLine: { lineStyle: { color: '#e8eaed' } },
       },
     ],
     series: [
@@ -557,8 +555,8 @@ const categoryOptions = computed(() => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#58a6ff' },
-              { offset: 1, color: '#2268f5' },
+              { offset: 0, color: '#0969da' },
+              { offset: 1, color: '#0550ae' },
             ],
           },
           borderRadius: [4, 4, 0, 0],
@@ -593,10 +591,10 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-family: var(--font-display);
+    font-family: var(--admin-font);
     font-size: 28px;
     font-weight: 700;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     margin: 0 0 8px 0;
 
     span:first-child {
@@ -606,7 +604,7 @@ onMounted(() => {
 
   .page-subtitle {
     font-size: 14px;
-    color: #8b949e;
+    color: var(--admin-text-secondary);
     margin: 0;
   }
 }
@@ -617,19 +615,19 @@ onMounted(() => {
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    background: #161b22;
-    border: 1px solid #30363d;
+    background: var(--admin-bg-primary);
+    border: 1px solid var(--admin-border-default);
     border-radius: 8px;
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
 
     &:hover {
-      background: #21262d;
-      border-color: #58a6ff;
-      color: #58a6ff;
+      background: var(--admin-bg-hover);
+      border-color: var(--admin-primary);
+      color: var(--admin-primary);
     }
 
     svg {
@@ -659,8 +657,8 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 24px;
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
   border-radius: 12px;
   animation: card-reveal 0.5s ease-out forwards;
   opacity: 0;
@@ -668,9 +666,9 @@ onMounted(() => {
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: #58a6ff;
+    border-color: var(--admin-primary);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
 }
 
@@ -691,23 +689,23 @@ onMounted(() => {
   flex-shrink: 0;
 
   &.users {
-    background: rgba(35, 134, 54, 0.15);
-    color: #3fb950;
+    background: var(--admin-success-bg);
+    color: var(--admin-success);
   }
 
   &.pictures {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
   }
 
   &.spaces {
-    background: rgba(163, 113, 247, 0.15);
-    color: #a371f7;
+    background: #f3e8ff;
+    color: #9333ea;
   }
 
   &.storage {
-    background: rgba(248, 81, 73, 0.15);
-    color: #f85149;
+    background: var(--admin-danger-bg);
+    color: var(--admin-danger);
   }
 }
 
@@ -720,20 +718,20 @@ onMounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
 }
 
 .stat-value {
-  font-family: var(--font-display);
+  font-family: var(--admin-font);
   font-size: 28px;
   font-weight: 700;
-  color: #c9d1d9;
+  color: var(--admin-text-primary);
   line-height: 1.2;
 }
 
 .stat-desc {
   font-size: 12px;
-  color: #6e7681;
+  color: var(--admin-text-disabled);
 }
 
 .stat-loading {
@@ -746,8 +744,8 @@ onMounted(() => {
 .stat-loader {
   width: 24px;
   height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #58a6ff;
+  border: 2px solid var(--admin-border-default);
+  border-top-color: var(--admin-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -765,15 +763,14 @@ onMounted(() => {
 }
 
 .chart-card {
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
   border-radius: 12px;
   padding: 20px;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: #30363d;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   }
 }
 
@@ -790,27 +787,27 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(35, 134, 54, 0.15);
+  background: var(--admin-success-bg);
   border-radius: 10px;
-  color: #3fb950;
+  color: var(--admin-success);
 
   &.category {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
   }
 }
 
 .chart-title {
   font-size: 16px;
   font-weight: 600;
-  color: #c9d1d9;
+  color: var(--admin-text-primary);
   margin: 0;
   flex: 1;
 }
 
 .time-selector {
   display: flex;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--admin-bg-tertiary);
   border-radius: 8px;
   padding: 4px;
 }
@@ -820,18 +817,18 @@ onMounted(() => {
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #8b949e;
+  color: var(--admin-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    color: #c9d1d9;
+    color: var(--admin-text-primary);
   }
 
   &.active {
-    background: #238636;
+    background: var(--admin-primary);
     color: white;
   }
 }
@@ -850,8 +847,8 @@ onMounted(() => {
 .loader-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #238636;
+  border: 3px solid var(--admin-border-default);
+  border-top-color: var(--admin-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -873,8 +870,8 @@ onMounted(() => {
 
 .activity-card,
 .quick-actions-card {
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
   border-radius: 12px;
   padding: 20px;
 }
@@ -892,22 +889,22 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(248, 81, 73, 0.15);
+  background: var(--admin-danger-bg);
   border-radius: 10px;
-  color: #f85149;
+  color: var(--admin-danger);
 }
 
 .card-title {
   font-size: 16px;
   font-weight: 600;
-  color: #c9d1d9;
+  color: var(--admin-text-primary);
   margin: 0;
   flex: 1;
 }
 
 .view-more {
   font-size: 13px;
-  color: #58a6ff;
+  color: var(--admin-primary);
   text-decoration: none;
 
   &:hover {
@@ -927,7 +924,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 120px;
-  color: #6e7681;
+  color: var(--admin-text-disabled);
   font-size: 14px;
 }
 
@@ -936,7 +933,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--admin-bg-tertiary);
   border-radius: 8px;
   animation: item-reveal 0.4s ease-out forwards;
   opacity: 0;
@@ -960,11 +957,11 @@ onMounted(() => {
   font-size: 16px;
 
   &.upload {
-    background: rgba(35, 134, 54, 0.15);
+    background: var(--admin-success-bg);
   }
 
   &.create {
-    background: rgba(88, 166, 255, 0.15);
+    background: var(--admin-primary-bg);
   }
 }
 
@@ -977,7 +974,7 @@ onMounted(() => {
 
 .activity-text {
   font-size: 14px;
-  color: #c9d1d9;
+  color: var(--admin-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -985,7 +982,7 @@ onMounted(() => {
 
 .activity-time {
   font-size: 12px;
-  color: #6e7681;
+  color: var(--admin-text-disabled);
 }
 
 /* 快速操作 */
@@ -1005,15 +1002,15 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 20px 12px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #30363d;
+  background: var(--admin-bg-tertiary);
+  border: 1px solid var(--admin-border-default);
   border-radius: 10px;
   text-decoration: none;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(88, 166, 255, 0.1);
-    border-color: #58a6ff;
+    background: var(--admin-primary-bg);
+    border-color: var(--admin-primary);
     transform: translateY(-2px);
 
     .action-icon {
@@ -1032,40 +1029,40 @@ onMounted(() => {
   transition: transform 0.2s ease;
 
   &.users {
-    background: rgba(35, 134, 54, 0.15);
-    color: #3fb950;
+    background: var(--admin-success-bg);
+    color: var(--admin-success);
   }
 
   &.spaces {
-    background: rgba(163, 113, 247, 0.15);
-    color: #a371f7;
+    background: #f3e8ff;
+    color: #9333ea;
   }
 
   &.pictures {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
   }
 
   &.storage {
-    background: rgba(248, 81, 73, 0.15);
-    color: #f85149;
+    background: var(--admin-danger-bg);
+    color: var(--admin-danger);
   }
 
   &.create {
-    background: rgba(63, 185, 80, 0.15);
-    color: #3fb950;
+    background: var(--admin-success-bg);
+    color: var(--admin-success);
   }
 
   &.upload {
-    background: rgba(88, 166, 255, 0.15);
-    color: #58a6ff;
+    background: var(--admin-primary-bg);
+    color: var(--admin-primary);
   }
 }
 
 .action-label {
   font-size: 13px;
   font-weight: 500;
-  color: #c9d1d9;
+  color: var(--admin-text-primary);
   text-align: center;
 }
 </style>
