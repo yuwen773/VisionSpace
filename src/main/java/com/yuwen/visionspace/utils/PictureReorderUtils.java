@@ -20,12 +20,23 @@ public class PictureReorderUtils {
             return pictures;
         }
 
+        if (windowSize <= 0 || maxCount <= 0) {
+            return pictures;
+        }
+
         List<Picture> result = new ArrayList<>();
         Map<Long, Integer> authorCount = new HashMap<>();
         List<Picture> deferred = new ArrayList<>();
 
         for (Picture pic : pictures) {
             Long userId = pic.getUserId();
+
+            // userId 为 null 不参与作者打散
+            if (userId == null) {
+                result.add(pic);
+                continue;
+            }
+
             int count = authorCount.getOrDefault(userId, 0);
 
             if (result.size() < windowSize && count >= maxCount) {
@@ -45,6 +56,10 @@ public class PictureReorderUtils {
      */
     public static List<Picture> reorderByCategory(List<Picture> pictures, int maxConsecutive) {
         if (pictures == null || pictures.size() <= 1) {
+            return pictures;
+        }
+
+        if (maxConsecutive <= 1) {
             return pictures;
         }
 
