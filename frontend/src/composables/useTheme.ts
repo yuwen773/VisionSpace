@@ -19,9 +19,9 @@ export const THEMES: Record<ThemeType, ThemeInfo> = {
   },
   pop: {
     id: 'pop',
-    name: '波普主题',
-    icon: '🎨',
-    description: '明亮活泼风格'
+    name: '紫漾主题',
+    icon: '💜',
+    description: '梦幻紫粉风格'
   }
 }
 
@@ -102,7 +102,7 @@ export const useTheme = () => {
    */
   const loadThemeStyles = (theme: ThemeType): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const suffix = theme === 'pop' ? '-pop' : ''
+      const suffix = theme === 'pop' ? '-ziyan' : ''
 
       // 加载全局样式
       const globalCss = document.createElement('link')

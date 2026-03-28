@@ -31,7 +31,7 @@
             </div>
             <!-- Logo 图标 -->
             <div class="logo-icon">
-              <img src="@/assets/logo.png" alt="VisionSpace" class="logo-image" />
+              <img src="@/assets/logo.svg" alt="VisionSpace" class="logo-image" />
             </div>
             <!-- 浮动光点 -->
             <div class="logo-particles">
@@ -43,9 +43,6 @@
           </div>
           <div class="logo-text">
             <span class="logo-name">VisionSpace</span>
-            <span class="logo-tag">
-              <span class="tag-text">探索宇宙</span>
-            </span>
           </div>
         </router-link>
       </div>
@@ -56,7 +53,7 @@
           <a-menu
             v-model:selectedKeys="current"
             mode="horizontal"
-            :items="menuItems"
+            :items="items"
             :ellipsis="false"
             @click="doMenuClick"
             class="cosmic-nav-menu"
@@ -66,6 +63,11 @@
 
       <!-- 用户区域 -->
       <div class="header-right">
+        <!-- 主题切换按钮 -->
+        <button class="theme-toggle-btn" @click="toggleTheme" :title="currentTheme === 'aurora' ? '切换到紫漾主题' : '切换到极光主题'">
+          <span class="theme-icon">{{ currentTheme === 'aurora' ? '🌙' : '☀️' }}</span>
+        </button>
+
         <div v-if="loginUserStore.loginUser.id" class="user-section">
           <a-dropdown :placement="'bottomRight'" class="cosmic-dropdown">
             <div class="user-trigger">
@@ -120,33 +122,6 @@
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
-                    <a-menu-divider class="menu-divider" />
-                    <a-sub-menu key="theme" class="theme-submenu">
-                      <template #title>
-                        <div class="menu-item-inner">
-                          <span class="menu-icon">{{ THEMES[currentTheme].icon }}</span>
-                          <span class="menu-text">主题切换</span>
-                        </div>
-                        <div class="menu-item-shine"></div>
-                      </template>
-                      <div class="theme-options">
-                        <a-menu-item
-                          v-for="(themeInfo, key) in THEMES"
-                          :key="key"
-                          @click="setTheme(key)"
-                          class="theme-item"
-                          :class="{ 'theme-active': currentTheme === key }"
-                        >
-                          <span class="theme-icon">{{ themeInfo.icon }}</span>
-                          <span class="theme-name">{{ themeInfo.name }}</span>
-                          <span v-if="currentTheme === key" class="theme-check">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                              <path d="M20 6L9 17l-5-5"/>
-                            </svg>
-                          </span>
-                        </a-menu-item>
-                      </div>
-                    </a-sub-menu>
                     <a-menu-divider class="menu-divider" />
                     <a-menu-item key="logout" class="menu-item logout-item">
                       <div class="menu-item-inner">
@@ -205,7 +180,7 @@ const particleCanvas = ref<HTMLCanvasElement | null>(null)
 let particleAnimationId: number | null = null
 
 // 主题管理
-const { currentTheme, THEMES, setTheme } = useTheme()
+const { currentTheme, THEMES, setTheme, toggleTheme } = useTheme()
 
 const filterMenus = (menus = [] as MenuProps['items']) => {
   return menus?.filter((menu) => {
@@ -246,28 +221,6 @@ const originItems = [
   {
     key: '/my_space',
     label: '💾 我的空间',
-  },
-  {
-    key: '/admin',
-    label: '⚙️ 管理',
-    children: [
-      {
-        key: '/admin/user_manage',
-        label: '👥 用户管理',
-      },
-      {
-        key: '/admin/picture_manage',
-        label: '🖼️ 图片管理',
-      },
-      {
-        key: '/admin/space_manage',
-        label: '☁️ 空间管理',
-      },
-      {
-        key: '/admin/storage_config_manage',
-        label: '☁️ 存储配置',
-      },
-    ],
   },
 ]
 
@@ -668,13 +621,12 @@ onUnmounted(() => {
 }
 
 .logo-name {
-  font-family: var(--font-display);
+  font-family: var(--font-brand);
   font-size: 1.25rem;
   font-weight: 800;
-  color: var(--text-primary);
   line-height: 1.2;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--color-primary-500) 50%, var(--color-accent-purple) 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -685,13 +637,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
 
-  .tag-text {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--color-accent-purple);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
 
   &::before {
     content: '';
@@ -723,9 +668,17 @@ onUnmounted(() => {
   font-family: var(--font-display);
   display: flex;
   justify-content: center;
+  flex-wrap: nowrap;
+  min-width: 0;
 
   :deep(.ant-menu-overflow) {
     justify-content: center;
+    flex-wrap: nowrap;
+    overflow: visible;
+  }
+
+  :deep(.ant-menu-overflow-item) {
+    flex-shrink: 0;
   }
 
   :deep(.ant-menu-item),
@@ -796,6 +749,8 @@ onUnmounted(() => {
 
 /* ========== 用户区域 ========== */
 .header-right {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -818,14 +773,14 @@ onUnmounted(() => {
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-bounce);
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-default);
 
   &:hover {
-    border-color: rgba(34, 104, 245, 0.5);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
-    box-shadow: 0 4px 20px rgba(34, 104, 245, 0.2), 0 0 30px rgba(110, 53, 235, 0.1);
+    box-shadow: var(--shadow-card);
 
     .avatar-ring {
       transform: scale(1.1) rotate(45deg);
@@ -847,9 +802,9 @@ onUnmounted(() => {
     width: 36px;
     height: 36px;
     border-radius: var(--radius-lg);
-    border: 2px solid rgba(34, 104, 245, 0.3);
+    border: 2px solid var(--border-default);
     transition: all var(--transition-bounce);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-sm);
   }
 
   .avatar-ring {
@@ -857,7 +812,7 @@ onUnmounted(() => {
     inset: -2px;
     border-radius: var(--radius-lg);
     border: 2px solid transparent;
-    background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-purple)) border-box;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) border-box;
     mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
     opacity: 0.5;
@@ -899,12 +854,12 @@ onUnmounted(() => {
 /* ========== 下拉菜单 ========== */
 .cosmic-dropdown-menu {
   min-width: 280px;
-  background: rgba(26, 35, 50, 0.98) !important;
+  background: var(--bg-card) !important;
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(34, 104, 245, 0.1);
+  box-shadow: var(--shadow-lg);
 
   /* 确保 Ant Design 菜单文字可见 */
   :deep(.ant-dropdown-menu) {
@@ -918,12 +873,12 @@ onUnmounted(() => {
     padding: 10px 14px;
 
     &:hover {
-      background: rgba(34, 104, 245, 0.15) !important;
+      background: var(--bg-hover) !important;
     }
   }
 
   :deep(.ant-dropdown-menu-item-divider) {
-    background: rgba(148, 163, 184, 0.15) !important;
+    background: var(--border-subtle) !important;
   }
 }
 
@@ -932,8 +887,8 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-5);
   padding: var(--space-5);
-  background: linear-gradient(135deg, rgba(34, 104, 245, 0.15) 0%, rgba(110, 53, 235, 0.15) 100%);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-subtle);
   position: relative;
   overflow: hidden;
 
@@ -944,7 +899,7 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--color-primary-500), var(--color-accent-purple), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-secondary), transparent);
   }
 }
 
@@ -952,14 +907,14 @@ onUnmounted(() => {
   position: relative;
 
   .dropdown-avatar {
-    border: 3px solid rgba(34, 104, 245, 0.4);
-    box-shadow: 0 4px 20px rgba(34, 104, 245, 0.3);
+    border: 2px solid var(--border-default);
+    box-shadow: var(--shadow-sm);
   }
 
   .dropdown-avatar-glow {
     position: absolute;
     inset: -8px;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
     filter: blur(10px);
     z-index: -1;
   }
@@ -971,10 +926,9 @@ onUnmounted(() => {
 
 .dropdown-user-name {
   font-weight: 700;
-  color: #f8fafc !important;
+  color: var(--text-primary) !important;
   font-size: 16px;
   font-family: var(--font-display);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .dropdown-user-role {
@@ -989,12 +943,12 @@ onUnmounted(() => {
   font-weight: 600;
   padding: 3px 10px;
   border-radius: var(--radius-full);
-  background: rgba(34, 104, 245, 0.2);
-  color: var(--color-primary-500);
-  border: 1px solid rgba(34, 104, 245, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--color-primary);
+  border: 1px solid rgba(168, 85, 247, 0.2);
 
   &.admin {
-    background: rgba(168, 85, 247, 0.2);
+    background: rgba(168, 85, 247, 0.15);
     color: var(--color-accent-purple);
     border-color: rgba(168, 85, 247, 0.3);
   }
@@ -1021,7 +975,7 @@ onUnmounted(() => {
   line-height: 1.5;
 
   &:hover {
-    background: rgba(34, 104, 245, 0.1) !important;
+    background: var(--bg-hover) !important;
     transform: none !important;
   }
 }
@@ -1039,14 +993,12 @@ onUnmounted(() => {
   .menu-icon {
     font-size: 16px;
     transition: transform var(--transition-bounce);
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
   }
 
   .menu-text {
     font-weight: 600;
-    color: #f8fafc !important;
+    color: var(--text-primary) !important;
     font-size: 14px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -1056,7 +1008,7 @@ onUnmounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.1), transparent);
   transition: left 0.5s ease;
 
   .menu-item:hover & {
@@ -1143,19 +1095,46 @@ onUnmounted(() => {
 
 .logout-item {
   &:hover {
-    background: rgba(255, 107, 157, 0.1) !important;
+    background: rgba(244, 63, 94, 0.1) !important;
 
     .menu-text {
-      color: var(--color-accent-pink);
+      color: var(--color-rose);
     }
 
     .logout-shine {
-      background: linear-gradient(90deg, transparent, rgba(255, 107, 157, 0.15), transparent);
+      background: linear-gradient(90deg, transparent, rgba(244, 63, 94, 0.15), transparent);
     }
   }
 
   .logout-shine {
-    background: linear-gradient(90deg, transparent, rgba(255, 107, 157, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(244, 63, 94, 0.1), transparent);
+  }
+}
+
+/* ========== 主题切换按钮 ========== */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  cursor: pointer;
+  transition: all var(--transition-bounce);
+  margin-right: var(--space-5);
+
+  &:hover {
+    transform: scale(1.1);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-glow-purple);
+  }
+
+  .theme-icon {
+    font-size: 18px;
+    line-height: 1;
   }
 }
 

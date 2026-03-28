@@ -3,7 +3,7 @@
     <!-- Logo 区域 -->
     <div class="sidebar-header">
       <router-link to="/" class="sidebar-logo">
-        <img src="@/assets/logo.png" alt="VisionSpace" class="logo-image" />
+        <img src="@/assets/logo.svg" alt="VisionSpace" class="logo-image" />
         <span v-show="!isCollapsed" class="logo-text">VisionSpace</span>
       </router-link>
       <button class="collapse-btn" @click="toggleCollapse">
@@ -142,6 +142,7 @@ const handleUserClick = () => {
   }
 
   .logo-text {
+    font-family: var(--font-brand);
     font-size: 16px;
     font-weight: 700;
     color: #c9d1d9;
