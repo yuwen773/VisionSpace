@@ -1,11 +1,17 @@
 <template>
   <div id="pictureDetailPage">
-    <!-- 沉浸式氛围背景 -->
+    <!-- 紫漾梦幻氛围背景 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
+      <div class="floating-shapes">
+        <div class="shape-dot dot-1"></div>
+        <div class="shape-dot dot-2"></div>
+        <div class="shape-dot dot-3"></div>
+        <div class="shape-dot dot-4"></div>
+        <div class="shape-dot dot-5"></div>
+      </div>
     </div>
 
     <!-- 顶部导航栏 -->
@@ -155,11 +161,11 @@
           </div>
           <div class="author-decoration">
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <circle cx="20" cy="20" r="18" stroke="url(#authorGrad)" stroke-width="2" stroke-dasharray="4 4"/>
+              <circle cx="20" cy="20" r="18" stroke="url(#authorGradZiyan)" stroke-width="2" stroke-dasharray="4 4"/>
               <defs>
-                <linearGradient id="authorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#f472b6"/>
-                  <stop offset="100%" stop-color="#a855f7"/>
+                <linearGradient id="authorGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#a855f7"/>
+                  <stop offset="100%" stop-color="#ec4899"/>
                 </linearGradient>
               </defs>
             </svg>
@@ -309,7 +315,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { deletePictureUsingPost, getPictureVoByIdUsingGet } from '@/api/pictureController.ts'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
@@ -325,7 +331,6 @@ const props = defineProps<Props>()
 const router = useRouter()
 
 // Refs
-const particleCanvas = ref<HTMLCanvasElement>()
 const imageStage = ref<HTMLElement>()
 const fullscreenImgRef = ref<HTMLImageElement>()
 
@@ -334,9 +339,6 @@ const picture = ref<API.PictureVO>({})
 const imageLoaded = ref(false)
 const isFullscreen = ref(false)
 const zoomLevel = ref(1)
-
-// Particle animation
-let particleAnimationId: number | null = null
 
 // Fetch picture detail
 const fetchDetailPicture = async () => {
@@ -447,68 +449,6 @@ const applyZoom = () => {
   }
 }
 
-// Init particles
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const resizeCanvas = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
-
-  interface Particle {
-    x: number
-    y: number
-    size: number
-    speedX: number
-    speedY: number
-    opacity: number
-  }
-
-  const particles: Particle[] = []
-  const particleCount = 30
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.2,
-      speedY: (Math.random() - 0.5) * 0.2,
-      opacity: Math.random() * 0.3 + 0.05
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 // Keyboard handler
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape' && isFullscreen.value) {
@@ -518,27 +458,23 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   fetchDetailPicture()
-  initParticles()
   window.addEventListener('keydown', handleKeydown)
 })
 
-onUnmounted(() => {
-  if (particleAnimationId) {
-    cancelAnimationFrame(particleAnimationId)
-  }
-  window.removeEventListener('keydown', handleKeydown)
+watch(() => props.id, () => {
+  fetchDetailPicture()
 })
 </script>
 
 <style scoped lang="less">
 #pictureDetailPage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-/* ========== 氛围背景 ========== */
+/* ========== 紫漾氛围背景 ========== */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -550,55 +486,108 @@ onUnmounted(() => {
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(100px);
   opacity: 0.5;
-  animation: float-orb 20s ease-in-out infinite;
+  animation: float-orb 25s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  top: -200px;
-  right: -100px;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+  top: -250px;
+  right: -150px;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  top: 40%;
-  left: -150px;
-  background: radial-gradient(circle, rgba(110, 53, 235, 0.25) 0%, transparent 70%);
-  animation-delay: -7s;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
+  top: 30%;
+  left: -200px;
+  animation-delay: -8s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
   bottom: -100px;
-  right: 20%;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
-  animation-delay: -14s;
+  right: 10%;
+  animation-delay: -16s;
 }
 
 @keyframes float-orb {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+  25% { transform: translate(40px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 30px) scale(0.95); }
+  75% { transform: translate(25px, 15px) scale(1.03); }
 }
 
-#particleCanvas {
+/* 浮动装饰点 */
+.floating-shapes {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
 }
 
-.gradient-orb {
-  pointer-events: none;
+.shape-dot {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: float-dot 15s ease-in-out infinite;
+}
+
+.dot-1 {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  width: 8px;
+  height: 8px;
+  background: var(--color-secondary);
+  top: 25%;
+  right: 20%;
+  animation-delay: -3s;
+}
+
+.dot-3 {
+  width: 16px;
+  height: 16px;
+  background: var(--color-violet);
+  bottom: 30%;
+  left: 15%;
+  animation-delay: -6s;
+}
+
+.dot-4 {
+  width: 10px;
+  height: 10px;
+  background: var(--color-pink);
+  top: 60%;
+  right: 25%;
+  animation-delay: -9s;
+}
+
+.dot-5 {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary-light);
+  bottom: 20%;
+  right: 40%;
+  animation-delay: -12s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10px, -15px) rotate(90deg); }
+  50% { transform: translate(-5px, 10px) rotate(180deg); }
+  75% { transform: translate(15px, 5px) rotate(270deg); }
 }
 
 /* ========== 顶部导航栏 ========== */
@@ -616,28 +605,29 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateX(-4px);
+    box-shadow: var(--shadow-glow-purple);
+
+    svg {
+      transform: translateX(-2px);
+    }
   }
 
   svg {
     transition: transform 0.3s ease;
-  }
-
-  &:hover svg {
-    transform: translateX(-2px);
   }
 }
 
@@ -652,22 +642,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-glow-purple);
   }
 
   &.delete:hover {
-    background: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.1);
     border-color: rgba(239, 68, 68, 0.5);
   }
 }
@@ -708,13 +699,13 @@ onUnmounted(() => {
   position: relative;
   border-radius: 20px;
   overflow: hidden;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   cursor: zoom-in;
   opacity: 0;
   transform: scale(0.95);
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: var(--shadow-card);
 
   &.loaded {
     opacity: 1;
@@ -731,9 +722,9 @@ onUnmounted(() => {
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(26, 35, 50, 0.6) 0%,
-    rgba(30, 41, 59, 0.6) 50%,
-    rgba(26, 35, 50, 0.6) 100%
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 100%
   );
   background-size: 200% 100%;
   animation: skeleton 1.5s infinite;
@@ -765,14 +756,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
-  color: white;
+  color: var(--text-primary);
   font-size: 13px;
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
+  box-shadow: var(--shadow-md);
 }
 
 /* 图片装饰边框 */
@@ -785,7 +777,7 @@ onUnmounted(() => {
     left: 10%;
     right: 10%;
     height: 3px;
-    background: linear-gradient(90deg, transparent, var(--color-grape), var(--color-pink), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-secondary), transparent);
   }
 
   &.frame-bottom {
@@ -821,13 +813,13 @@ onUnmounted(() => {
   gap: 24px;
   margin-top: 20px;
   padding: 16px 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 16px;
   opacity: 0;
   transform: translateY(10px);
   transition: all 0.5s ease 0.3s;
+  box-shadow: var(--shadow-sm);
 
   &.visible {
     opacity: 1;
@@ -842,12 +834,12 @@ onUnmounted(() => {
 }
 
 .info-icon {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   display: flex;
 }
 
 .info-text {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   font-family: var(--font-mono);
@@ -856,7 +848,7 @@ onUnmounted(() => {
 .info-divider {
   width: 1px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border-default);
 }
 
 /* ========== 信息面板 ========== */
@@ -894,11 +886,17 @@ onUnmounted(() => {
 .author-card {
   position: relative;
   padding: 20px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
+  background: var(--bg-card);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-default);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+  }
 }
 
 .author-glow {
@@ -907,7 +905,7 @@ onUnmounted(() => {
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle at 30% 30%, rgba(244, 114, 182, 0.15) 0%, transparent 50%);
+  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
   pointer-events: none;
 }
 
@@ -920,8 +918,8 @@ onUnmounted(() => {
 }
 
 .author-avatar {
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 30px rgba(244, 114, 182, 0.3);
+  border: 3px solid var(--color-primary-light);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
 }
 
 .author-info {
@@ -933,12 +931,12 @@ onUnmounted(() => {
 .author-name {
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .author-account {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 .author-decoration {
@@ -963,14 +961,14 @@ onUnmounted(() => {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
   line-height: 1.3;
 }
 
 .picture-intro {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-tertiary);
   margin: 0;
   line-height: 1.6;
 }
@@ -987,16 +985,16 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 14px;
   padding: 16px;
-  background: rgba(26, 35, 50, 0.4);
-  backdrop-filter: blur(10px);
+  background: var(--bg-tertiary);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(26, 35, 50, 0.6);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: var(--bg-hover);
+    border-color: var(--color-primary-light);
     transform: translateX(4px);
+    box-shadow: var(--shadow-sm);
   }
 }
 
@@ -1006,9 +1004,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.1);
   border-radius: 10px;
-  color: #a855f7;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -1022,7 +1020,7 @@ onUnmounted(() => {
 
 .meta-label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1030,7 +1028,7 @@ onUnmounted(() => {
 .meta-value {
   font-size: 15px;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .color-value {
@@ -1043,7 +1041,7 @@ onUnmounted(() => {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid var(--border-default);
   box-shadow: 0 0 15px currentColor;
 }
 
@@ -1055,15 +1053,15 @@ onUnmounted(() => {
 
 .tag-chip {
   padding: 5px 12px;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid var(--color-primary-light);
   border-radius: 20px;
   font-size: 13px;
-  color: #c084fc;
+  color: var(--color-primary-dark);
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(168, 85, 247, 0.3);
+    background: rgba(168, 85, 247, 0.2);
     transform: translateY(-2px);
   }
 }
@@ -1089,26 +1087,25 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 
   &.primary {
-    background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     border: none;
     color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
     &:hover {
       transform: translateY(-3px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
     }
   }
 
   &.secondary {
-    background: rgba(26, 35, 50, 0.6);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
 
     &:hover {
-      background: rgba(30, 41, 59, 0.8);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--bg-hover);
+      border-color: var(--color-primary);
       transform: translateY(-2px);
     }
   }
@@ -1128,17 +1125,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 }
 
 kbd {
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 }
 
 /* ========== 全屏预览模态框 ========== */
@@ -1146,11 +1143,11 @@ kbd {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(250, 247, 255, 0.95);
+  backdrop-filter: blur(30px);
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(30px);
 }
 
 .fullscreen-close {
@@ -1162,16 +1159,18 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 14px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
   z-index: 10;
+  box-shadow: var(--shadow-md);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: rotate(90deg);
   }
 }
@@ -1204,10 +1203,10 @@ kbd {
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  background: rgba(26, 35, 50, 0.8);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 16px;
+  box-shadow: var(--shadow-lg);
 }
 
 .toolbar-btn {
@@ -1216,15 +1215,16 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: scale(1.1);
   }
 }
@@ -1234,13 +1234,13 @@ kbd {
   text-align: center;
   font-size: 14px;
   font-family: var(--font-mono);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
 }
 
 .toolbar-divider {
   width: 1px;
   height: 24px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border-default);
   margin: 0 4px;
 }
 
