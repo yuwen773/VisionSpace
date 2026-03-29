@@ -111,9 +111,9 @@ const options = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(26, 35, 50, 0.95)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      textStyle: { color: '#f8fafc' },
+      backgroundColor: 'rgba(250, 247, 255, 0.95)',
+      borderColor: 'rgba(168, 85, 247, 0.2)',
+      textStyle: { color: '#1e1b4b' },
     },
     grid: {
       left: '3%',
@@ -126,15 +126,15 @@ const options = computed(() => {
       type: 'category',
       data: periods,
       boundaryGap: false,
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 11 },
+      axisLine: { lineStyle: { color: 'rgba(168, 85, 247, 0.2)' } },
+      axisLabel: { color: '#6b7280', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
       name: '上传数量',
-      axisLine: { show: true, lineStyle: { color: '#60a5fa' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
-      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } },
+      axisLine: { show: true, lineStyle: { color: '#a855f7' } },
+      axisLabel: { color: '#6b7280' },
+      splitLine: { lineStyle: { color: 'rgba(168, 85, 247, 0.08)' } },
     },
     series: [
       {
@@ -147,12 +147,12 @@ const options = computed(() => {
         lineStyle: {
           color: '#a855f7',
           width: 3,
-          shadowColor: 'rgba(168, 85, 247, 0.5)',
+          shadowColor: 'rgba(168, 85, 247, 0.3)',
           shadowBlur: 10,
         },
         itemStyle: {
           color: '#a855f7',
-          borderColor: '#fff',
+          borderColor: '#faf7ff',
           borderWidth: 2,
         },
         areaStyle: {
@@ -160,7 +160,7 @@ const options = computed(() => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(168, 85, 247, 0.3)' },
+              { offset: 0, color: 'rgba(168, 85, 247, 0.2)' },
               { offset: 1, color: 'rgba(168, 85, 247, 0)' },
             ],
           },
@@ -179,16 +179,16 @@ const options = computed(() => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -206,16 +206,16 @@ const options = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(96, 165, 250, 0.2);
+  background: rgba(168, 85, 247, 0.15);
   border-radius: 12px;
-  color: #60a5fa;
+  color: var(--color-primary);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
   flex: 1;
 }
@@ -228,7 +228,8 @@ const options = computed(() => {
 
 .time-selector {
   display: flex;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 4px;
 }
@@ -238,18 +239,18 @@ const options = computed(() => {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-tertiary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover {
-    color: white;
+    color: var(--text-primary);
   }
 
   &.active {
-    background: linear-gradient(135deg, #a855f7 0%, #60a5fa 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     color: white;
     box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
   }
@@ -269,8 +270,8 @@ const options = computed(() => {
 .loader-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #60a5fa;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -286,10 +287,10 @@ const options = computed(() => {
   justify-content: center;
   height: 280px;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.3;
+    opacity: 0.4;
   }
 }
 

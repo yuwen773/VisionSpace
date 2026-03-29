@@ -82,7 +82,7 @@ watchEffect(() => {
   fetchData()
 })
 
-const pieColors = ['#60a5fa', '#a855f7', '#f472b6', '#00d4aa', '#fb923c']
+const pieColors = ['#a855f7', '#ec4899', '#f472b6', '#10b981', '#f59e0b']
 
 const options = computed(() => {
   const pieData = dataList.value?.map((item: any, index: number) => ({
@@ -98,16 +98,16 @@ const options = computed(() => {
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: 'rgba(26, 35, 50, 0.95)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      textStyle: { color: '#f8fafc' },
+      backgroundColor: 'rgba(250, 247, 255, 0.95)',
+      borderColor: 'rgba(168, 85, 247, 0.2)',
+      textStyle: { color: '#1e1b4b' },
       formatter: '{b}: {c} ({d}%)',
     },
     legend: {
       orient: 'vertical',
       right: '5%',
       top: 'center',
-      textStyle: { color: 'rgba(255, 255, 255, 0.6)' },
+      textStyle: { color: '#6b7280' },
       itemWidth: 12,
       itemHeight: 12,
       itemGap: 12,
@@ -121,7 +121,7 @@ const options = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: 'rgba(26, 35, 50, 0.8)',
+          borderColor: '#faf7ff',
           borderWidth: 3,
         },
         label: {
@@ -133,25 +133,25 @@ const options = computed(() => {
             show: true,
             fontSize: 18,
             fontWeight: 'bold',
-            color: '#fff',
+            color: '#1e1b4b',
             formatter: () => `{total|${total}}\n{label|张图片}`,
             rich: {
               total: {
                 fontSize: 28,
                 fontWeight: 800,
                 fontFamily: 'var(--font-display)',
-                color: '#fff',
+                color: '#1e1b4b',
               },
               label: {
                 fontSize: 12,
-                color: 'rgba(255, 255, 255, 0.6)',
+                color: '#6b7280',
                 padding: [8, 0, 0, 0],
               },
             },
           },
           itemStyle: {
             shadowBlur: 20,
-            shadowColor: 'rgba(168, 85, 247, 0.5)',
+            shadowColor: 'rgba(168, 85, 247, 0.3)',
           },
         },
         labelLine: {
@@ -172,16 +172,16 @@ const options = computed(() => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -198,16 +198,16 @@ const options = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 212, 170, 0.2);
+  background: rgba(16, 185, 129, 0.15);
   border-radius: 12px;
-  color: #00d4aa;
+  color: var(--color-mint);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -225,8 +225,8 @@ const options = computed(() => {
 .loader-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #00d4aa;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--color-mint);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -242,10 +242,10 @@ const options = computed(() => {
   justify-content: center;
   height: 280px;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.3;
+    opacity: 0.4;
   }
 }
 

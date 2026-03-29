@@ -1,11 +1,17 @@
 <template>
   <div id="spaceAnalyzePage">
-    <!-- 沉浸式氛围背景 -->
+    <!-- 紫漾梦幻氛围背景 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
+      <div class="floating-shapes">
+        <div class="shape-dot dot-1"></div>
+        <div class="shape-dot dot-2"></div>
+        <div class="shape-dot dot-3"></div>
+        <div class="shape-dot dot-4"></div>
+        <div class="shape-dot dot-5"></div>
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -173,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { getSpaceUsageAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
@@ -190,12 +196,8 @@ const router = useRouter()
 const loginUserStore = useLoginUserStore()
 
 // Refs
-const particleCanvas = ref<HTMLCanvasElement>()
 const categoryCount = ref(0)
 const tagCount = ref(0)
-
-// Particle animation
-let particleAnimationId: number | null = null
 
 // Computed
 const spaceId = computed(() => route.query?.spaceId as string)
@@ -228,89 +230,20 @@ const refreshData = () => {
   window.location.reload()
 }
 
-// Init particles
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const resizeCanvas = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
-
-  interface Particle {
-    x: number
-    y: number
-    size: number
-    speedX: number
-    speedY: number
-    opacity: number
-  }
-
-  const particles: Particle[] = []
-  const particleCount = 50
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.2,
-      speedY: (Math.random() - 0.5) * 0.2,
-      opacity: Math.random() * 0.4 + 0.1
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(148, 163, 184, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 onMounted(() => {
   fetchUsageData()
-  initParticles()
-})
-
-onUnmounted(() => {
-  if (particleAnimationId) {
-    cancelAnimationFrame(particleAnimationId)
-  }
 })
 </script>
 
 <style scoped lang="less">
 #spaceAnalyzePage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-/* ========== 氛围背景 ========== */
+/* ========== 紫漾氛围背景 ========== */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -322,50 +255,108 @@ onUnmounted(() => {
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-  animation: float-orb 20s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: float-orb 25s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+  top: -250px;
+  right: -150px;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(110, 53, 235, 0.25) 0%, transparent 70%);
-  top: 40%;
-  left: -150px;
-  animation-delay: -7s;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
+  top: 30%;
+  left: -200px;
+  animation-delay: -8s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
   bottom: -100px;
-  right: 20%;
-  animation-delay: -14s;
+  right: 10%;
+  animation-delay: -16s;
 }
 
 @keyframes float-orb {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+  25% { transform: translate(40px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 30px) scale(0.95); }
+  75% { transform: translate(25px, 15px) scale(1.03); }
 }
 
-#particleCanvas {
+/* 浮动装饰点 */
+.floating-shapes {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+.shape-dot {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: float-dot 15s ease-in-out infinite;
+}
+
+.dot-1 {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  width: 8px;
+  height: 8px;
+  background: var(--color-secondary);
+  top: 25%;
+  right: 20%;
+  animation-delay: -3s;
+}
+
+.dot-3 {
+  width: 16px;
+  height: 16px;
+  background: var(--color-violet);
+  bottom: 30%;
+  left: 15%;
+  animation-delay: -6s;
+}
+
+.dot-4 {
+  width: 10px;
+  height: 10px;
+  background: var(--color-pink);
+  top: 60%;
+  right: 25%;
+  animation-delay: -9s;
+}
+
+.dot-5 {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary-light);
+  bottom: 20%;
+  right: 40%;
+  animation-delay: -12s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10px, -15px) rotate(90deg); }
+  50% { transform: translate(-5px, 10px) rotate(180deg); }
+  75% { transform: translate(15px, 5px) rotate(270deg); }
 }
 
 /* ========== 主内容区 ========== */
@@ -390,20 +381,21 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateX(-4px);
+    box-shadow: var(--shadow-glow-purple);
   }
 }
 
@@ -420,9 +412,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.15);
   border-radius: 14px;
-  color: #a855f7;
+  color: var(--color-primary);
   animation: pulse-icon 3s ease-in-out infinite;
 }
 
@@ -435,9 +427,9 @@ onUnmounted(() => {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f472b6 50%, #a855f7 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -445,22 +437,22 @@ onUnmounted(() => {
 
 .title-divider {
   font-size: 24px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-tertiary);
 }
 
 .title-sub {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 }
 
 .title-link {
   font-size: 16px;
-  color: #60a5fa;
+  color: var(--color-primary);
   text-decoration: none;
   transition: all 0.3s ease;
 
   &:hover {
-    color: #93c5fd;
+    color: var(--color-secondary);
     text-decoration: underline;
   }
 }
@@ -475,20 +467,21 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-glow-purple);
   }
 }
 
@@ -513,19 +506,19 @@ onUnmounted(() => {
 
 .overview-card {
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   animation: card-reveal 0.6s ease-out forwards;
   opacity: 0;
   transform: translateY(20px);
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -546,23 +539,23 @@ onUnmounted(() => {
   margin-bottom: 16px;
 
   &.storage {
-    background: rgba(34, 104, 245, 0.2);
-    color: #60a5fa;
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--color-primary);
   }
 
   &.images {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
+    background: rgba(236, 72, 153, 0.15);
+    color: var(--color-secondary);
   }
 
   &.category {
-    background: rgba(0, 212, 170, 0.2);
-    color: #00d4aa;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--color-mint);
   }
 
   &.tags {
-    background: rgba(244, 114, 182, 0.2);
-    color: #f472b6;
+    background: rgba(244, 114, 182, 0.15);
+    color: var(--color-pink);
   }
 }
 
@@ -575,36 +568,36 @@ onUnmounted(() => {
 
 .overview-label {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 .overview-value {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .overview-max {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 }
 
 .overview-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-tertiary);
   border-radius: 3px;
   overflow: hidden;
 
   .bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #2268f5, #60a5fa);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
     border-radius: 3px;
     transition: width 1s ease;
   }
 
   &.pink .bar-fill {
-    background: linear-gradient(90deg, #a855f7, #f472b6);
+    background: linear-gradient(90deg, var(--color-secondary), var(--color-pink));
   }
 }
 
@@ -648,7 +641,7 @@ onUnmounted(() => {
     order: 2;
     width: 100%;
     padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--border-subtle);
   }
 
   .page-title {

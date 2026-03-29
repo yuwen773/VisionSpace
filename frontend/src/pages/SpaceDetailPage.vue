@@ -1,11 +1,17 @@
 <template>
   <div id="spaceDetailPage">
-    <!-- 沉浸式氛围背景 -->
+    <!-- 紫漾梦幻氛围背景 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
+      <div class="floating-shapes">
+        <div class="shape-dot dot-1"></div>
+        <div class="shape-dot dot-2"></div>
+        <div class="shape-dot dot-3"></div>
+        <div class="shape-dot dot-4"></div>
+        <div class="shape-dot dot-5"></div>
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -58,15 +64,15 @@
         <div class="space-hero-content">
           <div class="space-icon">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="22" stroke="url(#spaceGrad)" stroke-width="2" stroke-dasharray="6 3"/>
-              <circle cx="24" cy="24" r="14" fill="url(#spaceGrad)" opacity="0.2"/>
-              <circle cx="24" cy="24" r="8" fill="url(#spaceGrad)" opacity="0.4"/>
-              <circle cx="24" cy="24" r="3" fill="url(#spaceGrad)"/>
+              <circle cx="24" cy="24" r="22" stroke="url(#spaceGradZiyan)" stroke-width="2" stroke-dasharray="6 3"/>
+              <circle cx="24" cy="24" r="14" fill="url(#spaceGradZiyan)" opacity="0.2"/>
+              <circle cx="24" cy="24" r="8" fill="url(#spaceGradZiyan)" opacity="0.4"/>
+              <circle cx="24" cy="24" r="3" fill="url(#spaceGradZiyan)"/>
               <defs>
-                <linearGradient id="spaceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#2268f5"/>
-                  <stop offset="50%" stop-color="#6e35eb"/>
-                  <stop offset="100%" stop-color="#a855f7"/>
+                <linearGradient id="spaceGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#a855f7"/>
+                  <stop offset="50%" stop-color="#ec4899"/>
+                  <stop offset="100%" stop-color="#f472b6"/>
                 </linearGradient>
               </defs>
             </svg>
@@ -238,7 +244,7 @@
             <div class="orb-ring"></div>
             <div class="orb-ring ring-2"></div>
           </div>
-          <span class="loader-text">正在加载精彩内容</span>
+          <span class="loader-text">正在加载精彩内容 ✨</span>
         </div>
 
         <!-- 网格视图 -->
@@ -328,14 +334,14 @@
         <div v-if="!loading && dataList.length === 0" class="empty-state">
           <div class="empty-illustration">
             <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-              <circle cx="60" cy="60" r="50" stroke="var(--color-border-default)" stroke-width="2" stroke-dasharray="8 4"/>
-              <rect x="35" y="35" width="50" height="50" rx="8" stroke="var(--color-text-tertiary)" stroke-width="2"/>
-              <circle cx="50" cy="50" r="6" fill="var(--color-text-disabled)"/>
-              <path d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z" fill="var(--color-bg-tertiary)" stroke="var(--color-text-tertiary)" stroke-width="2"/>
+              <circle cx="60" cy="60" r="50" stroke="var(--color-primary-light)" stroke-width="2" stroke-dasharray="8 4"/>
+              <rect x="35" y="35" width="50" height="50" rx="8" stroke="var(--color-primary)" stroke-width="2"/>
+              <circle cx="50" cy="50" r="6" fill="var(--color-primary)"/>
+              <path d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z" fill="var(--bg-tertiary)" stroke="var(--color-primary)" stroke-width="2"/>
             </svg>
           </div>
           <h3 class="empty-title">暂无图片</h3>
-          <p class="empty-desc">这个空间还没有上传任何图片，开始你的创作吧</p>
+          <p class="empty-desc">这个空间还没有上传任何图片，开始你的创作吧 ✨</p>
           <button v-if="canUploadPicture" class="empty-action" @click="goToUpload">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 5v14M5 12h14"/>
@@ -388,7 +394,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { deletePictureUsingPost, searchPictureByColorUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
@@ -408,9 +414,9 @@ const props = defineProps<Props>()
 const router = useRouter()
 
 // Refs
-const particleCanvas = ref<HTMLCanvasElement>()
 const batchEditPictureModalRef = ref()
 const shareModalRef = ref()
+const shareLink = ref('')
 
 // State
 const space = ref<API.SpaceVO>({})
@@ -433,9 +439,6 @@ const searchParams = ref<API.PictureQueryRequest>({
 // Column assignment for masonry
 const columnAssignment = ref<Map<string, number>>(new Map())
 const columnHeights = ref<number[]>([0, 0, 0, 0])
-
-// Particle animation
-let particleAnimationId: number | null = null
 
 // Permission checks
 const createPermissionChecker = (permission: string) => {
@@ -666,78 +669,9 @@ const goToPage = (page: number) => {
   fetchData()
 }
 
-// Init particles
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const resizeCanvas = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
-
-  interface Particle {
-    x: number
-    y: number
-    size: number
-    speedX: number
-    speedY: number
-    opacity: number
-  }
-
-  const particles: Particle[] = []
-  const particleCount = 40
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.2,
-      speedY: (Math.random() - 0.5) * 0.2,
-      opacity: Math.random() * 0.4 + 0.1
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(148, 163, 184, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 onMounted(async () => {
   await fetchDetailSpace()
   fetchData()
-  initParticles()
-})
-
-onUnmounted(() => {
-  if (particleAnimationId) {
-    cancelAnimationFrame(particleAnimationId)
-  }
 })
 
 watch(() => props.id, () => {
@@ -749,12 +683,12 @@ watch(() => props.id, () => {
 <style scoped lang="less">
 #spaceDetailPage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-/* ========== 氛围背景 ========== */
+/* ========== 紫漾氛围背景 ========== */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -766,50 +700,108 @@ watch(() => props.id, () => {
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-  animation: float-orb 20s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: float-orb 25s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+  top: -250px;
+  right: -150px;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(110, 53, 235, 0.25) 0%, transparent 70%);
-  top: 40%;
-  left: -150px;
-  animation-delay: -7s;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
+  top: 30%;
+  left: -200px;
+  animation-delay: -8s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
   bottom: -100px;
-  right: 20%;
-  animation-delay: -14s;
+  right: 10%;
+  animation-delay: -16s;
 }
 
 @keyframes float-orb {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+  25% { transform: translate(40px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 30px) scale(0.95); }
+  75% { transform: translate(25px, 15px) scale(1.03); }
 }
 
-#particleCanvas {
+/* 浮动装饰点 */
+.floating-shapes {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+.shape-dot {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: float-dot 15s ease-in-out infinite;
+}
+
+.dot-1 {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  width: 8px;
+  height: 8px;
+  background: var(--color-secondary);
+  top: 25%;
+  right: 20%;
+  animation-delay: -3s;
+}
+
+.dot-3 {
+  width: 16px;
+  height: 16px;
+  background: var(--color-violet);
+  bottom: 30%;
+  left: 15%;
+  animation-delay: -6s;
+}
+
+.dot-4 {
+  width: 10px;
+  height: 10px;
+  background: var(--color-pink);
+  top: 60%;
+  right: 25%;
+  animation-delay: -9s;
+}
+
+.dot-5 {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary-light);
+  bottom: 20%;
+  right: 40%;
+  animation-delay: -12s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10px, -15px) rotate(90deg); }
+  50% { transform: translate(-5px, 10px) rotate(180deg); }
+  75% { transform: translate(15px, 5px) rotate(270deg); }
 }
 
 /* ========== 主内容区 ========== */
@@ -834,28 +826,29 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateX(-4px);
+    box-shadow: var(--shadow-glow-purple);
+
+    svg {
+      transform: translateX(-2px);
+    }
   }
 
   svg {
     transition: transform 0.3s ease;
-  }
-
-  &:hover svg {
-    transform: translateX(-2px);
   }
 }
 
@@ -878,13 +871,13 @@ watch(() => props.id, () => {
   border: none;
 
   &.primary {
-    background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
     &:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
     }
   }
 }
@@ -895,18 +888,19 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-glow-purple);
   }
 }
 
@@ -930,7 +924,7 @@ watch(() => props.id, () => {
   transform: translate(-50%, -50%);
   width: 600px;
   height: 300px;
-  background: radial-gradient(ellipse, rgba(34, 104, 245, 0.15) 0%, rgba(110, 53, 235, 0.1) 40%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(168, 85, 247, 0.15) 0%, rgba(236, 72, 153, 0.08) 40%, transparent 70%);
   filter: blur(40px);
 }
 
@@ -948,20 +942,20 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 20px;
+  box-shadow: var(--shadow-card);
   animation: pulse-glow 3s ease-in-out infinite;
 
   svg {
-    filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.5));
+    filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.3));
   }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.4)); }
-  50% { transform: scale(1.05); filter: drop-shadow(0 0 25px rgba(168, 85, 247, 0.6)); }
+  0%, 100% { transform: scale(1); box-shadow: var(--shadow-card); }
+  50% { transform: scale(1.03); box-shadow: var(--shadow-glow-purple); }
 }
 
 .space-info {
@@ -972,9 +966,8 @@ watch(() => props.id, () => {
   font-family: var(--font-display);
   font-size: 36px;
   font-weight: 800;
-  color: white;
   margin: 0 0 12px 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f472b6 50%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 50%, var(--color-pink) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -993,21 +986,21 @@ watch(() => props.id, () => {
   font-weight: 600;
 
   &.private {
-    background: rgba(34, 104, 245, 0.2);
-    color: #60a5fa;
-    border: 1px solid rgba(34, 104, 245, 0.3);
+    background: rgba(168, 85, 247, 0.1);
+    color: var(--color-primary);
+    border: 1px solid rgba(168, 85, 247, 0.2);
   }
 
   &.team {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: rgba(236, 72, 153, 0.1);
+    color: var(--color-secondary);
+    border: 1px solid rgba(236, 72, 153, 0.2);
   }
 }
 
 .space-intro {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 /* ========== 统计卡片 ========== */
@@ -1032,9 +1025,8 @@ watch(() => props.id, () => {
 .stat-card {
   position: relative;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.5);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   display: flex;
   align-items: center;
@@ -1043,6 +1035,13 @@ watch(() => props.id, () => {
   animation: card-reveal 0.6s ease-out forwards;
   opacity: 0;
   transform: translateY(20px);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-4px);
+  }
 }
 
 @keyframes card-reveal {
@@ -1058,19 +1057,19 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(34, 104, 245, 0.2);
+  background: rgba(168, 85, 247, 0.1);
   border-radius: 14px;
-  color: #60a5fa;
+  color: var(--color-primary);
   flex-shrink: 0;
 
   &.purple {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--color-primary);
   }
 
   &.cyan {
-    background: rgba(0, 212, 170, 0.2);
-    color: #00d4aa;
+    background: rgba(34, 211, 238, 0.1);
+    color: var(--color-cyan);
   }
 }
 
@@ -1085,13 +1084,13 @@ watch(() => props.id, () => {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .stat-label {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 .stat-decoration {
@@ -1105,14 +1104,14 @@ watch(() => props.id, () => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
 
   &.purple {
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
   }
 
   &.cyan {
-    background: radial-gradient(circle, rgba(0, 212, 170, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(34, 211, 238, 0.2) 0%, transparent 70%);
   }
 }
 
@@ -1136,13 +1135,13 @@ watch(() => props.id, () => {
 
 .ring-bg {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.08);
+  stroke: var(--border-default);
   stroke-width: 8;
 }
 
 .ring-progress {
   fill: none;
-  stroke: #a855f7;
+  stroke: var(--color-primary);
   stroke-width: 8;
   stroke-linecap: round;
   transition: stroke-dasharray 0.5s ease;
@@ -1161,12 +1160,12 @@ watch(() => props.id, () => {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .ring-label {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 /* ========== 搜索区域 ========== */
@@ -1187,22 +1186,21 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 12px;
   padding: 6px 6px 6px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 60px;
   margin-bottom: 16px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:focus-within {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(168, 85, 247, 0.5);
-    box-shadow: 0 0 30px rgba(168, 85, 247, 0.2);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-glow-purple);
   }
 }
 
 .search-icon {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   display: flex;
 }
 
@@ -1212,11 +1210,11 @@ watch(() => props.id, () => {
   border: none;
   outline: none;
   font-size: 16px;
-  color: #f8fafc;
+  color: var(--text-primary);
   min-width: 0;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-tertiary);
   }
 }
 
@@ -1225,7 +1223,7 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 8px;
   padding: 14px 28px;
-  background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   border: none;
   border-radius: 40px;
   color: white;
@@ -1233,11 +1231,11 @@ watch(() => props.id, () => {
   font-size: 15px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
   }
 }
 
@@ -1256,7 +1254,8 @@ watch(() => props.id, () => {
 
 .filter-label {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .clear-filters-btn {
@@ -1264,17 +1263,17 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 20px;
-  color: #f87171;
+  color: #dc2626;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.15);
     transform: translateY(-1px);
   }
 }
@@ -1290,10 +1289,10 @@ watch(() => props.id, () => {
   align-items: center;
   margin-bottom: 24px;
   padding: 16px 20px;
-  background: rgba(26, 35, 50, 0.5);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 14px;
+  box-shadow: var(--shadow-sm);
 }
 
 .gallery-count {
@@ -1306,7 +1305,7 @@ watch(() => props.id, () => {
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
-  background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1314,7 +1313,7 @@ watch(() => props.id, () => {
 
 .count-label {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 .gallery-view-toggle {
@@ -1328,22 +1327,22 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(34, 104, 245, 0.3) 100%);
-    border-color: rgba(168, 85, 247, 0.5);
-    color: white;
+    background: rgba(168, 85, 247, 0.1);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
   }
 }
 
@@ -1366,27 +1365,27 @@ watch(() => props.id, () => {
 .orb-inner {
   position: absolute;
   inset: 15px;
-  background: linear-gradient(135deg, #f472b6, #ec4899);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   border-radius: 50%;
   animation: pulse-orb 1.5s ease-in-out infinite;
-  box-shadow: 0 0 30px rgba(244, 114, 182, 0.6);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
 }
 
 .orb-ring {
   position: absolute;
   inset: 0;
   border: 2px solid transparent;
-  border-top-color: #f472b6;
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin-ring 1.2s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(244, 114, 182, 0.6));
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.5));
 
   &.ring-2 {
     inset: 5px;
-    border-top-color: #fb923c;
+    border-top-color: var(--color-secondary);
     animation-duration: 1.8s;
     animation-direction: reverse;
-    filter: drop-shadow(0 0 10px rgba(251, 146, 60, 0.6));
+    filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.5));
   }
 }
 
@@ -1401,7 +1400,7 @@ watch(() => props.id, () => {
 
 .loader-text {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   letter-spacing: 1px;
 }
 
@@ -1444,13 +1443,14 @@ watch(() => props.id, () => {
   width: 100%;
   overflow: hidden;
   border-radius: 16px;
-  background: var(--color-bg-secondary);
+  background: var(--bg-tertiary);
+  box-shadow: var(--shadow-sm);
 }
 
 .item-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 100%);
+  background: linear-gradient(90deg, var(--bg-tertiary) 0%, var(--bg-hover) 50%, var(--bg-tertiary) 100%);
   background-size: 200% 100%;
   animation: skeleton 1.5s infinite;
 }
@@ -1477,7 +1477,7 @@ watch(() => props.id, () => {
 .item-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(3, 7, 18, 0.95) 0%, rgba(3, 7, 18, 0.5) 40%, transparent 100%);
+  background: linear-gradient(to top, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 0.6) 40%, rgba(30, 27, 75, 0.2) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
   display: flex;
@@ -1496,7 +1496,7 @@ watch(() => props.id, () => {
 .item-title {
   font-size: 15px;
   font-weight: 600;
-  color: #f8fafc;
+  color: white;
   margin: 0 0 8px 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1505,7 +1505,7 @@ watch(() => props.id, () => {
 
 .item-meta {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1527,21 +1527,21 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   color: white;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.25);
     transform: scale(1.1);
   }
 
   &.delete:hover {
-    background: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.4);
     border-color: rgba(239, 68, 68, 0.5);
   }
 }
@@ -1574,9 +1574,9 @@ watch(() => props.id, () => {
 
 .empty-illustration {
   margin-bottom: 32px;
-  opacity: 0.7;
+  opacity: 0.8;
   animation: float-illustration 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 20px rgba(244, 114, 182, 0.3));
+  filter: drop-shadow(0 0 20px rgba(168, 85, 247, 0.2));
 }
 
 @keyframes float-illustration {
@@ -1588,13 +1588,13 @@ watch(() => props.id, () => {
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
 .empty-desc {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   margin: 0 0 32px 0;
   max-width: 300px;
 }
@@ -1604,7 +1604,7 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 10px;
   padding: 14px 32px;
-  background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   border: none;
   border-radius: 40px;
   color: white;
@@ -1612,11 +1612,11 @@ watch(() => props.id, () => {
   font-size: 15px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 25px rgba(244, 114, 182, 0.45);
+  box-shadow: 0 4px 25px rgba(168, 85, 247, 0.35);
 
   &:hover {
     transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 35px rgba(244, 114, 182, 0.55);
+    box-shadow: 0 8px 35px rgba(168, 85, 247, 0.45);
   }
 }
 
@@ -1632,10 +1632,10 @@ watch(() => props.id, () => {
   align-items: center;
   gap: 8px;
   padding: 8px;
-  background: rgba(26, 35, 50, 0.5);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .page-btn {
@@ -1644,16 +1644,17 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
     transform: translateY(-1px);
   }
 
@@ -1674,25 +1675,25 @@ watch(() => props.id, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover:not(:disabled):not(.active) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--bg-hover);
     transform: translateY(-1px);
   }
 
   &.active {
-    background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     border-color: transparent;
     color: white;
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
   }
 
   &.ellipsis {

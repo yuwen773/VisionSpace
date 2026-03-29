@@ -148,32 +148,32 @@ const resetUpload = () => {
   --upload-glow-color: rgba(168, 85, 247, 0.2);
 }
 
-/* ========== Pop (Light) Theme ========== */
-[data-theme="pop"] {
-  --upload-bg: var(--bg-primary);
-  --upload-icon-bg: rgba(155, 93, 229, 0.1);
-  --upload-icon-border: rgba(155, 93, 229, 0.25);
-  --upload-icon-color: var(--color-grape);
+/* ========== Ziyan (Light Purple) Theme ========== */
+[data-theme="ziyan"] {
+  --upload-bg: transparent;
+  --upload-icon-bg: rgba(168, 85, 247, 0.1);
+  --upload-icon-border: rgba(168, 85, 247, 0.2);
+  --upload-icon-color: var(--color-primary);
   --upload-hint-color: var(--text-tertiary);
   --upload-input-bg: var(--bg-secondary);
-  --upload-input-border: var(--border-light);
-  --upload-input-focus-border: var(--color-grape);
+  --upload-input-border: var(--border-default);
+  --upload-input-focus-border: var(--color-primary);
   --upload-input-color: var(--text-primary);
   --upload-input-placeholder: var(--text-tertiary);
-  --upload-btn-bg: linear-gradient(135deg, var(--color-grape) 0%, var(--color-pink) 100%);
-  --upload-btn-shadow: 0 4px 15px rgba(155, 93, 229, 0.3);
-  --upload-error-bg: rgba(255, 107, 107, 0.1);
-  --upload-error-border: rgba(255, 107, 107, 0.25);
-  --upload-error-color: var(--color-coral);
+  --upload-btn-bg: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  --upload-btn-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+  --upload-error-bg: rgba(239, 68, 68, 0.08);
+  --upload-error-border: rgba(239, 68, 68, 0.2);
+  --upload-error-color: var(--color-rose);
   --upload-preview-bg: var(--bg-tertiary);
-  --upload-preview-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-  --upload-change-btn-bg: var(--bg-hover);
-  --upload-change-btn-border: var(--border-light);
+  --upload-preview-shadow: 0 8px 30px rgba(168, 85, 247, 0.1);
+  --upload-change-btn-bg: var(--glass-bg);
+  --upload-change-btn-border: var(--glass-border);
   --upload-change-btn-color: var(--text-secondary);
-  --upload-change-btn-hover-bg: rgba(155, 93, 229, 0.1);
-  --upload-change-btn-hover-border: rgba(155, 93, 229, 0.3);
-  --upload-change-btn-hover-color: var(--color-grape);
-  --upload-glow-color: rgba(155, 93, 229, 0.15);
+  --upload-change-btn-hover-bg: var(--glass-bg-light);
+  --upload-change-btn-hover-border: var(--color-primary);
+  --upload-change-btn-hover-color: var(--color-primary);
+  --upload-glow-color: rgba(168, 85, 247, 0.15);
 }
 
 .url-picture-upload {
@@ -190,7 +190,13 @@ const resetUpload = () => {
 /* ========== URL 输入区域 ========== */
 .url-input-section {
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
+  padding: 40px 32px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -246,13 +252,11 @@ const resetUpload = () => {
   width: 100%;
   padding: 6px;
   background: var(--upload-input-bg);
-  backdrop-filter: blur(10px);
   border: 1px solid var(--upload-input-border);
   border-radius: 16px;
   transition: all 0.3s ease;
 
   &:focus-within {
-    background: var(--upload-input-bg);
     border-color: var(--upload-input-focus-border);
     box-shadow: 0 0 30px var(--upload-glow-color);
   }

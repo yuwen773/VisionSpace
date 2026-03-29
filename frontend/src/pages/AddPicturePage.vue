@@ -1,11 +1,17 @@
 <template>
   <div id="addPicturePage">
-    <!-- 沉浸式氛围背景 -->
+    <!-- 紫漾梦幻氛围背景 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
+      <div class="floating-shapes">
+        <div class="shape-dot dot-1"></div>
+        <div class="shape-dot dot-2"></div>
+        <div class="shape-dot dot-3"></div>
+        <div class="shape-dot dot-4"></div>
+        <div class="shape-dot dot-5"></div>
+      </div>
     </div>
 
     <!-- 顶部导航栏 -->
@@ -43,7 +49,7 @@
               {{ word }}
             </span>
           </h1>
-          <p class="hero-subtitle">{{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace' }}</p>
+          <p class="hero-subtitle">{{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace ✨' }}</p>
         </div>
 
         <!-- 上传方式切换 -->
@@ -153,7 +159,7 @@
         <Transition name="form-reveal">
           <div v-if="picture" class="info-section">
             <div class="info-card">
-              <div class="card-glow"></div>
+              <div class="card-shine"></div>
 
               <div class="card-header">
                 <div class="header-icon-wrap">
@@ -306,7 +312,7 @@ import PictureUpload from '@/components/PictureUpload.vue'
 import UrlPictureUpload from '@/components/UrlPictureUpload.vue'
 import ImageCropper from '@/components/ImageCropper.vue'
 import ImageOutPainting from '@/components/ImageOutPainting.vue'
-import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
+import { reactive, ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   editPictureUsingPost,
@@ -320,7 +326,6 @@ const router = useRouter()
 const route = useRoute()
 
 // Refs
-const particleCanvas = ref<HTMLCanvasElement>()
 const imageCropperRef = ref()
 const imageOutPaintingRef = ref()
 
@@ -333,9 +338,6 @@ const isDragOver = ref(false)
 
 // 标签输入
 const tagInput = ref('')
-
-// 动画
-let particleAnimationId: number | null = null
 
 const titleWords = computed(() =>
   route.query.id ? ['编辑', '作品'] : ['上传', '作品']
@@ -475,91 +477,22 @@ const goBack = () => {
   router.back()
 }
 
-// 初始化粒子背景
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const resizeCanvas = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
-
-  interface Particle {
-    x: number
-    y: number
-    size: number
-    speedX: number
-    speedY: number
-    opacity: number
-  }
-
-  const particles: Particle[] = []
-  const particleCount = 40
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.3,
-      speedY: (Math.random() - 0.5) * 0.3,
-      opacity: Math.random() * 0.4 + 0.1
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(168, 85, 247, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 onMounted(() => {
   getTagCategoryOptions()
   getOldPicture()
   getOldSpace()
-  initParticles()
-})
-
-onUnmounted(() => {
-  if (particleAnimationId) {
-    cancelAnimationFrame(particleAnimationId)
-  }
 })
 </script>
 
 <style scoped lang="less">
 #addPicturePage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-/* ========== 氛围背景 ========== */
+/* ========== 紫漾氛围背景 ========== */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -571,50 +504,108 @@ onUnmounted(() => {
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-  animation: float-orb 20s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: float-orb 25s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 70%);
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
   top: -200px;
   right: -100px;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
-  top: 40%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
+  top: 30%;
   left: -150px;
-  animation-delay: -7s;
+  animation-delay: -8s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(244, 114, 182, 0.25) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
   bottom: -100px;
   right: 20%;
-  animation-delay: -14s;
+  animation-delay: -16s;
 }
 
 @keyframes float-orb {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+  25% { transform: translate(40px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 30px) scale(0.95); }
+  75% { transform: translate(25px, 15px) scale(1.03); }
 }
 
-#particleCanvas {
+/* 浮动装饰点 */
+.floating-shapes {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+.shape-dot {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: float-dot 15s ease-in-out infinite;
+}
+
+.dot-1 {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  width: 8px;
+  height: 8px;
+  background: var(--color-secondary);
+  top: 25%;
+  right: 20%;
+  animation-delay: -3s;
+}
+
+.dot-3 {
+  width: 16px;
+  height: 16px;
+  background: var(--color-violet);
+  bottom: 30%;
+  left: 15%;
+  animation-delay: -6s;
+}
+
+.dot-4 {
+  width: 10px;
+  height: 10px;
+  background: var(--color-pink);
+  top: 60%;
+  right: 25%;
+  animation-delay: -9s;
+}
+
+.dot-5 {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary-light);
+  bottom: 20%;
+  right: 40%;
+  animation-delay: -12s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10px, -15px) rotate(90deg); }
+  50% { transform: translate(-5px, 10px) rotate(180deg); }
+  75% { transform: translate(15px, 5px) rotate(270deg); }
 }
 
 /* ========== 页面头部 ========== */
@@ -632,28 +623,29 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateX(-4px);
+    box-shadow: var(--shadow-glow-purple);
+
+    svg {
+      transform: translateX(-2px);
+    }
   }
 
   svg {
     transition: transform 0.3s ease;
-  }
-
-  &:hover svg {
-    transform: translateX(-2px);
   }
 }
 
@@ -667,15 +659,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid var(--color-primary-light);
   border-radius: 20px;
 }
 
 .indicator-dot {
   width: 8px;
   height: 8px;
-  background: #a855f7;
+  background: var(--color-primary);
   border-radius: 50%;
   animation: pulse-dot 2s ease-in-out infinite;
 }
@@ -688,7 +680,7 @@ onUnmounted(() => {
 .indicator-text {
   font-size: 13px;
   font-weight: 600;
-  color: #c084fc;
+  color: var(--color-primary-dark);
   letter-spacing: 1px;
 }
 
@@ -697,16 +689,16 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
+  box-shadow: var(--shadow-sm);
 
   svg {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-tertiary);
   }
 }
 
@@ -748,14 +740,14 @@ onUnmounted(() => {
   transform: translateY(30px);
 
   &:nth-child(1) {
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 50%, var(--color-violet) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   &:nth-child(2) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-dark) 50%, var(--color-pink) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -771,9 +763,9 @@ onUnmounted(() => {
 
 .hero-subtitle {
   font-size: clamp(14px, 2vw, 18px);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   margin: 0;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 1px;
   animation: fade-up 0.8s ease-out 0.3s forwards;
   opacity: 0;
@@ -807,31 +799,36 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   svg {
+    color: var(--text-secondary);
     transition: color 0.3s ease;
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+
+    svg {
+      color: var(--text-primary);
+    }
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.9) 0%, rgba(244, 114, 182, 0.9) 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     border-color: transparent;
     color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
     svg {
       color: white;
@@ -870,15 +867,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(20px);
+  background: var(--bg-card);
   border-radius: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 2px solid var(--border-default);
   overflow: hidden;
   transition: all 0.4s ease;
+  box-shadow: var(--shadow-card);
 
   &.drag-over {
-    border-color: rgba(168, 85, 247, 0.5);
+    border-color: var(--color-primary);
     box-shadow: 0 0 60px rgba(168, 85, 247, 0.3);
     transform: scale(1.02);
 
@@ -906,16 +903,16 @@ onUnmounted(() => {
   &.outer {
     width: calc(100% + 40px);
     height: calc(100% + 40px);
-    border-top-color: rgba(168, 85, 247, 0.6);
-    border-right-color: rgba(168, 85, 247, 0.3);
+    border-top-color: rgba(168, 85, 247, 0.4);
+    border-right-color: rgba(168, 85, 247, 0.2);
     animation: rotate-ring 8s linear infinite paused;
   }
 
   &.inner {
     width: calc(100% + 20px);
     height: calc(100% + 20px);
-    border-top-color: rgba(244, 114, 182, 0.5);
-    border-right-color: rgba(244, 114, 182, 0.2);
+    border-top-color: rgba(236, 72, 153, 0.3);
+    border-right-color: rgba(236, 72, 153, 0.15);
     animation: rotate-ring 6s linear infinite reverse paused;
   }
 }
@@ -927,7 +924,7 @@ onUnmounted(() => {
 .portal-glow {
   position: absolute;
   inset: -50%;
-  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
+  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
   opacity: 0;
   transition: opacity 0.4s ease;
   pointer-events: none;
@@ -963,7 +960,8 @@ onUnmounted(() => {
   flex: 1;
   border-radius: 20px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
 }
 
 .preview-image {
@@ -975,7 +973,8 @@ onUnmounted(() => {
 .preview-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(250, 247, 255, 0.8);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -993,20 +992,21 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 16px;
-  color: white;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-md);
 
   &:hover {
-    background: rgba(168, 85, 247, 0.4);
-    border-color: rgba(168, 85, 247, 0.5);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: scale(1.05);
+    box-shadow: var(--shadow-glow-purple);
   }
 }
 
@@ -1022,28 +1022,28 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 30px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   svg {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-tertiary);
     transition: color 0.3s ease;
   }
 
   &:hover {
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.3);
-    color: white;
+    background: var(--bg-hover);
+    border-color: var(--color-primary-light);
+    color: var(--text-primary);
 
     svg {
-      color: #a855f7;
+      color: var(--color-primary);
     }
   }
 }
@@ -1060,7 +1060,7 @@ onUnmounted(() => {
   position: absolute;
   width: 4px;
   height: 4px;
-  background: #a855f7;
+  background: var(--color-primary);
   border-radius: 50%;
   opacity: 0.6;
 
@@ -1085,20 +1085,26 @@ onUnmounted(() => {
 .info-card {
   position: relative;
   padding: 32px;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 24px;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+  }
 }
 
-.card-glow {
+.card-shine {
   position: absolute;
   top: -50%;
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
   pointer-events: none;
 }
 
@@ -1108,7 +1114,7 @@ onUnmounted(() => {
   gap: 16px;
   margin-bottom: 28px;
   padding-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .header-icon-wrap {
@@ -1117,10 +1123,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(244, 114, 182, 0.2) 100%);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid var(--color-primary-light);
   border-radius: 14px;
-  color: #a855f7;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -1132,13 +1138,13 @@ onUnmounted(() => {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 6px 0;
 }
 
 .card-subtitle {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   margin: 0;
 }
 
@@ -1171,34 +1177,34 @@ onUnmounted(() => {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 
   svg {
-    color: rgba(168, 85, 247, 0.7);
+    color: var(--color-primary);
   }
 }
 
 .form-input,
 .form-textarea {
   padding: 14px 18px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-default);
   border-radius: 12px;
-  color: white;
+  color: var(--text-primary);
   font-size: 15px;
   transition: all 0.3s ease;
   outline: none;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-tertiary);
   }
 
   &:focus {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(168, 85, 247, 0.5);
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
   }
 }
 
@@ -1220,11 +1226,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid var(--color-primary-light);
   border-radius: 20px;
   font-size: 13px;
-  color: #c084fc;
+  color: var(--color-primary-dark);
   animation: tag-appear 0.3s ease;
 }
 
@@ -1245,16 +1251,16 @@ onUnmounted(() => {
   justify-content: center;
   width: 16px;
   height: 16px;
-  background: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.2);
   border: none;
   border-radius: 50%;
-  color: #c084fc;
+  color: var(--color-primary-dark);
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(239, 68, 68, 0.5);
-    color: white;
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--color-rose);
   }
 }
 
@@ -1283,14 +1289,14 @@ onUnmounted(() => {
   }
 
   &.primary {
-    background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     border: none;
     color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
     &:hover {
       transform: translateY(-3px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
 
       svg {
         transform: scale(1.1);
@@ -1299,14 +1305,13 @@ onUnmounted(() => {
   }
 
   &.secondary {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
 
     &:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--bg-hover);
+      border-color: var(--color-primary);
 
       svg {
         transform: rotate(90deg);

@@ -21,9 +21,9 @@
               <svg viewBox="0 0 60 60" class="ring-svg">
                 <defs>
                   <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#2268f5"/>
-                    <stop offset="50%" stop-color="#6e35eb"/>
-                    <stop offset="100%" stop-color="#a855f7"/>
+                    <stop offset="0%" stop-color="#a855f7"/>
+                    <stop offset="50%" stop-color="#ec4899"/>
+                    <stop offset="100%" stop-color="#f472b6"/>
                   </linearGradient>
                 </defs>
                 <circle cx="30" cy="30" r="28" fill="none" stroke="url(#ringGradient)" stroke-width="2" stroke-dasharray="8 4"/>
@@ -64,9 +64,13 @@
       <!-- 用户区域 -->
       <div class="header-right">
         <!-- 主题切换按钮 -->
-        <button class="theme-toggle-btn" @click="toggleTheme" :title="currentTheme === 'aurora' ? '切换到紫漾主题' : '切换到极光主题'">
-          <span class="theme-icon">{{ currentTheme === 'aurora' ? '🌙' : '☀️' }}</span>
-        </button>
+        <div class="theme-toggle-wrapper" @click="toggleTheme" :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'">
+          <div class="theme-toggle-pill" :class="currentTheme">
+            <span class="theme-icon-item sun">☀️</span>
+            <span class="theme-icon-item moon">🌙</span>
+            <div class="theme-toggle-slider"></div>
+          </div>
+        </div>
 
         <div v-if="loginUserStore.loginUser.id" class="user-section">
           <a-dropdown :placement="'bottomRight'" class="cosmic-dropdown">
@@ -150,8 +154,39 @@
             <span class="btn-glow"></span>
           </button>
         </div>
+
+        <!-- 汉堡菜单按钮（移动端） -->
+        <button class="hamburger-btn" @click="toggleMobileMenu" :class="{ active: mobileMenuVisible }">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
       </div>
     </div>
+
+    <!-- 移动端抽屉菜单 -->
+    <a-drawer
+      v-model:open="mobileMenuVisible"
+      placement="right"
+      width="280"
+      :drawerStyle="{ background: 'var(--bg-primary)' }"
+      class="mobile-drawer"
+    >
+      <template #title>
+        <div class="drawer-header">
+          <span class="drawer-title">菜单</span>
+        </div>
+      </template>
+      <div class="mobile-menu-content">
+        <a-menu
+          v-model:selectedKeys="current"
+          mode="vertical"
+          :items="items"
+          @click="handleMobileMenuClick"
+          class="mobile-nav-menu"
+        />
+      </div>
+    </a-drawer>
 
     <!-- 底部渐变边框 -->
     <div class="header-border">
@@ -175,6 +210,7 @@ const loginUserStore = useLoginUserStore()
 const router = useRouter()
 const current = ref<string[]>([])
 const particleCanvas = ref<HTMLCanvasElement | null>(null)
+const mobileMenuVisible = ref(false)
 
 // 粒子动画
 let particleAnimationId: number | null = null
@@ -218,10 +254,6 @@ const originItems = [
       },
     ],
   },
-  {
-    key: '/my_space',
-    label: '💾 我的空间',
-  },
 ]
 
 const teamSpaceList = ref<API.SpaceUserVO[]>([])
@@ -262,11 +294,18 @@ const menuItems = computed(() => {
 
 const items = computed(() => filterMenus(menuItems.value))
 
-const doMenuClick = (menuInfo: { key: string }) => {
-  const url = menuInfo.key.split('?')[0]
-  const queryString = menuInfo.key.split('?')[1]
-  const searchParams = new URLSearchParams(queryString)
-  const query = Object.fromEntries(searchParams.entries())
+const PARENT_MENU_KEYS = new Set(['add_space_submenu', 'team_space_submenu'])
+
+const doMenuClick = (menuInfo: { key: string, keyPath?: string[] }) => {
+  // 如果是父菜单项（有子菜单），只展开子菜单，不导航
+  if (PARENT_MENU_KEYS.has(menuInfo.key)) {
+    return
+  }
+
+  const [url, queryString] = menuInfo.key.split('?')
+  const query = queryString
+    ? Object.fromEntries(new URLSearchParams(queryString).entries())
+    : {}
 
   router.push({
     path: url,
@@ -274,8 +313,20 @@ const doMenuClick = (menuInfo: { key: string }) => {
   })
 }
 
+// 移动端菜单
+const toggleMobileMenu = () => {
+  mobileMenuVisible.value = !mobileMenuVisible.value
+}
+
+const handleMobileMenuClick = (menuInfo: { key: string, keyPath?: string[] }) => {
+  mobileMenuVisible.value = false
+  doMenuClick(menuInfo)
+}
+
 router.afterEach((to) => {
-  current.value = [to.fullPath]
+  if (current.value[0] !== to.fullPath) {
+    current.value = [to.fullPath]
+  }
 })
 
 const handleUserMenuClick = ({ key }: { key: string }) => {
@@ -371,13 +422,13 @@ const initParticles = () => {
 
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(148, 163, 184, ${currentOpacity})`
+      ctx.fillStyle = `rgba(168, 85, 247, ${currentOpacity})`
       ctx.fill()
 
       // 光晕效果
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(34, 104, 245, ${currentOpacity * 0.2})`
+      ctx.fillStyle = `rgba(168, 85, 247, ${currentOpacity * 0.2})`
       ctx.fill()
     })
 
@@ -412,7 +463,6 @@ onUnmounted(() => {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--glass-border);
-  overflow: hidden;
 }
 
 /* ========== 粒子画布 ========== */
@@ -445,7 +495,7 @@ onUnmounted(() => {
 .orb-1 {
   width: 300px;
   height: 150px;
-  background: linear-gradient(135deg, #2268f5, #6e35eb);
+  background: linear-gradient(135deg, #a855f7, #ec4899);
   top: -50px;
   left: 10%;
   animation-delay: 0s;
@@ -454,7 +504,7 @@ onUnmounted(() => {
 .orb-2 {
   width: 250px;
   height: 120px;
-  background: linear-gradient(135deg, #6e35eb, #a855f7);
+  background: linear-gradient(135deg, #ec4899, #f472b6);
   top: -30px;
   right: 20%;
   animation-delay: -7s;
@@ -463,7 +513,7 @@ onUnmounted(() => {
 .orb-3 {
   width: 200px;
   height: 100px;
-  background: linear-gradient(135deg, #a855f7, #ff6b9d);
+  background: linear-gradient(135deg, #a855f7, #f472b6);
   top: -40px;
   left: 50%;
   animation-delay: -14s;
@@ -543,7 +593,7 @@ onUnmounted(() => {
     width: 40px;
     height: 40px;
     border-radius: var(--radius-lg);
-    box-shadow: 0 4px 20px rgba(34, 104, 245, 0.4);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
     transition: all var(--transition-bounce);
   }
 }
@@ -560,11 +610,11 @@ onUnmounted(() => {
     animation: particleFloat 3s ease-in-out infinite;
 
     &.p1 {
-      background: #2268f5;
+      background: #a855f7;
       top: 2px;
       left: 2px;
       animation-delay: 0s;
-      box-shadow: 0 0 10px #2268f5;
+      box-shadow: 0 0 10px #a855f7;
     }
 
     &.p2 {
@@ -659,7 +709,11 @@ onUnmounted(() => {
 
 .nav-container {
   position: relative;
-  z-index: 2;
+  z-index: 100;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .cosmic-nav-menu {
@@ -670,11 +724,10 @@ onUnmounted(() => {
   justify-content: center;
   flex-wrap: nowrap;
   min-width: 0;
+  flex: 1;
 
   :deep(.ant-menu-overflow) {
     justify-content: center;
-    flex-wrap: nowrap;
-    overflow: visible;
   }
 
   :deep(.ant-menu-overflow-item) {
@@ -691,16 +744,19 @@ onUnmounted(() => {
     border-radius: var(--radius-full);
     transition: all var(--transition-bounce);
     position: relative;
-    overflow: hidden;
+    overflow: visible !important;
+    white-space: nowrap;
+    flex-shrink: 0;
 
     &::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, rgba(34, 104, 245, 0.15), rgba(110, 53, 235, 0.15));
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15));
       opacity: 0;
       transition: opacity var(--transition-base);
       border-radius: inherit;
+      pointer-events: none;
     }
 
     &:hover {
@@ -718,13 +774,13 @@ onUnmounted(() => {
 
     &.ant-menu-item-selected {
       color: var(--text-primary);
-      background: linear-gradient(135deg, rgba(34, 104, 245, 0.25), rgba(110, 53, 235, 0.25));
-      border: 1px solid rgba(34, 104, 245, 0.4);
-      box-shadow: 0 0 20px rgba(34, 104, 245, 0.2), inset 0 0 20px rgba(34, 104, 245, 0.1);
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(236, 72, 153, 0.25));
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.2), inset 0 0 20px rgba(168, 85, 247, 0.1);
 
       &::before {
         opacity: 1;
-        background: linear-gradient(135deg, rgba(34, 104, 245, 0.3), rgba(168, 85, 247, 0.3));
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.3));
       }
 
       &::after {
@@ -858,7 +914,6 @@ onUnmounted(() => {
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
-  overflow: hidden;
   box-shadow: var(--shadow-lg);
 
   /* 确保 Ant Design 菜单文字可见 */
@@ -890,7 +945,6 @@ onUnmounted(() => {
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-subtle);
   position: relative;
-  overflow: hidden;
 
   &::before {
     content: '';
@@ -1033,11 +1087,11 @@ onUnmounted(() => {
   }
 
   :deep(.ant-menu-sub) {
-    background: rgba(26, 35, 50, 0.95) !important;
+    background: var(--bg-card) !important;
     border-radius: var(--radius-lg);
     padding: var(--space-2);
     margin-top: 4px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    border: 1px solid var(--border-default);
   }
 }
 
@@ -1063,7 +1117,7 @@ onUnmounted(() => {
   .theme-name {
     flex: 1;
     font-weight: 600;
-    color: #f8fafc !important;
+    color: var(--text-primary) !important;
     font-size: 13px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
@@ -1085,11 +1139,11 @@ onUnmounted(() => {
   }
 
   &.theme-active {
-    background: rgba(34, 104, 245, 0.2) !important;
+    background: rgba(168, 85, 247, 0.2) !important;
   }
 
   &:hover:not(.theme-active) {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-hover);
   }
 }
 
@@ -1112,29 +1166,91 @@ onUnmounted(() => {
 }
 
 /* ========== 主题切换按钮 ========== */
-.theme-toggle-btn {
+.theme-toggle-wrapper {
+  margin-right: var(--space-5);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--glass-border);
+  transition: all var(--transition-base);
+  height: 38px;
+  width: 72px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: var(--color-primary-400);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.1);
+  }
+}
+
+.theme-toggle-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.theme-icon-item {
+  position: relative;
+  z-index: 2;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  cursor: pointer;
-  transition: all var(--transition-bounce);
-  margin-right: var(--space-5);
+  font-size: 14px;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  opacity: 0.4;
+  filter: grayscale(1);
 
-  &:hover {
-    transform: scale(1.1);
-    border-color: var(--color-primary);
-    box-shadow: var(--shadow-glow-purple);
+  &.sun {
+    color: var(--color-sunshine, #f59e0b);
   }
 
-  .theme-icon {
-    font-size: 18px;
-    line-height: 1;
+  &.moon {
+    color: var(--color-primary);
+  }
+}
+
+.theme-toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 1;
+}
+
+/* 状态样式 */
+.theme-toggle-pill:not(.aurora) {
+  .sun {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.1);
+  }
+  .theme-toggle-slider {
+    left: 0;
+  }
+}
+
+.theme-toggle-pill.aurora {
+  .moon {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.1);
+  }
+  .theme-toggle-slider {
+    left: calc(100% - 30px);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
   }
 }
 
@@ -1192,18 +1308,18 @@ onUnmounted(() => {
   }
 
   &.secondary {
-    background: rgba(26, 35, 50, 0.8);
+    background: var(--glass-bg);
     color: var(--text-primary);
     border: 1px solid var(--glass-border);
     backdrop-filter: var(--glass-blur);
 
     .btn-glow {
-      background: linear-gradient(135deg, rgba(34, 104, 245, 0.2), rgba(110, 53, 235, 0.2));
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2));
     }
 
     &:hover {
-      border-color: rgba(34, 104, 245, 0.5);
-      box-shadow: 0 4px 20px rgba(34, 104, 245, 0.2);
+      border-color: rgba(168, 85, 247, 0.5);
+      box-shadow: 0 4px 20px rgba(168, 85, 247, 0.2);
     }
   }
 
@@ -1211,14 +1327,14 @@ onUnmounted(() => {
     background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-secondary-500) 50%, var(--color-accent-purple) 100%);
     color: white;
     border: none;
-    box-shadow: 0 4px 20px rgba(34, 104, 245, 0.3);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
     .btn-glow {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05));
     }
 
     &:hover {
-      box-shadow: 0 8px 30px rgba(34, 104, 245, 0.4), 0 0 40px rgba(110, 53, 235, 0.2);
+      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4), 0 0 40px rgba(236, 72, 153, 0.2);
     }
   }
 }
@@ -1238,14 +1354,14 @@ onUnmounted(() => {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(34, 104, 245, 0.6) 20%,
-    rgba(110, 53, 235, 0.8) 40%,
+    rgba(168, 85, 247, 0.6) 20%,
+    rgba(236, 72, 153, 0.8) 40%,
     rgba(168, 85, 247, 0.6) 60%,
-    rgba(255, 107, 157, 0.4) 80%,
+    rgba(244, 114, 182, 0.4) 80%,
     transparent 100%
   );
   animation: borderGlow 4s ease-in-out infinite;
-  box-shadow: 0 0 20px rgba(34, 104, 245, 0.5), 0 0 40px rgba(110, 53, 235, 0.3);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.5), 0 0 40px rgba(236, 72, 153, 0.3);
 }
 
 @keyframes borderGlow {
@@ -1259,10 +1375,138 @@ onUnmounted(() => {
   }
 }
 
+/* ========== 汉堡菜单按钮 ========== */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  margin-left: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-glow-purple);
+  }
+
+  &.active {
+    .hamburger-line:nth-child(1) {
+      transform: translateY(8px) rotate(45deg);
+    }
+
+    .hamburger-line:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger-line:nth-child(3) {
+      transform: translateY(-8px) rotate(-45deg);
+    }
+  }
+}
+
+.hamburger-line {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
+  border-radius: 2px;
+  transition: all var(--transition-base);
+}
+
+/* ========== 移动端抽屉 ========== */
+.mobile-drawer {
+  :deep(.ant-drawer-content) {
+    background: var(--bg-primary);
+  }
+
+  :deep(.ant-drawer-header) {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+
+    .ant-drawer-title {
+      color: var(--text-primary);
+    }
+  }
+
+  :deep(.ant-drawer-close) {
+    color: var(--text-secondary);
+  }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+}
+
+.drawer-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mobile-menu-content {
+  padding: var(--space-2);
+}
+
+.mobile-nav-menu {
+  background: transparent;
+  border: none;
+
+  :deep(.ant-menu-item) {
+    color: var(--text-primary);
+    font-weight: 600;
+    padding: 12px 16px;
+    margin: 4px 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid transparent;
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--color-primary);
+    }
+
+    &.ant-menu-item-selected {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15));
+      border-color: rgba(168, 85, 247, 0.3);
+      color: var(--color-primary);
+    }
+  }
+
+  :deep(.ant-menu-submenu-title) {
+    color: var(--text-primary);
+    font-weight: 600;
+    padding: 12px 16px;
+    margin: 4px 0;
+    border-radius: var(--radius-lg);
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--color-primary);
+    }
+  }
+}
+
 /* ========== 响应式 ========== */
 @media (max-width: 768px) {
   .header-center {
     display: none;
+  }
+
+  .hamburger-btn {
+    display: flex;
   }
 
   .logo-text {
@@ -1271,6 +1515,10 @@ onUnmounted(() => {
 
   .user-info {
     display: none;
+  }
+
+  .theme-toggle-wrapper {
+    margin-right: var(--space-3);
   }
 }
 
@@ -1298,5 +1546,14 @@ onUnmounted(() => {
   50% {
     transform: translateY(-8px);
   }
+}
+</style>
+
+<style lang="less">
+/* 全局覆盖 Ant Design Menu 弹出层样式 */
+.ant-menu-submenu-popup .ant-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  height: 40px !important;
 }
 </style>
