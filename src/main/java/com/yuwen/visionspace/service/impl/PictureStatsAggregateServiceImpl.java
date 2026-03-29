@@ -75,28 +75,49 @@ public class PictureStatsAggregateServiceImpl implements PictureStatsAggregateSe
     }
 
     private int upsertBatch(List<PictureActionStatsDTO> statsList) {
+        // 1. 批量加载所有已存在的 PictureStats，避免 N+1 查询
+        List<Long> pictureIds = statsList.stream()
+                .map(PictureActionStatsDTO::getPictureId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        List<PictureStats> existingStats = pictureStatsService.listByIds(pictureIds);
+
+        // 2. 构建 pictureId -> PictureStats 映射
+        java.util.Map<Long, PictureStats> statsMap = existingStats.stream()
+                .collect(java.util.stream.Collectors.toMap(PictureStats::getPictureId, s -> s));
+
         List<PictureStats> toSave = new ArrayList<>();
         for (PictureActionStatsDTO stats : statsList) {
-            PictureStats pictureStats = pictureStatsService.getByPictureId(stats.getPictureId());
+            PictureStats pictureStats = statsMap.get(stats.getPictureId());
             if (pictureStats == null) {
                 pictureStats = new PictureStats();
                 pictureStats.setPictureId(stats.getPictureId());
+                // 新增时设置初始值
+                pictureStats.setViewCount(stats.getViewCount() != null ? stats.getViewCount() : 0L);
+                pictureStats.setLikeCount(stats.getLikeCount() != null ? stats.getLikeCount() : 0L);
+                pictureStats.setCollectCount(stats.getCollectCount() != null ? stats.getCollectCount() : 0L);
+                pictureStats.setDownloadCount(stats.getDownloadCount() != null ? stats.getDownloadCount() : 0L);
+                pictureStats.setShareCount(stats.getShareCount() != null ? stats.getShareCount() : 0L);
+                pictureStats.setImpressionCount(stats.getImpressionCount() != null ? stats.getImpressionCount() : 0L);
+                pictureStats.setClickCount(stats.getClickCount() != null ? stats.getClickCount() : 0L);
+                statsMap.put(stats.getPictureId(), pictureStats);
+            } else {
+                // 累加到已有值
+                pictureStats.setViewCount(pictureStats.getViewCount() + (stats.getViewCount() != null ? stats.getViewCount() : 0L));
+                pictureStats.setLikeCount(pictureStats.getLikeCount() + (stats.getLikeCount() != null ? stats.getLikeCount() : 0L));
+                pictureStats.setCollectCount(pictureStats.getCollectCount() + (stats.getCollectCount() != null ? stats.getCollectCount() : 0L));
+                pictureStats.setDownloadCount(pictureStats.getDownloadCount() + (stats.getDownloadCount() != null ? stats.getDownloadCount() : 0L));
+                pictureStats.setShareCount(pictureStats.getShareCount() + (stats.getShareCount() != null ? stats.getShareCount() : 0L));
+                pictureStats.setImpressionCount(pictureStats.getImpressionCount() + (stats.getImpressionCount() != null ? stats.getImpressionCount() : 0L));
+                pictureStats.setClickCount(pictureStats.getClickCount() + (stats.getClickCount() != null ? stats.getClickCount() : 0L));
             }
 
-            // 更新统计字段
-            pictureStats.setViewCount(stats.getViewCount() != null ? stats.getViewCount() : 0L);
-            pictureStats.setLikeCount(stats.getLikeCount() != null ? stats.getLikeCount() : 0L);
-            pictureStats.setCollectCount(stats.getCollectCount() != null ? stats.getCollectCount() : 0L);
-            pictureStats.setDownloadCount(stats.getDownloadCount() != null ? stats.getDownloadCount() : 0L);
-            pictureStats.setShareCount(stats.getShareCount() != null ? stats.getShareCount() : 0L);
-            pictureStats.setImpressionCount(stats.getImpressionCount() != null ? stats.getImpressionCount() : 0L);
-            pictureStats.setClickCount(stats.getClickCount() != null ? stats.getClickCount() : 0L);
-
             // 计算 CTR
-            if (stats.getImpressionCount() != null && stats.getImpressionCount() > 0
-                    && stats.getClickCount() != null && stats.getClickCount() > 0) {
-                BigDecimal ctr = BigDecimal.valueOf(stats.getClickCount())
-                        .divide(BigDecimal.valueOf(stats.getImpressionCount()), 6, RoundingMode.HALF_UP);
+            Long impressionCount = pictureStats.getImpressionCount();
+            Long clickCount = pictureStats.getClickCount();
+            if (impressionCount != null && impressionCount > 0 && clickCount != null && clickCount > 0) {
+                BigDecimal ctr = BigDecimal.valueOf(clickCount)
+                        .divide(BigDecimal.valueOf(impressionCount), 6, RoundingMode.HALF_UP);
                 pictureStats.setCtr(ctr);
             } else {
                 pictureStats.setCtr(BigDecimal.ZERO);
