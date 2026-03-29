@@ -32,9 +32,9 @@ public class PictureRecommendController {
      */
     @GetMapping("/list")
     public BaseResponse<List<Picture>> getRecommendList(
-            @RequestParam(defaultValue = "hot") String type,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(name = "type", defaultValue = "hot") String type,
+            @RequestParam(name = "page", defaultValue = "1") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
 
         // 限制每页数量
         size = Math.min(size, 100);

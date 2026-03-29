@@ -108,7 +108,7 @@ public class SpaceController {
      */
     @GetMapping("/get")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Space> getSpaceById(long id, HttpServletRequest request) {
+    public BaseResponse<Space> getSpaceById(@RequestParam("id") long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Space space = spaceService.getById(id);
@@ -121,7 +121,7 @@ public class SpaceController {
      * 根据 id 获取空间（封装类）
      */
     @GetMapping("/get/vo")
-    public BaseResponse<SpaceVO> getSpaceVOById(long id, HttpServletRequest request) {
+    public BaseResponse<SpaceVO> getSpaceVOById(@RequestParam("id") long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Space space = spaceService.getById(id);
