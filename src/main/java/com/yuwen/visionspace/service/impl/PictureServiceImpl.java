@@ -23,6 +23,7 @@ import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
 import com.yuwen.visionspace.model.dto.picture.*;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
@@ -30,6 +31,7 @@ import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
+import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.utils.ColorSimilarUtils;
@@ -68,6 +70,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private SpaceService spaceService;
+
+    @Resource
+    private PictureStatsService pictureStatsService;
 
     @Resource
     private FilePictureUpload filePictureUpload;
@@ -219,6 +224,17 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             UserVO userVO = userService.getUserVO(user);
             pictureVO.setUser(userVO);
         }
+        // 关联查询统计信息
+        PictureStats stats = pictureStatsService.getByPictureId(picture.getId());
+        if (stats != null) {
+            pictureVO.setViewCount(stats.getViewCount());
+            pictureVO.setLikeCount(stats.getLikeCount());
+            pictureVO.setCollectCount(stats.getCollectCount());
+            pictureVO.setDownloadCount(stats.getDownloadCount());
+            pictureVO.setShareCount(stats.getShareCount());
+            pictureVO.setImpressionCount(stats.getImpressionCount());
+            pictureVO.setClickCount(stats.getClickCount());
+        }
         return pictureVO;
     }
 
@@ -242,7 +258,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 1 => user1, 2 => user2
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
                 .collect(Collectors.groupingBy(User::getId));
-        // 2. 填充信息
+        // 2. 关联查询统计信息（批量查询）
+        Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
+        List<PictureStats> statsList = pictureStatsService.listByIds(pictureIdSet);
+        Map<Long, PictureStats> pictureIdStatsMap = statsList.stream()
+                .collect(Collectors.toMap(PictureStats::getPictureId, stats -> stats));
+        // 3. 填充信息
         pictureVOList.forEach(pictureVO -> {
             Long userId = pictureVO.getUserId();
             User user = null;
@@ -250,6 +271,17 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 user = userIdUserListMap.get(userId).get(0);
             }
             pictureVO.setUser(userService.getUserVO(user));
+            // 填充统计信息
+            PictureStats stats = pictureIdStatsMap.get(pictureVO.getId());
+            if (stats != null) {
+                pictureVO.setViewCount(stats.getViewCount());
+                pictureVO.setLikeCount(stats.getLikeCount());
+                pictureVO.setCollectCount(stats.getCollectCount());
+                pictureVO.setDownloadCount(stats.getDownloadCount());
+                pictureVO.setShareCount(stats.getShareCount());
+                pictureVO.setImpressionCount(stats.getImpressionCount());
+                pictureVO.setClickCount(stats.getClickCount());
+            }
         });
         pictureVOPage.setRecords(pictureVOList);
         return pictureVOPage;
