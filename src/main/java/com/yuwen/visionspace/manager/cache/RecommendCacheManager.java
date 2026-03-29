@@ -3,7 +3,7 @@ package com.yuwen.visionspace.manager.cache;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;

@@ -1,6 +1,5 @@
 package com.yuwen.visionspace;
 
-import org.apache.shardingsphere.spring.boot.ShardingSphereAutoConfiguration;
 import org.dromara.x.file.storage.spring.EnableFileStorage;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
@@ -9,7 +8,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(exclude = {ShardingSphereAutoConfiguration.class})
+@SpringBootApplication
 @EnableAsync
 @EnableScheduling
 @EnableFileStorage

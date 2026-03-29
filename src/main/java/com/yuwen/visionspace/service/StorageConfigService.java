@@ -6,7 +6,7 @@ import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 public interface StorageConfigService extends IService<StorageConfig> {
