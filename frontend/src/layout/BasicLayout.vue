@@ -28,10 +28,10 @@
 
       <!-- 底部 -->
       <a-layout-footer class="layout-footer">
-        <!-- 浮动主题切换按钮 -->
-        <ThemeToggleButton />
-        <div class="footer-content">
-          <div class="footer-section">
+        <!-- 链接网格 -->
+        <div class="footer-grid">
+          <!-- Logo 列 -->
+          <div class="footer-brand">
             <div class="footer-logo">
               <img src="@/assets/logo.svg" alt="VisionSpace" />
               <span class="footer-logo-text text-gradient">VisionSpace</span>
@@ -39,6 +39,7 @@
             <p class="footer-description">企业级智能协同图片空间</p>
           </div>
 
+          <!-- 产品列 -->
           <div class="footer-section">
             <h4 class="footer-title">产品</h4>
             <ul class="footer-links">
@@ -48,6 +49,7 @@
             </ul>
           </div>
 
+          <!-- 支持列 -->
           <div class="footer-section">
             <h4 class="footer-title">支持</h4>
             <ul class="footer-links">
@@ -57,6 +59,7 @@
             </ul>
           </div>
 
+          <!-- 关于列 -->
           <div class="footer-section">
             <h4 class="footer-title">关于</h4>
             <ul class="footer-links">
@@ -68,7 +71,7 @@
         </div>
 
         <div class="footer-bottom">
-          <p>&copy; 2024 VisionSpace. Made with ❤️ by 周can & yuwen</p>
+          <p>&copy; 2026 VisionSpace. Made with ❤️ by 周can & yuwen</p>
         </div>
       </a-layout-footer>
     </a-layout>
@@ -77,7 +80,6 @@
 
 <script setup lang="ts">
 import GlobalHeader from '@/components/GlobalHeader.vue'
-import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
 </script>
 
 <style lang="less" scoped>
@@ -199,42 +201,50 @@ import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
   margin-top: var(--space-16);
 }
 
-.footer-content {
+/* ========== Logo 区域 ========== */
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-left: 100px;
+}
+
+.footer-grid {
   max-width: var(--container-2xl);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr);
-  gap: var(--space-10);
+  grid-template-columns: 1.8fr 1fr 1fr 1fr;
+  gap: var(--space-6) var(--space-5);
   margin-bottom: var(--space-10);
 }
 
 .footer-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .footer-logo {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
 
 .footer-logo img {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
 }
 
 .footer-logo-text {
   font-family: var(--font-brand);
-  font-size: var(--text-lg);
+  font-size: var(--text-3xl);
   font-weight: var(--font-bold);
 }
 
 .footer-description {
-  font-size: var(--text-sm);
+  font-size: var(--text-lg);
   color: var(--color-text-tertiary);
   line-height: var(--leading-relaxed);
 }
@@ -283,9 +293,52 @@ import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
 
 /* ========== 响应式 ========== */
 @media (max-width: 1024px) {
-  .footer-content {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-8);
+  .footer-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-6);
+  }
+
+  .footer-brand {
+    grid-column: span 3;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: var(--space-4);
+    margin-left: 100px;
+  }
+
+  .footer-logo {
+    margin-right: var(--space-4);
+  }
+
+  .footer-logo img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .footer-logo-text {
+    font-size: var(--text-xl);
+  }
+
+  .footer-description {
+    font-size: var(--text-base);
+  }
+
+  .footer-section {
+    gap: var(--space-5);
+  }
+
+  .footer-title {
+    font-size: var(--text-base);
+    margin-bottom: var(--space-3);
+  }
+
+  .footer-links {
+    gap: var(--space-3);
+  }
+
+  .footer-links li a {
+    font-size: var(--text-sm);
   }
 }
 
@@ -294,13 +347,65 @@ import ThemeToggleButton from '@/components/ThemeToggleButton.vue'
     padding: var(--space-4);
   }
 
-  .footer-content {
-    grid-template-columns: 1fr;
-    gap: var(--space-6);
+  .footer-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .footer-brand {
+    grid-column: span 3;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: var(--space-4);
+    margin-left: 0;
+    gap: var(--space-1);
+  }
+
+  .footer-logo {
+    margin-right: 0;
+  }
+
+  .footer-description {
+    font-size: var(--text-xs);
+    text-align: center;
+  }
+
+  .footer-section {
+    align-items: center;
+  }
+
+  .footer-title {
+    font-size: var(--text-xs);
+    margin-bottom: var(--space-1);
+  }
+
+  .footer-links {
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .footer-links li a {
+    font-size: var(--text-xs);
+    transform: none;
+
+    &:hover {
+      transform: none;
+    }
   }
 
   .layout-footer {
-    padding: var(--space-8) var(--space-4) 0;
+    padding: var(--space-6) var(--space-4) 0;
+    margin-top: var(--space-10);
+  }
+
+  .footer-bottom {
+    padding-top: var(--space-4);
+
+    p {
+      font-size: var(--text-xs);
+    }
   }
 }
 </style>

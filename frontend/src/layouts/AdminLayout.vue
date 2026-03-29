@@ -51,6 +51,12 @@ provide('sidebarCollapsed', sidebarCollapsed)
   }
 }
 
+@media (max-width: 640px) {
+  .admin-main {
+    margin-left: 0;
+  }
+}
+
 .admin-content {
   flex: 1;
   padding: var(--admin-space-6);

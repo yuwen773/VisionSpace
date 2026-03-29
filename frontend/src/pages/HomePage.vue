@@ -23,7 +23,7 @@
                 <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stop-color="#f472b6"/>
                   <stop offset="50%" stop-color="#a855f7"/>
-                  <stop offset="100%" stop-color="#3b82f6"/>
+                  <stop offset="100%" stop-color="#9333ea"/>
                 </linearGradient>
               </defs>
             </svg>
@@ -81,33 +81,10 @@
           </button>
         </div>
 
-        <!-- 滚动引导 -->
-        <div class="scroll-indicator">
-          <span class="scroll-text">探索更多</span>
-          <div class="scroll-arrow">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M19 12l-7 7-7-7"/>
-            </svg>
-          </div>
-        </div>
-
-        <!-- 底部渐变遮罩 -->
-        <div class="hero-fade"></div>
       </section>
 
       <!-- 图片画廊区域 -->
       <section class="gallery-section">
-        <!-- 画廊头部 -->
-        <div class="gallery-header" :class="{ visible: isGalleryVisible }">
-          <div class="gallery-stats">
-            <span class="stat-number">{{ total }}</span>
-            <span class="stat-label">张图片</span>
-          </div>
-          <div class="gallery-filter">
-            <span class="filter-label">{{ currentType === 'hot' ? '🔥 热门' : currentType === 'latest' ? '✨ 最新' : currentType === 'quality' ? '⭐ 优质' : '🎲 发现' }}</span>
-          </div>
-        </div>
-
         <!-- 瀑布流画廊 - CSS Columns 实现 -->
         <div class="masonry-wrapper" ref="galleryRef">
           <div class="masonry-column" v-for="col in columnCount" :key="col">
@@ -265,9 +242,6 @@ const loadedImages = ref<Set<string>>(new Set())
 // 分类数据
 const categoryList = ref<string[]>(['全部', '风景', '人物', '艺术', '建筑', '自然', '美食'])
 const selectedCategory = ref('全部')
-
-// 视图模式
-const isGalleryVisible = ref(false)
 
 // 瀑布流配置
 const BREAKPOINT_LG = 1024
@@ -582,7 +556,7 @@ const initParticles = () => {
 
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(148, 163, 184, ${p.opacity})`
+      ctx.fillStyle = `rgba(168, 85, 247, ${p.opacity})`
       ctx.fill()
     })
 
@@ -590,15 +564,6 @@ const initParticles = () => {
   }
 
   animate()
-}
-
-/**
- * 滚动监听 - 显示画廊头部
- */
-const handleScroll = () => {
-  if (window.scrollY > 300) {
-    isGalleryVisible.value = true
-  }
 }
 
 onMounted(async () => {
@@ -619,7 +584,6 @@ onMounted(async () => {
   initParticles()
   loadPictures()
 
-  window.addEventListener('scroll', handleScroll)
   window.addEventListener('resize', updateColumnCount)
 })
 
@@ -627,7 +591,6 @@ onUnmounted(() => {
   if (impressionObserver) impressionObserver.disconnect()
   if (scrollObserver) scrollObserver.disconnect()
   if (particleAnimationId) cancelAnimationFrame(particleAnimationId)
-  window.removeEventListener('scroll', handleScroll)
   window.removeEventListener('resize', updateColumnCount)
 })
 </script>
@@ -635,7 +598,7 @@ onUnmounted(() => {
 <style scoped lang="less">
 #homePage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
@@ -660,7 +623,7 @@ onUnmounted(() => {
 .orb-1 {
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
   top: -200px;
   right: -100px;
   animation-delay: 0s;
@@ -669,7 +632,7 @@ onUnmounted(() => {
 .orb-2 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(110, 53, 235, 0.25) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
   top: 40%;
   left: -150px;
   animation-delay: -7s;
@@ -792,7 +755,7 @@ onUnmounted(() => {
   transform: translateY(40px);
 
   &:nth-child(1) {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -842,10 +805,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 6px 6px 6px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: 60px;
   width: 100%;
   max-width: 720px;
@@ -856,25 +819,25 @@ onUnmounted(() => {
   transform: translateY(20px);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--glass-bg-light);
+    border-color: var(--glass-border);
   }
 
   &.search-focused {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(168, 85, 247, 0.5);
-    box-shadow: 0 0 40px rgba(168, 85, 247, 0.2);
+    background: var(--glass-bg-light);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 40px rgba(168, 85, 247, 0.3);
   }
 }
 
 .search-icon {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--color-text-secondary);
   flex-shrink: 0;
   transition: color 0.3s ease;
 }
 
 .search-capsule.search-focused .search-icon {
-  color: #a855f7;
+  color: var(--color-primary);
 }
 
 .search-input {
@@ -883,12 +846,12 @@ onUnmounted(() => {
   border: none;
   outline: none;
   font-size: 16px;
-  color: #f8fafc;
+  color: var(--text-primary);
   min-width: 0;
   letter-spacing: 0.5px;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-tertiary);
   }
 }
 
@@ -927,29 +890,28 @@ onUnmounted(() => {
 
 .category-pill {
   padding: 10px 22px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
   border-radius: 30px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #f8fafc;
+    background: var(--glass-bg-light);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.9) 0%, rgba(168, 85, 247, 0.9) 100%);
+    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
     border-color: transparent;
     color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 8px 25px rgba(168, 85, 247, 0.5);
   }
 }
 
@@ -969,7 +931,7 @@ onUnmounted(() => {
 
 .scroll-text {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   letter-spacing: 3px;
   text-transform: uppercase;
   font-weight: 500;
@@ -981,11 +943,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   animation: bounce-arrow 2s ease-in-out infinite;
 
   svg {
@@ -1010,69 +972,13 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 200px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(3, 7, 18, 0.8) 70%, var(--color-bg-primary) 100%);
+  background: linear-gradient(to bottom, transparent 0%, rgba(168, 85, 247, 0.15) 70%, var(--bg-primary) 100%);
   pointer-events: none;
 }
 
 /* ========== 画廊区域 ========== */
 .gallery-section {
   padding: 80px 0 120px;
-}
-
-.gallery-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 40px;
-  padding: 20px 24px;
-  background: rgba(26, 35, 50, 0.5);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.6s ease;
-
-  &.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.gallery-stats {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.stat-number {
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--color-primary-400) 0%, var(--color-secondary-400) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: var(--color-text-tertiary);
-}
-
-.gallery-filter {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.filter-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  padding: 8px 16px;
-  background: rgba(34, 104, 245, 0.15);
-  border-radius: 20px;
 }
 
 /* ========== 瀑布流画廊 ========== */
@@ -1161,8 +1067,8 @@ onUnmounted(() => {
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(3, 7, 18, 0.95) 0%,
-    rgba(3, 7, 18, 0.6) 40%,
+    rgba(139, 92, 246, 0.85) 0%,
+    rgba(139, 92, 246, 0.4) 40%,
     transparent 100%
   );
   opacity: 0;
@@ -1183,7 +1089,7 @@ onUnmounted(() => {
 .item-title {
   font-size: 16px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--color-text-primary);
   margin: 0 0 8px 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1287,7 +1193,7 @@ onUnmounted(() => {
 
 .loader-text {
   font-size: 14px;
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   letter-spacing: 1px;
 }
 
@@ -1344,7 +1250,7 @@ onUnmounted(() => {
   font-size: 28px;
   font-weight: 700;
   margin: 0 0 12px 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f472b6 50%, #fb923c 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #f472b6 50%, #fb923c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1353,7 +1259,7 @@ onUnmounted(() => {
 
 .end-subtitle {
   font-size: 16px;
-  color: #94a3b8;
+  color: var(--color-text-tertiary);
   margin: 0;
 }
 
@@ -1398,25 +1304,25 @@ onUnmounted(() => {
 
   // 次按钮 - 换一批
   &.secondary {
-    background: rgba(30, 41, 59, 0.95);
-    color: #f8fafc;
-    border: 2px solid #475569;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    background: var(--glass-bg-light);
+    color: var(--color-text-primary);
+    border: 2px solid var(--glass-border);
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.15);
 
     svg {
-      color: #cbd5e1;
+      color: var(--color-text-secondary);
       transition: transform 0.3s ease;
     }
 
     &:hover {
-      background: rgba(51, 65, 85, 0.98);
-      border-color: #f472b6;
+      background: var(--glass-bg);
+      border-color: var(--color-primary);
       transform: translateY(-2px);
       box-shadow: 0 4px 20px rgba(244, 114, 182, 0.25);
 
       svg {
         transform: rotate(180deg);
-        color: #f472b6;
+        color: var(--color-primary);
       }
     }
   }
@@ -1580,11 +1486,5 @@ onUnmounted(() => {
 
 .gallery-section {
   padding: 40px 0 80px;
-}
-
-.gallery-header {
-  flex-direction: column;
-  gap: 16px;
-  text-align: center;
 }
 </style>

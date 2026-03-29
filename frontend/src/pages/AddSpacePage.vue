@@ -1,11 +1,17 @@
 <template>
   <div id="addSpacePage">
-    <!-- 沉浸式氛围背景 -->
+    <!-- 紫漾梦幻氛围背景 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
+      <div class="floating-shapes">
+        <div class="shape-dot dot-1"></div>
+        <div class="shape-dot dot-2"></div>
+        <div class="shape-dot dot-3"></div>
+        <div class="shape-dot dot-4"></div>
+        <div class="shape-dot dot-5"></div>
+      </div>
     </div>
 
     <!-- 顶部导航栏 -->
@@ -20,14 +26,14 @@
       <div class="header-brand">
         <div class="brand-icon">
           <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="20" stroke="url(#headerGrad)" stroke-width="2"/>
-            <circle cx="24" cy="24" r="12" fill="url(#headerGrad)" opacity="0.3"/>
-            <circle cx="24" cy="24" r="6" fill="url(#headerGrad)"/>
+            <circle cx="24" cy="24" r="20" stroke="url(#headerGradZiyan)" stroke-width="2"/>
+            <circle cx="24" cy="24" r="12" fill="url(#headerGradZiyan)" opacity="0.3"/>
+            <circle cx="24" cy="24" r="6" fill="url(#headerGradZiyan)"/>
             <defs>
-              <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#f472b6"/>
-                <stop offset="50%" stop-color="#a855f7"/>
-                <stop offset="100%" stop-color="#3b82f6"/>
+              <linearGradient id="headerGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#a855f7"/>
+                <stop offset="50%" stop-color="#ec4899"/>
+                <stop offset="100%" stop-color="#f472b6"/>
               </linearGradient>
             </defs>
           </svg>
@@ -48,7 +54,7 @@
             {{ word }}
           </span>
         </h1>
-        <p class="page-subtitle">在宇宙中开辟属于你的视觉领地</p>
+        <p class="page-subtitle">在梦幻星空中开辟属于你的视觉领地 ✨</p>
       </section>
 
       <!-- 表单与信息区域 -->
@@ -56,19 +62,19 @@
         <!-- 左侧：创建/编辑表单 -->
         <section class="form-section">
           <div class="form-card">
-            <div class="card-glow"></div>
+            <div class="card-shine"></div>
             <div class="card-content">
               <!-- 空间图标 -->
               <div class="space-icon-preview">
                 <div class="icon-orb" :class="{ 'orb-active': spaceForm.spaceName }">
                   <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="24" r="18" stroke="url(#orbGrad)" stroke-width="2" stroke-dasharray="4 4"/>
-                    <circle cx="24" cy="24" r="10" fill="url(#orbGrad)" opacity="0.5"/>
-                    <circle cx="24" cy="24" r="4" fill="url(#orbGrad)"/>
+                    <circle cx="24" cy="24" r="18" stroke="url(#orbGradZiyan)" stroke-width="2" stroke-dasharray="4 4"/>
+                    <circle cx="24" cy="24" r="10" fill="url(#orbGradZiyan)" opacity="0.5"/>
+                    <circle cx="24" cy="24" r="4" fill="url(#orbGradZiyan)"/>
                     <defs>
-                      <linearGradient id="orbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <linearGradient id="orbGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stop-color="#a855f7"/>
-                        <stop offset="100%" stop-color="#3b82f6"/>
+                        <stop offset="100%" stop-color="#ec4899"/>
                       </linearGradient>
                     </defs>
                   </svg>
@@ -121,7 +127,7 @@
                     <span class="btn-content">
                       <svg v-if="!loading" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path v-if="!route.query.id" d="M12 5v14M5 12h14"/>
-                        <path v-else d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <path v-if="route.query.id" d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                         <path v-if="route.query.id" d="M17 21v-8H7v8M7 3v5h8"/>
                       </svg>
                       <span>{{ route.query.id ? '保存修改' : '创建空间' }}</span>
@@ -137,7 +143,7 @@
         <!-- 右侧：空间级别介绍 -->
         <section class="info-section">
           <div class="info-card">
-            <div class="card-glow card-glow-purple"></div>
+            <div class="card-shine card-shine-purple"></div>
             <div class="card-content">
               <div class="info-header">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -205,12 +211,17 @@
     </main>
 
     <!-- 底部装饰 -->
-    <div class="bottom-glow"></div>
+    <div class="bottom-decoration">
+      <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style="width: 100%; height: 60px;">
+        <path d="M0,50 C200,100 400,0 600,50 C800,100 1000,0 1200,50 C1400,100 1440,50 1440,50 L1440,100 L0,100 Z" fill="var(--color-primary)" opacity="0.1"/>
+        <path d="M0,60 C300,100 500,20 720,60 C940,100 1140,20 1440,60 L1440,100 L0,100 Z" fill="var(--color-secondary)" opacity="0.08"/>
+      </svg>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, onUnmounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   addSpaceUsingPost,
@@ -222,7 +233,6 @@ import { useRouter, useRoute } from 'vue-router'
 import {
   SPACE_LEVEL_OPTIONS,
   SPACE_TYPE_ENUM,
-  SPACE_LEVEL_ENUM,
 } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
 
@@ -236,10 +246,6 @@ const spaceLevelList = ref<API.SpaceLevel[]>([])
 const spaceForm = reactive<API.SpaceAddRequest | API.SpaceEditRequest>({})
 
 const titleWords = ['创建', '你的', '空间']
-
-let particleAnimationId: number | null = null
-let resizeHandler: (() => void) | null = null
-const particleCanvas = ref<HTMLCanvasElement>()
 
 const handSubmit = async () => {
   loading.value = true
@@ -309,93 +315,21 @@ const goBack = () => {
   router.back()
 }
 
-// 粒子背景初始化
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  resizeHandler = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeHandler()
-  window.addEventListener('resize', resizeHandler)
-
-  interface Particle {
-    x: number
-    y: number
-    size: number
-    speedX: number
-    speedY: number
-    opacity: number
-  }
-
-  const particles: Particle[] = []
-  const particleCount = 40
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.2,
-      speedY: (Math.random() - 0.5) * 0.2,
-      opacity: Math.random() * 0.4 + 0.1
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(168, 85, 247, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 onMounted(() => {
   getOldSpace()
   fetchSpaceLevelList()
-  initParticles()
-})
-
-onUnmounted(() => {
-  if (particleAnimationId) {
-    cancelAnimationFrame(particleAnimationId)
-  }
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-  }
 })
 </script>
 
 <style scoped lang="less">
 #addSpacePage {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-/* ========== 氛围背景 ========== */
+/* ========== 紫漾氛围背景 ========== */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -407,50 +341,108 @@ onUnmounted(() => {
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-  animation: float-orb 20s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: float-orb 25s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(34, 104, 245, 0.3) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+  top: -250px;
+  right: -150px;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(110, 53, 235, 0.25) 0%, transparent 70%);
-  top: 40%;
-  left: -150px;
-  animation-delay: -7s;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
+  top: 30%;
+  left: -200px;
+  animation-delay: -8s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
   bottom: -100px;
-  right: 20%;
-  animation-delay: -14s;
+  right: 10%;
+  animation-delay: -16s;
 }
 
 @keyframes float-orb {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+  25% { transform: translate(40px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 30px) scale(0.95); }
+  75% { transform: translate(25px, 15px) scale(1.03); }
 }
 
-#particleCanvas {
+/* 浮动装饰点 */
+.floating-shapes {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+.shape-dot {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: float-dot 15s ease-in-out infinite;
+}
+
+.dot-1 {
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  width: 8px;
+  height: 8px;
+  background: var(--color-secondary);
+  top: 25%;
+  right: 20%;
+  animation-delay: -3s;
+}
+
+.dot-3 {
+  width: 16px;
+  height: 16px;
+  background: var(--color-violet);
+  bottom: 30%;
+  left: 15%;
+  animation-delay: -6s;
+}
+
+.dot-4 {
+  width: 10px;
+  height: 10px;
+  background: var(--color-pink);
+  top: 60%;
+  right: 25%;
+  animation-delay: -9s;
+}
+
+.dot-5 {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary-light);
+  bottom: 20%;
+  right: 40%;
+  animation-delay: -12s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(10px, -15px) rotate(90deg); }
+  50% { transform: translate(-5px, 10px) rotate(180deg); }
+  75% { transform: translate(15px, 5px) rotate(270deg); }
 }
 
 /* ========== 顶部导航栏 ========== */
@@ -468,20 +460,21 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
   border-radius: 40px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
     transform: translateX(-4px);
+    box-shadow: var(--shadow-glow-purple);
 
     svg {
       transform: translateX(-2px);
@@ -504,15 +497,15 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.4)); }
-  50% { filter: drop-shadow(0 0 20px rgba(168, 85, 247, 0.6)); }
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4)); }
+  50% { filter: drop-shadow(0 0 16px rgba(236, 72, 153, 0.5)); }
 }
 
 .brand-text {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, #f8fafc 0%, #f472b6 50%, #a855f7 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -556,19 +549,19 @@ onUnmounted(() => {
   transform: translateY(40px);
 
   &:nth-child(1) {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   &:nth-child(2) {
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
+    background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #be185d 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   &:nth-child(3) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, #f472b6 0%, #e879f9 50%, #d946ef 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -584,9 +577,9 @@ onUnmounted(() => {
 
 .page-subtitle {
   font-size: 18px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 1px;
   animation: fade-up 0.8s ease-out 0.5s forwards;
   opacity: 0;
@@ -642,26 +635,32 @@ onUnmounted(() => {
 .form-card,
 .info-card {
   position: relative;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 24px;
   overflow: hidden;
   padding: 40px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-4px);
+  }
 }
 
-.card-glow {
+.card-shine {
   position: absolute;
   top: -50%;
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.15) 0%, transparent 50%);
+  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
   pointer-events: none;
 }
 
-.card-glow-purple {
-  background: radial-gradient(circle at 70% 30%, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
+.card-shine-purple {
+  background: radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
 }
 
 .card-content {
@@ -682,15 +681,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(168, 85, 247, 0.1);
-  border: 2px dashed rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.08);
+  border: 2px dashed var(--color-primary-light);
   border-radius: 50%;
   transition: all 0.5s ease;
 
   &.orb-active {
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.6);
-    box-shadow: 0 0 40px rgba(168, 85, 247, 0.3);
+    background: rgba(168, 85, 247, 0.15);
+    border-color: var(--color-primary);
+    border-style: solid;
+    box-shadow: 0 0 40px rgba(168, 85, 247, 0.2);
     animation: orb-pulse 2s ease-in-out infinite;
   }
 }
@@ -708,7 +708,7 @@ onUnmounted(() => {
 
   :deep(.ant-form-item-label > label) {
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
     font-size: 14px;
     margin-bottom: 8px;
   }
@@ -718,31 +718,31 @@ onUnmounted(() => {
 .cosmic-select {
   :deep(.ant-input),
   :deep(.ant-select-selector) {
-    background: rgba(26, 35, 50, 0.8) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: var(--bg-card) !important;
+    border: 2px solid var(--border-default) !important;
     border-radius: 12px !important;
     padding: 12px 16px !important;
-    color: var(--color-text-primary) !important;
+    color: var(--text-primary) !important;
     font-size: 15px !important;
     transition: all 0.3s ease !important;
 
     &:hover,
     &:focus {
-      border-color: rgba(168, 85, 247, 0.5) !important;
-      box-shadow: 0 0 20px rgba(168, 85, 247, 0.15) !important;
+      border-color: var(--color-primary) !important;
+      box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1) !important;
     }
   }
 
   :deep(.ant-input::placeholder) {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-tertiary);
   }
 
   :deep(.ant-select-selection-placeholder) {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-tertiary);
   }
 
   :deep(.ant-select-arrow) {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-secondary);
   }
 }
 
@@ -758,8 +758,8 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   height: 56px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.6) 0%, rgba(168, 85, 247, 0.6) 100%);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  border: none;
   border-radius: 16px;
   color: white;
   font-size: 16px;
@@ -767,15 +767,15 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: hidden;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 10px 40px rgba(168, 85, 247, 0.35);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
   }
 
   &.btn-active {
-    background: linear-gradient(135deg, #3b82f6 0%, #a855f7 100%);
-    border-color: rgba(168, 85, 247, 0.5);
+    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary-dark) 100%);
     box-shadow: 0 4px 25px rgba(168, 85, 247, 0.4);
   }
 }
@@ -792,7 +792,7 @@ onUnmounted(() => {
 .btn-glow {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #a855f7 0%, #f472b6 100%);
+  background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-pink) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -807,10 +807,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 
   svg {
-    color: #a855f7;
+    color: var(--color-primary);
   }
 
   h3 {
@@ -823,7 +823,7 @@ onUnmounted(() => {
 
 .info-hint {
   font-size: 14px;
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
   margin: 0 0 28px 0;
 }
 
@@ -840,8 +840,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  background: rgba(26, 35, 50, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -849,9 +849,10 @@ onUnmounted(() => {
   opacity: 0;
 
   &:hover {
-    background: rgba(26, 35, 50, 0.7);
-    border-color: rgba(168, 85, 247, 0.3);
+    background: var(--bg-hover);
+    border-color: var(--color-primary-light);
     transform: translateX(8px);
+    box-shadow: var(--shadow-glow-purple);
   }
 
   &.planet-1 { animation-delay: 0.3s; }
@@ -888,22 +889,22 @@ onUnmounted(() => {
   &.planet-size-1 {
     width: 24px;
     height: 24px;
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    background: linear-gradient(135deg, var(--color-violet) 0%, var(--color-primary) 100%);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
   }
 
   &.planet-size-2 {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
   }
 
   &.planet-size-3 {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
-    box-shadow: 0 0 25px rgba(244, 114, 182, 0.5);
+    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-pink) 100%);
+    box-shadow: 0 0 25px rgba(244, 114, 182, 0.4);
   }
 }
 
@@ -914,7 +915,7 @@ onUnmounted(() => {
   transform: translate(-50%, -50%) rotateX(70deg);
   width: 60px;
   height: 60px;
-  border: 2px solid rgba(244, 114, 182, 0.4);
+  border: 2px solid rgba(244, 114, 182, 0.5);
   border-radius: 50%;
   animation: ring-rotate 10s linear infinite;
 }
@@ -931,14 +932,14 @@ onUnmounted(() => {
   transform: translate(-50%, -50%);
   width: 48px;
   height: 48px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed var(--border-default);
   border-radius: 50%;
   animation: orbit-pulse 3s ease-in-out infinite;
 }
 
 @keyframes orbit-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 
 .planet-info {
@@ -950,7 +951,7 @@ onUnmounted(() => {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin-bottom: 6px;
 }
 
@@ -964,10 +965,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.6;
+    opacity: 0.7;
   }
 }
 
@@ -978,7 +979,7 @@ onUnmounted(() => {
   transform: translateY(-50%);
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, var(--color-mint) 0%, var(--color-mint-dark) 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1001,22 +1002,19 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 24px;
   padding: 12px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid var(--border-accent);
   border-radius: 12px;
   font-size: 13px;
-  color: #fbbf24;
+  color: var(--color-primary-dark);
 }
 
 /* ========== 底部装饰 ========== */
-.bottom-glow {
+.bottom-decoration {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 600px;
-  height: 200px;
-  background: radial-gradient(ellipse at center bottom, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
+  left: 0;
+  right: 0;
   pointer-events: none;
   z-index: 0;
 }

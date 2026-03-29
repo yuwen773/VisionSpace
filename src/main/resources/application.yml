@@ -40,11 +40,19 @@ spring:
     username: root
     password: 123456
   # Redis 配置
-  redis:
-    database: 0
-    host: 127.0.0.1
-    port: 6379
-    timeout: 5000
+  data:
+    redis:
+      database: 0
+      host: localhost
+      port: 6379
+      timeout: 5000
+      password: xxxx
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          max-wait: -1
+      connect-timeout: 3000
   # Session 配置
   session:
     store-type: redis
@@ -55,12 +63,6 @@ spring:
     multipart:
       max-file-size: 10MB
   # Spring AI 配置
-  ai:
-    dashscope:
-      api-key: ${AI_API_KEY:your-api-key}
-    Alibaba:
-      cloud:
-        api-key: ${ALIYUN_AI_API_KEY:your-api-key}
   # 空间图片分表（暂不启用）
   # shardingsphere:
   #   datasource:
@@ -101,30 +103,20 @@ mybatis-plus:
       logic-delete-value: 1 # 逻辑已删除值（默认为 1）
       logic-not-delete-value: 0 # 逻辑未删除值（默认为 0）
 # 接口文档配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.yuwen.visionspace.controller
+# knife4j的增强配置，不需要增强可以不配
 knife4j:
   enable: true
-  openapi:
-    title: 接口文档
-    version: 1.0
-    group:
-      default:
-        api-rule: package
-        api-rule-resources:
-          - com.yuwen.visionspace.controller
-#  basic:
-#    enable: true
-    #username: zkylyf
-    #password: 240509
-
-## 对象存储配置（需要从腾讯云获取）
-#cos:
-#  client:
-#    host: xxx
-#    secretId: xxx
-#    secretKey: xxx
-#    region: xxx
-#    bucket: xxx
-
-## 阿里云 AI 配置
-#aliYunAi:
-#  apiKey: xxx
+  setting:
+    language: zh_cn
+    enable-open-api: true

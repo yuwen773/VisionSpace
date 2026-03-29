@@ -86,14 +86,14 @@ const options = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(26, 35, 50, 0.95)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      textStyle: { color: '#f8fafc' },
+      backgroundColor: 'rgba(250, 247, 255, 0.95)',
+      borderColor: 'rgba(168, 85, 247, 0.2)',
+      textStyle: { color: '#1e1b4b' },
     },
     legend: {
       data: ['图片数量', '总大小 (MB)'],
       bottom: 0,
-      textStyle: { color: 'rgba(255, 255, 255, 0.6)' },
+      textStyle: { color: '#6b7280' },
     },
     grid: {
       left: '3%',
@@ -105,24 +105,24 @@ const options = computed(() => {
     xAxis: {
       type: 'category',
       data: categories,
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
+      axisLine: { lineStyle: { color: 'rgba(168, 85, 247, 0.2)' } },
+      axisLabel: { color: '#6b7280' },
     },
     yAxis: [
       {
         type: 'value',
         name: '数量',
         position: 'left',
-        axisLine: { show: true, lineStyle: { color: '#60a5fa' } },
-        axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
-        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } },
+        axisLine: { show: true, lineStyle: { color: '#a855f7' } },
+        axisLabel: { color: '#6b7280' },
+        splitLine: { lineStyle: { color: 'rgba(168, 85, 247, 0.08)' } },
       },
       {
         type: 'value',
         name: '大小 (MB)',
         position: 'right',
-        axisLine: { show: true, lineStyle: { color: '#a855f7' } },
-        axisLabel: { color: 'rgba(255, 255, 255, 0.6)' },
+        axisLine: { show: true, lineStyle: { color: '#ec4899' } },
+        axisLabel: { color: '#6b7280' },
         splitLine: { show: false },
       },
     ],
@@ -136,8 +136,8 @@ const options = computed(() => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#60a5fa' },
-              { offset: 1, color: '#2268f5' },
+              { offset: 0, color: '#a855f7' },
+              { offset: 1, color: '#7c3aed' },
             ],
           },
           borderRadius: [4, 4, 0, 0],
@@ -154,8 +154,8 @@ const options = computed(() => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#a855f7' },
-              { offset: 1, color: '#6e35eb' },
+              { offset: 0, color: '#ec4899' },
+              { offset: 1, color: '#db2777' },
             ],
           },
           borderRadius: [4, 4, 0, 0],
@@ -175,16 +175,16 @@ const options = computed(() => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -201,16 +201,16 @@ const options = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.15);
   border-radius: 12px;
-  color: #c084fc;
+  color: var(--color-primary);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -228,8 +228,8 @@ const options = computed(() => {
 .loader-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #a855f7;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -245,10 +245,10 @@ const options = computed(() => {
   justify-content: center;
   height: 280px;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.3;
+    opacity: 0.4;
   }
 }
 

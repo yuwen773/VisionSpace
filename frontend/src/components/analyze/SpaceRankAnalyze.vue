@@ -57,8 +57,6 @@
 <script setup lang="ts">
 import { ref, computed, watchEffect } from 'vue'
 import { message } from 'ant-design-vue'
-import VChart from 'vue-echarts'
-import 'echarts'
 import { getSpaceRankAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
 import { formatSize } from '@/utils'
 
@@ -129,16 +127,16 @@ const getPositionClass = (index: number) => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -155,23 +153,23 @@ const getPositionClass = (index: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(251, 146, 60, 0.2);
+  background: rgba(245, 158, 11, 0.15);
   border-radius: 12px;
-  color: #fb923c;
+  color: var(--color-sunshine);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
   flex: 1;
 }
 
 .rank-badge {
   padding: 4px 12px;
-  background: linear-gradient(135deg, #fb923c 0%, #f472b6 100%);
+  background: linear-gradient(135deg, var(--color-sunshine) 0%, var(--color-secondary) 100%);
   border-radius: 20px;
   font-size: 11px;
   font-weight: 800;
@@ -193,8 +191,8 @@ const getPositionClass = (index: number) => {
 .loader-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #fb923c;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--color-sunshine);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -210,10 +208,10 @@ const getPositionClass = (index: number) => {
   justify-content: center;
   height: 280px;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.3;
+    opacity: 0.4;
   }
 }
 
@@ -228,7 +226,8 @@ const getPositionClass = (index: number) => {
   align-items: center;
   gap: 16px;
   padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   animation: item-reveal 0.4s ease forwards;
   opacity: 0;
@@ -236,7 +235,8 @@ const getPositionClass = (index: number) => {
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--bg-hover);
+    border-color: var(--color-primary-light);
     transform: translateX(4px);
   }
 }
@@ -254,29 +254,29 @@ const getPositionClass = (index: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-secondary);
   border-radius: 8px;
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-tertiary);
 
   &.gold {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    background: linear-gradient(135deg, var(--color-sunshine-light) 0%, var(--color-sunshine) 100%);
     color: #1a1a1a;
-    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4);
+    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
   }
 
   &.silver {
     background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
     color: #1a1a1a;
-    box-shadow: 0 4px 15px rgba(148, 163, 184, 0.4);
+    box-shadow: 0 4px 15px rgba(148, 163, 184, 0.3);
   }
 
   &.bronze {
-    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    background: linear-gradient(135deg, var(--color-coral-light) 0%, var(--color-coral) 100%);
     color: white;
-    box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
+    box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
   }
 }
 
@@ -289,7 +289,7 @@ const getPositionClass = (index: number) => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,14 +298,14 @@ const getPositionClass = (index: number) => {
 
 .rank-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-secondary);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .rank-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #fb923c, #f472b6);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
   border-radius: 3px;
   transition: width 1s ease;
 }
@@ -314,7 +314,7 @@ const getPositionClass = (index: number) => {
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
-  color: #fb923c;
+  color: var(--color-sunshine);
   white-space: nowrap;
 }
 </style>

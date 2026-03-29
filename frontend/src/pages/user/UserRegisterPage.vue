@@ -20,7 +20,7 @@
             <img src="@/assets/logo.svg" alt="Logo" class="logo-image" />
             <div class="logo-badge bg-sunshine">NEW</div>
           </div>
-          <h1 class="logo-title">创建账号</h1>
+          <h1 class="logo-title">VisionSpace</h1>
           <p class="logo-subtitle">✨ 加入 VisionSpace，开启创意之旅 ✨</p>
         </div>
 
@@ -38,7 +38,7 @@
           >
             <a-input
               v-model:value="formState.userAccount"
-              placeholder="🎯 用户账号"
+              placeholder="用户账号"
               size="large"
               class="pop-input"
             >
@@ -57,7 +57,7 @@
           >
             <a-input-password
               v-model:value="formState.userPassword"
-              placeholder="🔒 密码"
+              placeholder="密码"
               size="large"
               class="pop-input"
             >
@@ -76,7 +76,7 @@
           >
             <a-input-password
               v-model:value="formState.checkPassword"
-              placeholder="🔐 确认密码"
+              placeholder="确认密码"
               size="large"
               class="pop-input"
             >
@@ -101,22 +101,6 @@
           </a-form-item>
         </a-form>
 
-        <!-- 特性展示 -->
-        <div class="features">
-          <div class="feature-item">
-            <span class="feature-icon">☁️</span>
-            <span class="feature-text">无限空间</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">📸</span>
-            <span class="feature-text">智能分类</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">👥</span>
-            <span class="feature-text">团队协作</span>
-          </div>
-        </div>
-
         <!-- 底部装饰 -->
         <div class="card-decoration">
           <div class="deco-dot deco-dot-1"></div>
@@ -125,19 +109,10 @@
         </div>
       </div>
     </div>
-
-    <!-- 波浪装饰 -->
-    <div class="wave-bottom wave-decoration">
-      <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style="width: 100%; height: 80px;">
-        <path d="M0,192L48,160L96,192L144,160L192,192L240,160L288,192L336,160L384,192L432,160L480,192L528,160L576,192L624,160L672,192L720,160L768,192L816,160L864,192L912,160L960,192L1008,160L1056,192L1104,160L1152,192L1200,160L1248,192L1296,160L1344,192L1392,160L1440,192V320H0V192Z" fill="var(--color-mint)"/>
-        <path d="M0,224L48,192L96,224L144,192L192,224L240,192L288,224L336,192L384,224L432,192L480,224L528,192L576,224L624,192L672,224L720,192L768,224L816,192L864,224L912,192L960,224L1008,192L1056,224L1104,192L1152,224L1200,192L1248,224L1296,192L1344,224L1392,192L1440,224V320H0V224Z" fill="var(--color-sky)" opacity="0.6"/>
-      </svg>
-    </div>
-
     <!-- 底部版权 -->
     <div class="footer-text">
       <p>🎨 注册即表示您同意我们的服务条款和隐私政策</p>
-      <p class="copyright">&copy; 2024 VisionSpace. All rights reserved.</p>
+      <p class="copyright">&copy; 2026 VisionSpace. All rights reserved.</p>
     </div>
   </div>
 </template>
@@ -239,7 +214,7 @@ const handleSubmit = async (values: any) => {
   height: 0;
   border-left: 50px solid transparent;
   border-right: 50px solid transparent;
-  border-bottom: 80px solid var(--color-grape);
+  border-bottom: 80px solid var(--color-primary);
   top: 15%;
   right: 30%;
 }
@@ -292,9 +267,9 @@ const handleSubmit = async (values: any) => {
 .logo-image {
   width: 80px;
   height: 80px;
-  border: 4px solid var(--border-bold);
+  border: 4px solid var(--border-default);
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-card);
   transition: all var(--transition-bounce);
 
   &:hover {
@@ -307,7 +282,7 @@ const handleSubmit = async (values: any) => {
   top: -8px;
   right: -8px;
   padding: 6px 12px;
-  border: 2px solid var(--border-bold);
+  border: 2px solid var(--border-default);
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -354,7 +329,7 @@ const handleSubmit = async (values: any) => {
   color: var(--text-secondary);
 
   .tips-link {
-    color: var(--color-grape);
+    color: var(--color-primary);
     font-weight: 700;
     margin-left: var(--space-2);
     transition: all var(--transition-bounce);
@@ -387,7 +362,7 @@ const handleSubmit = async (values: any) => {
   justify-content: space-around;
   margin-top: var(--space-8);
   padding-top: var(--space-6);
-  border-top: 3px dashed var(--border-light);
+  border-top: 3px dashed var(--border-subtle);
 }
 
 .feature-item {
