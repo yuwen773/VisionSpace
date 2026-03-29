@@ -4,7 +4,7 @@ import com.yuwen.visionspace.config.RecommendConfig;
 import com.yuwen.visionspace.model.entity.Picture;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;

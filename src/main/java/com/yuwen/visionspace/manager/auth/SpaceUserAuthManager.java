@@ -15,7 +15,7 @@ import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

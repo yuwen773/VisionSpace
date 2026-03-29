@@ -9,7 +9,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.SpaceVO;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * @author 李鱼皮

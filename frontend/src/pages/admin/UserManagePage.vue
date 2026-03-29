@@ -85,47 +85,40 @@
         class="data-table"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'userAvatar'">
-            <a-avatar :src="record.userAvatar" :size="42" class="user-avatar">
-              <template #icon><UserOutlined /></template>
-            </a-avatar>
-          </template>
-          <template v-else-if="column.dataIndex === 'userName'">
-            <div class="user-info">
-              <span class="user-name">{{ record.userName || '未设置' }}</span>
-              <span class="user-account">@{{ record.userAccount }}</span>
+          <template v-if="column.dataIndex === 'userName'">
+            <div class="user-cell">
+              <a-avatar :src="record.userAvatar" :size="36" class="user-avatar">
+                <template #icon><UserOutlined /></template>
+              </a-avatar>
+              <div class="user-info">
+                <span class="user-name">{{ record.userName || '未设置' }}</span>
+                <span class="user-account">@{{ record.userAccount }}</span>
+              </div>
             </div>
           </template>
-          <template v-else-if="column.dataIndex === 'userProfile'">
-            <span class="user-profile">{{ record.userProfile || '暂无简介' }}</span>
-          </template>
           <template v-else-if="column.dataIndex === 'userRole'">
-            <span class="role-tag" :class="record.userRole === 'admin' ? 'admin' : 'user'">
-              <svg v-if="record.userRole === 'admin'" class="tag-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-              </svg>
-              <svg v-else class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
+            <a-tag :color="record.userRole === 'admin' ? 'blue' : 'default'" class="role-tag">
               {{ record.userRole === 'admin' ? '管理员' : '普通用户' }}
-            </span>
+            </a-tag>
           </template>
           <template v-else-if="column.dataIndex === 'vipCode'">
-            <span class="vip-tag" v-if="record.vipCode">
+            <span class="vip-info" v-if="record.vipCode">
               <svg class="vip-icon" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
               </svg>
               VIP {{ record.vipNumber }}
             </span>
-            <span class="vip-tag basic" v-else>普通用户</span>
+            <span class="vip-expire" v-else-if="record.vipExpireTime">
+              VIP {{ dayjs(record.vipExpireTime).format('YYYY-MM') }}
+            </span>
+            <span class="vip-none" v-else>-</span>
           </template>
           <template v-else-if="column.dataIndex === 'createTime'">
-            <span class="time-text">{{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm') }}</span>
+            <span class="time-text">{{ dayjs(record.createTime).format('YYYY-MM-DD') }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
-              <a-tooltip title="编辑用户">
+              <a-tooltip title="编辑">
                 <button class="action-btn" @click="openEditModal(record)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -134,19 +127,17 @@
                 </button>
               </a-tooltip>
               <a-popconfirm
-                title="确定要删除此用户吗？此操作不可恢复。"
+                title="删除该用户？"
                 ok-text="删除"
                 cancel-text="取消"
                 @confirm="doDelete(record.id)"
                 placement="topRight"
               >
-                <a-tooltip title="删除用户">
+                <a-tooltip title="删除">
                   <button class="action-btn danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      <line x1="10" y1="11" x2="10" y2="17"></line>
-                      <line x1="14" y1="11" x2="14" y2="17"></line>
                     </svg>
                   </button>
                 </a-tooltip>
@@ -215,13 +206,11 @@ import { UserOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 
 const columns = [
-  { title: 'ID', dataIndex: 'id', width: 80, sorter: true },
-  { title: '用户', dataIndex: 'userName', width: 180 },
-  { title: '简介', dataIndex: 'userProfile', ellipsis: true },
+  { title: '用户', dataIndex: 'userName', width: 200 },
   { title: '角色', dataIndex: 'userRole', width: 120 },
-  { title: 'VIP', dataIndex: 'vipCode', width: 100 },
-  { title: '创建时间', dataIndex: 'createTime', width: 160, sorter: true },
-  { title: '操作', key: 'action', width: 120, fixed: 'right' as const },
+  { title: 'VIP', dataIndex: 'vipCode', width: 120 },
+  { title: '注册时间', dataIndex: 'createTime', width: 140, sorter: true },
+  { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
 ]
 
 const dataList = ref<API.UserVO[]>([])
@@ -515,8 +504,8 @@ const doDelete = async (id: number | undefined) => {
     border-bottom: 1px solid var(--admin-border-default);
     color: var(--admin-text-secondary);
     font-weight: 600;
-    font-size: var(--admin-text-sm);
-    padding: var(--admin-space-4);
+    font-size: var(--admin-text-xs);
+    padding: var(--admin-space-3) var(--admin-space-4);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -524,7 +513,7 @@ const doDelete = async (id: number | undefined) => {
   :deep(.ant-table-tbody > tr > td) {
     border-bottom: 1px solid var(--admin-border-subtle);
     color: var(--admin-text-primary);
-    padding: var(--admin-space-4);
+    padding: var(--admin-space-3) var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr) {
@@ -593,19 +582,27 @@ const doDelete = async (id: number | undefined) => {
   }
 }
 
-/* ========== 用户信息 ========== */
+/* ========== 用户单元格 ========== */
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .user-avatar {
-  border: 2px solid var(--admin-border-default);
+  flex-shrink: 0;
+  background: var(--admin-primary);
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  min-width: 0;
 
   .user-name {
     font-weight: 600;
     color: var(--admin-text-primary);
+    white-space: nowrap;
   }
 
   .user-account {
@@ -614,71 +611,39 @@ const doDelete = async (id: number | undefined) => {
   }
 }
 
-.user-profile {
+/* ========== 角色标签 ========== */
+.role-tag {
+  margin: 0;
+}
+
+/* ========== VIP 信息 ========== */
+.vip-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9a6700;
+  font-size: var(--admin-text-sm);
+
+  .vip-icon {
+    width: 14px;
+    height: 14px;
+    color: #ffc107;
+  }
+}
+
+.vip-expire {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-sm);
 }
 
-/* ========== 角色标签 ========== */
-.role-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-  border-radius: var(--admin-radius-full);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-
-  .tag-icon {
-    width: 12px;
-    height: 12px;
-  }
-
-  &.admin {
-    background: var(--admin-primary-bg);
-    color: var(--admin-primary);
-    border: 1px solid rgba(9, 105, 218, 0.2);
-  }
-
-  &.user {
-    background: var(--admin-bg-tertiary);
-    color: var(--admin-text-secondary);
-    border: 1px solid var(--admin-border-default);
-  }
-}
-
-/* ========== VIP 标签 ========== */
-.vip-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-  border-radius: var(--admin-radius-full);
-  background: #fff8c5;
-  color: #9a6700;
-  border: 1px solid rgba(154, 103, 0, 0.2);
-
-  .vip-icon {
-    width: 10px;
-    height: 10px;
-  }
-
-  &.basic {
-    background: var(--admin-bg-tertiary);
-    color: var(--admin-text-tertiary);
-    border: 1px solid var(--admin-border-default);
-  }
+.vip-none {
+  color: var(--admin-text-disabled);
 }
 
 /* ========== 时间文本 ========== */
 .time-text {
-  font-family: var(--admin-font-mono);
-  font-size: var(--admin-text-xs);
-  color: var(--admin-text-tertiary);
+  font-size: var(--admin-text-sm);
+  color: var(--admin-text-secondary);
 }
 
 /* ========== 操作按钮 ========== */
@@ -692,25 +657,25 @@ const doDelete = async (id: number | undefined) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   color: var(--admin-text-secondary);
-  background: var(--admin-bg-tertiary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
   }
 
   &:hover {
     color: var(--admin-primary);
-    background: var(--admin-primary-bg);
-    border-color: rgba(9, 105, 218, 0.3);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-default);
   }
 
   &.danger:hover {
