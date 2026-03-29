@@ -17,9 +17,9 @@
             <div class="gauge-ring">
               <svg viewBox="0 0 200 200" class="gauge-svg">
                 <defs>
-                  <linearGradient id="storageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#2268f5"/>
-                    <stop offset="100%" stop-color="#60a5fa"/>
+                  <linearGradient id="storageGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#a855f7"/>
+                    <stop offset="100%" stop-color="#ec4899"/>
                   </linearGradient>
                 </defs>
                 <circle cx="100" cy="100" r="85" class="gauge-bg"/>
@@ -48,8 +48,8 @@
             <div class="gauge-ring pink">
               <svg viewBox="0 0 200 200" class="gauge-svg">
                 <defs>
-                  <linearGradient id="countGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#a855f7"/>
+                  <linearGradient id="countGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ec4899"/>
                     <stop offset="100%" stop-color="#f472b6"/>
                   </linearGradient>
                 </defs>
@@ -182,16 +182,16 @@ const getAvgSize = () => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -208,16 +208,16 @@ const getAvgSize = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(34, 104, 245, 0.2);
+  background: rgba(168, 85, 247, 0.15);
   border-radius: 12px;
-  color: #60a5fa;
+  color: var(--color-primary);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -253,22 +253,22 @@ const getAvgSize = () => {
 
   .gauge-bg {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.08);
+    stroke: var(--bg-tertiary);
     stroke-width: 12;
   }
 
   .gauge-progress {
     fill: none;
-    stroke: url(#storageGrad);
+    stroke: url(#storageGradZiyan);
     stroke-width: 12;
     stroke-linecap: round;
     transition: stroke-dasharray 1s ease;
-    filter: drop-shadow(0 0 8px rgba(34, 104, 245, 0.5));
+    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));
   }
 
   &.pink .gauge-progress {
-    stroke: url(#countGrad);
-    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.5));
+    stroke: url(#countGradZiyan);
+    filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.4));
   }
 }
 
@@ -285,13 +285,13 @@ const getAvgSize = () => {
   font-family: var(--font-display);
   font-size: 32px;
   font-weight: 800;
-  color: white;
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .gauge-label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 
@@ -305,16 +305,16 @@ const getAvgSize = () => {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .info-sep {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-tertiary);
 }
 
 .info-max {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
 }
 
 .detail-stats {
@@ -322,7 +322,8 @@ const getAvgSize = () => {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
 }
 
@@ -337,10 +338,11 @@ const getAvgSize = () => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 
   svg {
-    opacity: 0.6;
+    opacity: 0.7;
+    color: var(--color-primary);
   }
 }
 
@@ -348,6 +350,6 @@ const getAvgSize = () => {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 </style>

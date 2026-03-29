@@ -119,7 +119,7 @@ const getFontSize = (count: number) => {
 }
 
 const getOpacity = (count: number) => {
-  const minOpacity = 0.5
+  const minOpacity = 0.6
   const maxOpacity = 1
   const ratio = count / maxCount.value
   return minOpacity + ratio * (maxOpacity - minOpacity)
@@ -127,9 +127,9 @@ const getOpacity = (count: number) => {
 
 const getColor = (count: number) => {
   const ratio = count / maxCount.value
-  if (ratio > 0.7) return '#f472b6'
-  if (ratio > 0.4) return '#a855f7'
-  return '#60a5fa'
+  if (ratio > 0.7) return 'var(--color-secondary)'
+  if (ratio > 0.4) return 'var(--color-primary)'
+  return 'var(--color-violet)'
 }
 </script>
 
@@ -141,16 +141,16 @@ const getColor = (count: number) => {
 .analyze-card {
   height: 100%;
   padding: 24px;
-  background: rgba(26, 35, 50, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
 
   &:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -167,28 +167,28 @@ const getColor = (count: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(244, 114, 182, 0.2);
+  background: rgba(236, 72, 153, 0.15);
   border-radius: 12px;
-  color: #f472b6;
+  color: var(--color-secondary);
 }
 
 .card-title {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
   flex: 1;
 }
 
 .tag-count {
   padding: 4px 12px;
-  background: rgba(244, 114, 182, 0.15);
-  border: 1px solid rgba(244, 114, 182, 0.3);
+  background: rgba(236, 72, 153, 0.12);
+  border: 1px solid rgba(236, 72, 153, 0.25);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
-  color: #f472b6;
+  color: var(--color-secondary);
 }
 
 .card-content {
@@ -205,8 +205,8 @@ const getColor = (count: number) => {
 .loader-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #f472b6;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--color-secondary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -222,10 +222,10 @@ const getColor = (count: number) => {
   justify-content: center;
   height: 280px;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
 
   svg {
-    opacity: 0.3;
+    opacity: 0.4;
   }
 }
 
@@ -251,8 +251,8 @@ const getColor = (count: number) => {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   font-weight: 600;
   transition: all 0.3s ease;
@@ -260,8 +260,8 @@ const getColor = (count: number) => {
 
   &:hover {
     transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(168, 85, 247, 0.1);
+    border-color: var(--color-primary);
     z-index: 1;
 
     .word-count {
@@ -274,9 +274,10 @@ const getColor = (count: number) => {
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(168, 85, 247, 0.15);
   border-radius: 10px;
-  opacity: 0.6;
+  opacity: 0.7;
   transition: opacity 0.3s ease;
+  color: var(--color-primary);
 }
 </style>
