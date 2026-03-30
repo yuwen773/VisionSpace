@@ -439,7 +439,7 @@ const handlePictureClick = async (picture: any) => {
 const reportClick = async (pictureId: string) => {
   try {
     await reportPictureAction({
-      pictureId: Number(pictureId),
+      pictureId: pictureId,
       actionType: ActionTypeEnum.CLICK,
       source: ActionSourceEnum.HOME_RECOMMEND
     })
@@ -454,7 +454,7 @@ const reportClick = async (pictureId: string) => {
 const reportImpression = async (pictureId: string) => {
   try {
     await reportPictureAction({
-      pictureId: Number(pictureId),
+      pictureId: pictureId,
       actionType: ActionTypeEnum.IMPRESSION,
       source: ActionSourceEnum.HOME_RECOMMEND
     })
