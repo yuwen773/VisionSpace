@@ -2,6 +2,8 @@ package com.yuwen.visionspace.agent;
 
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
+import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
@@ -13,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * 图片助手 Agent
@@ -43,6 +47,13 @@ public class ImageAgent {
 
     @PostConstruct
     public void init() {
+        // 创建人工介入 Hook
+        HumanInTheLoopHook humanInTheLoopHook = HumanInTheLoopHook.builder()
+                .approvalOn("evaluateImageQuality", ToolConfig.builder()
+                        .description("搜索结果评估完成，需要用户确认是否满意")
+                        .build())
+                .build();
+
         agent = ReactAgent.builder()
                 .name("image_assistant")
                 .model(chatModel)
@@ -64,6 +75,7 @@ public class ImageAgent {
                     - 如果用户不满意，可以重新生成或搜索
                     """)
                 .methodTools(imageSearchTool, logoGeneratorTool, qualityEvaluatorTool)
+                .hooks(List.of(humanInTheLoopHook))
                 .saver(new MemorySaver())
                 .build();
     }
