@@ -93,8 +93,7 @@
 import { ref, reactive } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { addFeedbackUsingPost } from '@/api/feedbackController'
-import { uploadPictureUsingPost } from '@/api/pictureController'
+import { addFeedbackUsingPost, uploadFeedbackAttachment } from '@/api/feedbackController'
 
 const router = useRouter()
 const submitting = ref(false)
@@ -121,18 +120,27 @@ const handleFileChange = async (e: Event) => {
   const files = (e.target as HTMLInputElement).files
   if (!files) return
 
-  for (let i = 0; i < Math.min(files.length, 5 - form.pictureUrls.length); i++) {
+  // 并行上传多个文件
+  const uploadPromises: Promise<void>[] = []
+  const maxUploads = Math.min(files.length, 5 - form.pictureUrls.length)
+
+  for (let i = 0; i < maxUploads; i++) {
     const file = files[i]
-    try {
-      const params = {} as any
-      const res = await uploadPictureUsingPost(params, {}, file)
-      if (res.data.code === 0 && res.data.data) {
-        form.pictureUrls.push(res.data.data.url)
-      }
-    } catch (err) {
-      message.error('图片上传失败')
-    }
+    uploadPromises.push(
+      (async () => {
+        try {
+          const res = await uploadFeedbackAttachment(file)
+          if (res.data.code === 0 && res.data.data) {
+            form.pictureUrls.push(res.data.data)
+          }
+        } catch (err: any) {
+          message.error(err.response?.data?.message || '图片上传失败')
+        }
+      })()
+    )
   }
+
+  await Promise.all(uploadPromises)
 }
 
 const removePicture = (index: number) => {
@@ -255,6 +263,56 @@ const doSubmit = async () => {
   font-weight: 600;
   color: var(--color-text-primary);
   margin-bottom: var(--space-3);
+}
+
+:deep(.ant-input),
+:deep(.ant-input-affix-wrapper) {
+  background: var(--glass-bg-light) !important;
+  backdrop-filter: var(--glass-blur-light);
+  border-color: var(--color-border-default) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 10px 16px;
+  transition: all var(--transition-base);
+}
+
+:deep(.ant-input:hover),
+:deep(.ant-input-affix-wrapper:hover) {
+  border-color: var(--color-primary-500) !important;
+}
+
+:deep(.ant-input:focus),
+:deep(.ant-input-affix-wrapper-focused) {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px rgba(34, 104, 245, 0.15) !important;
+}
+
+:deep(.ant-input::placeholder) {
+  color: var(--color-text-disabled) !important;
+}
+
+:deep(.ant-input-textarea textarea) {
+  background: var(--glass-bg-light) !important;
+  border-color: var(--color-border-default) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 12px 16px;
+}
+
+:deep(.ant-input-textarea textarea:hover) {
+  border-color: var(--color-primary-500) !important;
+}
+
+:deep(.ant-input-textarea textarea:focus) {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px rgba(34, 104, 245, 0.15) !important;
+}
+
+:deep(.ant-input-number) {
+  background: var(--glass-bg-light) !important;
+  border-color: var(--color-border-default) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-lg) !important;
 }
 
 .type-cards {

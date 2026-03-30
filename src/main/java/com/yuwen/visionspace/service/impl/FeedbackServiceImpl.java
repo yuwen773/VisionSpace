@@ -1,10 +1,8 @@
 package com.yuwen.visionspace.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.mapper.UserFeedbackMapper;
@@ -14,7 +12,6 @@ import com.yuwen.visionspace.model.dto.feedback.FeedbackUpdateStatusRequest;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.entity.UserFeedback;
 import com.yuwen.visionspace.model.vo.FeedbackVO;
-import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.FeedbackService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +20,6 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
 import java.util.Date;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -49,6 +45,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         feedback.setTitle(request.getTitle());
         feedback.setContent(request.getContent());
         feedback.setStatus(0); // 默认待处理
+        feedback.setCreateTime(new Date());
         if (request.getPictureUrls() != null && !request.getPictureUrls().isEmpty()) {
             feedback.setPictureUrls(JSONUtil.toJsonStr(request.getPictureUrls()));
         }

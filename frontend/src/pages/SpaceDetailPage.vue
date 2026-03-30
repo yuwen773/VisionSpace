@@ -681,7 +681,40 @@ watch(() => props.id, () => {
 </script>
 
 <style scoped lang="less">
+/* Aurora 主题变量别名 */
 #spaceDetailPage {
+  /* 颜色别名 - 修复未定义的变量 */
+  --color-primary: var(--color-primary-500);
+  --color-primary-light: var(--color-primary-300);
+  --color-secondary: var(--color-secondary-500);
+  --color-violet: var(--color-accent-purple);
+  --color-pink: var(--color-accent-pink);
+  --color-cyan: var(--color-accent-cyan);
+  --color-primary-bg: var(--color-primary-500);
+
+  /* 背景和卡片 */
+  --bg-primary: var(--color-bg-primary);
+  --bg-secondary: var(--color-bg-secondary);
+  --bg-tertiary: var(--color-bg-tertiary);
+  --bg-elevated: var(--color-bg-elevated);
+  --bg-hover: var(--color-bg-hover);
+  --bg-card: var(--gradient-card);
+
+  /* 文字颜色 */
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-tertiary: var(--color-text-tertiary);
+  --text-disabled: var(--color-text-disabled);
+
+  /* 边框颜色 */
+  --border-default: var(--color-border-default);
+  --border-subtle: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+
+  /* 阴影 */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.5);
+
   min-height: 100vh;
   background: var(--bg-primary);
   position: relative;

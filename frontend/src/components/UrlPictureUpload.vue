@@ -120,18 +120,19 @@ const resetUpload = () => {
 </script>
 
 <style scoped lang="less">
-/* ========== Aurora (Dark) Theme ========== */
-[data-theme="aurora"] {
+/* ========== Default Variables (Aurora Dark Theme) ========== */
+.url-picture-upload {
+  /* 输入框颜色 - 默认深色主题 */
   --upload-bg: transparent;
   --upload-icon-bg: rgba(168, 85, 247, 0.15);
   --upload-icon-border: rgba(168, 85, 247, 0.3);
   --upload-icon-color: #a855f7;
-  --upload-hint-color: rgba(255, 255, 255, 0.5);
-  --upload-input-bg: rgba(255, 255, 255, 0.06);
-  --upload-input-border: rgba(255, 255, 255, 0.1);
-  --upload-input-focus-border: rgba(168, 85, 247, 0.4);
-  --upload-input-color: white;
-  --upload-input-placeholder: rgba(255, 255, 255, 0.35);
+  --upload-hint-color: rgba(255, 255, 255, 0.6);
+  --upload-input-bg: rgba(255, 255, 255, 0.08);
+  --upload-input-border: rgba(255, 255, 255, 0.15);
+  --upload-input-focus-border: rgba(168, 85, 247, 0.5);
+  --upload-input-color: #ffffff;
+  --upload-input-placeholder: rgba(255, 255, 255, 0.4);
   --upload-btn-bg: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #db2777 100%);
   --upload-btn-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
   --upload-error-bg: rgba(239, 68, 68, 0.15);
@@ -146,34 +147,6 @@ const resetUpload = () => {
   --upload-change-btn-hover-border: rgba(168, 85, 247, 0.4);
   --upload-change-btn-hover-color: white;
   --upload-glow-color: rgba(168, 85, 247, 0.2);
-}
-
-/* ========== Ziyan (Light Purple) Theme ========== */
-[data-theme="ziyan"] {
-  --upload-bg: transparent;
-  --upload-icon-bg: rgba(168, 85, 247, 0.1);
-  --upload-icon-border: rgba(168, 85, 247, 0.2);
-  --upload-icon-color: var(--color-primary);
-  --upload-hint-color: var(--text-tertiary);
-  --upload-input-bg: var(--bg-secondary);
-  --upload-input-border: var(--border-default);
-  --upload-input-focus-border: var(--color-primary);
-  --upload-input-color: var(--text-primary);
-  --upload-input-placeholder: var(--text-tertiary);
-  --upload-btn-bg: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-  --upload-btn-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
-  --upload-error-bg: rgba(239, 68, 68, 0.08);
-  --upload-error-border: rgba(239, 68, 68, 0.2);
-  --upload-error-color: var(--color-rose);
-  --upload-preview-bg: var(--bg-tertiary);
-  --upload-preview-shadow: 0 8px 30px rgba(168, 85, 247, 0.1);
-  --upload-change-btn-bg: var(--glass-bg);
-  --upload-change-btn-border: var(--glass-border);
-  --upload-change-btn-color: var(--text-secondary);
-  --upload-change-btn-hover-bg: var(--glass-bg-light);
-  --upload-change-btn-hover-border: var(--color-primary);
-  --upload-change-btn-hover-color: var(--color-primary);
-  --upload-glow-color: rgba(168, 85, 247, 0.15);
 }
 
 .url-picture-upload {
