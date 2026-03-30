@@ -47,7 +47,15 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         // 2. 缓存未命中, 计算推荐结果
         List<Picture> pictures = calculateRecommendPictures(type);
 
-        // 3. 分页
+        // 3. 缓存总数（仅第一页时计算并缓存）
+        if (page == 1) {
+            Long cachedTotal = cacheManager.getCachedTotal(type);
+            if (cachedTotal == null) {
+                cacheManager.setCachedTotal(type, (long) pictures.size());
+            }
+        }
+
+        // 4. 分页
         int start = (page - 1) * size;
         int end = Math.min(start + size, pictures.size());
         if (start >= pictures.size()) {
@@ -57,7 +65,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
                 .map(Picture::getId)
                 .collect(Collectors.toList());
 
-        // 4. 写入缓存
+        // 5. 写入缓存
         cacheManager.setCachedRecommendList(type, page, size, result);
 
         return result;
@@ -92,8 +100,14 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     }
 
     private Long getRecommendTotal(String type) {
+        Long cachedTotal = cacheManager.getCachedTotal(type);
+        if (cachedTotal != null) {
+            return cachedTotal;
+        }
         List<Picture> pictures = calculateRecommendPictures(type);
-        return (long) pictures.size();
+        long total = (long) pictures.size();
+        cacheManager.setCachedTotal(type, total);
+        return total;
     }
 
     @Override

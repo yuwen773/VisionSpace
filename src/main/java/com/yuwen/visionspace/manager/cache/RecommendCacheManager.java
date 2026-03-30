@@ -53,4 +53,25 @@ public class RecommendCacheManager {
     private String buildKey(String type, int page, int size) {
         return RECOMMEND_KEY_PREFIX + type + ":" + page + ":" + size;
     }
+
+    private String buildTotalKey(String type) {
+        return RECOMMEND_KEY_PREFIX + type + ":total";
+    }
+
+    /**
+     * 获取缓存的推荐总数
+     */
+    public Long getCachedTotal(String type) {
+        String key = buildTotalKey(type);
+        Object total = redisTemplate.opsForValue().get(key);
+        return total != null ? ((Number) total).longValue() : null;
+    }
+
+    /**
+     * 设置推荐总数缓存
+     */
+    public void setCachedTotal(String type, long total) {
+        String key = buildTotalKey(type);
+        redisTemplate.opsForValue().set(key, total, CACHE_TTL, TimeUnit.MINUTES);
+    }
 }
