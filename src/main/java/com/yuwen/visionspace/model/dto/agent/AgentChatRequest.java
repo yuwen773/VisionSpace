@@ -21,4 +21,9 @@ public class AgentChatRequest implements Serializable {
      * 会话ID（可选，不传则自动生成）
      */
     private String threadId;
+
+    /**
+     * 用户ID (可选，用于长期偏好学习)
+     */
+    private String userId;
 }
