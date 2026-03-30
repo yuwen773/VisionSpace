@@ -198,7 +198,7 @@ const loadPictures = async () => {
       page: page.value,
       size: size.value,
     })
-    const pageData = res?.data
+    const pageData = res?.data?.data
     if (pageData) {
       const records = pageData.records || []
       const total = pageData.total || 0

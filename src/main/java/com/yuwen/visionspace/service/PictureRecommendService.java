@@ -2,8 +2,6 @@ package com.yuwen.visionspace.service;
 
 import com.yuwen.visionspace.model.vo.RecommendPageVO;
 
-import java.util.List;
-
 public interface PictureRecommendService {
 
     /**
@@ -13,7 +11,7 @@ public interface PictureRecommendService {
      * @param size 每页数量
      * @return 图片ID列表
      */
-    List<Long> getRecommendPictureIds(String type, int page, int size);
+    java.util.List<Long> getRecommendPictureIds(String type, int page, int size);
 
     /**
      * 获取推荐图片分页列表
