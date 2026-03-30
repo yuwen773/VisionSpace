@@ -198,16 +198,21 @@ const loadPictures = async () => {
       page: page.value,
       size: size.value,
     })
-    const data = res?.data?.data
-    if (data && data.length > 0) {
-      assignPicturesToColumns(data)
+    const pageData = res?.data?.data
+    if (pageData) {
+      const records = pageData.records || []
+      const total = pageData.total || 0
 
-      if (page.value === 1) {
-        pictureList.value = data
-      } else {
-        pictureList.value.push(...data)
+      if (records.length > 0) {
+        assignPicturesToColumns(records)
+
+        if (page.value === 1) {
+          pictureList.value = records
+        } else {
+          pictureList.value.push(...records)
+        }
       }
-      hasMore.value = data.length === size.value
+      hasMore.value = pictureList.value.length < total
     } else {
       hasMore.value = false
     }
