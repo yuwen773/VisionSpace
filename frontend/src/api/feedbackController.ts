@@ -57,3 +57,19 @@ export async function updateFeedbackStatusUsingPost(
     ...(options || {}),
   })
 }
+
+/** uploadFeedbackAttachment POST /feedback/upload */
+export async function uploadFeedbackAttachment(
+  file: File,
+  options?: { [key: string]: any }
+) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return request<string>('/api/feedback/upload', {
+    method: 'POST',
+    data: formData,
+    requestType: 'form',
+    ...(options || {}),
+  })
+}

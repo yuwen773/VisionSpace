@@ -485,7 +485,47 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* Aurora 主题变量别名 */
 #addPicturePage {
+  /* 颜色别名 */
+  --color-primary: var(--color-primary-500);
+  --color-primary-dark: var(--color-primary-600);
+  --color-primary-light: var(--color-primary-300);
+  --color-secondary: var(--color-secondary-500);
+  --color-secondary-dark: var(--color-secondary-600);
+  --color-violet: var(--color-accent-purple);
+  --color-pink: var(--color-accent-pink);
+  --color-rose: var(--color-accent-pink);
+  --color-cyan: var(--color-accent-cyan);
+  --color-cyan-dark: var(--color-accent-cyan-dark);
+
+  /* 背景和卡片 */
+  --bg-primary: var(--color-bg-primary);
+  --bg-secondary: var(--color-bg-secondary);
+  --bg-tertiary: var(--color-bg-tertiary);
+  --bg-elevated: var(--color-bg-elevated);
+  --bg-hover: var(--color-bg-hover);
+  --bg-card: var(--gradient-card);
+
+  /* 文字颜色 */
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-tertiary: var(--color-text-tertiary);
+  --text-disabled: var(--color-text-disabled);
+
+  /* 边框颜色 */
+  --border-default: var(--color-border-default);
+  --border-subtle: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+  --border-accent: var(--color-border-accent);
+
+  /* 阴影 */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
+  --shadow-glow-purple: 0 0 30px rgba(110, 53, 235, 0.35);
+
   min-height: 100vh;
   background: var(--bg-primary);
   position: relative;

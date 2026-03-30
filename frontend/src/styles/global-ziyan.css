@@ -5,6 +5,15 @@
 
 @import './design-tokens-ziyan.css';
 
+/* ========== 品牌字体 - Kaushan Script ========== */
+@font-face {
+  font-family: 'KaushanScript';
+  src: url('@/assets/font/KaushanScript-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ========== CSS Reset ========== */
 *,
 *::before,
