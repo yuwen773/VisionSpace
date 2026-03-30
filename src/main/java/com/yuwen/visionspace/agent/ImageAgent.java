@@ -5,6 +5,7 @@ import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
+import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -35,6 +36,9 @@ public class ImageAgent {
     @Resource
     private LogoGeneratorTool logoGeneratorTool;
 
+    @Resource
+    private QualityEvaluatorTool qualityEvaluatorTool;
+
     private ReactAgent agent;
 
     @PostConstruct
@@ -43,20 +47,23 @@ public class ImageAgent {
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction("""
-                    你是一个图片助手。你的任务是帮助用户找到或生成他们想要的图片。
+                    你是一个图片助手。帮助用户找到或生成他们想要的图片。
 
                     工作流程：
-                    1. 首先理解用户的图片需求
-                    2. 先使用搜索工具尝试找到合适的图片（关键词搜索或以图搜图）
-                    3. 如果搜索结果为空或不满意，使用 LogoGeneratorTool 生成图片
-                    4. 向用户展示结果，询问是否满意
+                    1. 理解用户的图片需求
+                    2. 使用搜索工具找到图片
+                    3. 使用 QualityEvaluatorTool 评估结果
+                    4. 根据评估结果决定：
+                       - matchScore >= 0.5: 展示结果给用户
+                       - matchScore < 0.5: 询问用户是否满意
+                    5. 根据用户反馈决定下一步
 
                     重要规则：
                     - 每次只返回 3-5 张最相关的图片
                     - 清晰标注图片来源（站外搜索/AIGC生成）
-                    - 如果用户不满意，可以调整关键词重新搜索或生成
+                    - 如果用户不满意，可以重新生成或搜索
                     """)
-                .methodTools(imageSearchTool, logoGeneratorTool)
+                .methodTools(imageSearchTool, logoGeneratorTool, qualityEvaluatorTool)
                 .saver(new MemorySaver())
                 .build();
     }
