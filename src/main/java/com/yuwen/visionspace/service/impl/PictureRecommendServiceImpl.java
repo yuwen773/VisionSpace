@@ -12,7 +12,6 @@ import com.yuwen.visionspace.service.PictureRecommendService;
 import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
 import com.yuwen.visionspace.utils.PictureReorderUtils;
-import cn.hutool.json.JSONUtil;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
@@ -83,36 +82,15 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         }
         pictures.sort(Comparator.comparingInt(p -> orderMap.getOrDefault(p.getId(), Integer.MAX_VALUE)));
 
-        // 转换为 VO
         List<RecommendPictureVO> records = pictures.stream()
-                .map(this::toRecommendPictureVO)
+                .map(RecommendPictureVO::objToVo)
                 .collect(Collectors.toList());
 
-        // 计算总数
         Long total = getRecommendTotal(type);
 
         return new RecommendPageVO(records, total);
     }
 
-    /**
-     * 转换 Picture 为 RecommendPictureVO
-     */
-    private RecommendPictureVO toRecommendPictureVO(Picture picture) {
-        RecommendPictureVO vo = new RecommendPictureVO();
-        vo.setId(picture.getId());
-        vo.setThumbnailUrl(picture.getThumbnailUrl());
-        vo.setName(picture.getName());
-        vo.setPicWidth(picture.getPicWidth());
-        vo.setPicHeight(picture.getPicHeight());
-        vo.setPicScale(picture.getPicScale());
-        vo.setPicColor(picture.getPicColor());
-        vo.setTags(JSONUtil.toList(picture.getTags(), String.class));
-        return vo;
-    }
-
-    /**
-     * 获取推荐总数
-     */
     private Long getRecommendTotal(String type) {
         List<Picture> pictures = calculateRecommendPictures(type);
         return (long) pictures.size();

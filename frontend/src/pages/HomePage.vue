@@ -369,7 +369,7 @@ const loadPictures = async () => {
       page: page.value,
       size: size.value,
     })
-    const data = res?.data?.data
+    const data = res?.data?.data?.records
     if (data && data.length > 0) {
       assignPicturesToColumns(data)
 
@@ -379,7 +379,7 @@ const loadPictures = async () => {
         pictureList.value.push(...data)
       }
       hasMore.value = data.length === size.value
-      total.value = res?.data?.total || 0
+      total.value = res?.data?.data.total || 0
     } else {
       hasMore.value = false
     }
