@@ -154,15 +154,16 @@ create table if not exists storage_config
 -- 图片聚合统计表
 CREATE TABLE IF NOT EXISTS picture_stats (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    picture_id  BIGINT NOT NULL UNIQUE COMMENT '图片ID',
-    view_count   BIGINT DEFAULT 0 COMMENT '浏览次数',
-    like_count   BIGINT DEFAULT 0 COMMENT '点赞次数',
-    collect_count BIGINT DEFAULT 0 COMMENT '收藏次数',
-    download_count BIGINT DEFAULT 0 COMMENT '下载次数',
-    share_count  BIGINT DEFAULT 0 COMMENT '分享次数',
-    impression_count BIGINT DEFAULT 0 COMMENT '曝光次数',
-    ctr          DECIMAL(6,4) DEFAULT 0 COMMENT '点击率',
-    create_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_picture_id (picture_id)
+    pictureId   BIGINT NOT NULL UNIQUE COMMENT '图片ID',
+    viewCount   BIGINT NOT NULL DEFAULT 0 COMMENT '查看次数',
+    likeCount   BIGINT NOT NULL DEFAULT 0 COMMENT '点赞次数',
+    collectCount BIGINT NOT NULL DEFAULT 0 COMMENT '收藏次数',
+    downloadCount BIGINT NOT NULL DEFAULT 0 COMMENT '下载次数',
+    shareCount  BIGINT NOT NULL DEFAULT 0 COMMENT '分享次数',
+    impressionCount BIGINT NOT NULL DEFAULT 0 COMMENT '曝光次数',
+    clickCount  BIGINT NOT NULL DEFAULT 0 COMMENT '点击次数',
+    ctr         DECIMAL(10,6) DEFAULT 0 COMMENT '点击率',
+    createTime  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updateTime  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_pictureId (pictureId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
