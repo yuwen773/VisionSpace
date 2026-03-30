@@ -4,15 +4,14 @@ import com.yuwen.visionspace.annotation.AuthCheck;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
-import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.User;
+import com.yuwen.visionspace.model.vo.RecommendPageVO;
 import com.yuwen.visionspace.service.PictureRecommendService;
 import com.yuwen.visionspace.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.List;
 
 @RestController
 @RequestMapping("/picture/recommend")
@@ -31,16 +30,14 @@ public class PictureRecommendController {
      * @param size 每页数量 (默认10, 最大100)
      */
     @GetMapping("/list")
-    public BaseResponse<List<Picture>> getRecommendList(
+    public BaseResponse<RecommendPageVO> getRecommendList(
             @RequestParam(name = "type", defaultValue = "hot") String type,
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "size", defaultValue = "10") int size) {
 
-        // 限制每页数量
         size = Math.min(size, 100);
-
-        List<Picture> pictures = pictureRecommendService.getRecommendPictures(type, page, size);
-        return ResultUtils.success(pictures);
+        RecommendPageVO pageVO = pictureRecommendService.getRecommendPictures(type, page, size);
+        return ResultUtils.success(pageVO);
     }
 
     /**
