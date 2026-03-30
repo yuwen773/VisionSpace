@@ -2,6 +2,7 @@ package com.yuwen.visionspace.utils;
 
 import com.yuwen.visionspace.config.RecommendConfig;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureStats;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Resource;
@@ -9,7 +10,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Date;
 
 /**
  * 首页推荐评分计算器
@@ -31,12 +31,12 @@ public class HomeRecommendScoreCalculator {
     /**
      * 计算推荐评分
      */
-    public double calculateScore(Picture picture) {
-        double engagementScore = calculateEngagementScore(picture);
+    public double calculateScore(Picture picture, PictureStats stats) {
+        double engagementScore = calculateEngagementScore(stats);
         double freshnessScore = calculateFreshnessScore(picture);
         double qualityScore = calculateQualityScore(picture);
-        double conversionScore = calculateConversionScore(picture);
-        double manualScore = calculateManualScore(picture);
+        double conversionScore = calculateConversionScore(stats);
+        double manualScore = calculateManualScore();
 
         return recommendConfig.getEngagementWeight() * engagementScore
              + recommendConfig.getFreshnessWeight() * freshnessScore
@@ -48,12 +48,12 @@ public class HomeRecommendScoreCalculator {
     /**
      * 互动评分 (对数平滑后的加权求和)
      */
-    private double calculateEngagementScore(Picture picture) {
-        double viewScore = Math.log1p(picture.getViewCount() == null ? 0 : picture.getViewCount()) * VIEW_WEIGHT;
-        double likeScore = Math.log1p(picture.getLikeCount() == null ? 0 : picture.getLikeCount()) * LIKE_WEIGHT;
-        double collectScore = Math.log1p(picture.getCollectCount() == null ? 0 : picture.getCollectCount()) * COLLECT_WEIGHT;
-        double downloadScore = Math.log1p(picture.getDownloadCount() == null ? 0 : picture.getDownloadCount()) * DOWNLOAD_WEIGHT;
-        double shareScore = Math.log1p(picture.getShareCount() == null ? 0 : picture.getShareCount()) * SHARE_WEIGHT;
+    private double calculateEngagementScore(PictureStats stats) {
+        double viewScore = Math.log1p(stats == null ? 0 : stats.getViewCount()) * VIEW_WEIGHT;
+        double likeScore = Math.log1p(stats == null ? 0 : stats.getLikeCount()) * LIKE_WEIGHT;
+        double collectScore = Math.log1p(stats == null ? 0 : stats.getCollectCount()) * COLLECT_WEIGHT;
+        double downloadScore = Math.log1p(stats == null ? 0 : stats.getDownloadCount()) * DOWNLOAD_WEIGHT;
+        double shareScore = Math.log1p(stats == null ? 0 : stats.getShareCount()) * SHARE_WEIGHT;
 
         // 归一化到 [0, 1] (假设最大 log1p 值约为 15)
         double rawScore = viewScore + likeScore + collectScore + downloadScore + shareScore;
@@ -99,21 +99,21 @@ public class HomeRecommendScoreCalculator {
     /**
      * 转化评分 (基于 CTR)
      */
-    private double calculateConversionScore(Picture picture) {
-        if (picture.getImpressionCount() == null || picture.getImpressionCount() == 0) {
+    private double calculateConversionScore(PictureStats stats) {
+        if (stats == null || stats.getImpressionCount() == null || stats.getImpressionCount() == 0) {
             return 0.5; // 默认中等转化率
         }
-        long clicks = (picture.getLikeCount() == null ? 0 : picture.getLikeCount())
-                    + (picture.getCollectCount() == null ? 0 : picture.getCollectCount())
-                    + (picture.getShareCount() == null ? 0 : picture.getShareCount());
-        double ctr = (double) clicks / picture.getImpressionCount();
+        long clicks = (stats.getLikeCount() == null ? 0 : stats.getLikeCount())
+                    + (stats.getCollectCount() == null ? 0 : stats.getCollectCount())
+                    + (stats.getShareCount() == null ? 0 : stats.getShareCount());
+        double ctr = (double) clicks / stats.getImpressionCount();
         return Math.min(1.0, ctr * 10); // CTR 10% 为满分
     }
 
     /**
      * 人工评分 (预留字段, 管理员可以手动调整)
      */
-    private double calculateManualScore(Picture picture) {
+    private double calculateManualScore() {
         // TODO: 后续实现管理员手动评分功能
         return 0.5;
     }

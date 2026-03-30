@@ -5,7 +5,9 @@ import com.yuwen.visionspace.config.ReorderConfig;
 import com.yuwen.visionspace.manager.cache.RecommendCacheManager;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.service.PictureRecommendService;
+import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
 import com.yuwen.visionspace.utils.PictureReorderUtils;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,9 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     @Resource
     private ReorderConfig reorderConfig;
+
+    @Resource
+    private PictureStatsService pictureStatsService;
 
     @Override
     public List<Long> getRecommendPictureIds(String type, int page, int size) {
@@ -96,7 +101,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             case "hot":
                 // 热门: 按评分排序
                 pictures = pictureMapper.selectList(queryWrapper);
-                pictures.sort((a, b) -> Double.compare(scoreCalculator.calculateScore(b), scoreCalculator.calculateScore(a)));
+                pictures = sortByScore(pictures);
                 break;
 
             case "latest":
@@ -132,6 +137,30 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             pictures,
             reorderConfig.getCategoryMaxConsecutive()
         );
+
+        return pictures;
+    }
+
+    /**
+     * 按推荐评分排序
+     */
+    private List<Picture> sortByScore(List<Picture> pictures) {
+        if (pictures == null || pictures.isEmpty()) {
+            return pictures;
+        }
+
+        // 批量获取统计数据
+        List<Long> pictureIds = pictures.stream().map(Picture::getId).collect(Collectors.toList());
+        List<PictureStats> statsList = pictureStatsService.listByIds(pictureIds);
+        Map<Long, PictureStats> statsMap = statsList.stream()
+                .collect(Collectors.toMap(PictureStats::getPictureId, s -> s));
+
+        // 按评分排序
+        pictures.sort((a, b) -> {
+            PictureStats statsA = statsMap.get(a.getId());
+            PictureStats statsB = statsMap.get(b.getId());
+            return Double.compare(scoreCalculator.calculateScore(b, statsB), scoreCalculator.calculateScore(a, statsA));
+        });
 
         return pictures;
     }
