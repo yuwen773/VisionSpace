@@ -88,6 +88,11 @@ const router = createRouter({
           props: true,
         },
         {
+          path: 'feedback',
+          name: 'Feedback',
+          component: () => import('@/pages/FeedbackPage.vue'),
+        },
+        {
           path: 'spaceUserManage/:spaceId',
           name: 'SpaceUserManage',
           component: SpaceUserManagePage,
@@ -125,6 +130,11 @@ const router = createRouter({
           path: 'storage_config_manage',
           name: 'StorageConfigManage',
           component: StorageConfigManagePage,
+        },
+        {
+          path: 'feedback_manage',
+          name: 'FeedbackManage',
+          component: () => import('@/pages/admin/FeedbackManagePage.vue'),
         },
       ],
     },
