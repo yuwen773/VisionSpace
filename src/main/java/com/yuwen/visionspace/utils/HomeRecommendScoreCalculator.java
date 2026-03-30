@@ -27,6 +27,8 @@ public class HomeRecommendScoreCalculator {
     private static final double COLLECT_WEIGHT = 0.15;
     private static final double DOWNLOAD_WEIGHT = 0.15;
     private static final double SHARE_WEIGHT = 0.10;
+    // 互动评分归一化分母 (假设 log1p 最大值约为 15)
+    private static final double ENGAGEMENT_MAX_LOG_VALUE = 15.0;
 
     /**
      * 计算推荐评分
@@ -55,9 +57,9 @@ public class HomeRecommendScoreCalculator {
         double downloadScore = Math.log1p(stats == null ? 0 : stats.getDownloadCount()) * DOWNLOAD_WEIGHT;
         double shareScore = Math.log1p(stats == null ? 0 : stats.getShareCount()) * SHARE_WEIGHT;
 
-        // 归一化到 [0, 1] (假设最大 log1p 值约为 15)
+        // 归一化到 [0, 1]
         double rawScore = viewScore + likeScore + collectScore + downloadScore + shareScore;
-        return rawScore / 15.0;
+        return rawScore / ENGAGEMENT_MAX_LOG_VALUE;
     }
 
     /**

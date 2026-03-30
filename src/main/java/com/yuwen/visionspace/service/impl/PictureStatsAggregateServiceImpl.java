@@ -21,6 +21,8 @@ import java.util.List;
 @Service
 public class PictureStatsAggregateServiceImpl implements PictureStatsAggregateService {
 
+    private static final int CTR_PRECISION = 6;
+
     @Resource
     private UserPictureActionMapper actionMapper;
 
@@ -112,7 +114,7 @@ public class PictureStatsAggregateServiceImpl implements PictureStatsAggregateSe
             Long clickCount = pictureStats.getClickCount();
             if (impressionCount != null && impressionCount > 0 && clickCount != null && clickCount > 0) {
                 BigDecimal ctr = BigDecimal.valueOf(clickCount)
-                        .divide(BigDecimal.valueOf(impressionCount), 6, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(impressionCount), CTR_PRECISION, RoundingMode.HALF_UP);
                 pictureStats.setCtr(ctr);
             } else {
                 pictureStats.setCtr(BigDecimal.ZERO);
