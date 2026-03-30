@@ -49,6 +49,7 @@ const menuItems = [
   { path: '/admin/picture_manage', label: '图片管理', icon: '🖼️' },
   { path: '/admin/space_manage', label: '空间管理', icon: '☁️' },
   { path: '/admin/storage_config_manage', label: '存储配置', icon: '💾' },
+  { path: '/admin/feedback_manage', label: '反馈管理', icon: '💬' },
 ]
 
 const isActive = (path: string) => {
