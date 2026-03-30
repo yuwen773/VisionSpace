@@ -45,23 +45,19 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         }
 
         // 2. 缓存未命中, 计算推荐结果
-        List<Picture> pictures = calculateRecommendPictures(type);
+        List<Picture> pictures = calculateRecommendPictures(type, page, size);
 
         // 3. 缓存总数（仅第一页时计算并缓存）
         if (page == 1) {
             Long cachedTotal = cacheManager.getCachedTotal(type);
             if (cachedTotal == null) {
-                cacheManager.setCachedTotal(type, (long) pictures.size());
+                long total = countRecommendPictures(type);
+                cacheManager.setCachedTotal(type, total);
             }
         }
 
-        // 4. 分页
-        int start = (page - 1) * size;
-        int end = Math.min(start + size, pictures.size());
-        if (start >= pictures.size()) {
-            return Collections.emptyList();
-        }
-        List<Long> result = pictures.subList(start, end).stream()
+        // 4. 提取 ID
+        List<Long> result = pictures.stream()
                 .map(Picture::getId)
                 .collect(Collectors.toList());
 
@@ -104,73 +100,105 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         if (cachedTotal != null) {
             return cachedTotal;
         }
-        List<Picture> pictures = calculateRecommendPictures(type);
-        long total = (long) pictures.size();
+        long total = countRecommendPictures(type);
         cacheManager.setCachedTotal(type, total);
         return total;
     }
 
-    @Override
-    public void refreshRecommendCache() {
-        cacheManager.invalidateRecommendCache();
+    private long countRecommendPictures(String type) {
+        QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
+        queryWrapper.lambda().eq(Picture::getReviewStatus, 1);
+
+        switch (type) {
+            case "latest":
+                return pictureMapper.selectCount(queryWrapper);
+
+            case "quality":
+                queryWrapper.apply("picWidth * picHeight > 2000000");
+                return pictureMapper.selectCount(queryWrapper);
+
+            case "hot":
+                // 热门需要全量计算才能排序，返回实际图片数
+                List<Picture> pictures = pictureMapper.selectList(queryWrapper);
+                return (long) pictures.size();
+
+            case "random":
+                // 随机固定返回 100
+                return 100;
+
+            default:
+                return 0;
+        }
     }
 
     /**
      * 根据类型计算推荐图片列表
+     * - latest/quality: 数据库分页，无重排
+     * - hot/random: 全量计算+重排，内存分页
      */
-    private List<Picture> calculateRecommendPictures(String type) {
+    private List<Picture> calculateRecommendPictures(String type, int page, int size) {
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda().eq(Picture::getReviewStatus, 1); // 仅返回已审核图片
+        queryWrapper.lambda().eq(Picture::getReviewStatus, 1);
 
         List<Picture> pictures;
+        boolean useDbPagination = false;
 
         switch (type) {
-            case "hot":
-                // 热门: 按评分排序
-                pictures = pictureMapper.selectList(queryWrapper);
-                pictures = sortByScore(pictures);
-                break;
-
             case "latest":
-                // 最新: 按创建时间倒序
+                // 最新: 直接数据库分页
                 queryWrapper.orderByDesc("createTime");
-                pictures = pictureMapper.selectList(queryWrapper);
+                useDbPagination = true;
                 break;
 
             case "quality":
-                // 优质: 筛选高质量图片 (宽高乘积 > 200万)
+                // 优质: 数据库筛选 + 分页
                 queryWrapper.apply("picWidth * picHeight > 2000000");
                 queryWrapper.orderByDesc("picWidth", "picHeight");
-                pictures = pictureMapper.selectList(queryWrapper);
+                useDbPagination = true;
                 break;
+
+            case "hot":
+                // 热门: 全量评分排序
+                pictures = pictureMapper.selectList(queryWrapper);
+                pictures = sortByScore(pictures);
+                pictures = reorderPictures(pictures);
+                return pictures;
 
             case "random":
-                // 随机探索: 随机抽取
+                // 随机: 已限制数量
                 queryWrapper.last("ORDER BY RAND() LIMIT 100");
                 pictures = pictureMapper.selectList(queryWrapper);
-                break;
+                pictures = reorderPictures(pictures);
+                return pictures;
 
             default:
-                pictures = Collections.emptyList();
+                return Collections.emptyList();
         }
 
-        // 重排打散
+        if (useDbPagination) {
+            // 数据库分页
+            int offset = (page - 1) * size;
+            queryWrapper.last("LIMIT " + offset + ", " + size);
+            pictures = pictureMapper.selectList(queryWrapper);
+        } else {
+            pictures = Collections.emptyList();
+        }
+
+        return pictures;
+    }
+
+    private List<Picture> reorderPictures(List<Picture> pictures) {
         pictures = PictureReorderUtils.reorderByAuthor(
             pictures,
             reorderConfig.getAuthorWindowSize(),
             reorderConfig.getAuthorMaxCount()
         );
-        pictures = PictureReorderUtils.reorderByCategory(
+        return PictureReorderUtils.reorderByCategory(
             pictures,
             reorderConfig.getCategoryMaxConsecutive()
         );
-
-        return pictures;
     }
 
-    /**
-     * 按推荐评分排序
-     */
     private List<Picture> sortByScore(List<Picture> pictures) {
         if (pictures == null || pictures.isEmpty()) {
             return pictures;
@@ -190,5 +218,10 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         });
 
         return pictures;
+    }
+
+    @Override
+    public void refreshRecommendCache() {
+        cacheManager.invalidateRecommendCache();
     }
 }
