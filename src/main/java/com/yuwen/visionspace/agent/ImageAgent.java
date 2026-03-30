@@ -9,6 +9,7 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
+import com.yuwen.visionspace.agent.service.UserPreferenceService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -44,6 +45,9 @@ public class ImageAgent {
 
     @Resource
     private QualityEvaluatorTool qualityEvaluatorTool;
+
+    @Resource
+    private UserPreferenceService userPreferenceService;
 
     private ReactAgent agent;
 
@@ -106,6 +110,11 @@ public class ImageAgent {
      */
     public String handleFeedback(String threadId, String userId, String message,
                                 Boolean satisfied, String reason, String action) {
+
+        // 保存反馈到偏好系统
+        if (userId != null && !Boolean.TRUE.equals(satisfied)) {
+            userPreferenceService.saveFeedback(userId, action, reason);
+        }
 
         // 构建反馈消息
         String feedbackMessage;
