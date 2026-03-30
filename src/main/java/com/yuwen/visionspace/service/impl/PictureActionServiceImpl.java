@@ -38,6 +38,7 @@ public class PictureActionServiceImpl implements PictureActionService {
         action.setActionType(actionType);
         action.setActionValue(1);
         action.setSource(source);
+        action.setIsProcessed(0); // 新记录默认为未处理
         actionMapper.insert(action);
         log.debug("记录用户行为: userId={}, pictureId={}, actionType={}, source={}",
                 userId, pictureId, actionType, source);

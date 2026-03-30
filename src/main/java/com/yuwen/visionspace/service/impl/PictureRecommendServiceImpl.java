@@ -5,9 +5,14 @@ import com.yuwen.visionspace.config.ReorderConfig;
 import com.yuwen.visionspace.manager.cache.RecommendCacheManager;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureStats;
+import com.yuwen.visionspace.model.vo.RecommendPageVO;
+import com.yuwen.visionspace.model.vo.RecommendPictureVO;
 import com.yuwen.visionspace.service.PictureRecommendService;
+import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
 import com.yuwen.visionspace.utils.PictureReorderUtils;
+import cn.hutool.json.JSONUtil;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
@@ -28,6 +33,9 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     @Resource
     private ReorderConfig reorderConfig;
+
+    @Resource
+    private PictureStatsService pictureStatsService;
 
     @Override
     public List<Long> getRecommendPictureIds(String type, int page, int size) {
@@ -57,13 +65,13 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     }
 
     @Override
-    public List<Picture> getRecommendPictures(String type, int page, int size) {
+    public RecommendPageVO getRecommendPictures(String type, int page, int size) {
         List<Long> ids = getRecommendPictureIds(type, page, size);
         if (ids.isEmpty()) {
-            return Collections.emptyList();
+            return new RecommendPageVO(Collections.emptyList(), 0L);
         }
 
-        // 根据ID列表查询图片详情, 保持顺序
+        // 查询图片详情
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda().in(Picture::getId, ids);
         List<Picture> pictures = pictureMapper.selectList(queryWrapper);
@@ -75,7 +83,39 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         }
         pictures.sort(Comparator.comparingInt(p -> orderMap.getOrDefault(p.getId(), Integer.MAX_VALUE)));
 
-        return pictures;
+        // 转换为 VO
+        List<RecommendPictureVO> records = pictures.stream()
+                .map(this::toRecommendPictureVO)
+                .collect(Collectors.toList());
+
+        // 计算总数
+        Long total = getRecommendTotal(type);
+
+        return new RecommendPageVO(records, total);
+    }
+
+    /**
+     * 转换 Picture 为 RecommendPictureVO
+     */
+    private RecommendPictureVO toRecommendPictureVO(Picture picture) {
+        RecommendPictureVO vo = new RecommendPictureVO();
+        vo.setId(picture.getId());
+        vo.setThumbnailUrl(picture.getThumbnailUrl());
+        vo.setName(picture.getName());
+        vo.setPicWidth(picture.getPicWidth());
+        vo.setPicHeight(picture.getPicHeight());
+        vo.setPicScale(picture.getPicScale());
+        vo.setPicColor(picture.getPicColor());
+        vo.setTags(JSONUtil.toList(picture.getTags(), String.class));
+        return vo;
+    }
+
+    /**
+     * 获取推荐总数
+     */
+    private Long getRecommendTotal(String type) {
+        List<Picture> pictures = calculateRecommendPictures(type);
+        return (long) pictures.size();
     }
 
     @Override
@@ -96,7 +136,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             case "hot":
                 // 热门: 按评分排序
                 pictures = pictureMapper.selectList(queryWrapper);
-                pictures.sort((a, b) -> Double.compare(scoreCalculator.calculateScore(b), scoreCalculator.calculateScore(a)));
+                pictures = sortByScore(pictures);
                 break;
 
             case "latest":
@@ -132,6 +172,30 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             pictures,
             reorderConfig.getCategoryMaxConsecutive()
         );
+
+        return pictures;
+    }
+
+    /**
+     * 按推荐评分排序
+     */
+    private List<Picture> sortByScore(List<Picture> pictures) {
+        if (pictures == null || pictures.isEmpty()) {
+            return pictures;
+        }
+
+        // 批量获取统计数据
+        List<Long> pictureIds = pictures.stream().map(Picture::getId).collect(Collectors.toList());
+        List<PictureStats> statsList = pictureStatsService.listByIds(pictureIds);
+        Map<Long, PictureStats> statsMap = statsList.stream()
+                .collect(Collectors.toMap(PictureStats::getPictureId, s -> s));
+
+        // 按评分排序
+        pictures.sort((a, b) -> {
+            PictureStats statsA = statsMap.get(a.getId());
+            PictureStats statsB = statsMap.get(b.getId());
+            return Double.compare(scoreCalculator.calculateScore(b, statsB), scoreCalculator.calculateScore(a, statsA));
+        });
 
         return pictures;
     }

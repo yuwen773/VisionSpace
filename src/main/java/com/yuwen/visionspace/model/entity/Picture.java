@@ -96,41 +96,6 @@ public class Picture implements Serializable {
     private Long spaceId;
 
     /**
-     * 点赞数
-     */
-    private Long likeCount;
-
-    /**
-     * 收藏数
-     */
-    private Long collectCount;
-
-    /**
-     * 下载数
-     */
-    private Long downloadCount;
-
-    /**
-     * 分享数
-     */
-    private Long shareCount;
-
-    /**
-     * 浏览数
-     */
-    private Long viewCount;
-
-    /**
-     * 展示数（曝光数）
-     */
-    private Long impressionCount;
-
-    /**
-     * 点击率 (CTR) = clickCount / impressionCount
-     */
-    private BigDecimal ctr;
-
-    /**
      * 审核状态：0-待审核; 1-通过; 2-拒绝
      */
     private Integer reviewStatus;
