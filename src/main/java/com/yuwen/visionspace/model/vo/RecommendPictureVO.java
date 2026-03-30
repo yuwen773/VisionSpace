@@ -1,6 +1,9 @@
 package com.yuwen.visionspace.model.vo;
 
+import cn.hutool.json.JSONUtil;
+import com.yuwen.visionspace.model.entity.Picture;
 import lombok.Data;
+import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.util.List;
@@ -52,4 +55,17 @@ public class RecommendPictureVO implements Serializable {
      * 标签
      */
     private List<String> tags;
+
+    /**
+     * 对象转封装类
+     */
+    public static RecommendPictureVO objToVo(Picture picture) {
+        if (picture == null) {
+            return null;
+        }
+        RecommendPictureVO vo = new RecommendPictureVO();
+        BeanUtils.copyProperties(picture, vo);
+        vo.setTags(JSONUtil.toList(picture.getTags(), String.class));
+        return vo;
+    }
 }
