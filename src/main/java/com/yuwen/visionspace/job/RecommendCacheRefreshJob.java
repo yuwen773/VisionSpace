@@ -1,4 +1,4 @@
-package com.yuwen.visionspace.manager.job;
+package com.yuwen.visionspace.job;
 
 import com.yuwen.visionspace.service.PictureRecommendService;
 import org.springframework.scheduling.annotation.Scheduled;

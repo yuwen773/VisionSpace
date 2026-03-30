@@ -2,8 +2,6 @@ package com.yuwen.visionspace.controller;
 
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
-import com.yuwen.visionspace.enums.ActionSourceEnum;
-import com.yuwen.visionspace.enums.ActionTypeEnum;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.service.PictureActionService;
 import com.yuwen.visionspace.service.UserService;
