@@ -24,6 +24,13 @@ vision-space:
       author-window-size: 20
       author-max-count: 2
       category-max-consecutive: 3
+  # 图片统计聚合配置
+  picture-stats:
+    aggregate:
+      batch-size: 500
+      interval-ms: 300000
+    retention:
+      days: 7
 spring:
   application:
     name: vision-space
