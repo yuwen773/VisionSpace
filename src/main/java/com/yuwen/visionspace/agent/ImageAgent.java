@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.agent;
 
+import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
@@ -17,6 +18,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 图片助手 Agent
@@ -96,6 +98,50 @@ public class ImageAgent {
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}", threadId, e);
             return "抱歉，处理您的请求时出现了问题：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 处理用户反馈
+     */
+    public String handleFeedback(String threadId, String userId, String message,
+                                Boolean satisfied, String reason, String action) {
+
+        // 构建反馈消息
+        String feedbackMessage;
+        if (Boolean.TRUE.equals(satisfied)) {
+            feedbackMessage = "用户对当前结果满意。";
+        } else {
+            feedbackMessage = "用户不满意，原因: " + (reason != null ? reason : "未说明");
+            if ("regenerate".equals(action)) {
+                feedbackMessage += "，请重新生成。";
+            } else if ("research".equals(action)) {
+                feedbackMessage += "，请重新搜索。";
+            }
+        }
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId(threadId)
+                .build();
+
+        try {
+            AssistantMessage response = agent.call(feedbackMessage, config);
+            return response.getText();
+        } catch (Exception e) {
+            log.error("处理反馈失败, threadId={}", threadId, e);
+            return "抱歉，处理反馈时出现问题：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 支持中断的调用方法
+     */
+    public Optional<NodeOutput> invokeAndGetOutput(String message, RunnableConfig config) {
+        try {
+            return agent.invokeAndGetOutput(message, config);
+        } catch (Exception e) {
+            log.error("Agent 执行失败", e);
+            return Optional.empty();
         }
     }
 }
