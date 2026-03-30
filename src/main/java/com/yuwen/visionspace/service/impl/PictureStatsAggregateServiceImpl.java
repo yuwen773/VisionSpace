@@ -1,7 +1,5 @@
 package com.yuwen.visionspace.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.yuwen.visionspace.mapper.PictureStatsMapper;
 import com.yuwen.visionspace.mapper.UserPictureActionMapper;
 import com.yuwen.visionspace.model.dto.PictureActionStatsDTO;
 import com.yuwen.visionspace.model.entity.PictureStats;
@@ -27,12 +25,9 @@ public class PictureStatsAggregateServiceImpl implements PictureStatsAggregateSe
     private UserPictureActionMapper actionMapper;
 
     @Resource
-    private PictureStatsMapper pictureStatsMapper;
-
-    @Resource
     private PictureStatsService pictureStatsService;
 
-    @Value("${picture-stats.aggregate.batch-size:500}")
+    @Value("${vision-space.picture-stats.aggregate.batch-size:500}")
     private int batchSize;
 
     private LocalDateTime lastRunTime;
