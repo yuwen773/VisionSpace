@@ -26,6 +26,8 @@ public class PictureStats {
 
     private Long impressionCount;
 
+    private Long clickCount;
+
     private BigDecimal ctr;
 
     @TableField(fill = FieldFill.INSERT)

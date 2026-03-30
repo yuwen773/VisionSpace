@@ -51,4 +51,10 @@ public class UserPictureAction {
      */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;
+
+    /**
+     * 是否已聚合：0-未处理 1-已处理
+     */
+    @TableField(fill = FieldFill.INSERT)
+    private Integer isProcessed;
 }

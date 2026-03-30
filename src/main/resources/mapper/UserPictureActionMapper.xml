@@ -22,4 +22,33 @@
         SELECT DISTINCT pictureId FROM user_picture_action
     </select>
 
+    <!-- 增量查询待聚合的 action 记录（未处理的） -->
+    <select id="selectStatsByTimeRange" resultType="com.yuwen.visionspace.model.dto.PictureActionStatsDTO">
+        SELECT
+            pictureId AS pictureId,
+            SUM(CASE WHEN actionType = 0 THEN actionValue ELSE 0 END) AS impressionCount,
+            SUM(CASE WHEN actionType = 1 THEN actionValue ELSE 0 END) AS clickCount,
+            SUM(CASE WHEN actionType = 2 THEN actionValue ELSE 0 END) AS viewCount,
+            SUM(CASE WHEN actionType = 3 THEN actionValue ELSE 0 END) AS likeCount,
+            SUM(CASE WHEN actionType = 4 THEN actionValue ELSE 0 END) AS collectCount,
+            SUM(CASE WHEN actionType = 5 THEN actionValue ELSE 0 END) AS downloadCount,
+            SUM(CASE WHEN actionType = 6 THEN actionValue ELSE 0 END) AS shareCount
+        FROM user_picture_action
+        WHERE isProcessed = 0 AND createdTime BETWEEN #{startTime} AND #{endTime}
+        GROUP BY pictureId
+    </select>
+
+    <!-- 标记指定时间范围内的 action 为已处理 -->
+    <update id="markAsProcessed">
+        UPDATE user_picture_action
+        SET isProcessed = 1
+        WHERE isProcessed = 0 AND createdTime BETWEEN #{startTime} AND #{endTime}
+    </update>
+
+    <!-- 删除指定时间之前的 action 数据（清理7天前） -->
+    <delete id="deleteOldActions">
+        DELETE FROM user_picture_action
+        WHERE createdTime &lt; #{threshold}
+    </delete>
+
 </mapper>
