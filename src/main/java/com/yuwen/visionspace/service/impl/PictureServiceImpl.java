@@ -14,7 +14,6 @@ import com.yuwen.visionspace.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
-import com.yuwen.visionspace.manager.CosManager;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
 import com.yuwen.visionspace.manager.upload.PictureUploadTemplate;
@@ -42,7 +41,6 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -56,7 +54,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author 程序员鱼皮 <a href="https://www.codefather.cn">编程导航原创项目</a>
+ * @author yuwen
  * @description 针对表【picture(图片)】的数据库操作Service实现
  * @createDate 2024-12-11 20:45:51
  */
@@ -86,8 +84,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private PictureStorageService pictureStorageService;
 
-    @Autowired(required = false)
-    private CosManager cosManager;
 
     @Resource
     private TransactionTemplate transactionTemplate;

@@ -1,4 +1,4 @@
-package com.yuwen.visionspace.enums;
+package com.yuwen.visionspace.model.enums;
 
 /**
  * 图片行为来源枚举
