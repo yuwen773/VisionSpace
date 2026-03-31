@@ -7,6 +7,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.model.ActionType;
@@ -156,7 +157,12 @@ public class ImageAgent {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
-        return agent.stream(userMessage, config);
+        try {
+            return agent.stream(userMessage, config);
+        } catch (GraphRunnerException e) {
+            log.error("流式对话执行异常, threadId={}", threadId, e);
+            return Flux.error(new RuntimeException("Agent 流式执行失败", e));
+        }
     }
 
     /**

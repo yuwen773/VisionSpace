@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.model.dto.agent;
 
 import com.yuwen.visionspace.agent.model.ActionType;
+import com.yuwen.visionspace.agent.model.AgentPhase;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -37,6 +38,11 @@ public class FeedbackRequest implements Serializable {
      * 建议动作: regenerate, research, return (可选)
      */
     private ActionType action;
+
+    /**
+     * 当前迭代阶段 (可选)
+     */
+    private AgentPhase currentPhase;
 
     /**
      * 用户自定义消息

@@ -3,17 +3,19 @@ package com.yuwen.visionspace.controller;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
+import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.ImageAgent;
+import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -67,18 +69,42 @@ public class AgentController {
      */
     @PostMapping("/image/feedback")
     public BaseResponse<String> feedback(@RequestBody FeedbackRequest request) {
-        log.info("收到反馈, threadId={}, satisfied={}, reason={}",
-                request.getThreadId(), request.getSatisfied(), request.getReason());
+        log.info("收到反馈, threadId={}, satisfied={}, reason={}, phase={}",
+                request.getThreadId(), request.getSatisfied(),
+                request.getReason(), request.getCurrentPhase());
 
         String result = imageAgent.handleFeedback(
                 request.getThreadId(),
                 request.getUserId(),
                 request.getSatisfied(),
                 request.getReason(),
-                request.getAction()
+                request.getAction(),
+                request.getCurrentPhase() != null ? request.getCurrentPhase() : AgentPhase.EXPLORATION
         );
 
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 流式对话接口
+     */
+    @GetMapping(value = "/image/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> chatStream(
+            @RequestParam String message,
+            @RequestParam String threadId) {
+
+        Flux<NodeOutput> stream = imageAgent.stream(message, threadId);
+
+        return stream
+                .filter(output -> output instanceof StreamingOutput)
+                .map(output -> {
+                    StreamingOutput so = (StreamingOutput) output;
+                    String type = so.getOutputType().name();
+                    String content = so.message() != null ? so.message().getText() : "";
+                    String json = String.format("{\"type\":\"%s\",\"content\":\"%s\",\"node\":\"%s\"}",
+                            type, content, output.node());
+                    return ServerSentEvent.<String>builder().data(json).build();
+                });
     }
 
     private String buildInterruptionResponse(InterruptionMetadata interruption) {
