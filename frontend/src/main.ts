@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import '@/utils/copy-code'
 
 // 引入antDesignVue
 import Antd from 'ant-design-vue'
