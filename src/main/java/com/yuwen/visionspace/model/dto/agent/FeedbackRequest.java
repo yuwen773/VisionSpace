@@ -1,12 +1,17 @@
 package com.yuwen.visionspace.model.dto.agent;
 
+import com.yuwen.visionspace.agent.model.ActionType;
 import lombok.Data;
+
+import java.io.Serializable;
 
 /**
  * Agent 用户反馈请求
  */
 @Data
-public class FeedbackRequest {
+public class FeedbackRequest implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     /**
      * 会话ID
@@ -31,7 +36,7 @@ public class FeedbackRequest {
     /**
      * 建议动作: regenerate, research, return (可选)
      */
-    private String action;
+    private ActionType action;
 
     /**
      * 用户自定义消息

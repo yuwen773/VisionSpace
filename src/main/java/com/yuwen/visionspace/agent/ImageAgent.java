@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
@@ -108,8 +109,8 @@ public class ImageAgent {
     /**
      * 处理用户反馈
      */
-    public String handleFeedback(String threadId, String userId, String message,
-                                Boolean satisfied, String reason, String action) {
+    public String handleFeedback(String threadId, String userId,
+                                Boolean satisfied, String reason, ActionType action) {
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
@@ -122,9 +123,9 @@ public class ImageAgent {
             feedbackMessage = "用户对当前结果满意。";
         } else {
             feedbackMessage = "用户不满意，原因: " + (reason != null ? reason : "未说明");
-            if ("regenerate".equals(action)) {
+            if (ActionType.REGENERATE.equals(action)) {
                 feedbackMessage += "，请重新生成。";
-            } else if ("research".equals(action)) {
+            } else if (ActionType.RESEARCH.equals(action)) {
                 feedbackMessage += "，请重新搜索。";
             }
         }

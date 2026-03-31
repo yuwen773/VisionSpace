@@ -2,6 +2,7 @@ package com.yuwen.visionspace.agent.service;
 
 import com.alibaba.cloud.ai.graph.store.stores.MemoryStore;
 import com.alibaba.cloud.ai.graph.store.StoreItem;
+import com.yuwen.visionspace.agent.model.ActionType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import java.util.*;
 public class UserPreferenceService {
 
     private static final String NAMESPACE_PREFIX = "preferences";
+    private static final int MAX_FEEDBACK_HISTORY_SIZE = 100;
 
     private final MemoryStore memoryStore;
 
@@ -26,7 +28,7 @@ public class UserPreferenceService {
     /**
      * 保存用户反馈
      */
-    public void saveFeedback(String userId, String action, String reason) {
+    public void saveFeedback(String userId, ActionType action, String reason) {
         List<String> namespace = List.of(NAMESPACE_PREFIX, userId);
         String key = "user_profile";
 
@@ -41,10 +43,14 @@ public class UserPreferenceService {
         feedback.put("action", action);
         feedback.put("reason", reason);
         history.add(feedback);
+        // Limit feedback history to last 100 entries to prevent unbounded memory growth
+        while (history.size() > MAX_FEEDBACK_HISTORY_SIZE) {
+            history.remove(0);
+        }
         profile.put("feedback_history", history);
 
         // 分析并更新偏好
-        if (action != null && action.equals("regenerate") && reason != null) {
+        if (action != null && ActionType.REGENERATE.equals(action) && reason != null) {
             updatePreferencesFromFeedback(profile, reason);
         }
 

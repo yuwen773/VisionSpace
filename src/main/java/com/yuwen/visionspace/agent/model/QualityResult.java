@@ -37,5 +37,5 @@ public class QualityResult implements Serializable {
     /**
      * 推荐动作: return (返回结果) | regenerate (重新生成) | research (重新搜索)
      */
-    private String action;
+    private ActionType action;
 }

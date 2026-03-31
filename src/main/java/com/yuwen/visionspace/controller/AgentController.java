@@ -7,6 +7,7 @@ import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
+import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,6 +60,25 @@ public class AgentController {
         }
 
         return ResultUtils.success("处理完成");
+    }
+
+    /**
+     * 处理用户反馈
+     */
+    @PostMapping("/image/feedback")
+    public BaseResponse<String> feedback(@RequestBody FeedbackRequest request) {
+        log.info("收到反馈, threadId={}, satisfied={}, reason={}",
+                request.getThreadId(), request.getSatisfied(), request.getReason());
+
+        String result = imageAgent.handleFeedback(
+                request.getThreadId(),
+                request.getUserId(),
+                request.getSatisfied(),
+                request.getReason(),
+                request.getAction()
+        );
+
+        return ResultUtils.success(result);
     }
 
     private String buildInterruptionResponse(InterruptionMetadata interruption) {

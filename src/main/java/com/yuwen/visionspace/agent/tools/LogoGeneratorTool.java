@@ -27,6 +27,9 @@ public class LogoGeneratorTool {
     @Resource
     private DashScopeImageModel dashScopeImageModel;
 
+    @Resource
+    private ImageSynthesis imageSynthesis;
+
     @Value("${spring.ai.dashscope.api-key}")
     private String dashScopeApiKey;
 
@@ -51,7 +54,6 @@ public class LogoGeneratorTool {
                     .size("512*512")
                     .n(1) // 生成 1 张足够，因为 AI 不知道哪张最好
                     .build();
-            ImageSynthesis imageSynthesis = new ImageSynthesis();
             ImageSynthesisResult result = imageSynthesis.call(param);
             if (result != null && result.getOutput() != null && result.getOutput().getResults() != null) {
                 List<Map<String, String>> results = result.getOutput().getResults();
@@ -71,36 +73,4 @@ public class LogoGeneratorTool {
         }
         return logoList;
     }
-//    @Tool(description = "根据描述生成 Logo 设计图片，用于网站品牌标识")
-//    public List<ImageResource> generateLogos(@ToolParam(description = "Logo 设计描述，如名称、行业、风格等，尽量详细") String description) {
-//        List<ImageResource> logoList = new ArrayList<>();
-//        try {
-//            // 构建 Logo 设计提示词
-//            String logoPrompt = String.format("生成 Logo，Logo 中禁止包含任何文字！Logo 介绍：%s", description);
-//
-//            var imageOptions = DashScopeImageOptions.builder()
-//                    .model(imageModel)
-//                    .n(1)
-//                    .width(1024)
-//                    .height(1024)
-//                    .style("photography")
-//                    .build();
-//
-//            ImagePrompt prompt = new ImagePrompt(logoPrompt, imageOptions);
-//            ImageResponse response = dashScopeImageModel.call(prompt);
-//            for (ImageGeneration result : response.getResults()) {
-//                System.err.println(result.getMetadata());
-//                logoList.add(ImageResource.builder().
-//                        category(ImageCategoryEnum.LOGO).
-//                        description(description).
-//                        url(result.getOutput().getUrl()).
-//                        build());
-//            }
-//
-//
-//        } catch (Exception e) {
-//            log.error("生成 Logo 失败: {}", e.getMessage(), e);
-//        }
-//        return logoList;
-//    }
 }
