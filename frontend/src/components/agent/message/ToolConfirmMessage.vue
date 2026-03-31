@@ -37,12 +37,12 @@ const handleCancel = () => emit('cancel')
   padding: 16px;
   margin: 8px 16px;
   border-radius: 12px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
 .confirm-icon {
-  color: var(--color-warning);
+  color: var(--color-success);
   flex-shrink: 0;
 }
 
@@ -53,7 +53,7 @@ const handleCancel = () => emit('cancel')
 .confirm-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-warning);
+  color: var(--color-success);
   margin-bottom: 4px;
 }
 
