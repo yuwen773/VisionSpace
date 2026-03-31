@@ -16,45 +16,40 @@
       <!-- 消息列表 -->
       <template v-for="(msg, index) in messages" :key="index">
         <!-- User Message -->
-        <transition name="message-slide">
+        <transition v-if="msg.type === 'user'" name="message-slide">
           <UserMessage
-            v-if="msg.type === 'user'"
             :content="msg.content"
             :time="msg.time"
           />
         </transition>
 
         <!-- Assistant Message -->
-        <transition name="message-slide">
+        <transition v-else-if="msg.type === 'assistant'" name="message-slide">
           <AssistantMessage
-            v-else-if="msg.type === 'assistant'"
             :content="msg.content"
             :isLoading="msg.isLoading"
           />
         </transition>
 
         <!-- Tool Request -->
-        <transition name="message-slide">
+        <transition v-else-if="msg.type === 'tool-request'" name="message-slide">
           <ToolRequestMessage
-            v-else-if="msg.type === 'tool-request'"
             :toolName="msg.toolName || '工具'"
             :description="msg.content"
           />
         </transition>
 
         <!-- Tool Response -->
-        <transition name="message-slide">
+        <transition v-else-if="msg.type === 'tool-response'" name="message-slide">
           <ToolResponseMessage
-            v-else-if="msg.type === 'tool-response'"
             :toolName="msg.toolName || ''"
             :content="msg.content"
           />
         </transition>
 
         <!-- Interrupt / Confirm -->
-        <transition name="message-slide">
+        <transition v-else-if="msg.type === 'interrupt'" name="message-slide">
           <ToolConfirmMessage
-            v-else-if="msg.type === 'interrupt'"
             :message="msg.content"
             @confirm="emit('confirm')"
             @cancel="emit('cancel')"
