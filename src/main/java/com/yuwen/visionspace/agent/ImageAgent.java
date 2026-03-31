@@ -5,8 +5,12 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
+import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.yuwen.visionspace.agent.hook.IterationControlHook;
+import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.model.ActionType;
+import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
@@ -18,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,8 +32,10 @@ import java.util.Optional;
  *
  * 核心流程：
  * 1. 用户描述想要的图片
- * 2. Agent 先搜索站内/站外图片
- * 3. 如果搜索结果不满意，Agent 调用 AIGC 生成图片
+ * 2. Agent 先搜索站内/站外图片（EXPLORATION 阶段）
+ * 3. 如果搜索结果不满意或探索次数耗尽，进入 GENERATION 阶段
+ * 4. AIGC 生成前暂停等待用户确认（HITL）
+ * 5. 支持流式输出和迭代闭环
  */
 @Component
 public class ImageAgent {
@@ -50,14 +57,20 @@ public class ImageAgent {
     @Resource
     private UserPreferenceService userPreferenceService;
 
+    @Resource
+    private IterationControlHook iterationControlHook;
+
+    @Resource
+    private MessageTrimmingHook messageTrimmingHook;
+
     private ReactAgent agent;
 
     @PostConstruct
     public void init() {
-        // 创建人工介入 Hook
-        HumanInTheLoopHook humanInTheLoopHook = HumanInTheLoopHook.builder()
-                .approvalOn("evaluateImageQuality", ToolConfig.builder()
-                        .description("搜索结果评估完成，需要用户确认是否满意")
+        // 创建人工介入 Hook - 仅拦截 generateLogo（AIGC 生成前需用户确认）
+        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
+                .approvalOn("generateLogo", ToolConfig.builder()
+                        .description("即将使用 AIGC 生成图片，需要用户确认")
                         .build())
                 .build();
 
@@ -65,24 +78,54 @@ public class ImageAgent {
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction("""
-                    你是一个图片助手。帮助用户找到或生成他们想要的图片。
+                    你是一个智能图片助手。
 
-                    工作流程：
+                    ## 工作流程
+                    你必须在以下阶段间切换：
+
+                    ### 阶段 1：EXPLORATION（探索）
                     1. 理解用户的图片需求
-                    2. 使用搜索工具找到图片
-                    3. 使用 QualityEvaluatorTool 评估结果
-                    4. 根据评估结果决定：
-                       - matchScore >= 0.5: 展示结果给用户
-                       - matchScore < 0.5: 询问用户是否满意
-                    5. 根据用户反馈决定下一步
+                    2. 调用 ImageSearchTool 搜索图片
+                    3. 调用 QualityEvaluatorTool 评估结果
+                    4. 如果 matchScore >= 0.5：展示结果，询问用户满意度
+                    5. 如果 matchScore < 0.5：调整关键词重新搜索
 
-                    重要规则：
+                    ### 阶段 2：GENERATION（生成）
+                    当探索次数耗尽或用户主动要求生成时：
+                    1. 告知用户即将使用 AIGC 生成（此时会暂停等待确认）
+                    2. 调用 LogoGeneratorTool 生成图片
+                    3. 展示生成结果，询问用户满意度
+
+                    ### 满意度询问规则（每次展示结果后必须执行）
+                    你必须主动询问：
+                    "这些图片是否符合您的预期？"
+                    并提示用户可以：
+                    - 表示满意 \u2192 结束
+                    - 要求换一批 \u2192 回到探索阶段
+                    - 要求重新生成 \u2192 回到生成阶段
+                    - 描述更具体的需求 \u2192 调整策略
+
+                    ### 反馈消息格式
+                    当收到 [用户反馈] 开头的消息时，按以下格式解析：
+                    - 满意度：满意/不满意
+                    - 动作：RESEARCH / REGENERATE / RETURN
+                    - 原因：用户的具体反馈
+                    - 当前探索次数：帮助判断是否应切换阶段
+                    - 当前阶段：EXPLORATION / GENERATION
+
+                    ## 重要约束
                     - 每次只返回 3-5 张最相关的图片
-                    - 清晰标注图片来源（站外搜索/AIGC生成）
-                    - 如果用户不满意，可以重新生成或搜索
+                    - 清晰标注图片来源（站外搜索 / AIGC 生成）
+                    - 探索阶段全自动执行，不暂停
+                    - AIGC 生成前必须暂停等待用户确认
                     """)
                 .methodTools(imageSearchTool, logoGeneratorTool, qualityEvaluatorTool)
-                .hooks(List.of(humanInTheLoopHook))
+                .hooks(List.of(
+                        hitlHook,
+                        iterationControlHook,
+                        messageTrimmingHook,
+                        ModelCallLimitHook.builder().runLimit(15).build()
+                ))
                 .saver(new MemorySaver())
                 .build();
     }
@@ -107,27 +150,44 @@ public class ImageAgent {
     }
 
     /**
-     * 处理用户反馈
+     * 流式对话入口
+     */
+    public Flux<NodeOutput> stream(String userMessage, String threadId) {
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId(threadId)
+                .build();
+        return agent.stream(userMessage, config);
+    }
+
+    /**
+     * 处理用户反馈（增强版）
      */
     public String handleFeedback(String threadId, String userId,
-                                Boolean satisfied, String reason, ActionType action) {
+                                 Boolean satisfied, String reason,
+                                 ActionType action, AgentPhase currentPhase) {
+
+        int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
             userPreferenceService.saveFeedback(userId, action, reason);
         }
 
-        // 构建反馈消息
+        // 构造增强的反馈消息
         String feedbackMessage;
         if (Boolean.TRUE.equals(satisfied)) {
-            feedbackMessage = "用户对当前结果满意。";
+            feedbackMessage = String.format(
+                    "[用户反馈] 满意度: 满意 | 阶段: %s | 探索次数: %d",
+                    currentPhase, exploreCount
+            );
         } else {
-            feedbackMessage = "用户不满意，原因: " + (reason != null ? reason : "未说明");
-            if (ActionType.REGENERATE.equals(action)) {
-                feedbackMessage += "，请重新生成。";
-            } else if (ActionType.RESEARCH.equals(action)) {
-                feedbackMessage += "，请重新搜索。";
-            }
+            feedbackMessage = String.format(
+                    "[用户反馈] 满意度: 不满意 | 动作: %s | 原因: %s | 阶段: %s | 探索次数: %d",
+                    action,
+                    reason != null ? reason : "未说明",
+                    currentPhase,
+                    exploreCount
+            );
         }
 
         RunnableConfig config = RunnableConfig.builder()
@@ -141,6 +201,15 @@ public class ImageAgent {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题：" + e.getMessage();
         }
+    }
+
+    /**
+     * 获取当前探索次数（从 state 中读取）
+     * TODO: 需要通过 MemorySaver 获取会话状态，暂返回 0
+     */
+    private int getExploreCount(String threadId) {
+        // 后续可通过 MemorySaver 或 Redis 读取实际计数
+        return 0;
     }
 
     /**
