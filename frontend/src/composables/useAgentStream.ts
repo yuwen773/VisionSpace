@@ -1,9 +1,29 @@
 import { ref, onUnmounted } from 'vue'
 
+export interface AgentRunResponse {
+  node: string
+  agent?: string
+  chunk?: string
+  message?: MessageDTO
+  tokenUsage?: any
+  error?: boolean
+  errorType?: string
+  errorMessage?: string
+}
+
+export interface MessageDTO {
+  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-confirm' | 'tool'
+  content?: string
+  toolCalls?: any[]
+  toolName?: string
+}
+
 export interface StreamMessage {
   type: string
   content: string
   node: string
+  isLoading?: boolean
+  toolName?: string
 }
 
 export function useAgentStream() {
@@ -14,16 +34,23 @@ export function useAgentStream() {
   const sendMessage = async (message: string, threadId: string) => {
     isStreaming.value = true
     messages.value = []
+    abortController = new AbortController()
 
     const baseUrl = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
-    const url = `${baseUrl}/api/agent/image/chat/stream?message=${encodeURIComponent(message)}&threadId=${encodeURIComponent(threadId)}`
+    const url = `${baseUrl}/api/agent/image/chat/stream`
 
     try {
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
         },
+        body: JSON.stringify({
+          message: message,
+          threadId: threadId,
+        }),
+        signal: abortController.signal,
       })
 
       if (!response.ok) {
@@ -37,16 +64,15 @@ export function useAgentStream() {
 
       const decoder = new TextDecoder()
       let buffer = ''
+      let accumulatedContent = ''
+      let isFirstChunk = true
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-
-        // 按行分割处理 SSE 事件
         const lines = buffer.split('\n')
-        // 保留最后一行（可能不完整）
         buffer = lines.pop() || ''
 
         for (const line of lines) {
@@ -55,38 +81,101 @@ export function useAgentStream() {
             continue
           }
 
-          // 提取 JSON 部分（去掉 "data:" 前缀）
           let jsonStr = trimmed.slice(5).trimStart()
+          if (!jsonStr) continue
 
-          // 解析 JSON
           try {
-            const data = JSON.parse(jsonStr)
-            if (data.type && data.content !== undefined) {
-              // 过滤无效的 content
-              if (data.content === null || data.content === undefined) {
-                continue
-              }
+            const data: AgentRunResponse = JSON.parse(jsonStr)
+
+            // 跳过心跳
+            if (data.node === 'heartbeat') continue
+
+            // 处理错误
+            if (data.error) {
               messages.value.push({
-                type: data.type,
-                content: String(data.content),
-                node: data.node || '',
+                type: 'error',
+                content: data.errorMessage || 'Unknown error',
+                node: 'error',
               })
+              continue
+            }
+
+            // 处理文本 chunk
+            if (data.chunk) {
+              if (isFirstChunk) {
+                messages.value.push({
+                  type: 'assistant',
+                  content: data.chunk,
+                  node: data.node || 'agent',
+                  isLoading: true,
+                })
+                isFirstChunk = false
+              } else {
+                accumulatedContent += data.chunk
+                const lastMsg = messages.value[messages.value.length - 1]
+                if (lastMsg && lastMsg.type === 'assistant') {
+                  lastMsg.content = accumulatedContent
+                }
+              }
+            }
+
+            // 处理完整消息
+            if (data.message) {
+              const msgType = data.message.messageType
+              if (msgType === 'tool-request') {
+                messages.value.push({
+                  type: 'tool-request',
+                  content: data.message.content || '',
+                  node: data.node || 'agent',
+                  toolName: data.message.toolName,
+                })
+              } else if (msgType === 'tool-confirm') {
+                messages.value.push({
+                  type: 'tool-confirm',
+                  content: data.message.content || '',
+                  node: data.node || 'agent',
+                })
+              } else if (msgType === 'tool') {
+                messages.value.push({
+                  type: 'tool-response',
+                  content: data.message.content || '',
+                  node: data.node || 'agent',
+                  toolName: data.message.toolName,
+                })
+              }
+              // 重置 chunk 累积
+              isFirstChunk = true
+              accumulatedContent = ''
             }
           } catch (e) {
-            // JSON 解析失败，跳过这一行
+            // JSON 解析失败，跳过
           }
         }
       }
-    } catch (error) {
-      console.error('SSE stream error:', error)
-      throw error
+
+      // 标记最后一条消息为完成
+      const lastMsg = messages.value[messages.value.length - 1]
+      if (lastMsg && lastMsg.type === 'assistant') {
+        lastMsg.isLoading = false
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted')
+      } else {
+        console.error('SSE stream error:', error)
+        throw error
+      }
     } finally {
       isStreaming.value = false
+      abortController = null
     }
   }
 
   const abort = () => {
-    abortController?.abort()
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
     isStreaming.value = false
   }
 
