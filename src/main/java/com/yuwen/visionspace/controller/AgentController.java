@@ -4,12 +4,18 @@ import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
+import com.yuwen.visionspace.model.dto.agent.AgentRunResponse;
 import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
+import com.yuwen.visionspace.model.dto.agent.MessageDTO;
+import com.yuwen.visionspace.model.dto.agent.MessageType;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -17,6 +23,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,23 +95,96 @@ public class AgentController {
     /**
      * 流式对话接口
      */
-    @GetMapping(value = "/image/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(
-            @RequestParam String message,
-            @RequestParam String threadId) {
+    @PostMapping(value = "/image/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> chatStream(@RequestBody AgentChatRequest request) {
+        String threadId = request.getThreadId();
+        if (threadId == null || threadId.isBlank()) {
+            threadId = UUID.randomUUID().toString();
+        }
 
-        Flux<NodeOutput> stream = imageAgent.stream(message, threadId);
+        log.info("Agent 流式对话请求, threadId={}, message={}", threadId, request.getMessage());
 
-        return stream
-                .filter(output -> output instanceof StreamingOutput)
+        Flux<NodeOutput> stream = imageAgent.stream(request.getMessage(), threadId);
+
+        // 心跳 Flux：每 30 秒发送一次
+        Flux<ServerSentEvent<String>> heartbeatFlux = Flux.interval(Duration.ofSeconds(30))
+                .map(tick -> ServerSentEvent.<String>builder()
+                        .data(String.format("{\"node\":\"heartbeat\"}"))
+                        .build());
+
+        // 主要数据流
+        Flux<ServerSentEvent<String>> dataFlux = stream
+                // 过滤 AGENT_MODEL_FINISHED 避免重复
+                .filter(output -> !(output instanceof StreamingOutput<?> so
+                        && so.getOutputType() != null
+                        && so.getOutputType().name().equals("AGENT_MODEL_FINISHED")))
                 .map(output -> {
-                    StreamingOutput so = (StreamingOutput) output;
-                    String type = so.getOutputType().name();
-                    String content = so.message() != null ? so.message().getText() : "";
-                    String json = String.format("{\"type\":\"%s\",\"content\":\"%s\",\"node\":\"%s\"}",
-                            type, content, output.node());
+                    AgentRunResponse response = new AgentRunResponse();
+                    response.setNode(output.node() != null ? output.node() : "agent");
+                    response.setAgent("image-agent");
+
+                    if (output instanceof StreamingOutput<?> streamingOutput) {
+                        Object msg = streamingOutput.message();
+                        if (msg instanceof AssistantMessage assistantMessage) {
+                            if (assistantMessage.hasToolCalls()) {
+                                // 工具调用 → message
+                                MessageDTO messageDTO = new MessageDTO();
+                                messageDTO.setMessageType(MessageType.TOOL_REQUEST);
+                                messageDTO.setContent(assistantMessage.getText());
+                                response.setMessage(messageDTO);
+                            } else {
+                                // 文本 → chunk
+                                response.setChunk(assistantMessage.getText());
+                            }
+                        }
+                    } else if (output instanceof InterruptionMetadata interruptionMetadata) {
+                        // 中断 → tool-confirm
+                        MessageDTO messageDTO = new MessageDTO();
+                        messageDTO.setMessageType(MessageType.TOOL_CONFIRM);
+                        StringBuilder sb = new StringBuilder();
+                        for (InterruptionMetadata.ToolFeedback feedback : interruptionMetadata.toolFeedbacks()) {
+                            sb.append("工具: ").append(feedback.getName()).append("\n");
+                            sb.append("评估: ").append(feedback.getDescription()).append("\n");
+                        }
+                        messageDTO.setContent(sb.toString());
+                        response.setMessage(messageDTO);
+                    }
+
+                    String json = toJson(response);
                     return ServerSentEvent.<String>builder().data(json).build();
+                })
+                // 结束信号
+                .concatWith(Flux.just(ServerSentEvent.<String>builder()
+                        .data("{\"error\":false}")
+                        .build()))
+                // 错误处理
+                .onErrorResume(error -> {
+                    log.error("流式对话错误", error);
+                    String errorJson = String.format(
+                            "{\"error\":true,\"errorType\":\"%s\",\"errorMessage\":\"%s\"}",
+                            error.getClass().getSimpleName(),
+                            error.getMessage() != null ? error.getMessage() : "Unknown error"
+                    );
+                    return Flux.just(ServerSentEvent.<String>builder()
+                            .event("error")
+                            .data(errorJson)
+                            .build());
                 });
+
+        // 合并心跳和数据流
+        return Flux.merge(dataFlux, heartbeatFlux);
+    }
+
+    /**
+     * 对象转 JSON
+     */
+    private String toJson(Object obj) {
+        try {
+            return new ObjectMapper().writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            log.error("JSON 序列化失败", e);
+            return "{}";
+        }
     }
 
     private String buildInterruptionResponse(InterruptionMetadata interruption) {
