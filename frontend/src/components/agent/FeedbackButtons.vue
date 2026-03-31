@@ -1,7 +1,12 @@
 <template>
   <div v-if="visible" class="feedback-buttons">
     <div class="feedback-prompt">
-      <span class="prompt-icon">💭</span>
+      <svg class="prompt-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="10" r="1"/>
+        <circle cx="8" cy="10" r="1"/>
+        <circle cx="16" cy="10" r="1"/>
+      </svg>
       <span class="prompt-text">这些图片是否符合您的预期？</span>
     </div>
     <div class="button-group">
@@ -69,5 +74,10 @@ const handleFeedback = (action: string) => {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+}
+
+.button-group :deep(.ant-btn):focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
 }
 </style>
