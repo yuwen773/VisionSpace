@@ -9,17 +9,31 @@
         @pressEnter="handleSend"
         class="chat-textarea"
       />
+      <div v-if="inputText.length > 0" class="char-count">
+        {{ inputText.length }}
+      </div>
       <a-button
+        v-if="!loading"
         type="primary"
-        :loading="loading"
         :disabled="!inputText.trim()"
         @click="handleSend"
         class="send-button"
       >
         <template #icon>
-          <SendOutlined v-if="!loading" />
+          <SendOutlined />
         </template>
         发送
+      </a-button>
+      <a-button
+        v-else
+        danger
+        @click="handleStop"
+        class="stop-button"
+      >
+        <template #icon>
+          <StopOutlined />
+        </template>
+        停止
       </a-button>
     </div>
     <div class="input-hint">
@@ -30,7 +44,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SendOutlined } from '@ant-design/icons-vue'
+import { SendOutlined, StopOutlined } from '@ant-design/icons-vue'
 
 interface Props {
   loading?: boolean
@@ -42,7 +56,7 @@ withDefaults(defineProps<Props>(), {
   placeholder: '输入您的需求...',
 })
 
-const emit = defineEmits(['send'])
+const emit = defineEmits(['send', 'stop'])
 
 const inputText = ref('')
 
@@ -50,6 +64,10 @@ const handleSend = () => {
   if (!inputText.value.trim() || inputText.value.trim().length === 0) return
   emit('send', inputText.value.trim())
   inputText.value = ''
+}
+
+const handleStop = () => {
+  emit('stop')
 }
 </script>
 
@@ -64,6 +82,7 @@ const handleSend = () => {
   display: flex;
   gap: 8px;
   align-items: flex-end;
+  position: relative;
 }
 
 .chat-textarea {
@@ -89,5 +108,18 @@ const handleSend = () => {
   color: var(--color-text-tertiary);
   text-align: center;
   margin-top: 6px;
+}
+
+.char-count {
+  position: absolute;
+  right: 80px;
+  bottom: 8px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.stop-button {
+  border-radius: 20px;
+  padding: 8px 20px;
 }
 </style>

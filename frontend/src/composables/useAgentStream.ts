@@ -1,9 +1,9 @@
 import { ref, onUnmounted } from 'vue'
 
 export interface StreamMessage {
-  type: string      // AGENT_MODEL_STREAMING / AGENT_MODEL_FINISHED / AGENT_TOOL_FINISHED
-  content: string   // 消息内容
-  node: string      // 节点名称
+  type: string
+  content: string
+  node: string
 }
 
 export function useAgentStream() {
@@ -11,16 +11,10 @@ export function useAgentStream() {
   const isStreaming = ref(false)
   let abortController: AbortController | null = null
 
-  /**
-   * 发送消息并接收 SSE 流
-   * @param message 用户消息
-   * @param threadId 线程 ID
-   */
   const sendMessage = async (message: string, threadId: string) => {
     isStreaming.value = true
     messages.value = []
 
-    // 构建 SSE URL
     const baseUrl = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
     const url = `${baseUrl}/api/agent/image/chat/stream?message=${encodeURIComponent(message)}&threadId=${encodeURIComponent(threadId)}`
 
@@ -49,23 +43,37 @@ export function useAgentStream() {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
+
+        // 按行分割处理 SSE 事件
         const lines = buffer.split('\n')
+        // 保留最后一行（可能不完整）
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              if (data.type && data.content !== undefined) {
-                messages.value.push({
-                  type: data.type,
-                  content: data.content,
-                  node: data.node || '',
-                })
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) {
+            continue
+          }
+
+          // 提取 JSON 部分（去掉 "data:" 前缀）
+          let jsonStr = trimmed.slice(5).trimStart()
+
+          // 解析 JSON
+          try {
+            const data = JSON.parse(jsonStr)
+            if (data.type && data.content !== undefined) {
+              // 过滤无效的 content
+              if (data.content === null || data.content === undefined) {
+                continue
               }
-            } catch (e) {
-              // 忽略解析错误
+              messages.value.push({
+                type: data.type,
+                content: String(data.content),
+                node: data.node || '',
+              })
             }
+          } catch (e) {
+            // JSON 解析失败，跳过这一行
           }
         }
       }
@@ -77,9 +85,6 @@ export function useAgentStream() {
     }
   }
 
-  /**
-   * 中止当前流
-   */
   const abort = () => {
     abortController?.abort()
     isStreaming.value = false

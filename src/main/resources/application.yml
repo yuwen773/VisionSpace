@@ -33,6 +33,8 @@ vision-space:
       interval-ms: 300000
     retention:
       days: 7
+
+
 spring:
   application:
     name: vision-space
@@ -55,7 +57,7 @@ spring:
       host: localhost
       port: 6379
       timeout: 5000
-      password: xxxx
+#      password: xxxx
       lettuce:
         pool:
           max-active: 8
@@ -71,40 +73,12 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-  # Spring AI 配置
-  # 空间图片分表（暂不启用）
-  # shardingsphere:
-  #   datasource:
-  #     names: yu_picture
-  #     yu_picture:
-  #       type: com.zaxxer.hikari.HikariDataSource
-  #       driver-class-name: com.mysql.cj.jdbc.Driver
-  #       url: jdbc:mysql://localhost:3306/yu_picture
-  #       username: root
-  #       password: 123456
-  #   rules:
-  #     sharding:
-  #       tables:
-  #         picture:
-  #           actual-data-nodes: yu_picture.picture # 动态分表
-  #           table-strategy:
-  #             standard:
-  #               sharding-column: spaceId
-  #               sharding-algorithm-name: picture_sharding_algorithm  # 使用自定义分片算法
-  #       sharding-algorithms:
-  #         picture_sharding_algorithm:
-  #           type: CLASS_BASED
-  #           props:
-  #             strategy: standard
-  #             algorithmClassName: com.yuwen.visionspace.manager.sharding.PictureShardingAlgorithm
-  #   props:
-  #     sql-show: true
 mybatis-plus:
   configuration:
     # MyBatis 配置
     map-underscore-to-camel-case: false
     # 仅在开发环境打印日志
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     enable-sql-runner: true
     db-config:

@@ -1,6 +1,6 @@
 import { saveAs } from 'file-saver'
 
-export const formatSize = (size) => {
+export const formatSize = (size: number) => {
   if (!size && size !== 0) return '未知'
   if (size < 1024) return size + ' B'
   if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB'

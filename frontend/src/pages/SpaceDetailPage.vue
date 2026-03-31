@@ -396,7 +396,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { deletePictureUsingPost, searchPictureByColorUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import { formatSize } from '@/utils'
@@ -603,7 +603,7 @@ const doEdit = (picture: any) => {
 
 const doDelete = async (picture: any) => {
   const confirmed = await new Promise((resolve) => {
-    message.confirm({
+    Modal.confirm({
       title: '确认删除',
       content: `确定要删除图片 "${picture.name}" 吗？`,
       okText: '删除',
