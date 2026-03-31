@@ -19,6 +19,7 @@
         <UserMessage
           v-if="msg.type === 'user'"
           :content="msg.content"
+          :time="msg.time"
         />
 
         <!-- Assistant Message -->

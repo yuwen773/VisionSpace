@@ -80,9 +80,12 @@ const handleSelectHistory = (index: number) => {
 const { messages, isStreaming, sendMessage } = useAgentStream()
 const streaming = isStreaming
 
-// 显示消息列表
+// 用户消息列表（本地维护）
+const userMessages = ref<any[]>([])
+
+// 显示消息列表（用户消息 + Agent 消息）
 const displayMessages = computed(() => {
-  const result: any[] = []
+  const result: any[] = [...userMessages.value]
 
   // 合并同 type 的消息
   let lastType = ''
@@ -128,6 +131,13 @@ const handleSend = async (text: string) => {
 
   showFeedback.value = false
 
+  // 添加用户消息到列表
+  userMessages.value.push({
+    type: 'user',
+    content: text,
+    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+  })
+
   try {
     await sendMessage(text, threadId.value)
 
@@ -168,6 +178,7 @@ const handleFeedback = async (action: string) => {
 const handleNewChat = () => {
   threadId.value = generateThreadId()
   messages.value = []
+  userMessages.value = []
   showFeedback.value = false
 }
 
