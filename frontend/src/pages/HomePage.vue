@@ -68,6 +68,27 @@
           </button>
         </div>
 
+        <!-- AI 助手快捷入口 -->
+        <div class="quick-entry">
+          <div class="quick-entry-inner" @click="router.push('/agent')">
+            <div class="quick-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+            <div class="quick-text">
+              <span class="quick-title">AI 智能助手</span>
+              <span class="quick-desc">描述需求，AI 帮您找图</span>
+            </div>
+            <div class="quick-arrow">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
         <!-- 分类标签 - 毛玻璃效果 -->
         <div class="category-pills">
           <button
@@ -1404,6 +1425,70 @@ onUnmounted(() => {
   height: 1px;
   opacity: 0;
   pointer-events: none;
+}
+
+/* ========== AI 助手快捷入口 ========== */
+.quick-entry {
+  margin-top: 20px;
+  animation: fade-up 0.8s ease-out 0.7s forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.quick-entry-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--gradient-glass);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 720px;
+  width: 100%;
+}
+
+.quick-entry-inner:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-accent);
+  transform: translateY(-2px);
+}
+
+.quick-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--gradient-aurora);
+  color: white;
+  flex-shrink: 0;
+}
+
+.quick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  text-align: left;
+}
+
+.quick-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.quick-desc {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+.quick-arrow {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
 }
 
 /* ========== 响应式瀑布流 ========== */

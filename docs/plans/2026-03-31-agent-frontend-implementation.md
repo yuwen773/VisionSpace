@@ -8,6 +8,7 @@
 
 **Tech Stack:** Vue 3 + Ant Design Vue + CSS 变量（design-tokens）
 
+**Agent Skills Required:** `/frontend-design`  skills to design the frontend page.
 ---
 
 ## 前置检查

@@ -237,6 +237,10 @@ const originItems = [
     label: '🏠 主页',
   },
   {
+    key: '/agent',
+    label: '🤖 智能助手',
+  },
+  {
     key: '/add_picture',
     label: '📸 创建图片',
   },
