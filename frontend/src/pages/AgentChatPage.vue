@@ -31,6 +31,7 @@
     <AgentChatInput
       :loading="streaming"
       @send="handleSend"
+      @stop="abort"
     />
   </div>
 </template>
@@ -98,7 +99,7 @@ const handleSelectHistory = (index: number) => {
   showHistory.value = false
 }
 
-const { messages, isStreaming, sendMessage } = useAgentStream()
+const { messages, isStreaming, sendMessage, abort } = useAgentStream()
 const streaming = isStreaming
 
 // Watch for streaming state (must be after streaming is defined)
