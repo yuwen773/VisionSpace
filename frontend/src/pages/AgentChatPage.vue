@@ -89,13 +89,6 @@ const iterations = ref([
 ])
 const showProgress = ref(false)
 
-// Watch for streaming state
-watch(streaming, (isStreaming) => {
-  if (isStreaming) {
-    showProgress.value = true
-  }
-})
-
 const handleOpenHistory = () => {
   showHistory.value = true
 }
@@ -107,6 +100,13 @@ const handleSelectHistory = (index: number) => {
 
 const { messages, isStreaming, sendMessage } = useAgentStream()
 const streaming = isStreaming
+
+// Watch for streaming state (must be after streaming is defined)
+watch(streaming, (isStreaming) => {
+  if (isStreaming) {
+    showProgress.value = true
+  }
+})
 
 // 用户消息列表（本地维护）
 const userMessages = ref<any[]>([])
