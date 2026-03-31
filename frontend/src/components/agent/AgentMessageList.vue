@@ -16,46 +16,60 @@
       <!-- 消息列表 -->
       <template v-for="(msg, index) in messages" :key="index">
         <!-- User Message -->
-        <UserMessage
-          v-if="msg.type === 'user'"
-          :content="msg.content"
-          :time="msg.time"
-        />
+        <transition name="message-slide">
+          <UserMessage
+            v-if="msg.type === 'user'"
+            :content="msg.content"
+            :time="msg.time"
+          />
+        </transition>
 
         <!-- Assistant Message -->
-        <AssistantMessage
-          v-else-if="msg.type === 'assistant'"
-          :content="msg.content"
-          :isLoading="msg.isLoading"
-        />
+        <transition name="message-slide">
+          <AssistantMessage
+            v-else-if="msg.type === 'assistant'"
+            :content="msg.content"
+            :isLoading="msg.isLoading"
+          />
+        </transition>
 
         <!-- Tool Request -->
-        <ToolRequestMessage
-          v-else-if="msg.type === 'tool-request'"
-          :toolName="msg.toolName || '工具'"
-          :description="msg.content"
-        />
+        <transition name="message-slide">
+          <ToolRequestMessage
+            v-else-if="msg.type === 'tool-request'"
+            :toolName="msg.toolName || '工具'"
+            :description="msg.content"
+          />
+        </transition>
 
         <!-- Tool Response -->
-        <ToolResponseMessage
-          v-else-if="msg.type === 'tool-response'"
-          :toolName="msg.toolName || ''"
-          :content="msg.content"
-        />
+        <transition name="message-slide">
+          <ToolResponseMessage
+            v-else-if="msg.type === 'tool-response'"
+            :toolName="msg.toolName || ''"
+            :content="msg.content"
+          />
+        </transition>
 
         <!-- Interrupt / Confirm -->
-        <ToolConfirmMessage
-          v-else-if="msg.type === 'interrupt'"
-          :message="msg.content"
-          @confirm="emit('confirm')"
-          @cancel="emit('cancel')"
-        />
+        <transition name="message-slide">
+          <ToolConfirmMessage
+            v-else-if="msg.type === 'interrupt'"
+            :message="msg.content"
+            @confirm="emit('confirm')"
+            @cancel="emit('cancel')"
+          />
+        </transition>
       </template>
 
       <!-- 加载中 -->
-      <div v-if="loading" class="loading-indicator">
-        <a-spin size="small" />
-        <span>思考中...</span>
+      <div v-if="loading" class="typing-indicator">
+        <div class="typing-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <span class="typing-text">思考中...</span>
       </div>
     </div>
 
@@ -175,13 +189,45 @@ watch(() => props.messages.length, () => {
   max-width: 400px;
 }
 
-.loading-indicator {
+.typing-indicator {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
   color: var(--color-text-tertiary);
   font-size: 13px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary-500);
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dots .dot:nth-child(1) { animation-delay: 0s; }
+.typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+/* Message slide animation */
+.message-slide-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.message-slide-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
 }
 
 .scroll-bottom-btn {
