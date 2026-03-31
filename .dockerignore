@@ -1,0 +1,62 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Docs
+*.md
+docs/
+
+# Frontend
+frontend/
+
+# Logs
+*.log
+logs/
+
+# Temp
+*.tmp
+*.temp
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+application-local.yml
+application-prod.yml
+application-local.properties
+application-prod.properties
+
+# Claude
+.claude/
