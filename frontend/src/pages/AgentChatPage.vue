@@ -115,39 +115,36 @@ const userMessages = ref<any[]>([])
 const displayMessages = computed(() => {
   const result: any[] = [...userMessages.value]
 
-  // 合并同 type 的消息
-  let lastType = ''
-  let lastContent = ''
+  let accumulatedAssistant = ''
 
   for (const msg of messages.value) {
-    if (msg.type === 'AGENT_MODEL_STREAMING') {
-      if (lastType === 'assistant') {
-        lastContent += msg.content
+    if (msg.type === 'assistant') {
+      // 累积 assistant 消息
+      if (accumulatedAssistant) {
+        accumulatedAssistant += msg.content
       } else {
-        if (lastType) {
-          result.push({ type: lastType, content: lastContent })
-        }
-        lastType = 'assistant'
-        lastContent = msg.content
+        accumulatedAssistant = msg.content
       }
-    } else if (msg.type === 'AGENT_TOOL_FINISHED') {
-      if (lastType === 'assistant') {
-        result.push({ type: lastType, content: lastContent })
-        lastType = ''
-        lastContent = ''
+    } else {
+      // 非 assistant 消息，先输出累积的
+      if (accumulatedAssistant) {
+        result.push({ type: 'assistant', content: accumulatedAssistant })
+        accumulatedAssistant = ''
       }
-      result.push({ type: 'tool-response', content: msg.content, toolName: msg.node })
-    } else if (msg.type === 'AGENT_MODEL_FINISHED') {
-      if (lastType === 'assistant' && lastContent) {
-        result.push({ type: 'assistant', content: lastContent })
+
+      if (msg.type === 'tool-request' || msg.type === 'tool-response' || msg.type === 'tool-confirm' || msg.type === 'error') {
+        result.push({
+          type: msg.type,
+          content: msg.content,
+          toolName: msg.toolName,
+        })
       }
-      lastType = ''
-      lastContent = ''
     }
   }
 
-  if (lastType === 'assistant' && lastContent) {
-    result.push({ type: 'assistant', content: lastContent })
+  // 输出最后累积的 assistant 消息
+  if (accumulatedAssistant) {
+    result.push({ type: 'assistant', content: accumulatedAssistant })
   }
 
   return result
