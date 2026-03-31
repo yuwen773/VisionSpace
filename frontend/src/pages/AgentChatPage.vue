@@ -2,6 +2,14 @@
   <div class="agent-chat-page">
     <AgentChatHeader @newChat="handleNewChat" @openHistory="handleOpenHistory" />
 
+    <!-- 添加进度条 -->
+    <IterationProgress
+      v-if="showProgress"
+      :phase="currentPhase"
+      :iterations="iterations"
+      :remainingIterations="3"
+    />
+
     <HistoryPanel
       :visible="showHistory"
       :histories="histories"
@@ -35,6 +43,7 @@ import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
 import FeedbackButtons from '@/components/agent/FeedbackButtons.vue'
 import HistoryPanel from '@/components/agent/HistoryPanel.vue'
+import IterationProgress from '@/components/agent/IterationProgress.vue'
 import { useAgentStream } from '@/composables/useAgentStream'
 import { chatUsingPost, feedbackUsingPost } from '@/api/agentController'
 
@@ -50,6 +59,13 @@ const generateThreadId = () => {
 const threadId = ref(generateThreadId())
 const showFeedback = ref(false)
 const showHistory = ref(false)
+
+// 进度状态
+const currentPhase = ref<'EXPLORATION' | 'REVIEW' | 'GENERATION' | 'DONE'>('EXPLORATION')
+const iterations = ref([
+  { title: '初始化', description: '开始分析需求', status: 'completed' as const },
+])
+const showProgress = ref(true)
 
 const handleOpenHistory = () => {
   showHistory.value = true
