@@ -60,7 +60,8 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
   padding: 12px 16px;
   border-radius: 16px 16px 16px 4px;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border-default);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .message-header {
