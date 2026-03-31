@@ -1,6 +1,14 @@
 <template>
   <div class="agent-chat-page">
-    <AgentChatHeader @newChat="handleNewChat" />
+    <AgentChatHeader @newChat="handleNewChat" @openHistory="handleOpenHistory" />
+
+    <HistoryPanel
+      :visible="showHistory"
+      :histories="histories"
+      :activeIndex="-1"
+      @close="showHistory = false"
+      @select="handleSelectHistory"
+    />
 
     <AgentMessageList
       :messages="displayMessages"
@@ -26,6 +34,7 @@ import AgentChatHeader from '@/components/agent/AgentChatHeader.vue'
 import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
 import FeedbackButtons from '@/components/agent/FeedbackButtons.vue'
+import HistoryPanel from '@/components/agent/HistoryPanel.vue'
 import { useAgentStream } from '@/composables/useAgentStream'
 import { chatUsingPost, feedbackUsingPost } from '@/api/agentController'
 
@@ -40,6 +49,17 @@ const generateThreadId = () => {
 
 const threadId = ref(generateThreadId())
 const showFeedback = ref(false)
+const showHistory = ref(false)
+
+const handleOpenHistory = () => {
+  showHistory.value = true
+}
+
+// 占位：后续完善历史记录功能
+const histories = ref<any[]>([])
+const handleSelectHistory = (index: number) => {
+  showHistory.value = false
+}
 
 const { messages, isStreaming, sendMessage } = useAgentStream()
 const streaming = isStreaming
