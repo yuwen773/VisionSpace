@@ -1,8 +1,5 @@
 <template>
   <div class="assistant-message">
-    <div class="message-avatar" aria-hidden="true">
-      <span class="agent-orb"></span>
-    </div>
     <div class="message-content">
       <div class="message-header">
         <span class="agent-name">智能助手</span>
@@ -117,33 +114,7 @@ const copyContent = async () => {
 .assistant-message {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
   padding: 8px 16px;
-}
-
-.message-avatar {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.agent-orb {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--gradient-aurora);
-  display: block;
-}
-
-[data-theme="aurora"] .agent-orb {
-  box-shadow: 0 0 14px rgba(34, 104, 245, 0.3);
-}
-
-[data-theme="pop"] .agent-orb {
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
 }
 
 .message-content {
@@ -182,11 +153,40 @@ const copyContent = async () => {
   line-height: 1.6;
   color: var(--color-text-primary);
   word-break: break-word;
+  padding-left: 2px;
 }
 
 /* Markdown styles */
 .markdown-body :deep(p) {
   margin: 0 0 8px 0;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5),
+.markdown-body :deep(h6) {
+  margin: 12px 0 8px 0;
+}
+
+.markdown-body :deep(h1):first-child,
+.markdown-body :deep(h2):first-child,
+.markdown-body :deep(h3):first-child {
+  margin-top: 0;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-body :deep(blockquote) {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--color-border-default);
+  color: var(--color-text-secondary);
 }
 
 .markdown-body :deep(p:last-child) {

@@ -28,6 +28,7 @@
       <template v-for="(msg, index) in messages" :key="index">
         <div class="msg-animate">
           <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" />
+          <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
   v-else-if="msg.type === 'assistant'"
   :content="msg.content"
@@ -73,12 +74,13 @@
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue'
 import UserMessage from './message/UserMessage.vue'
 import AssistantMessage from './message/AssistantMessage.vue'
+import ReasoningMessage from './message/ReasoningMessage.vue'
 import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 
 interface Message {
-  type: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
+  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
   content: string
   toolName?: string
   isLoading?: boolean

@@ -1,6 +1,5 @@
 package com.yuwen.visionspace.controller;
 
-import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
@@ -12,6 +11,7 @@ import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
+import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -102,28 +101,17 @@ public class AgentController {
 
         log.info("Agent 流式对话请求, threadId={}, message={}", threadId, request.getMessage());
 
-        Flux<String> contentFlux = imageAgent.stream(request.getMessage(), threadId);
-
-        return contentFlux
+        return imageAgent.stream(request.getMessage(), threadId)
                 .filter(Objects::nonNull)
-                .filter(chunk -> !chunk.isEmpty())
-                .map(chunk -> {
-                    // 将内容包装成JSON对象
-                    Map<String, String> wrapper = Map.of("d", chunk);
-                    String jsonData = JSONUtil.toJsonStr(wrapper);
-                    return ServerSentEvent.<String>builder()
-                            .data(jsonData)
-                            .build();
-                })
+                .map(data -> ServerSentEvent.<String>builder()
+                        .data(toJson(data))
+                        .build())
                 .concatWith(Mono.just(
-                        // 发送结束事件
                         ServerSentEvent.<String>builder()
                                 .event("done")
                                 .data("")
                                 .build()
-                ))// 错误处理
-
-                // 错误处理
+                ))
                 .onErrorResume(error -> {
                     log.error("流式对话错误", error);
                     String errorMessage = error.getMessage() != null ? error.getMessage() : "Unknown error";
@@ -132,7 +120,6 @@ public class AgentController {
                             .data(errorMessage)
                             .build());
                 });
-
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.model.dto.agent;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 /**
@@ -41,6 +42,11 @@ public enum MessageType {
 
     MessageType(String value) {
         this.value = value;
+    }
+
+    @JsonValue
+    public String getValue() {
+        return value;
     }
 
 }

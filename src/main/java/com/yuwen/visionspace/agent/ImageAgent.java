@@ -1,6 +1,5 @@
 package com.yuwen.visionspace.agent;
 
-import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
@@ -161,42 +160,38 @@ public class ImageAgent {
     /**
      * 流式对话入口
      */
-    public Flux<String> stream(String userMessage, String threadId) {
+    public Flux<MessageDTO> stream(String userMessage, String threadId) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
         try {
-            //调用 AI  Agent
             Flux<NodeOutput> stream = agent.stream(userMessage, config);
-            // 主要数据流
-            return stream
-                    // 过滤 AGENT_MODEL_FINISHED 避免重复
-                    .filter(output -> !(output instanceof StreamingOutput<?> so
-                            && so.getOutputType() != null
-                            && so.getOutputType().name().equals("AGENT_MODEL_FINISHED")
-                            && so.getOutputType().name().equals("AGENT_HOOK_FINISHED ")))
-                    //  AGENT_HOOK_FINISHED 、AGENT_MODEL_STREAMING 、AGENT_MODEL_FINISHED
-                    .mapNotNull(output -> {
 
+            return stream
+                    // 过滤结束事件
+                    .filter(output -> {
+                        if (output instanceof StreamingOutput<?> so) {
+                            String typeName = so.getOutputType() != null ? so.getOutputType().name() : "";
+                            return !"AGENT_MODEL_FINISHED".equals(typeName)
+                                && !"AGENT_HOOK_FINISHED".equals(typeName);
+                        }
+                        return true;
+                    })
+                    .mapNotNull(output -> {
                         if (output instanceof StreamingOutput<?> streamingOutput) {
-                            // 1. 流式消息输出
                             Object msg = streamingOutput.message();
-                            MessageDTO messageDTO = new MessageDTO();
                             if (msg instanceof AssistantMessage assistantMessage) {
+                                MessageDTO messageDTO = new MessageDTO();
 
                                 // reasoning Message
                                 Map<String, Object> metadata = assistantMessage.getMetadata();
-                                if(metadata.get("reasoningContent") != null && !metadata.get("reasoningContent").equals("")) {
-                                    String reasoningContent = (String) metadata.get("reasoningContent");
-                                    // 文本 → chunk
-                                    messageDTO.setContent(reasoningContent);
+                                if (metadata.get("reasoningContent") != null
+                                        && !"".equals(metadata.get("reasoningContent"))) {
+                                    messageDTO.setContent((String) metadata.get("reasoningContent"));
                                     messageDTO.setMessageType(MessageType.REASONING);
                                 }
-                                // 2. 工具调用消息
-                                else if(assistantMessage.hasToolCalls()) {
-                                    //如果是工具调用  包装为 xml 格式
-                                    //只需要 包装 toolName 、 toolArgument
-                                    // 工具调用 → message
+                                // 工具调用消息
+                                else if (assistantMessage.hasToolCalls()) {
                                     messageDTO.setMessageType(MessageType.TOOL_REQUEST);
                                     messageDTO.setContent(assistantMessage.getText());
                                     List<Map<String, Object>> toolCallingList = assistantMessage.getToolCalls().stream()
@@ -207,16 +202,16 @@ public class ImageAgent {
                                                 return tcMap;
                                             }).toList();
                                     messageDTO.setToolCalls(toolCallingList);
-                                }else {
-                                    // 文本 → chunk
+                                }
+                                // 普通文本消息
+                                else {
                                     messageDTO.setContent(assistantMessage.getText());
                                     messageDTO.setMessageType(MessageType.ASSISTANT);
                                 }
+                                return messageDTO;
                             }
-                            return msg == null ? null :JSONUtil.toJsonStr(messageDTO);
                         } else if (output instanceof InterruptionMetadata interruptionMetadata) {
                             MessageDTO messageDTO = new MessageDTO();
-                            // 中断 → tool-confirm
                             messageDTO.setMessageType(MessageType.TOOL_CONFIRM);
                             StringBuilder sb = new StringBuilder();
                             for (InterruptionMetadata.ToolFeedback feedback : interruptionMetadata.toolFeedbacks()) {
@@ -224,9 +219,9 @@ public class ImageAgent {
                                 sb.append("评估: ").append(feedback.getDescription()).append("\n");
                             }
                             messageDTO.setContent(sb.toString());
-                            return JSONUtil.toJsonStr(messageDTO);                        }
+                            return messageDTO;
+                        }
                         return null;
-
                     });
 
         } catch (GraphRunnerException e) {

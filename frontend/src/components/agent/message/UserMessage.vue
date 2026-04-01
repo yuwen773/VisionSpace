@@ -4,15 +4,6 @@
       <div class="message-text">{{ content }}</div>
       <div class="message-time">{{ displayTime }}</div>
     </div>
-    <div class="message-avatar">
-      <a-avatar v-if="avatar" :src="avatar" :size="32" />
-      <div v-else class="avatar-fallback">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -42,7 +33,6 @@ const displayTime = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 10px;
   padding: 8px 16px;
 }
 
@@ -68,21 +58,4 @@ const displayTime = computed(() => {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-
-.message-avatar {
-  flex-shrink: 0;
-}
-
-.avatar-fallback {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gradient-aurora);
-  color: white;
-  opacity: 0.9;
-}
-
 </style>

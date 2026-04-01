@@ -48,7 +48,7 @@
 
         <!-- 消息列表 -->
         <AgentMessageList
-          :messages="displayMessages"
+          :messages="messages"
           :loading="streaming"
           :images="currentImages"
           :links="currentLinks"
@@ -118,13 +118,7 @@ const saveHistories = (list: HistoryItem[]) => {
   }
 }
 
-const generateThreadId = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0
-    const v = c === 'x' ? r : (r & 0x3 | 0x8)
-    return v.toString(16)
-  })
-}
+const generateThreadId = () => crypto.randomUUID()
 
 // State
 const threadId = ref(generateThreadId())
@@ -144,9 +138,19 @@ const todoSteps = ref([
 
 const currentTodoStep = ref(0)
 
-// Resource data
-const allImages = ref<{ url: string; title?: string }[]>([])
-const allLinks = ref<{ url: string; title: string; snippet: string; domain: string }[]>([])
+// Histories
+const histories = ref<HistoryItem[]>(loadHistories())
+
+// Agent stream
+const agentStream = useAgentStream()
+const messages = agentStream.messages
+const streaming = agentStream.isStreaming
+const allImages = agentStream.images
+const allLinks = agentStream.links
+const sendMessage = agentStream.sendMessage
+const abort = agentStream.abort
+const pushMessage = agentStream.pushMessage
+const resetStream = agentStream.reset
 
 const currentImages = computed(() => {
   return allImages.value.slice(-4)
@@ -158,60 +162,18 @@ const currentLinks = computed(() => {
 
 const totalResourceCount = computed(() => allImages.value.length + allLinks.value.length)
 
-// Histories
-const histories = ref<HistoryItem[]>(loadHistories())
-
-// Agent stream
-const { messages, isStreaming, sendMessage, abort } = useAgentStream()
-const streaming = isStreaming
-
-// User messages
-const userMessages = ref<any[]>([])
-
-// Display messages - keep the same logic as before
-const displayMessages = computed(() => {
-  const result: any[] = [...userMessages.value]
-  let accumulatedAssistant = ''
-
-  for (const msg of messages.value) {
-    if (msg.type === 'assistant') {
-      if (accumulatedAssistant) {
-        accumulatedAssistant += msg.content
-      } else {
-        accumulatedAssistant = msg.content
-      }
-    } else {
-      if (accumulatedAssistant) {
-        result.push({ type: 'assistant', content: accumulatedAssistant })
-        accumulatedAssistant = ''
-      }
-      if (['tool-request', 'tool-response', 'tool-confirm', 'error'].includes(msg.type)) {
-        result.push({ type: msg.type, content: msg.content, toolName: msg.toolName })
-      }
-    }
-  }
-
-  if (accumulatedAssistant) {
-    result.push({ type: 'assistant', content: accumulatedAssistant })
-  }
-
-  return result
-})
-
 // Watch streaming state
 watch(streaming, (isStreaming) => {
   if (isStreaming) {
     showTodoList.value = true
-    allImages.value = []
-    allLinks.value = []
   }
 })
 
 // Handlers
 const handleSend = async (text: string) => {
-  if (!text.trim()) return
+  if (!text.trim() || streaming.value) return
 
-  userMessages.value.push({
+  pushMessage({
     type: 'user',
     content: text,
     time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
@@ -225,22 +187,19 @@ const handleSend = async (text: string) => {
 }
 
 const handleNewChat = () => {
-  if (userMessages.value.length > 0 || messages.value.length > 0) {
+  if (messages.value.length > 0) {
     const historyItem: HistoryItem = {
       id: threadId.value,
-      title: userMessages.value[0]?.content?.slice(0, 30) || '新对话',
+      title: messages.value.find(m => m.type === 'user')?.content?.slice(0, 30) || '新对话',
       time: new Date().toLocaleString('zh-CN'),
-      messages: [...userMessages.value, ...messages.value],
+      messages: [...messages.value],
     }
     histories.value.unshift(historyItem)
     saveHistories(histories.value)
   }
 
   threadId.value = generateThreadId()
-  messages.value = []
-  userMessages.value = []
-  allImages.value = []
-  allLinks.value = []
+  resetStream()
   showTodoList.value = false
   resourcePanelVisible.value = false
 }
@@ -249,8 +208,8 @@ const handleSelectHistory = (id: string) => {
   const history = histories.value.find(h => h.id === id)
   if (history) {
     currentThreadId.value = id
-    userMessages.value = history.messages?.filter((m: any) => m.type === 'user') || []
-    messages.value = history.messages?.filter((m: any) => m.type !== 'user') || []
+    resetStream()
+    messages.value = history.messages || []
   }
 }
 
