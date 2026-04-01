@@ -48,11 +48,12 @@ const displayTime = computed(() => {
 
 .message-content {
   max-width: 70%;
-  padding: 10px 16px;
+  padding: 11px 16px;
   border-radius: 18px 18px 4px 18px;
   background: var(--gradient-aurora);
   color: white;
   word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .message-text {
@@ -79,16 +80,9 @@ const displayTime = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg-hover, var(--color-bg-secondary));
-  color: var(--color-text-tertiary);
+  background: var(--gradient-aurora);
+  color: white;
+  opacity: 0.9;
 }
 
-[data-theme="aurora"] .avatar-fallback {
-  background: var(--color-bg-hover, #243044);
-}
-
-[data-theme="pop"] .avatar-fallback {
-  background: var(--bg-hover, #EDE9FE);
-  color: var(--color-primary-500, #a855f7);
-}
 </style>
