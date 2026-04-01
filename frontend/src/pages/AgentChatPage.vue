@@ -30,6 +30,22 @@
           </svg>
         </button>
 
+        <!-- 右栏切换按钮 -->
+        <button
+          class="toggle-right-btn"
+          :class="{ active: resourcePanelVisible }"
+          @click="resourcePanelVisible = !resourcePanelVisible"
+          aria-label="切换资源面板"
+          title="资源面板"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+          <span v-if="totalResourceCount > 0" class="resource-badge">{{ totalResourceCount }}</span>
+        </button>
+
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="displayMessages"
@@ -139,6 +155,8 @@ const currentImages = computed(() => {
 const currentLinks = computed(() => {
   return allLinks.value.slice(0, 3)
 })
+
+const totalResourceCount = computed(() => allImages.value.length + allLinks.value.length)
 
 // Histories
 const histories = ref<HistoryItem[]>(loadHistories())
@@ -279,6 +297,51 @@ const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
 .toggle-left-btn:hover {
   color: var(--color-text-primary);
   border-color: var(--color-border-default);
+}
+
+.toggle-right-btn {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-right-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+.toggle-right-btn.active {
+  color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.resource-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-primary-500);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
 }
 
 .bottom-area {
