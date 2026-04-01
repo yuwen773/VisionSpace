@@ -18,6 +18,11 @@ public enum MessageType {
     ASSISTANT("assistant"),
 
     /**
+     * AI 思考内容
+     */
+    REASONING("reasoning"),
+
+    /**
      * 工具调用请求
      */
     TOOL_REQUEST("tool-request"),

@@ -1,13 +1,16 @@
 package com.yuwen.visionspace.agent;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
+import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.model.ActionType;
@@ -16,6 +19,8 @@ import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
+import com.yuwen.visionspace.model.dto.agent.MessageDTO;
+import com.yuwen.visionspace.model.dto.agent.MessageType;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -24,8 +29,11 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -153,12 +161,74 @@ public class ImageAgent {
     /**
      * 流式对话入口
      */
-    public Flux<NodeOutput> stream(String userMessage, String threadId) {
+    public Flux<String> stream(String userMessage, String threadId) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
         try {
-            return agent.stream(userMessage, config);
+            //调用 AI  Agent
+            Flux<NodeOutput> stream = agent.stream(userMessage, config);
+            // 主要数据流
+            return stream
+                    // 过滤 AGENT_MODEL_FINISHED 避免重复
+                    .filter(output -> !(output instanceof StreamingOutput<?> so
+                            && so.getOutputType() != null
+                            && so.getOutputType().name().equals("AGENT_MODEL_FINISHED")
+                            && so.getOutputType().name().equals("AGENT_HOOK_FINISHED ")))
+                    //  AGENT_HOOK_FINISHED 、AGENT_MODEL_STREAMING 、AGENT_MODEL_FINISHED
+                    .mapNotNull(output -> {
+
+                        if (output instanceof StreamingOutput<?> streamingOutput) {
+                            // 1. 流式消息输出
+                            Object msg = streamingOutput.message();
+                            MessageDTO messageDTO = new MessageDTO();
+                            if (msg instanceof AssistantMessage assistantMessage) {
+
+                                // reasoning Message
+                                Map<String, Object> metadata = assistantMessage.getMetadata();
+                                if(metadata.get("reasoningContent") != null && !metadata.get("reasoningContent").equals("")) {
+                                    String reasoningContent = (String) metadata.get("reasoningContent");
+                                    // 文本 → chunk
+                                    messageDTO.setContent(reasoningContent);
+                                    messageDTO.setMessageType(MessageType.REASONING);
+                                }
+                                // 2. 工具调用消息
+                                else if(assistantMessage.hasToolCalls()) {
+                                    //如果是工具调用  包装为 xml 格式
+                                    //只需要 包装 toolName 、 toolArgument
+                                    // 工具调用 → message
+                                    messageDTO.setMessageType(MessageType.TOOL_REQUEST);
+                                    messageDTO.setContent(assistantMessage.getText());
+                                    List<Map<String, Object>> toolCallingList = assistantMessage.getToolCalls().stream()
+                                            .map(toolCall -> {
+                                                Map<String, Object> tcMap = new HashMap<>();
+                                                tcMap.put("name", toolCall.name());
+                                                tcMap.put("arguments", toolCall.arguments());
+                                                return tcMap;
+                                            }).toList();
+                                    messageDTO.setToolCalls(toolCallingList);
+                                }else {
+                                    // 文本 → chunk
+                                    messageDTO.setContent(assistantMessage.getText());
+                                    messageDTO.setMessageType(MessageType.ASSISTANT);
+                                }
+                            }
+                            return msg == null ? null :JSONUtil.toJsonStr(messageDTO);
+                        } else if (output instanceof InterruptionMetadata interruptionMetadata) {
+                            MessageDTO messageDTO = new MessageDTO();
+                            // 中断 → tool-confirm
+                            messageDTO.setMessageType(MessageType.TOOL_CONFIRM);
+                            StringBuilder sb = new StringBuilder();
+                            for (InterruptionMetadata.ToolFeedback feedback : interruptionMetadata.toolFeedbacks()) {
+                                sb.append("工具: ").append(feedback.getName()).append("\n");
+                                sb.append("评估: ").append(feedback.getDescription()).append("\n");
+                            }
+                            messageDTO.setContent(sb.toString());
+                            return JSONUtil.toJsonStr(messageDTO);                        }
+                        return null;
+
+                    });
+
         } catch (GraphRunnerException e) {
             log.error("流式对话执行异常, threadId={}", threadId, e);
             return Flux.error(new RuntimeException("Agent 流式执行失败", e));
