@@ -161,7 +161,7 @@ const handleStop = () => {
 }
 
 .send-btn {
-  background: var(--gradient-aurora);
+  background: var(--color-primary-500);
   color: white;
 }
 

@@ -340,7 +340,7 @@ watch(() => props.loading, (val) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--gradient-aurora);
+  background: var(--color-primary-500);
   display: block;
 }
 
