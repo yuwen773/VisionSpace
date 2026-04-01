@@ -2,10 +2,16 @@
   <div class="user-message">
     <div class="message-content">
       <div class="message-text">{{ content }}</div>
-      <div class="message-time">{{ time }}</div>
+      <div class="message-time">{{ displayTime }}</div>
     </div>
     <div class="message-avatar">
-      <a-avatar :src="avatar" :size="32" />
+      <a-avatar v-if="avatar" :src="avatar" :size="32" />
+      <div v-else class="avatar-fallback">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </div>
     </div>
   </div>
 </template>
@@ -25,7 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
   avatar: '',
 })
 
-const time = computed(() => {
+const displayTime = computed(() => {
   if (props.time) return props.time
   return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 })
@@ -36,22 +42,22 @@ const time = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 8px 16px;
 }
 
 .message-content {
   max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 16px 16px 4px 16px;
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
   background: var(--gradient-aurora);
-  color: var(--color-text-inverse);
+  color: white;
+  word-break: break-word;
 }
 
 .message-text {
   font-size: 14px;
-  line-height: 1.5;
-  word-break: break-word;
+  line-height: 1.55;
 }
 
 .message-time {
@@ -59,9 +65,30 @@ const time = computed(() => {
   opacity: 0.7;
   margin-top: 4px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .message-avatar {
   flex-shrink: 0;
+}
+
+.avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-hover, var(--color-bg-secondary));
+  color: var(--color-text-tertiary);
+}
+
+[data-theme="aurora"] .avatar-fallback {
+  background: var(--color-bg-hover, #243044);
+}
+
+[data-theme="pop"] .avatar-fallback {
+  background: var(--bg-hover, #EDE9FE);
+  color: var(--color-primary-500, #a855f7);
 }
 </style>

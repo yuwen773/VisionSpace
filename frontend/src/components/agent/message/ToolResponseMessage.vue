@@ -1,24 +1,28 @@
 <template>
   <div class="tool-response">
     <div class="tool-header" @click="toggleExpand">
-      <div class="tool-info">
-        <span class="tool-label">工具返回</span>
+      <div class="tool-meta">
+        <span class="tool-badge">返回</span>
         <span class="tool-name">{{ toolName }}</span>
       </div>
-      <div class="expand-icon" :class="{ expanded }">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"/>
+      <span class="expand-icon" :class="{ expanded: isExpanded }" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9" />
         </svg>
-      </div>
+      </span>
     </div>
-    <transition name="slide">
-      <div v-show="expanded || isExpanded" class="tool-content">
-        {{ content }}
-      </div>
+
+    <transition name="collapse">
+      <div v-if="isExpanded" class="tool-content">{{ content }}</div>
     </transition>
-    <div v-if="!expanded && content.length > 100" class="expand-hint" @click="toggleExpand">
-      点击展开
-    </div>
+
+    <button
+      v-if="content.length > 100 && !isExpanded"
+      class="expand-trigger"
+      @click="toggleExpand"
+    >
+      展开详情
+    </button>
   </div>
 </template>
 
@@ -35,22 +39,19 @@ const props = withDefaults(defineProps<Props>(), {
   content: '',
 })
 
-const expanded = ref(props.content.length <= 100)
-const isExpanded = ref(false)
+const isExpanded = ref(props.content.length <= 100)
 
 const toggleExpand = () => {
-  if (props.content.length > 100) {
-    isExpanded.value = !isExpanded.value
-  }
+  isExpanded.value = !isExpanded.value
 }
 </script>
 
 <style scoped>
 .tool-response {
-  margin: 8px 16px;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--color-bg-tertiary);
+  margin: 6px 16px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
 }
 
@@ -58,23 +59,28 @@ const toggleExpand = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 8px 14px;
   cursor: pointer;
   user-select: none;
+  transition: opacity 0.15s;
 }
 
 .tool-header:hover {
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
-.tool-info {
+.tool-meta {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.tool-label {
-  font-size: 11px;
+.tool-badge {
+  font-size: 10px;
+  font-weight: 600;
   color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .tool-name {
@@ -85,7 +91,8 @@ const toggleExpand = () => {
 
 .expand-icon {
   color: var(--color-text-tertiary);
-  transition: transform 0.2s;
+  transition: transform 0.2s ease;
+  display: flex;
 }
 
 .expand-icon.expanded {
@@ -93,40 +100,43 @@ const toggleExpand = () => {
 }
 
 .tool-content {
-  margin-top: 8px;
+  padding: 0 14px 10px;
   font-size: 13px;
+  line-height: 1.5;
   color: var(--color-text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.expand-hint {
-  font-size: 12px;
+.expand-trigger {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--color-primary-500);
-  margin-top: 8px;
   cursor: pointer;
-  text-align: center;
+  transition: color 0.15s;
 }
 
-.expand-hint:hover {
-  text-decoration: underline;
+.expand-trigger:hover {
+  color: var(--color-primary-400, var(--color-primary-500));
 }
 
-.slide-enter-active,
-.slide-leave-active {
+/* Collapse transition */
+.collapse-enter-active,
+.collapse-leave-active {
   transition: all 0.2s ease;
   overflow: hidden;
 }
 
-.slide-enter-from,
-.slide-leave-to {
+.collapse-enter-from,
+.collapse-leave-to {
   opacity: 0;
   max-height: 0;
-}
-
-.slide-enter-to,
-.slide-leave-from {
-  opacity: 1;
-  max-height: 500px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 </style>

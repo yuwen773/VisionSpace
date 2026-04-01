@@ -1,42 +1,50 @@
 <template>
   <teleport to="body">
-    <transition name="slide">
-      <div v-if="visible" class="history-overlay" @click.self="handleClose">
-        <div class="history-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">历史记录</h3>
-            <button class="close-btn" @click="handleClose">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="panel-content">
-            <div v-if="histories.length === 0" class="empty-state">
-              <p>暂无历史记录</p>
+    <transition name="overlay">
+      <div v-if="visible" class="history-backdrop" @click.self="handleClose">
+        <transition name="panel-slide" appear>
+          <aside class="history-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">历史记录</h3>
+              <button class="close-btn" @click="handleClose" aria-label="关闭">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
-            <div v-else class="history-list">
-              <div
-                v-for="(item, index) in histories"
-                :key="index"
-                class="history-item"
-                :class="{ active: activeIndex === index }"
-                @click="handleSelect(index)"
-              >
-                <div class="history-title">{{ item.title || '新对话' }}</div>
-                <div class="history-time">{{ item.time }}</div>
+
+            <div class="panel-body">
+              <div v-if="histories.length === 0" class="empty-state">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <p class="empty-text">暂无历史记录</p>
+              </div>
+
+              <div v-else class="history-list">
+                <button
+                  v-for="(item, index) in histories"
+                  :key="item.id"
+                  class="history-item"
+                  :class="{ active: activeIndex === index }"
+                  @click="handleSelect(index)"
+                >
+                  <span class="history-title">{{ item.title || '新对话' }}</span>
+                  <span class="history-time">{{ item.time }}</span>
+                </button>
               </div>
             </div>
-          </div>
-        </div>
+          </aside>
+        </transition>
       </div>
     </transition>
   </teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch, onUnmounted } from 'vue'
 
 export interface HistoryItem {
   id: string
@@ -61,61 +69,78 @@ const emit = defineEmits<{
   (e: 'select', index: number): void
 }>()
 
-const handleClose = () => {
-  emit('close')
+const handleClose = () => emit('close')
+const handleSelect = (index: number) => emit('select', index)
+
+// ESC key handler
+const handleEscKey = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') handleClose()
 }
 
-const handleSelect = (index: number) => {
-  emit('select', index)
-}
-
-// ESC 键关闭
 watch(() => props.visible, (val) => {
   if (val) {
     document.addEventListener('keydown', handleEscKey)
+    document.body.style.overflow = 'hidden'
   } else {
     document.removeEventListener('keydown', handleEscKey)
+    document.body.style.overflow = ''
   }
 })
 
-const handleEscKey = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') {
-    handleClose()
-  }
-}
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscKey)
+  document.body.style.overflow = ''
+})
 </script>
 
 <style scoped>
-.history-overlay {
+.history-backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
   z-index: 1000;
   display: flex;
   justify-content: flex-start;
 }
 
+[data-theme="aurora"] .history-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+[data-theme="pop"] .history-backdrop {
+  background: rgba(30, 27, 75, 0.2);
+  backdrop-filter: blur(6px);
+}
+
 .history-panel {
-  width: 300px;
+  width: 320px;
+  max-width: 85vw;
   height: 100%;
-  background: var(--color-bg-secondary);
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+[data-theme="aurora"] .history-panel {
+  background: var(--color-bg-secondary, #0a0f1a);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="pop"] .history-panel {
+  background: var(--color-bg-secondary, #ffffff);
+  box-shadow: 8px 0 32px rgba(139, 92, 246, 0.08);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .panel-title {
+  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text-primary);
@@ -123,33 +148,47 @@ const handleEscKey = (e: KeyboardEvent) => {
 }
 
 .close-btn {
-  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   border: none;
-  color: var(--color-text-secondary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-tertiary);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .close-btn:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-hover, var(--color-bg-secondary));
   color: var(--color-text-primary);
 }
 
-.panel-content {
+.panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px;
 }
 
 .empty-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 200px;
+  gap: 12px;
+}
+
+.empty-icon {
   color: var(--color-text-tertiary);
+  opacity: 0.5;
+}
+
+.empty-text {
   font-size: 14px;
+  color: var(--color-text-tertiary);
 }
 
 .history-list {
@@ -159,27 +198,32 @@ const handleEscKey = (e: KeyboardEvent) => {
 }
 
 .history-item {
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
   background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
 }
 
 .history-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-hover, var(--color-bg-secondary));
 }
 
 .history-item.active {
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-accent);
+  border-color: var(--color-border-accent);
 }
 
 .history-title {
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text-primary);
-  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -190,24 +234,31 @@ const handleEscKey = (e: KeyboardEvent) => {
   color: var(--color-text-tertiary);
 }
 
-/* 滑入滑出动画 */
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.3s ease;
+/* Overlay transition */
+.overlay-enter-active,
+.overlay-leave-active {
+  transition: opacity 0.25s ease;
 }
 
-.slide-enter-from,
-.slide-leave-to {
+.overlay-enter-from,
+.overlay-leave-to {
   opacity: 0;
 }
 
-.slide-enter-from .history-panel,
-.slide-leave-to .history-panel {
+/* Panel slide transition */
+.panel-slide-enter-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panel-slide-leave-active {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panel-slide-enter-from {
   transform: translateX(-100%);
 }
 
-.slide-enter-to .history-panel,
-.slide-leave-from .history-panel {
-  transform: translateX(0);
+.panel-slide-leave-to {
+  transform: translateX(-100%);
 }
 </style>

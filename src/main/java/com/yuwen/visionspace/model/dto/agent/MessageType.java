@@ -1,8 +1,11 @@
 package com.yuwen.visionspace.model.dto.agent;
 
+import lombok.Getter;
+
 /**
  * 消息类型枚举
  */
+@Getter
 public enum MessageType {
     /**
      * 用户消息
@@ -35,7 +38,4 @@ public enum MessageType {
         this.value = value;
     }
 
-    public String getValue() {
-        return value;
-    }
 }

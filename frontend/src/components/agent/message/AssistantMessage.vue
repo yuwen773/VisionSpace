@@ -1,30 +1,20 @@
 <template>
   <div class="assistant-message">
-    <div class="message-avatar">
-      <a-avatar :size="32" class="agent-avatar">
-        <template #icon>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
-        </template>
-      </a-avatar>
+    <div class="message-avatar" aria-hidden="true">
+      <span class="agent-orb"></span>
     </div>
     <div class="message-content">
       <div class="message-header">
         <span class="agent-name">智能助手</span>
-        <span class="message-time">{{ time }}</span>
       </div>
-      <div class="message-text markdown-body" v-html="renderedContent"></div>
-      <div v-if="isLoading" class="typing-indicator">
-        <span class="typing-cursor">|</span>
-      </div>
+      <div class="message-body markdown-body" v-html="renderedContent"></div>
+      <div v-if="isLoading" class="typing-cursor" aria-hidden="true">|</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
 
 interface Props {
@@ -39,64 +29,80 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { render } = useMarkdown()
 const renderedContent = computed(() => render(props.content))
-const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 </script>
 
 <style scoped>
 .assistant-message {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 8px 16px;
 }
 
-.agent-avatar {
+.message-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-orb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   background: var(--gradient-aurora);
-  color: white;
+  display: block;
+}
+
+[data-theme="aurora"] .agent-orb {
+  box-shadow: 0 0 14px rgba(34, 104, 245, 0.3);
+}
+
+[data-theme="pop"] .agent-orb {
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
 }
 
 .message-content {
   max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 16px 16px 16px 4px;
+  padding: 10px 16px;
+  border-radius: 18px 18px 18px 4px;
+  border: 1px solid var(--color-border-subtle);
+  position: relative;
+}
+
+[data-theme="aurora"] .message-content {
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-default);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-border-default);
+}
+
+[data-theme="pop"] .message-content {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-subtle);
 }
 
 .message-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .agent-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--color-primary-500);
 }
 
-.message-time {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-}
-
-.message-text {
+.message-body {
   font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-primary);
   word-break: break-word;
-  white-space: pre-wrap;
 }
 
-/* Markdown styling */
-.markdown-body {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--color-text-primary);
-}
-
+/* Markdown styles */
 .markdown-body :deep(p) {
   margin: 0 0 8px 0;
 }
@@ -108,6 +114,7 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
 .markdown-body :deep(a) {
   color: var(--color-primary-500);
   text-decoration: none;
+  font-weight: 500;
 }
 
 .markdown-body :deep(a:hover) {
@@ -119,7 +126,7 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .markdown-body :deep(.hljs.code-block) {
@@ -142,6 +149,7 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
   font-size: 11px;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .markdown-body :deep(.copy-btn) {
@@ -156,7 +164,7 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
 }
 
 .markdown-body :deep(.copy-btn:hover) {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-hover, var(--color-bg-secondary));
   color: var(--color-text-primary);
 }
 
@@ -166,17 +174,15 @@ const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.5;
-  font-family: 'Courier New', monospace;
-}
-
-.typing-indicator {
-  display: inline-block;
-  margin-left: 2px;
+  font-family: var(--font-mono);
 }
 
 .typing-cursor {
+  display: inline;
   animation: blink 1s step-end infinite;
   color: var(--color-primary-500);
+  font-weight: 300;
+  margin-left: 1px;
 }
 
 @keyframes blink {

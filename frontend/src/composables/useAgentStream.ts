@@ -26,6 +26,12 @@ export interface StreamMessage {
   toolName?: string
 }
 
+/**
+ * 等待浏览器实际绘制一帧，确保用户能看到更新
+ */
+const waitForPaint = (): Promise<void> =>
+  new Promise(resolve => requestAnimationFrame(resolve))
+
 export function useAgentStream() {
   const messages = ref<StreamMessage[]>([])
   const isStreaming = ref(false)
@@ -64,12 +70,20 @@ export function useAgentStream() {
 
       const decoder = new TextDecoder()
       let buffer = ''
-      let accumulatedContent = ''
+      let streamContent = ''
       let isFirstChunk = true
+      let lastRenderTime = 0
+      const RENDER_INTERVAL = 30 // ms, 最小渲染间隔
+
+      let _readCount = 0
+      let _chunkCount = 0
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+
+        _readCount++
+        console.log(`[SSE] reader.read() #${_readCount}: ${value?.length ?? 0} bytes, chunks so far: ${_chunkCount}`)
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -102,21 +116,27 @@ export function useAgentStream() {
 
             // 处理文本 chunk
             if (data.chunk) {
+              streamContent += data.chunk
+              _chunkCount++
+
               if (isFirstChunk) {
                 messages.value.push({
                   type: 'assistant',
-                  content: data.chunk,
+                  content: streamContent,
                   node: data.node || 'agent',
                   isLoading: true,
                 })
                 isFirstChunk = false
               } else {
-                accumulatedContent += data.chunk
+                // 直接修改属性，Vue 3 响应式代理自动追踪
                 const lastMsg = messages.value[messages.value.length - 1]
                 if (lastMsg && lastMsg.type === 'assistant') {
-                  lastMsg.content = accumulatedContent
+                  lastMsg.content = streamContent
                 }
               }
+
+              // 每个 chunk 都等一帧，让浏览器有机会绘制
+              await waitForPaint()
             }
 
             // 处理完整消息
@@ -145,7 +165,7 @@ export function useAgentStream() {
               }
               // 重置 chunk 累积
               isFirstChunk = true
-              accumulatedContent = ''
+              streamContent = ''
             }
           } catch (e) {
             // JSON 解析失败，跳过

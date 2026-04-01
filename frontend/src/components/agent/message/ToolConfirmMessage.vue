@@ -1,18 +1,18 @@
 <template>
   <div class="tool-confirm">
-    <div class="confirm-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    <span class="confirm-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
-    </div>
-    <div class="confirm-content">
-      <div class="confirm-title">需要您的确认</div>
-      <div class="confirm-message">{{ message }}</div>
+    </span>
+    <div class="confirm-body">
+      <p class="confirm-label">需要确认</p>
+      <p class="confirm-msg">{{ message }}</p>
       <div class="confirm-actions">
-        <a-button size="small" @click="handleCancel">取消</a-button>
-        <a-button type="primary" size="small" @click="handleConfirm">确认</a-button>
+        <button class="confirm-btn cancel" @click="handleCancel">取消</button>
+        <button class="confirm-btn ok" @click="handleConfirm">确认</button>
       </div>
     </div>
   </div>
@@ -23,8 +23,11 @@ interface Props {
   message: string
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits(['confirm', 'cancel'])
+defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'confirm'): void
+  (e: 'cancel'): void
+}>()
 
 const handleConfirm = () => emit('confirm')
 const handleCancel = () => emit('cancel')
@@ -34,37 +37,77 @@ const handleCancel = () => emit('cancel')
 .tool-confirm {
   display: flex;
   gap: 12px;
-  padding: 16px;
+  padding: 14px 16px;
   margin: 8px 16px;
   border-radius: 12px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: var(--color-success-bg, rgba(16, 185, 129, 0.12));
+  border: 1px solid transparent;
+}
+
+[data-theme="aurora"] .tool-confirm {
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="pop"] .tool-confirm {
+  border-color: rgba(16, 185, 129, 0.2);
 }
 
 .confirm-icon {
-  color: var(--color-success);
   flex-shrink: 0;
+  color: var(--color-success);
+  display: flex;
 }
 
-.confirm-content {
+.confirm-body {
   flex: 1;
+  min-width: 0;
 }
 
-.confirm-title {
-  font-size: 14px;
-  font-weight: 500;
+.confirm-label {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-success);
   margin-bottom: 4px;
 }
 
-.confirm-message {
+.confirm-msg {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 12px;
+  line-height: 1.5;
 }
 
 .confirm-actions {
   display: flex;
   gap: 8px;
+}
+
+.confirm-btn {
+  padding: 5px 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.confirm-btn.cancel {
+  background: var(--color-bg-hover, var(--color-bg-secondary));
+  color: var(--color-text-secondary);
+}
+
+.confirm-btn.cancel:hover {
+  color: var(--color-text-primary);
+}
+
+.confirm-btn.ok {
+  background: var(--color-success);
+  color: white;
+}
+
+.confirm-btn.ok:hover {
+  filter: brightness(1.1);
 }
 </style>
