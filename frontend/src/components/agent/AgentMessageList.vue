@@ -16,6 +16,7 @@
             v-for="(hint, i) in quickHints"
             :key="i"
             class="hint-chip"
+            :style="{ animationDelay: i * 50 + 'ms' }"
             @click="emit('send', hint)"
           >
             {{ hint }}
@@ -27,7 +28,14 @@
       <template v-for="(msg, index) in messages" :key="index">
         <div class="msg-animate">
           <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" />
-          <AssistantMessage v-else-if="msg.type === 'assistant'" :content="msg.content" :isLoading="msg.isLoading" />
+          <AssistantMessage
+  v-else-if="msg.type === 'assistant'"
+  :content="msg.content"
+  :isLoading="msg.isLoading"
+  :images="images"
+  :has-resources="hasResources"
+  @toggle-resources="emit('toggleResources')"
+/>
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :description="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
           <ToolConfirmMessage v-else-if="msg.type === 'tool-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
@@ -62,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue'
 import UserMessage from './message/UserMessage.vue'
 import AssistantMessage from './message/AssistantMessage.vue'
 import ToolRequestMessage from './message/ToolRequestMessage.vue'
@@ -80,17 +88,26 @@ interface Message {
 interface Props {
   messages: Message[]
   loading?: boolean
+  images?: { url: string; title?: string }[]
+  links?: { url: string; title: string; snippet: string; domain: string }[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
+  images: () => [],
+  links: () => [],
 })
+
+const hasResources = computed(() =>
+  (props.images && props.images.length > 0) || (props.links && props.links.length > 0)
+)
 
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
   (e: 'send', text: string): void
+  (e: 'toggleResources'): void
 }>()
 
 const quickHints = [
@@ -155,7 +172,8 @@ watch(() => props.loading, (val) => {
 }
 
 .messages-container {
-  max-width: 780px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
   padding: 0 20px;
 }
@@ -169,7 +187,6 @@ watch(() => props.loading, (val) => {
   min-height: 50vh;
   text-align: center;
   padding: 40px 20px;
-  animation: welcomeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes welcomeIn {
@@ -192,6 +209,7 @@ watch(() => props.loading, (val) => {
   align-items: center;
   justify-content: center;
   margin-bottom: 28px;
+  animation: welcomeOrbIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
 }
 
 .orb-core {
@@ -233,6 +251,20 @@ watch(() => props.loading, (val) => {
   to { transform: rotate(360deg); }
 }
 
+@keyframes welcomeOrbIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes hintChipIn {
+  from { opacity: 0; transform: scale(0.9) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.welcome-text {
+  animation: welcomeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+
 .welcome-title {
   font-family: var(--font-display);
   font-size: 22px;
@@ -256,6 +288,7 @@ watch(() => props.loading, (val) => {
   gap: 8px;
   justify-content: center;
   margin-top: 24px;
+  animation: welcomeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
 }
 
 .hint-chip {
@@ -269,6 +302,7 @@ watch(() => props.loading, (val) => {
   cursor: pointer;
   transition: all var(--transition-base, 200ms ease);
   line-height: 1.4;
+  animation: hintChipIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .hint-chip:hover {
@@ -389,6 +423,7 @@ watch(() => props.loading, (val) => {
 
 /* ============ Message Animation ============ */
 .msg-animate {
+  padding: 12px 20px;
   animation: msgIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
