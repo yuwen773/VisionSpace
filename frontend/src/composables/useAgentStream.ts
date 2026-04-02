@@ -67,7 +67,7 @@ export function useAgentStream() {
     seenLinkUrls = new Set<string>()
   }
 
-  const sendMessage = async (message: string, threadId: string) => {
+  const sendMessage = async (message: string, threadId: string, files?: File[]) => {
     isStreaming.value = true
     reset()
     abortController = new AbortController()
@@ -80,11 +80,29 @@ export function useAgentStream() {
     let streamContent = ''
     let lastAssistantContent = ''
 
+    // Build body: FormData when files present, JSON otherwise
+    const headers: Record<string, string> = {}
+    let body: BodyInit
+
+    if (files && files.length > 0) {
+      const formData = new FormData()
+      formData.append('message', message)
+      formData.append('threadId', threadId)
+      files.forEach((file) => {
+        formData.append('files', file)
+      })
+      body = formData
+      // Don't set Content-Type — browser sets multipart boundary automatically
+    } else {
+      headers['Content-Type'] = 'application/json'
+      body = JSON.stringify({ message, threadId })
+    }
+
     try {
       await fetchEventSource(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, threadId }),
+        headers,
+        body,
         signal: abortController.signal,
 
         async onopen(response) {

@@ -1,7 +1,14 @@
 <template>
   <div class="user-message">
     <div class="message-content">
-      <div class="message-text">{{ content }}</div>
+      <!-- Image grid -->
+      <div v-if="images && images.length > 0" class="message-images" :class="`grid-${Math.min(images.length, 4)}`">
+        <div v-for="(img, i) in images.slice(0, 4)" :key="i" class="img-thumb">
+          <img :src="img" alt="附件图片" />
+        </div>
+        <div v-if="images.length > 4" class="img-more">+{{ images.length - 4 }}</div>
+      </div>
+      <div v-if="content" class="message-text">{{ content }}</div>
       <div class="message-time">{{ displayTime }}</div>
     </div>
   </div>
@@ -13,13 +20,13 @@ import { computed } from 'vue'
 interface Props {
   content: string
   time?: string
-  avatar?: string
+  images?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   time: '',
-  avatar: '',
+  images: () => [],
 })
 
 const displayTime = computed(() => {
@@ -57,5 +64,54 @@ const displayTime = computed(() => {
   margin-top: 4px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* ============ Image Grid ============ */
+.message-images {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.message-images.grid-1 { grid-template-columns: 1fr; }
+.message-images.grid-2 { grid-template-columns: 1fr 1fr; }
+.message-images.grid-3 { grid-template-columns: 1fr 1fr; }
+.message-images.grid-4 { grid-template-columns: 1fr 1fr; }
+
+.img-thumb {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.img-thumb img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+/* 3-image layout: first image spans full width */
+.grid-3 .img-thumb:first-child {
+  grid-column: 1 / -1;
+}
+
+.img-more {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.message-images:has(.img-more) {
+  position: relative;
 }
 </style>

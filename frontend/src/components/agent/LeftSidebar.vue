@@ -1,15 +1,20 @@
 <template>
   <div class="left-sidebar">
-    <!-- 顶部：品牌 + 新建对话 -->
+    <!-- Header -->
     <div class="sidebar-header">
       <div class="brand">
         <div class="brand-orb" aria-hidden="true">
           <span class="orb-core"></span>
         </div>
         <span class="brand-name">智能助手</span>
+        <button class="collapse-btn" @click="emit('collapse')" aria-label="收起侧边栏" title="收起侧边栏">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
       </div>
       <button class="new-chat-btn" @click="emit('newChat')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -17,36 +22,40 @@
       </button>
     </div>
 
-    <!-- 历史列表 -->
+    <!-- History list -->
     <div class="sidebar-body">
       <div v-if="histories.length === 0" class="empty-state">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-        <span>暂无历史记录</span>
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <span class="empty-text">开始一段新对话</span>
       </div>
 
       <template v-else>
         <div v-for="group in groupedHistories" :key="group.label" class="history-group">
           <div class="group-label">{{ group.label }}</div>
           <button
-            v-for="(item, index) in group.items"
+            v-for="item in group.items"
             :key="item.id"
             class="history-item"
             :class="{ active: activeId === item.id }"
             @click="emit('select', item.id)"
           >
-            <span class="history-title">{{ item.title || '新对话' }}</span>
-            <span class="history-time">{{ item.time }}</span>
+            <div class="history-indicator" aria-hidden="true"></div>
+            <div class="history-content">
+              <span class="history-title">{{ item.title || '新对话' }}</span>
+              <span class="history-time">{{ item.time }}</span>
+            </div>
           </button>
         </div>
       </template>
     </div>
 
-    <!-- 底部：设置占位 -->
+    <!-- Footer -->
     <div class="sidebar-footer">
-      <button class="icon-btn" title="设置" aria-label="设置">
+      <button class="footer-btn" title="设置" aria-label="设置">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -79,6 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'newChat'): void
   (e: 'select', id: string): void
+  (e: 'collapse'): void
 }>()
 
 const groupedHistories = computed(() => {
@@ -120,9 +130,9 @@ const groupedHistories = computed(() => {
   border-right: 1px solid var(--color-border-subtle);
 }
 
-/* Header */
+/* ============ Header ============ */
 .sidebar-header {
-  padding: 14px 16px;
+  padding: 16px 14px 12px;
   border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
@@ -133,11 +143,13 @@ const groupedHistories = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 0 2px;
+  margin-bottom: 0;
 }
 
 .brand-orb {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
 }
 
@@ -147,91 +159,207 @@ const groupedHistories = computed(() => {
   height: 100%;
   border-radius: 50%;
   background: var(--gradient-aurora);
-  animation: orbPulse 3s ease-in-out infinite;
 }
 
-@keyframes orbPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+[data-theme="aurora"] .orb-core {
+  box-shadow: 0 0 16px rgba(34, 104, 245, 0.35);
+}
+
+[data-theme="pop"] .orb-core {
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
 }
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+  flex: 1;
 }
 
+/* Collapse button */
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  background: var(--color-bg-hover, var(--color-bg-tertiary));
+  color: var(--color-text-secondary);
+}
+
+[data-theme="aurora"] .collapse-btn:hover {
+  color: rgba(34, 104, 245, 0.7);
+}
+
+[data-theme="pop"] .collapse-btn:hover {
+  color: rgba(168, 85, 247, 0.7);
+}
+
+/* New Chat Button */
 .new-chat-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 7px;
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border-default);
+  padding: 9px 12px;
   border-radius: 10px;
+  border: 1px solid var(--color-border-default);
   background: transparent;
   color: var(--color-text-secondary);
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-base, 200ms ease);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.new-chat-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border-radius: inherit;
+}
+
+[data-theme="aurora"] .new-chat-btn::before {
+  background: linear-gradient(135deg, rgba(34, 104, 245, 0.06) 0%, rgba(110, 53, 235, 0.03) 100%);
+}
+
+[data-theme="pop"] .new-chat-btn::before {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(236, 72, 153, 0.03) 100%);
 }
 
 .new-chat-btn:hover {
   border-color: var(--color-primary-500);
   color: var(--color-primary-500);
-  background: rgba(168, 85, 247, 0.06);
+  transform: translateY(-1px);
+}
+
+.new-chat-btn:hover::before {
+  opacity: 1;
+}
+
+.new-chat-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 [data-theme="aurora"] .new-chat-btn:hover {
-  background: rgba(34, 104, 245, 0.08);
+  box-shadow: 0 0 0 1px rgba(34, 104, 245, 0.15), 0 2px 8px rgba(34, 104, 245, 0.08);
 }
 
-/* Body */
+[data-theme="pop"] .new-chat-btn:hover {
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.12), 0 2px 8px rgba(168, 85, 247, 0.06);
+}
+
+.new-chat-btn svg,
+.new-chat-btn span {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============ Body ============ */
 .sidebar-body {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 8px;
+  padding: 6px 8px;
 }
 
+/* Scrollbar */
+.sidebar-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 4px;
+}
+
+/* Empty state */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 40px 16px;
-  color: var(--color-text-tertiary);
-  font-size: 13px;
+  gap: 10px;
+  padding: 48px 16px;
 }
 
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+.empty-text {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+/* History groups */
 .history-group {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .group-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--color-text-tertiary);
-  letter-spacing: 0.04em;
-  padding: 4px 8px;
-  margin-bottom: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 8px 12px 4px;
 }
 
+/* History item */
 .history-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 0;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid transparent;
+  padding: 10px 12px 10px 8px;
+  border-radius: 8px;
+  border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
   transition: all 0.15s ease;
+  position: relative;
+}
+
+.history-indicator {
+  width: 3px;
+  height: 100%;
+  min-height: 28px;
+  border-radius: 2px;
+  background: transparent;
+  flex-shrink: 0;
+  margin-right: 10px;
+  transition: background 0.15s ease;
 }
 
 .history-item:hover {
@@ -240,7 +368,30 @@ const groupedHistories = computed(() => {
 
 .history-item.active {
   background: var(--color-bg-elevated);
-  border-color: var(--color-border-accent);
+}
+
+.history-item.active .history-indicator {
+  background: var(--color-primary-500);
+}
+
+.history-item.active .history-title {
+  color: var(--color-primary-500);
+}
+
+[data-theme="aurora"] .history-item.active {
+  box-shadow: inset 0 0 0 1px rgba(34, 104, 245, 0.08);
+}
+
+[data-theme="pop"] .history-item.active {
+  box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.06);
+}
+
+.history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
 .history-title {
@@ -250,22 +401,23 @@ const groupedHistories = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.4;
+  transition: color 0.15s ease;
 }
 
 .history-time {
   font-size: 11px;
   color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Footer */
+/* ============ Footer ============ */
 .sidebar-footer {
-  padding: 10px 16px;
+  padding: 10px 14px;
   border-top: 1px solid var(--color-border-subtle);
-  display: flex;
-  justify-content: flex-start;
 }
 
-.icon-btn {
+.footer-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -279,8 +431,8 @@ const groupedHistories = computed(() => {
   transition: all 0.15s ease;
 }
 
-.icon-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
+.footer-btn:hover {
+  background: var(--color-bg-hover, var(--color-bg-tertiary));
+  color: var(--color-text-secondary);
 }
 </style>

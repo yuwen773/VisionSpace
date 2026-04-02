@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
 /**
  * 紫漾主题 - Light Purple Pink Style
  * 紫漾艺廊 - 浅色紫粉风格
@@ -230,7 +232,6 @@
 }
 
 /* ========== 字体导入 ========== */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ========== 品牌字体 - Kaushan Script ========== */
 @font-face {

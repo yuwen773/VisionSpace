@@ -11,24 +11,38 @@
           :active-id="currentThreadId"
           @new-chat="handleNewChat"
           @select="handleSelectHistory"
+          @collapse="leftCollapsed = true"
         />
       </template>
 
       <!-- 中间 -->
       <template #center>
-        <!-- 左折叠按钮 -->
-        <button
-          v-if="leftCollapsed"
-          class="toggle-left-btn"
-          @click="leftCollapsed = false"
-          aria-label="展开侧边栏"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
+        <!-- 左折叠按钮组 -->
+        <div v-if="leftCollapsed" class="collapsed-actions">
+          <button
+            class="toggle-left-btn"
+            @click="leftCollapsed = false"
+            aria-label="展开侧边栏"
+            title="展开侧边栏"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <button
+            class="quick-new-chat-btn"
+            @click="handleNewChat"
+            aria-label="新对话"
+            title="新对话"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
 
         <!-- 右栏切换按钮 -->
         <button
@@ -54,6 +68,7 @@
           :links="currentLinks"
           @confirm="handleConfirm"
           @cancel="handleCancel"
+          @send="handleSend"
           @toggle-resources="toggleResourcePanel"
         />
 
@@ -170,19 +185,27 @@ watch(streaming, (isStreaming) => {
 })
 
 // Handlers
-const handleSend = async (text: string) => {
-  if (!text.trim() || streaming.value) return
+const handleSend = async (text: string, files: File[] = []) => {
+  if ((!text.trim() && files.length === 0) || streaming.value) return
+
+  // Create preview URLs for images in the user message bubble
+  const imagePreviews = files
+    .filter(f => f.type.startsWith('image/'))
+    .map(f => URL.createObjectURL(f))
 
   pushMessage({
     type: 'user',
     content: text,
     time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    images: imagePreviews.length > 0 ? imagePreviews : undefined,
   })
 
   try {
-    await sendMessage(text, threadId.value)
+    await sendMessage(text, threadId.value, files.length > 0 ? files : undefined)
   } catch (error) {
     message.error('发送失败，请重试')
+    // Revoke preview URLs on error (message won't be shown)
+    imagePreviews.forEach(url => URL.revokeObjectURL(url))
   }
 }
 
@@ -235,11 +258,18 @@ const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
   background: var(--color-bg-primary);
 }
 
-.toggle-left-btn {
+.collapsed-actions {
   position: absolute;
   top: 14px;
   left: 14px;
   z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toggle-left-btn,
+.quick-new-chat-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -253,9 +283,15 @@ const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
   transition: all 0.15s ease;
 }
 
-.toggle-left-btn:hover {
+.toggle-left-btn:hover,
+.quick-new-chat-btn:hover {
   color: var(--color-text-primary);
   border-color: var(--color-border-default);
+}
+
+.quick-new-chat-btn:hover {
+  color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
 }
 
 .toggle-right-btn {
