@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yuwen.visionspace.annotation.AuthCheck;
 import com.yuwen.visionspace.api.aliyunai.AliYunAiApi;
 import com.yuwen.visionspace.api.aliyunai.model.CreateOutPaintingTaskResponse;
@@ -43,7 +42,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -74,15 +72,8 @@ public class PictureController {
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
 
-    /**
-     * 本地缓存 Caffeine
-     */
-    private final Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
-            .initialCapacity(1024)
-            .maximumSize(10_000L) // 最大 10000 条
-            // 缓存 5 分钟后移除
-            .expireAfterWrite(Duration.ofMinutes(5))
-            .build();
+    @Resource
+    private Cache<String, String> pictureListCache;
 
     /**
      * 上传图片（可重新上传）
@@ -270,7 +261,7 @@ public class PictureController {
         String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
         String cacheKey = String.format("yupicture:listPictureVOByPage:%s", hashKey);
         // 1. 先从本地缓存中查询
-        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
+        String cachedValue = pictureListCache.getIfPresent(cacheKey);
         if (cachedValue != null) {
             // 如果缓存命中，返回结果
             Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
@@ -281,7 +272,7 @@ public class PictureController {
         cachedValue = opsForValue.get(cacheKey);
         if (cachedValue != null) {
             // 如果缓存命中，更新本地缓存，返回结果
-            LOCAL_CACHE.put(cacheKey, cachedValue);
+            pictureListCache.put(cacheKey, cachedValue);
             Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
             return ResultUtils.success(cachedPage);
         }
@@ -296,7 +287,7 @@ public class PictureController {
         int cacheExpireTime = 300 + RandomUtil.randomInt(0, 300);
         opsForValue.set(cacheKey, cacheValue, cacheExpireTime, TimeUnit.SECONDS);
         // 写入本地缓存
-        LOCAL_CACHE.put(cacheKey, cacheValue);
+        pictureListCache.put(cacheKey, cacheValue);
         // 获取封装类
         return ResultUtils.success(pictureVOPage);
     }

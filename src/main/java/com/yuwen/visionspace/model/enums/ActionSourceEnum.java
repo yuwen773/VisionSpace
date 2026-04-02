@@ -1,8 +1,11 @@
 package com.yuwen.visionspace.model.enums;
 
+import lombok.Getter;
+
 /**
  * 图片行为来源枚举
  */
+@Getter
 public enum ActionSourceEnum {
     HOME_RECOMMEND(0, "首页推荐"),
     DETAIL(1, "详情页"),
@@ -15,14 +18,6 @@ public enum ActionSourceEnum {
     ActionSourceEnum(int value, String label) {
         this.value = value;
         this.label = label;
-    }
-
-    public int getValue() {
-        return value;
-    }
-
-    public String getLabel() {
-        return label;
     }
 
     /**

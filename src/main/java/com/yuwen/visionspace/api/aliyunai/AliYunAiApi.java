@@ -17,15 +17,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class AliYunAiApi {
 
-    // 读取配置文件
     @Value("${aliYunAi.apiKey}")
     private String apiKey;
 
-    // 创建任务地址
-    public static final String CREATE_OUT_PAINTING_TASK_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting";
+    @Value("${vision-space.aliyun-ai.create-out-painting-task}")
+    private String createOutPaintingTaskUrl;
 
-    // 查询任务状态
-    public static final String GET_OUT_PAINTING_TASK_URL = "https://dashscope.aliyuncs.com/api/v1/tasks/%s";
+    @Value("${vision-space.aliyun-ai.get-out-painting-task}")
+    private String getOutPaintingTaskUrl;
 
 
     /**
@@ -39,7 +38,7 @@ public class AliYunAiApi {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "扩图参数为空");
         }
         // 发送请求
-        HttpRequest httpRequest = HttpRequest.post(CREATE_OUT_PAINTING_TASK_URL)
+        HttpRequest httpRequest = HttpRequest.post(createOutPaintingTaskUrl)
                 .header("Authorization", "Bearer " + apiKey)
                 // 必须开启异步处理
                 .header("X-DashScope-Async", "enable")
@@ -72,7 +71,7 @@ public class AliYunAiApi {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "任务 ID 不能为空");
         }
         // 处理响应
-        String url = String.format(GET_OUT_PAINTING_TASK_URL, taskId);
+        String url = String.format(getOutPaintingTaskUrl, taskId);
         try (HttpResponse httpResponse = HttpRequest.get(url)
                 .header("Authorization", "Bearer " + apiKey)
                 .execute()) {

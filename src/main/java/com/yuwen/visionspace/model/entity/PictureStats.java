@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @TableName("picture_stats")
 public class PictureStats {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     private Long pictureId;
