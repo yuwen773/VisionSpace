@@ -166,3 +166,43 @@ CREATE TABLE IF NOT EXISTS picture_stats (
     createTime  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updateTime  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- Agent 会话持久化相关表
+-- =====================================================
+
+-- Agent 会话表
+CREATE TABLE IF NOT EXISTS agent_session (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    sessionId           VARCHAR(64) NOT NULL UNIQUE COMMENT '会话ID (threadId)',
+    userId              BIGINT NOT NULL COMMENT '用户ID',
+    title               VARCHAR(200) DEFAULT '新对话' COMMENT '会话标题',
+    modelName           VARCHAR(50) COMMENT '使用的模型',
+    status              TINYINT DEFAULT 1 COMMENT '状态: 0-结束 1-进行中',
+    lastMessage         VARCHAR(200) COMMENT '最后一条消息摘要',
+    messageCount        INT DEFAULT 0 COMMENT '消息条数',
+    summaryContent      TEXT COMMENT '对话摘要',
+    summaryAt           DATETIME COMMENT '最后一次总结时间',
+    checkpointData      MEDIUMBLOB COMMENT 'Checkpoint JSON 备份（gzip压缩）',
+    createdTime         DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updatedTime         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    expiredTime         DATETIME COMMENT '过期时间',
+    isDelete            TINYINT DEFAULT 0 COMMENT '是否删除',
+
+    INDEX idx_userId (userId),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent会话表';
+
+-- Agent 消息记录表
+CREATE TABLE IF NOT EXISTS agent_message (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    sessionId           VARCHAR(64) NOT NULL COMMENT '会话ID',
+    role                VARCHAR(20) NOT NULL COMMENT '角色: USER/ASSISTANT',
+    subType             VARCHAR(20) NULL COMMENT '子类型: text/reasoning/tool-call/tool-result/tool-confirm（USER为NULL）',
+    content             TEXT NOT NULL COMMENT '消息内容',
+    tokenCount          INT DEFAULT 0 COMMENT 'Token数量',
+    isSummary           TINYINT DEFAULT 0 COMMENT '0=原始 1=摘要',
+    createdTime         DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+    INDEX idx_sessionId_time (sessionId, createdTime DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent消息记录表';
