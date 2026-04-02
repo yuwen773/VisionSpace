@@ -6,6 +6,8 @@ import com.alibaba.cloud.ai.graph.agent.hook.HookPositions;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.AgentCommand;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.UpdatePolicy;
+import com.yuwen.visionspace.agent.config.AgentConstants;
+import jakarta.annotation.Resource;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +22,8 @@ import java.util.List;
 @HookPositions({HookPosition.BEFORE_MODEL})
 public class MessageTrimmingHook extends MessagesModelHook {
 
-    private static final int MAX_MESSAGES = 10;
+    @Resource
+    private AgentConstants agentConstants;
 
     @Override
     public String getName() {
@@ -29,14 +32,15 @@ public class MessageTrimmingHook extends MessagesModelHook {
 
     @Override
     public AgentCommand beforeModel(List<Message> previousMessages, RunnableConfig config) {
-        if (previousMessages.size() <= MAX_MESSAGES) {
+        int maxMessages = agentConstants.getMaxMessagesToTrim();
+        if (previousMessages.size() <= maxMessages) {
             return new AgentCommand(previousMessages);
         }
 
         // 保留第一条消息（通常是系统提示）
         Message firstMessage = previousMessages.get(0);
         // 保留最近的消息
-        int keepCount = MAX_MESSAGES - 1;
+        int keepCount = maxMessages - 1;
         List<Message> recentMessages = previousMessages.subList(
                 previousMessages.size() - keepCount,
                 previousMessages.size()
