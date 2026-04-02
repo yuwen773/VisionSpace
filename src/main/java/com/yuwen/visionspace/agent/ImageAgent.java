@@ -7,13 +7,15 @@ import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
-import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
+import com.yuwen.visionspace.agent.hook.SummarizationHook;
 import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
@@ -28,9 +30,9 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +73,15 @@ public class ImageAgent {
     @Resource
     private MessageTrimmingHook messageTrimmingHook;
 
+    @Resource
+    private SummarizationHook summarizationHook;
+
+    @Resource
+    private ChatHistoryService chatHistoryService;
+
+    @Resource
+    private BaseCheckpointSaver checkpointSaver;
+
     private ReactAgent agent;
 
     @PostConstruct
@@ -108,10 +119,10 @@ public class ImageAgent {
                     你必须主动询问：
                     "这些图片是否符合您的预期？"
                     并提示用户可以：
-                    - 表示满意 \u2192 结束
-                    - 要求换一批 \u2192 回到探索阶段
-                    - 要求重新生成 \u2192 回到生成阶段
-                    - 描述更具体的需求 \u2192 调整策略
+                    - 表示满意 → 结束
+                    - 要求换一批 → 回到探索阶段
+                    - 要求重新生成 → 回到生成阶段
+                    - 描述更具体的需求 → 调整策略
 
                     ### 反馈消息格式
                     当收到 [用户反馈] 开头的消息时，按以下格式解析：
@@ -132,9 +143,10 @@ public class ImageAgent {
                         hitlHook,
                         iterationControlHook,
                         messageTrimmingHook,
+                        summarizationHook,
                         ModelCallLimitHook.builder().runLimit(15).build()
                 ))
-                .saver(new MemorySaver())
+                .saver(checkpointSaver)
                 .build();
     }
 
@@ -150,6 +162,8 @@ public class ImageAgent {
                 .build();
         try {
             AssistantMessage response = agent.call(userMessage, config);
+            chatHistoryService.saveUserMessage(threadId, null, userMessage);
+            chatHistoryService.saveAssistantMessage(threadId, response.getText(), "text");
             return response.getText();
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}", threadId, e);
@@ -160,12 +174,17 @@ public class ImageAgent {
     /**
      * 流式对话入口
      */
-    public Flux<MessageDTO> stream(String userMessage, String threadId) {
+    public Flux<MessageDTO> stream(String userMessage, String threadId, Long userId) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
+        chatHistoryService.saveUserMessage(threadId, userId, userMessage);
+
         try {
             Flux<NodeOutput> stream = agent.stream(userMessage, config);
+
+            StringBuilder assistantContent = new StringBuilder();
+            StringBuilder reasoningContent = new StringBuilder();
 
             return stream
                     // 过滤结束事件
@@ -182,16 +201,15 @@ public class ImageAgent {
                             Object msg = streamingOutput.message();
                             if (msg instanceof AssistantMessage assistantMessage) {
                                 MessageDTO messageDTO = new MessageDTO();
-
-                                // reasoning Message
                                 Map<String, Object> metadata = assistantMessage.getMetadata();
-                                if (metadata.get("reasoningContent") != null
-                                        && !"".equals(metadata.get("reasoningContent"))) {
-                                    messageDTO.setContent((String) metadata.get("reasoningContent"));
-                                    messageDTO.setMessageType(MessageType.REASONING);
-                                }
-                                // 工具调用消息
-                                else if (assistantMessage.hasToolCalls()) {
+
+                                // 工具调用消息：先 flush 前面积累的 reasoning block，再保存 tool-call
+                                if (assistantMessage.hasToolCalls()) {
+                                    String prevReasoning = reasoningContent.toString();
+                                    if (!prevReasoning.isEmpty()) {
+                                        chatHistoryService.saveReasoningMessage(threadId, prevReasoning);
+                                        reasoningContent.setLength(0);
+                                    }
                                     messageDTO.setMessageType(MessageType.TOOL_REQUEST);
                                     messageDTO.setContent(assistantMessage.getText());
                                     List<Map<String, Object>> toolCallingList = assistantMessage.getToolCalls().stream()
@@ -202,10 +220,24 @@ public class ImageAgent {
                                                 return tcMap;
                                             }).toList();
                                     messageDTO.setToolCalls(toolCallingList);
+                                    String toolDesc = toolCallingList.stream()
+                                            .map(tc -> tc.get("name") + ": " + tc.get("arguments"))
+                                            .collect(Collectors.joining("\n"));
+                                    chatHistoryService.saveToolCallMessage(threadId, toolDesc);
                                 }
-                                // 普通文本消息
+                                // reasoning 消息：累积到当前 block（不立即存）
+                                else if (metadata.get("reasoningContent") != null
+                                        && !"".equals(metadata.get("reasoningContent"))) {
+                                    String reasoningText = (String) metadata.get("reasoningContent");
+                                    reasoningContent.append(reasoningText);
+                                    messageDTO.setContent(reasoningText);
+                                    messageDTO.setMessageType(MessageType.REASONING);
+                                }
+                                // 普通文本消息 - 累积内容
                                 else {
-                                    messageDTO.setContent(assistantMessage.getText());
+                                    String text = assistantMessage.getText();
+                                    assistantContent.append(text);
+                                    messageDTO.setContent(text);
                                     messageDTO.setMessageType(MessageType.ASSISTANT);
                                 }
                                 return messageDTO;
@@ -219,9 +251,20 @@ public class ImageAgent {
                                 sb.append("评估: ").append(feedback.getDescription()).append("\n");
                             }
                             messageDTO.setContent(sb.toString());
+                            chatHistoryService.saveToolConfirmMessage(threadId, sb.toString());
                             return messageDTO;
                         }
                         return null;
+                    })
+                    .doOnComplete(() -> {
+                        String fullReasoning = reasoningContent.toString();
+                        if (!fullReasoning.isEmpty()) {
+                            chatHistoryService.saveReasoningMessage(threadId, fullReasoning);
+                        }
+                        String fullResponse = assistantContent.toString();
+                        if (!fullResponse.isEmpty()) {
+                            chatHistoryService.saveAssistantMessage(threadId, fullResponse, "text");
+                        }
                     });
 
         } catch (GraphRunnerException e) {
