@@ -8,12 +8,18 @@ export interface MessageDTO {
   toolName?: string
 }
 
+export interface ToolCallArg {
+  name: string
+  args: Record<string, any>
+}
+
 export interface StreamMessage {
   type: string
   content: string
   node: string
   isLoading?: boolean
   toolName?: string
+  toolCalls?: ToolCallArg[]
   time?: string
 }
 
@@ -104,6 +110,8 @@ export function useAgentStream() {
         headers,
         body,
         signal: abortController.signal,
+        credentials: 'include',
+        openWhenHidden: true,
 
         async onopen(response) {
           if (response.ok) return
@@ -144,25 +152,17 @@ export function useAgentStream() {
                 assistantMsgIndex = -1
                 reasoningMsgIndex = -1
                 streamContent = ''
-                const toolName = msgDto.toolCalls?.[0]?.name || '工具'
-                let toolDesc = ''
-                try {
-                  const args = JSON.parse(msgDto.toolCalls?.[0]?.arguments || '{}')
-                  if (Array.isArray(args.images) && args.images.length > 0) {
-                    toolDesc = `评估 ${args.images.length} 张图片`
-                  } else if (args.query) {
-                    toolDesc = args.query
-                  } else if (args.keywords) {
-                    toolDesc = args.keywords
-                  } else if (args.prompt) {
-                    toolDesc = args.prompt.length > 60 ? args.prompt.slice(0, 60) + '...' : args.prompt
-                  } else {
-                    toolDesc = `执行 ${toolName}`
+                const toolCalls = msgDto.toolCalls || []
+                for (const tc of toolCalls) {
+                  const name = tc.name || '工具'
+                  let parsedArgs: Record<string, any> = {}
+                  try {
+                    parsedArgs = JSON.parse(tc.arguments || '{}')
+                  } catch {
+                    parsedArgs = { _raw: tc.arguments }
                   }
-                } catch {
-                  toolDesc = msgDto.toolCalls?.[0]?.arguments || ''
+                  pushMessage({ type: 'tool-request', content: '', node: 'agent', toolName: name, toolCalls: [{ name, args: parsedArgs }] })
                 }
-                pushMessage({ type: 'tool-request', content: toolDesc, node: 'agent', toolName })
                 break
               }
 

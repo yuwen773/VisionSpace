@@ -63,7 +63,7 @@
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="messages"
-          :loading="streaming"
+          :loading="streaming || historyLoading"
           :images="currentImages"
           :links="currentLinks"
           @confirm="handleConfirm"
@@ -103,37 +103,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import {message} from 'ant-design-vue'
 import AgentChatLayout from '@/components/agent/AgentChatLayout.vue'
+import type {HistoryItem} from '@/components/agent/LeftSidebar.vue'
 import LeftSidebar from '@/components/agent/LeftSidebar.vue'
 import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
 import AgentTodoList from '@/components/agent/AgentTodoList.vue'
 import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
-import type { HistoryItem } from '@/components/agent/LeftSidebar.vue'
-import { useAgentStream } from '@/composables/useAgentStream'
+import {useAgentStream} from '@/composables/useAgentStream'
+import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
 
-const STORAGE_KEY = 'agent_chat_histories'
-
-const loadHistories = (): HistoryItem[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-const saveHistories = (list: HistoryItem[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-  } catch (e) {
-    console.warn('Failed to save histories:', e)
-  }
-}
+const THREAD_ID_KEY = 'agent_current_thread_id'
+const DATE_LOCALE = 'zh-CN'
+const TIME_OPTIONS = { hour: '2-digit', minute: '2-digit' } as const
 
 const generateThreadId = () => crypto.randomUUID()
+
+const loadThreadId = (): string => {
+  return localStorage.getItem(THREAD_ID_KEY) || ''
+}
+
+const saveThreadId = (id: string) => {
+  if (id) localStorage.setItem(THREAD_ID_KEY, id)
+  else localStorage.removeItem(THREAD_ID_KEY)
+}
 
 // State
 const threadId = ref(generateThreadId())
@@ -142,6 +137,86 @@ const leftCollapsed = ref(false)
 const resourcePanelVisible = ref(false)
 const todoListExpanded = ref(false)
 const showTodoList = ref(false)
+const historyLoading = ref(false)
+
+// Track image preview URLs to revoke them later
+const previewUrls = ref<string[]>([])
+
+onUnmounted(() => {
+  previewUrls.value.forEach(url => URL.revokeObjectURL(url))
+  previewUrls.value = []
+})
+
+// Sessions
+const sessions = ref<SessionItem[]>([])
+
+const loadSessions = async () => {
+  try {
+    const res = await getSessions({ limit: 20 })
+    sessions.value = res?.data?.data || []
+  } catch (e) {
+    console.warn('加载会话列表失败:', e)
+  }
+}
+
+const histories = computed<HistoryItem[]>(() =>
+  sessions.value.map(s => ({
+    id: s.sessionId,
+    title: s.title || '新对话',
+    time: s.updatedTime ? new Date(s.updatedTime).toLocaleString(DATE_LOCALE) : '',
+  }))
+)
+
+const loadHistoryMessages = async (sessionId: string) => {
+  historyLoading.value = true
+  try {
+    const res = await getHistory(sessionId, { limit: 100 })
+    const data = res.data?.data || []
+    if (!data?.messages) {
+      return
+    }
+
+    messages.value = data.messages
+      .map(m => {
+        let type: string
+        if (m.role === 'USER') {
+          type = 'user'
+        } else {
+          switch (m.subType) {
+            case 'reasoning': type = 'reasoning'; break
+            case 'tool-call': type = 'tool-request'; break
+            case 'tool-result': type = 'tool-response'; break
+            default: type = 'assistant'
+          }
+        }
+        return {
+          type,
+          content: m.content,
+          toolName: m.subType === 'tool-call' || m.subType === 'tool-result' ? m.content.split(':')[0] || '工具' : undefined,
+          node: 'agent',
+          isLoading: false,
+          time: m.createdTime
+            ? new Date(m.createdTime).toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS)
+            : '',
+        }
+      })
+  } catch (e) {
+    console.warn('加载历史消息失败:', e)
+    message.warning('历史消息加载失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  const savedThreadId = loadThreadId()
+  await Promise.all([
+    loadSessions(),
+    savedThreadId ? loadHistoryMessages(savedThreadId) : Promise.resolve(),
+  ])
+  currentThreadId.value = savedThreadId
+  threadId.value = savedThreadId
+})
 
 // Todo steps
 const todoSteps = ref([
@@ -152,9 +227,6 @@ const todoSteps = ref([
 ])
 
 const currentTodoStep = ref(0)
-
-// Histories
-const histories = ref<HistoryItem[]>(loadHistories())
 
 // Agent stream
 const agentStream = useAgentStream()
@@ -193,47 +265,52 @@ const handleSend = async (text: string, files: File[] = []) => {
     .filter(f => f.type.startsWith('image/'))
     .map(f => URL.createObjectURL(f))
 
+  // Track URLs for cleanup
+  if (imagePreviews.length > 0) {
+    previewUrls.value.push(...imagePreviews)
+  }
+
   pushMessage({
     type: 'user',
     content: text,
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
     images: imagePreviews.length > 0 ? imagePreviews : undefined,
   })
 
   try {
     await sendMessage(text, threadId.value, files.length > 0 ? files : undefined)
+    saveThreadId(threadId.value)
+    currentThreadId.value = threadId.value
+    // Revoke preview URLs after successful send (message is now in stream)
+    imagePreviews.forEach(url => {
+      URL.revokeObjectURL(url)
+      previewUrls.value = previewUrls.value.filter(u => u !== url)
+    })
   } catch (error) {
     message.error('发送失败，请重试')
     // Revoke preview URLs on error (message won't be shown)
-    imagePreviews.forEach(url => URL.revokeObjectURL(url))
+    imagePreviews.forEach(url => {
+      URL.revokeObjectURL(url)
+      previewUrls.value = previewUrls.value.filter(u => u !== url)
+    })
   }
 }
 
 const handleNewChat = () => {
-  if (messages.value.length > 0) {
-    const historyItem: HistoryItem = {
-      id: threadId.value,
-      title: messages.value.find(m => m.type === 'user')?.content?.slice(0, 30) || '新对话',
-      time: new Date().toLocaleString('zh-CN'),
-      messages: [...messages.value],
-    }
-    histories.value.unshift(historyItem)
-    saveHistories(histories.value)
-  }
-
+  saveThreadId('')
+  currentThreadId.value = ''
   threadId.value = generateThreadId()
   resetStream()
   showTodoList.value = false
   resourcePanelVisible.value = false
 }
 
-const handleSelectHistory = (id: string) => {
-  const history = histories.value.find(h => h.id === id)
-  if (history) {
-    currentThreadId.value = id
-    resetStream()
-    messages.value = history.messages || []
-  }
+const handleSelectHistory = async (id: string) => {
+  currentThreadId.value = id
+  threadId.value = id
+  saveThreadId(id)
+  resetStream()
+  await loadHistoryMessages(id)
 }
 
 const toggleResourcePanel = () => {

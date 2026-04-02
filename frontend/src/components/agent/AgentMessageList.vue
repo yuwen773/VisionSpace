@@ -37,7 +37,7 @@
   :has-resources="hasResources"
   @toggle-resources="emit('toggleResources')"
 />
-          <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :description="msg.content" />
+          <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
           <ToolConfirmMessage v-else-if="msg.type === 'tool-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
         </div>
@@ -75,11 +75,13 @@ import ReasoningMessage from './message/ReasoningMessage.vue'
 import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
+import type { ToolCallArg } from '@/composables/useAgentStream'
 
 interface Message {
   type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
   content: string
   toolName?: string
+  toolCalls?: ToolCallArg[]
   isLoading?: boolean
   time?: string
   images?: string[]
@@ -143,7 +145,7 @@ onUnmounted(() => {
   listRef.value?.removeEventListener('scroll', checkBottom)
 })
 
-watch(() => props.messages, () => {
+watch(() => props.messages.length, () => {
   nextTick(() => {
     if (isAtBottom.value) {
       scrollToBottom()
@@ -152,7 +154,7 @@ watch(() => props.messages, () => {
       showScrollBtn.value = true
     }
   })
-}, { deep: true })
+})
 
 watch(() => props.loading, (val) => {
   if (val) {

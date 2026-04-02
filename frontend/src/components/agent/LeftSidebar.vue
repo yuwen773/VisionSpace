@@ -72,7 +72,6 @@ export interface HistoryItem {
   id: string
   title: string
   time: string
-  messages?: any[]
 }
 
 interface Props {

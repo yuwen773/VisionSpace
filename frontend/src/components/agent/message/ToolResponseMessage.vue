@@ -13,13 +13,15 @@
     </div>
 
     <transition name="collapse">
-      <div v-if="isExpanded" class="tool-content">{{ content }}</div>
+      <div v-if="isExpanded" class="tool-content">
+        <pre class="content-pre"><code v-html="highlightedContent"></code></pre>
+      </div>
     </transition>
 
     <button
-      v-if="content.length > 100 && !isExpanded"
+      v-if="content.length > 120 && !isExpanded"
       class="expand-trigger"
-      @click="toggleExpand"
+      @click.stop="toggleExpand"
     >
       展开详情
     </button>
@@ -27,7 +29,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { highlightJson } from '@/utils/jsonHighlight'
 
 interface Props {
   toolName: string
@@ -39,15 +42,20 @@ const props = withDefaults(defineProps<Props>(), {
   content: '',
 })
 
-const isExpanded = ref(props.content.length <= 100)
+const isExpanded = ref(props.content.length <= 120)
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
+
+const highlightedContent = computed(() => {
+  return highlightJson(props.content)
+})
 </script>
 
 <style scoped>
 .tool-response {
+  max-width: min(400px, 100%);
   margin: 6px 16px;
   border-radius: 10px;
   overflow: hidden;
@@ -78,7 +86,7 @@ const toggleExpand = () => {
 .tool-badge {
   font-size: 10px;
   font-weight: 600;
-  color: var(--color-text-tertiary);
+  color: var(--color-success);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -87,6 +95,7 @@ const toggleExpand = () => {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-secondary);
+  font-family: var(--font-mono);
 }
 
 .expand-icon {
@@ -101,11 +110,17 @@ const toggleExpand = () => {
 
 .tool-content {
   padding: 0 14px 10px;
-  font-size: 13px;
-  line-height: 1.5;
+}
+
+.content-pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
   color: var(--color-text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
+  overflow: hidden;
 }
 
 .expand-trigger {
@@ -139,4 +154,14 @@ const toggleExpand = () => {
   padding-top: 0;
   padding-bottom: 0;
 }
+
+/* JSON Syntax Colors */
+:deep(.json-key) { color: #7dd3fc; }
+:deep(.json-str) { color: #86efac; }
+:deep(.json-num) { color: #c4b5fd; }
+:deep(.json-bool) { color: #f9a8d4; }
+:deep(.json-null) { color: #f87171; }
+:deep(.json-bracket) { color: #94a3b8; }
+:deep(.json-comma) { color: #94a3b8; }
+:deep(.json-sep) { color: #94a3b8; }
 </style>
