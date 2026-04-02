@@ -51,6 +51,7 @@ defineProps<{
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .layout-right {
