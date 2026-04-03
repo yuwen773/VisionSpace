@@ -27,7 +27,7 @@
       <!-- Messages -->
       <template v-for="(msg, index) in messages" :key="index">
         <div class="msg-animate">
-          <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" :images="msg.images" />
+          <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" @preview="onImagePreview" />
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
   v-else-if="msg.type === 'assistant'"
@@ -110,7 +110,12 @@ const emit = defineEmits<{
   (e: 'cancel'): void
   (e: 'send', text: string): void
   (e: 'toggleResources'): void
+  (e: 'previewImage', url: string): void
 }>()
+
+const onImagePreview = (url: string) => {
+  emit('previewImage', url)
+}
 
 const quickHints = [
   '一张赛博朋克风格的城市夜景',
