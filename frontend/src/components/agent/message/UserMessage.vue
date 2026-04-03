@@ -2,11 +2,11 @@
   <div class="user-message">
     <div class="message-content">
       <!-- Image grid -->
-      <div v-if="images && images.length > 0" class="message-images" :class="`grid-${Math.min(images.length, 4)}`">
-        <div v-for="(img, i) in images.slice(0, 4)" :key="i" class="img-thumb">
-          <img :src="img" alt="附件图片" />
+      <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
+        <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="emit('preview', img.url)">
+          <img :src="img.url" alt="附件图片" />
         </div>
-        <div v-if="images.length > 4" class="img-more">+{{ images.length - 4 }}</div>
+        <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
       </div>
       <div v-if="content" class="message-text">{{ content }}</div>
       <div class="message-time">{{ displayTime }}</div>
@@ -28,6 +28,30 @@ const props = withDefaults(defineProps<Props>(), {
   time: '',
   images: () => [],
 })
+
+const IMAGE_TAG_REGEX = /<image-analysis>([^<]+)<\/image-analysis>/g
+
+interface ParsedImage {
+  url: string
+}
+
+const parsedImages = computed<ParsedImage[]>(() => {
+  if (!props.content) return []
+  const urls: ParsedImage[] = []
+  const regex = new RegExp(IMAGE_TAG_REGEX.source, 'g')
+  let match
+  while ((match = regex.exec(props.content)) !== null) {
+    urls.push({ url: match[1].trim() })
+  }
+  return urls
+})
+
+const displayImages = computed(() => parsedImages.value.slice(0, 4))
+const extraCount = computed(() => Math.max(0, parsedImages.value.length - 4))
+
+const emit = defineEmits<{
+  (e: 'preview', url: string): void
+}>()
 
 const displayTime = computed(() => {
   if (props.time) return props.time
