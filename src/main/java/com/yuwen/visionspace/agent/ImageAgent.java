@@ -355,13 +355,13 @@ public class ImageAgent {
      */
     private String buildUserMessage(String userMessage, List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
-            return userMessage;
+            return userMessage != null ? userMessage : "";
         }
         StringBuilder sb = new StringBuilder();
         for (String url : imageUrls) {
             sb.append("<image-analysis>").append(url).append("</image-analysis>\n");
         }
-        sb.append("\n").append(userMessage);
+        sb.append("\n").append(userMessage != null ? userMessage : "");
         return sb.toString();
     }
 
