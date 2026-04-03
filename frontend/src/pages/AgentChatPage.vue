@@ -70,6 +70,7 @@
           @cancel="handleCancel"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
+          @previewImage="handlePreviewImage"
         />
 
         <!-- 底部区域：TodoList + 输入框 -->
@@ -274,7 +275,6 @@ const handleSend = async (text: string, files: File[] = []) => {
     type: 'user',
     content: text,
     time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
-    images: imagePreviews.length > 0 ? imagePreviews : undefined,
   })
 
   try {
