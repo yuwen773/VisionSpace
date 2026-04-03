@@ -359,6 +359,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public UserPictureStatsResponse getUserPictureStats(User user) {
+        if (user == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在");
+        }
         UserPictureStatsResponse stats = new UserPictureStatsResponse();
         // 查询该用户上传的图片总数
         Long uploadCount = pictureService.count(new QueryWrapper<Picture>()
@@ -373,7 +376,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
         // 计算通过率
         if (uploadCount > 0) {
-            stats.setReviewPassRate(Math.round(reviewPassCount * 100.0 / uploadCount * 100) / 100.0);
+            double rate = reviewPassCount * 100.0 / uploadCount;
+            stats.setReviewPassRate(Math.round(rate * 100) / 100.0);
         } else {
             stats.setReviewPassRate(0.0);
         }
