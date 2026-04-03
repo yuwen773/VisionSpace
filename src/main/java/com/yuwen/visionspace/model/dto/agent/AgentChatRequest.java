@@ -3,6 +3,7 @@ package com.yuwen.visionspace.model.dto.agent;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Agent 对话请求
@@ -26,4 +27,9 @@ public class AgentChatRequest implements Serializable {
      * 用户ID (可选，用于长期偏好学习)
      */
     private String userId;
+
+    /**
+     * 用户上传的图片 URL 列表（后端拼接为 <image-analysis> 标签）
+     */
+    private List<String> imageUrls;
 }
