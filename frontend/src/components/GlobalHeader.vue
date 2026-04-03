@@ -119,6 +119,13 @@
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
+                    <a-menu-item key="user_center" class="menu-item">
+                      <div class="menu-item-inner">
+                        <span class="menu-icon">👤</span>
+                        <span class="menu-text">用户中心</span>
+                      </div>
+                      <div class="menu-item-shine"></div>
+                    </a-menu-item>
                     <a-menu-item key="feedback" class="menu-item">
                       <div class="menu-item-inner">
                         <span class="menu-icon">💬</span>
@@ -345,6 +352,8 @@ const handleUserMenuClick = ({ key }: { key: string }) => {
     router.push('/my_space')
   } else if (key === 'feedback') {
     router.push('/feedback')
+  } else if (key === 'user_center') {
+    router.push('/user/center')
   } else if (key === 'admin') {
     router.push('/admin')
   } else if (key === 'logout') {
