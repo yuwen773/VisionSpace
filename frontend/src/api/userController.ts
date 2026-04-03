@@ -158,15 +158,15 @@ export interface UserPictureStatsResponse {
 }
 
 export const getUserPictureStatsUsingGet = () => {
-  return axios.request({
-    url: '/user/picture/stats',
+  return request({
+    url: '/api/user/picture/stats',
     method: 'get'
   });
 };
 
 export const getUserRecentPicturesUsingGet = (count: number) => {
-  return axios.request({
-    url: '/user/picture/recent',
+  return request({
+    url: '/api/user/picture/recent',
     method: 'get',
     params: { count }
   });
