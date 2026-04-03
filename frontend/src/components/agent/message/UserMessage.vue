@@ -5,6 +5,11 @@
       <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
         <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="previewUrl = img.url">
           <img :src="img.url" alt="附件图片" />
+          <div class="img-zoom-hint">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
         </div>
         <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
       </div>
@@ -179,6 +184,18 @@ const displayTime = computed(() => {
   overflow: hidden;
   background: rgba(0, 0, 0, 0.1);
   flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.img-thumb:hover {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: scale(1.05);
+}
+
+.img-thumb:hover .img-zoom-hint {
+  opacity: 1;
 }
 
 .img-thumb img {
@@ -186,6 +203,23 @@ const displayTime = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.img-zoom-hint {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
 
