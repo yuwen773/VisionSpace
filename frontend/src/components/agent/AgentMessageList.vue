@@ -413,7 +413,6 @@ watch(() => props.loading, (val) => {
   justify-content: center;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 0 transparent;
-  position: relative;
 }
 
 .scroll-btn:hover {
