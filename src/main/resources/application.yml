@@ -8,6 +8,28 @@ server:
         max-age: 2592000
 ## 项目自定义配置
 vision-space:
+  # 安全配置
+  security:
+    default-password: "12345678"
+  # 阿里云 AI 配置
+  aliyun-ai:
+    base-url: "https://dashscope.aliyuncs.com/api/v1"
+    create-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting"
+    get-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/tasks/%s"
+  # Agent 配置
+  agent:
+    summary-threshold: 20
+    messages-to-keep: 10
+    max-explore-count: 3
+    max-confirm-count: 2
+    max-iteration-count: 15
+    history-truncate-length: 100
+    history-truncate-reserve: 97
+    max-messages-to-trim: 10
+    max-feedback-history-size: 100
+    summary-max-length: 500
+    summary-truncate-length: 497
+    max-history-page-size: 100
   # 颜色提取配置
   color-extract:
     method: median-cut  # median-cut（默认）或 kmeans
@@ -33,6 +55,8 @@ vision-space:
       interval-ms: 300000
     retention:
       days: 7
+
+
 spring:
   application:
     name: vision-space
@@ -55,7 +79,7 @@ spring:
       host: localhost
       port: 6379
       timeout: 5000
-      password: xxxx
+#      password: xxxx
       lettuce:
         pool:
           max-active: 8

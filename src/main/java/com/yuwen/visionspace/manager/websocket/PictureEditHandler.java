@@ -33,6 +33,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class PictureEditHandler extends TextWebSocketHandler {
 
+    private final ObjectMapper objectMapper;
+
+    {
+        objectMapper = new ObjectMapper();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(Long.class, ToStringSerializer.instance);
+        module.addSerializer(Long.TYPE, ToStringSerializer.instance);
+        objectMapper.registerModule(module);
+    }
+
     @Resource
     private UserService userService;
 
@@ -212,13 +222,6 @@ public class PictureEditHandler extends TextWebSocketHandler {
     private void broadcastToPicture(Long pictureId, PictureEditResponseMessage pictureEditResponseMessage, WebSocketSession excludeSession) throws IOException {
         Set<WebSocketSession> sessionSet = pictureSessions.get(pictureId);
         if (CollUtil.isNotEmpty(sessionSet)) {
-            // 创建 ObjectMapper
-            ObjectMapper objectMapper = new ObjectMapper();
-            // 配置序列化：将 Long 类型转为 String，解决丢失精度问题
-            SimpleModule module = new SimpleModule();
-            module.addSerializer(Long.class, ToStringSerializer.instance);
-            module.addSerializer(Long.TYPE, ToStringSerializer.instance); // 支持 long 基本类型
-            objectMapper.registerModule(module);
             // 序列化为 JSON 字符串
             String message = objectMapper.writeValueAsString(pictureEditResponseMessage);
             TextMessage textMessage = new TextMessage(message);

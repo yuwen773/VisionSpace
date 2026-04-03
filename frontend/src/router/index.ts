@@ -3,7 +3,7 @@ import HomePage from '@/pages/HomePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
-import AdminLayout from '@/layouts/AdminLayout.vue'
+import AdminLayout from '../layout/AdminLayout.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
 import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
@@ -18,6 +18,7 @@ import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
 import DashboardPage from '@/pages/admin/DashboardPage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
+import AgentChatPage from '@/pages/AgentChatPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -42,6 +43,7 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: HomePage,
+          meta: { showFooter: true },
         },
         {
           path: 'add_picture',
@@ -68,6 +70,7 @@ const router = createRouter({
           path: 'my_space',
           name: 'MySpace',
           component: MySpacePage,
+          meta: { showFooter: true },
         },
         {
           path: 'space/:id',
@@ -86,6 +89,7 @@ const router = createRouter({
           name: 'SpaceAnalyze',
           component: SpaceAnalyzePage,
           props: true,
+          meta: { showFooter: true },
         },
         {
           path: 'feedback',
@@ -97,6 +101,12 @@ const router = createRouter({
           name: 'SpaceUserManage',
           component: SpaceUserManagePage,
           props: true,
+        },
+        {
+          path: 'agent',
+          name: 'AgentChat',
+          component: AgentChatPage,
+          meta: { title: '智能助手' },
         },
       ],
     },
