@@ -597,14 +597,19 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public List<PictureVO> getUserRecentPictures(Long userId, int count) {
+        if (userId == null) {
+            return new ArrayList<>();
+        }
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId)
                 .orderByDesc("createTime")
                 .last("LIMIT " + count);
         List<Picture> pictures = this.list(queryWrapper);
+        if (pictures == null || pictures.isEmpty()) {
+            return new ArrayList<>();
+        }
         return pictures.stream().map(picture -> {
-            PictureVO pictureVO = new PictureVO();
-            BeanUtils.copyProperties(picture, pictureVO);
+            PictureVO pictureVO = PictureVO.objToVo(picture);
             return pictureVO;
         }).collect(Collectors.toList());
     }
