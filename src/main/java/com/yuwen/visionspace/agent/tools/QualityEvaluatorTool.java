@@ -28,10 +28,10 @@ public class QualityEvaluatorTool {
      * @param userIntent 用户原始意图描述
      * @return 评估结果
      */
-    @Tool(description = "评估图片列表与用户意图的匹配度，返回匹配分数和改进建议")
+    @Tool(name = "evaluateImageQuality", description = "评估一组图片与用户原始意图的匹配程度。在图片搜索完成后调用，用于判断搜索结果是否满足需求、是否需要重新搜索或改用 AIGC 生成。返回匹配度分数（0-1）、原因分析和下一步建议。")
     public QualityResult evaluateImageQuality(
-            @ToolParam(description = "要评估的图片列表") List<ImageResource> images,
-            @ToolParam(description = "用户的原始意图描述") String userIntent) {
+            @ToolParam(description = "待评估的图片资源列表，来自搜索或生成的结果") List<ImageResource> images,
+            @ToolParam(description = "用户的原始需求描述，例如：'需要一个科技感的网站首页 banner'、'为公司 logo 找参考'") String userIntent) {
 
         // 数量检查
         if (images == null || images.isEmpty()) {

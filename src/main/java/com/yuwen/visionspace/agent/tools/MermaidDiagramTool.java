@@ -31,9 +31,9 @@ public class MermaidDiagramTool {
     @Resource
     private FileStorageService fileStorageService;
 
-    @Tool(name = "将 Mermaid 代码转换为架构图图片，用于展示系统结构和技术关系")
-    public List<ImageResource> generateMermaidDiagram(@ToolParam(description = "Mermaid 图表代码") String mermaidCode,
-                                                      @ToolParam(description = "架构图描述") String description) {
+    @Tool(name = "generateMermaidDiagram", description = "将 Mermaid 代码转换为 SVG 架构图图片并上传。适用于需要展示系统架构、技术栈关系、模块依赖、流程图等结构化图示的场景。返回上传后的图片 URL。")
+    public List<ImageResource> generateMermaidDiagram(@ToolParam(description = "Mermaid 图表代码，支持 flowchart、sequenceDiagram、graph 等语法，例如：graph TD; A-->B; B-->C") String mermaidCode,
+                                                      @ToolParam(description = "架构图的一句简短描述，用于图片 alt 文本和搜索，例如：'微服务架构拓扑图'、'用户认证流程'") String description) {
         if (StrUtil.isBlank(mermaidCode)) {
             return new ArrayList<>();
         }

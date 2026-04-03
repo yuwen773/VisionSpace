@@ -8,8 +8,6 @@ import cn.hutool.json.JSONUtil;
 import com.yuwen.visionspace.agent.model.ImageCategoryEnum;
 import com.yuwen.visionspace.agent.model.ImageResource;
 import lombok.extern.slf4j.Slf4j;
-import com.yuwen.visionspace.api.imagesearch.ImageSearchApiFacade;
-import com.yuwen.visionspace.api.imagesearch.model.ImageSearchResult;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,8 +28,8 @@ public class ImageSearchTool {
     @Value("${vision-space.pexels.api-key}")
     private String pexelsApiKey;
 
-    @Tool(description = "搜索内容相关的图片，用于网站内容展示")
-    public List<ImageResource> searchContentImages(@ToolParam(description = "搜索关键词") String query) {
+    @Tool(name = "searchContentImages", description = "通过关键词搜索 Pexels 图库中的高质量内容图片。适用于网站 banner、文章配图、产品展示等需要真实摄影图片的场景。返回最多 12 张图片的 URL 和描述。")
+    public List<ImageResource> searchContentImages(@ToolParam(description = "搜索关键词，建议使用英文单词或短语，例如：'technology office'、'nature landscape'、'team collaboration'") String query) {
         List<ImageResource> imageList = new ArrayList<>();
         int searchCount = 12;
         // 调用 API，注意释放资源
@@ -56,30 +54,6 @@ public class ImageSearchTool {
             }
         } catch (Exception e) {
             log.error("Pexels API 调用失败: {}", e.getMessage(), e);
-        }
-        return imageList;
-    }
-
-    /**
-     * 以图搜图 - 根据图片URL搜索相似图片
-     *
-     * @param imageUrl 图片URL
-     * @return 相似图片列表
-     */
-    @Tool(description = "以图搜图，根据图片URL搜索相似图片，返回图片来源和缩略图地址")
-    public List<ImageResource> searchSimilarImages(@ToolParam(description = "要搜索的图片URL") String imageUrl) {
-        List<ImageResource> imageList = new ArrayList<>();
-        try {
-            List<ImageSearchResult> resultList = ImageSearchApiFacade.searchImage(imageUrl);
-            for (ImageSearchResult result : resultList) {
-                imageList.add(ImageResource.builder()
-                        .category(ImageCategoryEnum.CONTENT)
-                        .description(result.getFromUrl())
-                        .url(result.getThumbUrl())
-                        .build());
-            }
-        } catch (Exception e) {
-            log.error("以图搜图失败: {}", e.getMessage(), e);
         }
         return imageList;
     }
