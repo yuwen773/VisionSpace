@@ -142,36 +142,36 @@ const displayTime = computed(() => {
 
 /* ============ Image Grid ============ */
 .message-images {
-  display: grid;
+  display: inline-grid;
   gap: 4px;
   margin-bottom: 6px;
   border-radius: 12px;
   overflow: hidden;
 }
 
-.message-images.grid-1 { grid-template-columns: 1fr; }
-.message-images.grid-2 { grid-template-columns: 1fr 1fr; }
-.message-images.grid-3 { grid-template-columns: 1fr 1fr; }
-.message-images.grid-4 { grid-template-columns: 1fr 1fr; }
+.message-images.grid-1 { grid-template-columns: 64px; }
+.message-images.grid-2 { grid-template-columns: 64px 64px; }
+.message-images.grid-3 { grid-template-columns: 64px 64px; }
+.message-images.grid-4 { grid-template-columns: 64px 64px; }
 
 .img-thumb {
   position: relative;
+  width: 64px;
+  height: 64px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
 .img-thumb img {
   width: 100%;
-  aspect-ratio: 1;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
-/* 3-image layout: first image spans full width */
-.grid-3 .img-thumb:first-child {
-  grid-column: 1 / -1;
-}
+
 
 .img-more {
   position: absolute;
