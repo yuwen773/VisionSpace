@@ -16,10 +16,13 @@ import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
 import com.yuwen.visionspace.model.dto.user.VipCode;
+import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.UserRoleEnum;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
+import com.yuwen.visionspace.model.vo.UserPictureStatsResponse;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -248,6 +251,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Autowired
     private ResourceLoader resourceLoader;
 
+    @Resource
+    private PictureService pictureService;
+
     // 文件读写锁（确保并发安全）
     private final ReentrantLock fileLock = new ReentrantLock();
 
@@ -350,6 +356,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     // endregion ------- 以下代码为用户兑换会员功能 --------
+
+    @Override
+    public UserPictureStatsResponse getUserPictureStats(User user) {
+        UserPictureStatsResponse stats = new UserPictureStatsResponse();
+        // 查询该用户上传的图片总数
+        Long uploadCount = pictureService.count(new QueryWrapper<Picture>()
+            .eq("userId", user.getId()));
+        stats.setUploadCount(uploadCount);
+
+        // 查询审核通过数量
+        Long reviewPassCount = pictureService.count(new QueryWrapper<Picture>()
+            .eq("userId", user.getId())
+            .eq("reviewStatus", 1)); // 1=通过
+        stats.setReviewPassCount(reviewPassCount);
+
+        // 计算通过率
+        if (uploadCount > 0) {
+            stats.setReviewPassRate(Math.round(reviewPassCount * 100.0 / uploadCount * 100) / 100.0);
+        } else {
+            stats.setReviewPassRate(0.0);
+        }
+
+        // 收藏数量暂无实现，预留
+        stats.setLikeCount(0L);
+
+        return stats;
+    }
 }
 
 
