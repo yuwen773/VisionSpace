@@ -89,7 +89,7 @@ import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/userLogin'
-import { updateUserUsingPost } from '@/api/userController'
+import { getUserPictureStatsUsingGet, getUserRecentPicturesUsingGet, updateUserUsingPost } from '@/api/userController'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
@@ -208,13 +208,6 @@ const showAvatarModal = () => {
   message.info('头像上传功能待实现')
 }
 
-// API 占位符（待 Task 8 实现）
-const getUserPictureStatsUsingGet = async () => {
-  return { data: { code: 0, data: pictureStats.value } }
-}
-const getUserRecentPicturesUsingGet = async () => {
-  return { data: { code: 0, data: recentPictures.value } }
-}
 </script>
 
 <style scoped>
