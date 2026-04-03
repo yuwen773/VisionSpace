@@ -17,8 +17,10 @@ import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
-import com.yuwen.visionspace.agent.tools.LogoGeneratorTool;
+import com.yuwen.visionspace.agent.tools.ImageGeneratorTool;
+import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
+import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.MessageType;
@@ -59,10 +61,16 @@ public class ImageAgent {
     private ImageSearchTool imageSearchTool;
 
     @Resource
-    private LogoGeneratorTool logoGeneratorTool;
+    private ImageGeneratorTool imageGeneratorTool;
 
     @Resource
     private QualityEvaluatorTool qualityEvaluatorTool;
+
+    @Resource
+    private SimilarImageSearchTool similarImageSearchTool;
+
+    @Resource
+    private ImageFeatureAnalyzerTool imageFeatureAnalyzerTool;
 
     @Resource
     private UserPreferenceService userPreferenceService;
@@ -86,9 +94,9 @@ public class ImageAgent {
 
     @PostConstruct
     public void init() {
-        // 创建人工介入 Hook - 仅拦截 generateLogo（AIGC 生成前需用户确认）
+        // 创建人工介入 Hook - 仅拦截 generateImages（AIGC 生成前需用户确认）
         HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
-                .approvalOn("generateLogo", ToolConfig.builder()
+                .approvalOn("generateImages", ToolConfig.builder()
                         .description("即将使用 AIGC 生成图片，需要用户确认")
                         .build())
                 .build();
@@ -103,16 +111,29 @@ public class ImageAgent {
                     你必须在以下阶段间切换：
 
                     ### 阶段 1：EXPLORATION（探索）
-                    1. 理解用户的图片需求
-                    2. 调用 ImageSearchTool 搜索图片
-                    3. 调用 QualityEvaluatorTool 评估结果
-                    4. 如果 matchScore >= 0.5：展示结果，询问用户满意度
-                    5. 如果 matchScore < 0.5：调整关键词重新搜索
+
+                    #### 用户提供了参考图片 URL
+                    1. 调用 analyzeImageFeatures 分析图片（获取内容描述、色调、风格、氛围、搜索关键词）
+                    2. 向用户简要展示分析结果，确认理解是否准确
+                    3. 根据分析结果选择搜索策略：
+                       a. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
+                       b. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
+                       c. 两种方式可结合使用
+                    4. 如果以图搜图失败，直接用 searchKeywords 作为降级方案搜索
+
+                    #### 用户用文字描述需求
+                    1. 根据描述提取关键词，调用 searchContentImages 搜索
+                    2. 可按需调用 searchIllustrations 搜索插画
+
+                    #### 通用后续步骤
+                    - 调用 evaluateImageQuality 评估搜索结果
+                    - matchScore >= 0.5：展示结果，询问用户满意度
+                    - matchScore < 0.5：调整关键词重新搜索
 
                     ### 阶段 2：GENERATION（生成）
                     当探索次数耗尽或用户主动要求生成时：
                     1. 告知用户即将使用 AIGC 生成（此时会暂停等待确认）
-                    2. 调用 LogoGeneratorTool 生成图片
+                    2. 调用 generateImages 生成图片
                     3. 展示生成结果，询问用户满意度
 
                     ### 满意度询问规则（每次展示结果后必须执行）
@@ -138,7 +159,7 @@ public class ImageAgent {
                     - 探索阶段全自动执行，不暂停
                     - AIGC 生成前必须暂停等待用户确认
                     """)
-                .methodTools(imageSearchTool, logoGeneratorTool, qualityEvaluatorTool)
+                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
                 .hooks(List.of(
                         hitlHook,
                         iterationControlHook,
