@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
  * 用户图片行为明细表
  * 用于记录用户对图片的各种行为，为推荐系统提供基础数据
  *
- * @see ActionTypeEnum 行为类型枚举
- * @see ActionSourceEnum 来源枚举
+ * @see com.yuwen.visionspace.model.enums.ActionTypeEnum 行为类型枚举
+ * @see com.yuwen.visionspace.model.enums.ActionSourceEnum 来源枚举
  */
 @Data
 @TableName("user_picture_action")
@@ -18,7 +18,7 @@ public class UserPictureAction {
     /**
      * 主键ID
      */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**

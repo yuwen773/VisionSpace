@@ -103,8 +103,8 @@ const handSubmit = async (value: any) => {
   }
 }
 
-const categoryOptions = ref<string[]>([])
-const tagOptions = ref<string[]>([])
+const categoryOptions = ref<{ value: string; label: string }[]>([])
+const tagOptions = ref<{ value: string; label: string }[]>([])
 
 // 获取分类和标签选项
 const getTagCategoryOptions = async () => {

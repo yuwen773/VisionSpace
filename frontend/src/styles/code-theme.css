@@ -1,0 +1,101 @@
+/* 代码高亮主题 - 适配双主题 */
+
+/* 极光主题（深色）的代码高亮 */
+[data-theme='aurora'] .hljs {
+  background: #0a0f1a;
+  color: #c9d1d9;
+}
+
+[data-theme='aurora'] .hljs-keyword,
+[data-theme='aurora'] .hljs-selector-tag,
+[data-theme='aurora'] .hljs-literal,
+[data-theme='aurora'] .hljs-section,
+[data-theme='aurora'] .hljs-link {
+  color: #ff7b72;
+}
+
+[data-theme='aurora'] .hljs-function .hljs-keyword {
+  color: #ff7b72;
+}
+
+[data-theme='aurora'] .hljs-string,
+[data-theme='aurora'] .hljs-title.function_,
+[data-theme='aurora'] .hljs-regexp,
+[data-theme='aurora'] .hljs-selector-attr,
+[data-theme='aurora'] .hljs-selector-pseudo {
+  color: #a5d6ff;
+}
+
+[data-theme='aurora'] .hljs-comment,
+[data-theme='aurora'] .hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+
+[data-theme='aurora'] .hljs-number {
+  color: #79c0ff;
+}
+
+[data-theme='aurora'] .hljs-built_in,
+[data-theme='aurora'] .hljs-type {
+  color: #ffa657;
+}
+
+[data-theme='aurora'] .hljs-attr {
+  color: #79c0ff;
+}
+
+[data-theme='aurora'] .hljs-variable,
+[data-theme='aurora'] .hljs-template-variable {
+  color: #ffa657;
+}
+
+/* 紫漾主题（浅色）的代码高亮 */
+[data-theme='pop'] .hljs {
+  background: #f8f5ff;
+  color: #24292e;
+}
+
+[data-theme='pop'] .hljs-keyword,
+[data-theme='pop'] .hljs-selector-tag,
+[data-theme='pop'] .hljs-literal,
+[data-theme='pop'] .hljs-section,
+[data-theme='pop'] .hljs-link {
+  color: #d73a49;
+}
+
+[data-theme='pop'] .hljs-function .hljs-keyword {
+  color: #d73a49;
+}
+
+[data-theme='pop'] .hljs-string,
+[data-theme='pop'] .hljs-title.function_,
+[data-theme='pop'] .hljs-regexp,
+[data-theme='pop'] .hljs-selector-attr,
+[data-theme='pop'] .hljs-selector-pseudo {
+  color: #032f62;
+}
+
+[data-theme='pop'] .hljs-comment,
+[data-theme='pop'] .hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+[data-theme='pop'] .hljs-number {
+  color: #005cc5;
+}
+
+[data-theme='pop'] .hljs-built_in,
+[data-theme='pop'] .hljs-type {
+  color: #e36209;
+}
+
+[data-theme='pop'] .hljs-attr {
+  color: #005cc5;
+}
+
+[data-theme='pop'] .hljs-variable,
+[data-theme='pop'] .hljs-template-variable {
+  color: #e36209;
+}

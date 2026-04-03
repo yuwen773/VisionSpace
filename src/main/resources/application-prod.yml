@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: vision-space
+  # 数据库配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://121.199.77.168:3306/cloud-picture
+    username: cloud-picture
+    password: zS4tbS55JcnmC3kw
+  # Redis 配置
+  data:
+    redis:
+      database: 0
+      host: 121.199.77.168
+      port: 6379
+      timeout: 5000
+      password: ly1210
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          max-wait: -1
+      connect-timeout: 3000
+
