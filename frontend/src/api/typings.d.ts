@@ -740,4 +740,59 @@ declare namespace API {
   type VipExchangeRequest = {
     vipCode?: string
   }
+
+  type FeedbackAddRequest = {
+    type?: number
+    title?: string
+    content?: string
+    pictureUrls?: string[]
+  }
+
+  type FeedbackUpdateStatusRequest = {
+    id?: number
+    status?: number
+    handlerNote?: string
+  }
+
+  type FeedbackQueryRequest = {
+    type?: number
+    status?: number
+    current?: number
+    pageSize?: number
+  }
+
+  type FeedbackVO = {
+    id?: number
+    userId?: number
+    userVO?: UserVO
+    type?: number
+    title?: string
+    content?: string
+    pictureUrls?: string[]
+    status?: number
+    handlerId?: number
+    handlerVO?: UserVO
+    handlerNote?: string
+    handleTime?: string
+    createTime?: string
+  }
+
+  type BaseResponseFeedbackVO_ = {
+    code?: number
+    data?: FeedbackVO
+    message?: string
+  }
+
+  type BaseResponsePageFeedbackVO_ = {
+    code?: number
+    data?: PageFeedbackVO_
+    message?: string
+  }
+
+  type PageFeedbackVO_ = {
+    records?: FeedbackVO[]
+    total?: number
+    current?: number
+    pageSize?: number
+  }
 }
