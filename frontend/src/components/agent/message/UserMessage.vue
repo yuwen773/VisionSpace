@@ -35,13 +35,20 @@ interface ParsedImage {
   url: string
 }
 
+const isSafeUrl = (url: string): boolean => {
+  return /^https?:\/\//i.test(url.trim())
+}
+
 const parsedImages = computed<ParsedImage[]>(() => {
   if (!props.content) return []
   const urls: ParsedImage[] = []
   const regex = new RegExp(IMAGE_TAG_REGEX.source, 'g')
   let match
   while ((match = regex.exec(props.content)) !== null) {
-    urls.push({ url: match[1].trim() })
+    const url = match[1].trim()
+    if (isSafeUrl(url)) {
+      urls.push({ url })
+    }
   }
   return urls
 })
