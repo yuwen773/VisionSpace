@@ -8,7 +8,7 @@
         </div>
         <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
       </div>
-      <div v-if="content" class="message-text">{{ content }}</div>
+      <div v-if="textContent" class="message-text">{{ textContent }}</div>
       <div class="message-time">{{ displayTime }}</div>
     </div>
   </div>
@@ -55,6 +55,12 @@ const parsedImages = computed<ParsedImage[]>(() => {
 
 const displayImages = computed(() => parsedImages.value.slice(0, 4))
 const extraCount = computed(() => Math.max(0, parsedImages.value.length - 4))
+
+// 过滤掉 <image-analysis> 标签，只展示纯文字
+const textContent = computed(() => {
+  if (!props.content) return ''
+  return props.content.replace(IMAGE_TAG_REGEX, '').trim()
+})
 
 const emit = defineEmits<{
   (e: 'preview', url: string): void
