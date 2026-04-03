@@ -1,20 +1,21 @@
 <template>
   <div class="user-message">
     <div class="message-content">
-      <!-- Image grid -->
-      <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
-        <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="previewUrl = img.url">
-          <img :src="img.url" alt="附件图片" />
-          <div class="img-zoom-hint">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </div>
-        </div>
-        <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
-      </div>
       <div v-if="textContent" class="message-text">{{ textContent }}</div>
       <div class="message-time">{{ displayTime }}</div>
+    </div>
+
+    <!-- 图片网格：气泡下方，右对齐 -->
+    <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
+      <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="previewUrl = img.url">
+        <img :src="img.url" alt="附件图片" />
+        <div class="img-zoom-hint">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </div>
+      </div>
+      <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
     </div>
 
     <!-- Lightbox preview -->
@@ -91,9 +92,10 @@ const displayTime = computed(() => {
 <style scoped>
 .user-message {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
   padding: 8px 16px;
+  gap: 4px;
 }
 
 .message-content {
