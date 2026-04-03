@@ -67,6 +67,42 @@ export async function feedbackUsingPost(
   })
 }
 
+// ============ 图片上传相关 ============
+
+const BASE_URL = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
+
+/**
+ * 上传 Agent 聊天图片，返回公开 URL
+ * POST /api/agent/image/upload
+ */
+export async function uploadAgentImage(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${BASE_URL}/api/agent/image/upload`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  })
+  const json = await res.json()
+  if (json.code !== 0) {
+    throw new Error(json.message || '图片上传失败')
+  }
+  return json.data as string
+}
+
+/**
+ * 删除已上传的 Agent 聊天图片
+ * POST /api/agent/image/upload/delete
+ */
+export async function deleteAgentImage(url: string): Promise<void> {
+  await fetch(`${BASE_URL}/api/agent/image/upload/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+    credentials: 'include',
+  })
+}
+
 // ============ 历史相关 ============
 
 export interface HistoryMessage {

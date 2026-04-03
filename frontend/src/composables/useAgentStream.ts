@@ -1,5 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { uploadAgentImage, deleteAgentImage } from '@/api/agentController'
 
 export interface MessageDTO {
   messageType: 'user' | 'assistant' | 'tool-request' | 'tool-confirm' | 'tool' | 'reasoning'
@@ -86,23 +87,26 @@ export function useAgentStream() {
     let streamContent = ''
     let lastAssistantContent = ''
 
-    // Build body: FormData when files present, JSON otherwise
-    const headers: Record<string, string> = {}
-    let body: BodyInit
-
+    // Step 1: 上传所有图片，拿到 URL
+    let uploadedUrls: string[] = []
     if (files && files.length > 0) {
-      const formData = new FormData()
-      formData.append('message', message)
-      formData.append('threadId', threadId)
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
-      body = formData
-      // Don't set Content-Type — browser sets multipart boundary automatically
-    } else {
-      headers['Content-Type'] = 'application/json'
-      body = JSON.stringify({ message, threadId })
+      try {
+        uploadedUrls = await Promise.all(files.map(f => uploadAgentImage(f)))
+      } catch (e) {
+        isStreaming.value = false
+        throw new Error('图片上传失败，无法发送消息')
+      }
     }
+
+    // Step 2: 构建消息文本，图片 URL 拼在前面
+    let fullMessage = message
+    if (uploadedUrls.length > 0) {
+      const imageUrlsText = uploadedUrls.map(url => `用户上传了图片：${url}`).join('\n')
+      fullMessage = `${imageUrlsText}\n\n${message}`
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const body = JSON.stringify({ message: fullMessage, threadId })
 
     try {
       await fetchEventSource(url, {
@@ -209,6 +213,12 @@ export function useAgentStream() {
     } finally {
       isStreaming.value = false
       abortController = null
+      // 发送失败时清理已上传的图片
+      if (uploadedUrls.length > 0) {
+        for (const url of uploadedUrls) {
+          deleteAgentImage(url).catch(() => {})
+        }
+      }
     }
   }
 
