@@ -70,7 +70,6 @@
           @cancel="handleCancel"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
-          @previewImage="handlePreviewImage"
         />
 
         <!-- 底部区域：TodoList + 输入框 -->
