@@ -140,13 +140,6 @@ const todoListExpanded = ref(false)
 const showTodoList = ref(false)
 const historyLoading = ref(false)
 
-// Track image preview URLs to revoke them later
-const previewUrls = ref<string[]>([])
-
-onUnmounted(() => {
-  previewUrls.value.forEach(url => URL.revokeObjectURL(url))
-  previewUrls.value = []
-})
 
 // Sessions
 const sessions = ref<SessionItem[]>([])
@@ -261,16 +254,6 @@ watch(streaming, (isStreaming) => {
 const handleSend = async (text: string, files: File[] = []) => {
   if ((!text.trim() && files.length === 0) || streaming.value) return
 
-  // Create preview URLs for images in the user message bubble
-  const imagePreviews = files
-    .filter(f => f.type.startsWith('image/'))
-    .map(f => URL.createObjectURL(f))
-
-  // Track URLs for cleanup
-  if (imagePreviews.length > 0) {
-    previewUrls.value.push(...imagePreviews)
-  }
-
   pushMessage({
     type: 'user',
     content: text,
@@ -281,18 +264,8 @@ const handleSend = async (text: string, files: File[] = []) => {
     await sendMessage(text, threadId.value, files.length > 0 ? files : undefined)
     saveThreadId(threadId.value)
     currentThreadId.value = threadId.value
-    // Revoke preview URLs after successful send (message is now in stream)
-    imagePreviews.forEach(url => {
-      URL.revokeObjectURL(url)
-      previewUrls.value = previewUrls.value.filter(u => u !== url)
-    })
   } catch (error) {
     message.error('发送失败，请重试')
-    // Revoke preview URLs on error (message won't be shown)
-    imagePreviews.forEach(url => {
-      URL.revokeObjectURL(url)
-      previewUrls.value = previewUrls.value.filter(u => u !== url)
-    })
   }
 }
 
