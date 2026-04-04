@@ -5,6 +5,7 @@ import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
 import com.yuwen.visionspace.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
+import com.yuwen.visionspace.model.vo.UserPictureStatsResponse;
 import com.yuwen.visionspace.model.vo.UserVO;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -104,4 +105,9 @@ public interface UserService extends IService<User> {
      * 用户兑换会员（会员码兑换）
      */
     boolean exchangeVip(User user, String vipCode);
+
+    /**
+     * 获取用户图片统计
+     */
+    UserPictureStatsResponse getUserPictureStats(User user);
 }
