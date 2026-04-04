@@ -13,7 +13,10 @@ import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.model.dto.user.*;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
+import com.yuwen.visionspace.model.vo.PictureVO;
+import com.yuwen.visionspace.model.vo.UserPictureStatsResponse;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.UserService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +32,9 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private PictureService pictureService;
 
     @Value("${vision-space.security.default-password}")
     private String defaultPassword;
@@ -176,6 +182,26 @@ public class UserController {
         // 调用 service 层的方法进行会员兑换
         boolean result = userService.exchangeVip(loginUser, vipCode);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 获取用户图片统计
+     */
+    @GetMapping("/picture/stats")
+    public BaseResponse<UserPictureStatsResponse> getUserPictureStats(HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        UserPictureStatsResponse stats = userService.getUserPictureStats(loginUser);
+        return ResultUtils.success(stats);
+    }
+
+    /**
+     * 获取用户最近上传图片
+     */
+    @GetMapping("/picture/recent")
+    public BaseResponse<List<PictureVO>> getUserRecentPictures(@RequestParam("count") int count, HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        List<PictureVO> recentPictures = pictureService.getUserRecentPictures(loginUser.getId(), count);
+        return ResultUtils.success(recentPictures);
     }
 
 }

@@ -133,6 +133,15 @@ public interface PictureService extends IService<Picture> {
     List<PictureVO> searchPictureByColor(Long spaceId, String picColor, User loginUser);
 
     /**
+     * 获取用户最近上传图片
+     *
+     * @param userId
+     * @param count
+     * @return
+     */
+    List<PictureVO> getUserRecentPictures(Long userId, int count);
+
+    /**
      * 批量编辑图片
      *
      * @param pictureEditByBatchRequest

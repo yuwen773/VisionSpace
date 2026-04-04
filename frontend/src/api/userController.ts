@@ -149,3 +149,25 @@ export async function updateUserUsingPost(
     ...(options || {}),
   })
 }
+
+export interface UserPictureStatsResponse {
+  uploadCount?: number;
+  likeCount?: number;
+  reviewPassCount?: number;
+  reviewPassRate?: number;
+}
+
+export const getUserPictureStatsUsingGet = () => {
+  return request({
+    url: '/api/user/picture/stats',
+    method: 'get'
+  });
+};
+
+export const getUserRecentPicturesUsingGet = (count: number) => {
+  return request({
+    url: '/api/user/picture/recent',
+    method: 'get',
+    params: { count }
+  });
+};
