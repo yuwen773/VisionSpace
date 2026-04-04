@@ -44,11 +44,11 @@ public class AgentImageUploadService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误，仅支持 jpeg、png、jpg、webp");
         }
 
-        // 2. 生成文件名：agent-chat/YYYY-MM-DD/{uuid}.{suffix}
+        // 2. 生成文件名：/agent-chat/YYYY-MM-DD/{uuid}.{suffix}
         String dateStr = java.time.LocalDate.now().toString();
         String uuid = UUID.randomUUID().toString().replace("-", "");
         String filename = uuid + "." + fileSuffix;
-        String uploadPath = UPLOAD_PATH_PREFIX + "/" + dateStr + "/";
+        String uploadPath = "/" + UPLOAD_PATH_PREFIX + "/" + dateStr + "/";
 
         // 3. 转换为临时 File 并上传
         File tempFile = null;
