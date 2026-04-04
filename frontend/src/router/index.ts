@@ -93,11 +93,6 @@ const router = createRouter({
           meta: { showFooter: true },
         },
         {
-          path: 'feedback',
-          name: 'Feedback',
-          component: () => import('@/pages/FeedbackPage.vue'),
-        },
-        {
           path: 'spaceUserManage/:spaceId',
           name: 'SpaceUserManage',
           component: SpaceUserManagePage,

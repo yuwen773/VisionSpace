@@ -79,6 +79,93 @@
             <div class="vip-expire">到期时间：{{ vipExpireTime || '永久' }}</div>
           </a-card>
         </div>
+
+        <!-- 意见反馈 -->
+        <div v-if="currentMenu[0] === 'feedback'" class="content-section">
+          <h2>意见反馈</h2>
+          <p class="feedback-subtitle">您的问题和建议是我们改进的动力</p>
+
+          <!-- 反馈类型 -->
+          <div class="form-section">
+            <label class="form-label">反馈类型</label>
+            <div class="type-cards">
+              <div
+                v-for="type in feedbackTypeOptions"
+                :key="type.value"
+                class="type-card"
+                :class="{ active: feedbackForm.type === type.value }"
+                @click="feedbackForm.type = type.value"
+              >
+                <span class="type-icon">{{ type.icon }}</span>
+                <span class="type-label">{{ type.label }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 标题 -->
+          <div class="form-section">
+            <label class="form-label">标题</label>
+            <a-input
+              v-model:value="feedbackForm.title"
+              placeholder="请简要描述您的问题"
+              :maxlength="50"
+              show-count
+            />
+          </div>
+
+          <!-- 详细描述 -->
+          <div class="form-section">
+            <label class="form-label">详细描述</label>
+            <a-textarea
+              v-model:value="feedbackForm.content"
+              placeholder="请详细描述您的问题或建议..."
+              :rows="6"
+              :maxlength="2000"
+              show-count
+            />
+          </div>
+
+          <!-- 附件截图 -->
+          <div class="form-section">
+            <label class="form-label">附件截图（可选，最多5张）</label>
+            <div class="upload-list">
+              <div
+                v-for="(url, index) in feedbackForm.pictureUrls"
+                :key="index"
+                class="upload-item"
+              >
+                <img :src="url" alt="附件" class="upload-preview" />
+                <span class="upload-remove" @click="removeFeedbackPicture(index)">x</span>
+              </div>
+              <div v-if="feedbackForm.pictureUrls.length < 5" class="upload-trigger" @click="triggerFeedbackUpload">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>上传图片</span>
+              </div>
+            </div>
+            <input
+              ref="feedbackFileInputRef"
+              type="file"
+              accept="image/*"
+              multiple
+              style="display: none"
+              @change="handleFeedbackFileChange"
+            />
+          </div>
+
+          <!-- 提交 -->
+          <div class="form-actions">
+            <a-button
+              type="primary"
+              size="large"
+              :loading="feedbackSubmitting"
+              @click="doFeedbackSubmit"
+            >
+              提交反馈
+            </a-button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -99,7 +186,8 @@ const currentMenu = ref(['profile'])
 const menuItems = [
   { key: 'profile', label: '个人资料' },
   { key: 'pictures', label: '我的图片' },
-  { key: 'vip', label: '会员权益' }
+  { key: 'vip', label: '会员权益' },
+  { key: 'feedback', label: '意见反馈' }
 ]
 
 // 编辑状态
@@ -206,6 +294,93 @@ const goToPictureDetail = (id: number) => {
 // 头像上传（待实现）
 const showAvatarModal = () => {
   message.info('头像上传功能待实现')
+}
+
+// ========== 意见反馈 ==========
+import { addFeedbackUsingPost, uploadFeedbackAttachment } from '@/api/feedbackController'
+
+const feedbackTypeOptions = [
+  { value: 1, label: '产品建议', icon: '💡' },
+  { value: 2, label: '内容举报', icon: '🚩' },
+  { value: 3, label: '工单支持', icon: '🎫' },
+]
+
+const feedbackForm = ref({
+  type: 1,
+  title: '',
+  content: '',
+  pictureUrls: [] as string[],
+})
+
+const feedbackSubmitting = ref(false)
+const feedbackFileInputRef = ref<HTMLInputElement | null>(null)
+
+const triggerFeedbackUpload = () => {
+  feedbackFileInputRef.value?.click()
+}
+
+const handleFeedbackFileChange = async (e: Event) => {
+  const files = (e.target as HTMLInputElement).files
+  if (!files) return
+
+  const maxUploads = Math.min(files.length, 5 - feedbackForm.value.pictureUrls.length)
+  const uploadPromises: Promise<void>[] = []
+
+  for (let i = 0; i < maxUploads; i++) {
+    const file = files[i]
+    uploadPromises.push(
+      (async () => {
+        try {
+          const res = await uploadFeedbackAttachment(file)
+          if (res.data.code === 0 && res.data.data) {
+            feedbackForm.value.pictureUrls.push(res.data.data)
+          }
+        } catch (err: any) {
+          message.error(err.response?.data?.message || '图片上传失败')
+        }
+      })()
+    )
+  }
+
+  await Promise.all(uploadPromises)
+  // 清空 input 以便重复选择同一文件
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+const removeFeedbackPicture = (index: number) => {
+  feedbackForm.value.pictureUrls.splice(index, 1)
+}
+
+const doFeedbackSubmit = async () => {
+  if (!feedbackForm.value.title.trim()) {
+    message.warning('请输入标题')
+    return
+  }
+  if (!feedbackForm.value.content.trim()) {
+    message.warning('请输入详细描述')
+    return
+  }
+
+  feedbackSubmitting.value = true
+  try {
+    const res = await addFeedbackUsingPost({
+      type: feedbackForm.value.type,
+      title: feedbackForm.value.title,
+      content: feedbackForm.value.content,
+      pictureUrls: feedbackForm.value.pictureUrls,
+    })
+    if (res.data.code === 0) {
+      message.success('反馈提交成功！感谢您的宝贵意见')
+      // 重置表单
+      feedbackForm.value = { type: 1, title: '', content: '', pictureUrls: [] }
+    } else {
+      message.error(res.data.message || '提交失败')
+    }
+  } catch (err) {
+    message.error('提交失败，请重试')
+  } finally {
+    feedbackSubmitting.value = false
+  }
 }
 
 </script>
@@ -351,5 +526,131 @@ const showAvatarModal = () => {
 
 .vip-expire {
   color: var(--color-text-tertiary);
+}
+
+/* ========== 意见反馈 ========== */
+.feedback-subtitle {
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-6);
+}
+
+.type-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-bg-tertiary);
+  border: 2px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-card:hover {
+  border-color: var(--color-primary);
+}
+
+.type-card.active {
+  border-color: var(--color-primary);
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.type-icon {
+  font-size: 1.5rem;
+}
+
+.type-label {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+}
+
+.form-section {
+  margin-bottom: var(--space-5);
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.upload-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.upload-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.upload-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.upload-trigger {
+  width: 100px;
+  height: 100px;
+  border: 2px dashed var(--color-border-default);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-trigger:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.upload-trigger svg {
+  width: 24px;
+  height: 24px;
+}
+
+.upload-trigger span {
+  font-size: 12px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-6);
 }
 </style>
