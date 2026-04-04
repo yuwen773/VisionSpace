@@ -108,7 +108,7 @@ const router = createRouter({
           path: 'user/center',
           name: 'UserCenter',
           component: UserCenterPage,
-          meta: { requiresAuth: true },
+          meta: { title: '用户中心', requiresAuth: true },
         },
       ],
     },
