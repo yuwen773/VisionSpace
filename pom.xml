@@ -279,6 +279,12 @@
             <artifactId>webp-imageio</artifactId>
             <version>0.1.6</version>
         </dependency>
+        <!-- MCP Client SDK -->
+        <dependency>
+            <groupId>io.modelcontextprotocol</groupId>
+            <artifactId>mcp-client</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
