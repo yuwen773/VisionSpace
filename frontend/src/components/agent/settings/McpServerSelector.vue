@@ -38,18 +38,18 @@
       <div v-else class="server-list-container">
         <div
           v-for="server in mcpServerList"
-          :key="server.id"
+          :key="server.mcpServerCode"
           class="server-item"
           :class="{
-            selected: isSelected(server.id),
-            disabled: !isSelected(server.id) && selectedIds.length >= maxSelection,
+            selected: isSelected(server.mcpServerCode),
+            disabled: !isSelected(server.mcpServerCode) && selectedIds.length >= maxSelection,
           }"
           @click="toggleServer(server)"
         >
           <div class="server-checkbox">
             <a-checkbox
-              :checked="isSelected(server.id)"
-              :disabled="!isSelected(server.id) && selectedIds.length >= maxSelection"
+              :checked="isSelected(server.mcpServerCode)"
+              :disabled="!isSelected(server.mcpServerCode) && selectedIds.length >= maxSelection"
               @click.stop="toggleServer(server)"
             />
           </div>
@@ -80,7 +80,7 @@
       <div class="tags-container">
         <a-tag
           v-for="server in selectedServers"
-          :key="server.id"
+          :key="server.mcpServerCode"
           class="selected-tag"
           closable
           @close="removeServer(server)"
@@ -95,28 +95,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
-
-// MCP Server 类型定义（与 McpServiceDrawer 保持一致）
-export interface McpServerVO {
-  id?: number
-  name: string
-  description?: string
-  type: 'stdio' | 'http' | 'sse'
-  enabled?: boolean
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
-  url?: string
-  headers?: Record<string, string>
-  timeout?: number
-  toolCount?: number
-  status?: number
-  createTime?: string
-  updateTime?: string
-}
+import type { McpServerVO } from '@/types/mcp'
+import { getServerTypeLabel } from '@/types/mcp'
 
 interface Props {
-  modelValue: number[]
+  modelValue: string[]
   maxSelection?: number
 }
 
@@ -144,14 +127,14 @@ const selectedIds = computed({
 
 // 选中的服务器对象列表
 const selectedServers = computed(() => {
-  return mcpServerList.value.filter((server) => server.id && selectedIds.value.includes(server.id))
+  return mcpServerList.value.filter((server) => server.mcpServerCode && selectedIds.value.includes(server.mcpServerCode))
 })
 
-// API 函数 - 这些将在 Task 20 中实现
+// API 函数
+import { listMcpServers } from '@/api/mcpController'
+
 const listMcpServersUsingGet = async () => {
-  // TODO: Task 20 - 替换为实际 API 调用
-  // return await listMcpServersUsingGet(params)
-  return { data: { code: 0, data: [] } }
+  return await listMcpServers({})
 }
 
 // 加载 MCP 服务器列表
@@ -160,7 +143,7 @@ const loadMcpServerList = async () => {
   try {
     const res = await listMcpServersUsingGet()
     if (res.data.code === 0) {
-      mcpServerList.value = res.data.data || []
+      mcpServerList.value = res.data.data?.records || []
     } else {
       message.error('加载 MCP 服务列表失败: ' + res.data.message)
     }
@@ -173,13 +156,13 @@ const loadMcpServerList = async () => {
 }
 
 // 检查服务器是否已选中
-const isSelected = (id?: number): boolean => {
-  return id !== undefined && selectedIds.value.includes(id)
+const isSelected = (mcpServerCode?: string): boolean => {
+  return mcpServerCode !== undefined && selectedIds.value.includes(mcpServerCode)
 }
 
 // 切换服务器选中状态
 const toggleServer = (server: McpServerVO) => {
-  if (!server.id) return
+  if (!server.mcpServerCode) return
 
   // 如果服务器未启用，不允许选中
   if (!server.enabled) {
@@ -187,33 +170,23 @@ const toggleServer = (server: McpServerVO) => {
     return
   }
 
-  if (isSelected(server.id)) {
+  if (isSelected(server.mcpServerCode)) {
     // 取消选中
-    selectedIds.value = selectedIds.value.filter((id) => id !== server.id)
+    selectedIds.value = selectedIds.value.filter((code) => code !== server.mcpServerCode)
   } else {
     // 选中新服务器
     if (selectedIds.value.length >= props.maxSelection) {
       message.warning(`最多只能选择 ${props.maxSelection} 个服务器`)
       return
     }
-    selectedIds.value = [...selectedIds.value, server.id]
+    selectedIds.value = [...selectedIds.value, server.mcpServerCode]
   }
 }
 
 // 移除选中的服务器
 const removeServer = (server: McpServerVO) => {
-  if (!server.id) return
-  selectedIds.value = selectedIds.value.filter((id) => id !== server.id)
-}
-
-// 获取服务类型标签
-const getServerTypeLabel = (type?: string) => {
-  const typeMap: Record<string, string> = {
-    stdio: 'STDIO',
-    http: 'HTTP',
-    sse: 'SSE',
-  }
-  return typeMap[type || ''] || '未知'
+  if (!server.mcpServerCode) return
+  selectedIds.value = selectedIds.value.filter((code) => code !== server.mcpServerCode)
 }
 
 // 初始化加载
