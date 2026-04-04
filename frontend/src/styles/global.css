@@ -6,7 +6,7 @@
  */
 
 /* ========== 导入字体 ========== */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700;800&family=Nunito:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=KaushanScript&display=swap');
+@import url('https://fonts.googleapis.cn/css2?family=Fredoka:wght@300;400;500;600;700;800&family=Nunito:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=KaushanScript&display=swap');
 
 /* ========== 品牌字体 - Kaushan Script (本地加载确保可靠性) ========== */
 @font-face {

@@ -6,8 +6,10 @@
   try {
     await navigator.clipboard.writeText(code)
     btn.textContent = '已复制'
+    btn.classList.add('copied')
     setTimeout(() => {
       btn.textContent = '复制'
+      btn.classList.remove('copied')
     }, 2000)
   } catch (err) {
     btn.textContent = '复制失败'
