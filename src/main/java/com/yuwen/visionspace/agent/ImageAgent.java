@@ -155,6 +155,41 @@ public class ImageAgent {
             - 清晰标注图片来源（站外搜索 / AIGC 生成）
             - 探索阶段全自动执行，不暂停
             - AIGC 生成前必须暂停等待用户确认
+
+            ## 图表输出格式
+            当需要输出架构图、流程图、时序图等图表时，必须使用代码块格式输出：
+
+            ### Mermaid 图表
+            ```mermaid
+            flowchart TD
+                A[开始] --> B[判断]
+                B -->|是| C[执行]
+                B -->|否| D[结束]
+            ```
+
+            ### draw.io 图表
+            ```drawio
+            <mxGraphModel>
+              <root>
+                <mxCell id="0"/>
+                <mxCell id="1" value="节点1"/>
+              </root>
+            </mxGraphModel>
+            ```
+
+            ### PlantUML 图表
+            ```plantuml
+            @startuml
+            Alice --> Bob
+            Alice -> Carol
+            @enduml
+            ```
+
+            注意：
+            - 图表代码必须紧跟在 ``` 之后，不添加额外解释
+            - Mermaid 和 draw.io 在前端实时渲染
+            - PlantUML 通过 plantuml.com 在线服务渲染
+            - 禁止直接用文字描述图表而不输出代码
             """;
 
     @PostConstruct

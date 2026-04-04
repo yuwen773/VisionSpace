@@ -6,7 +6,7 @@ import java.util.Date;
 
 @Data
 @TableName("mcp_server")
-public class McpServerEntity {
+public class McpServer {
 
     @TableId(type = IdType.AUTO)
     private Long id;

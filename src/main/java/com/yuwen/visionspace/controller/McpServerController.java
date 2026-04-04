@@ -2,7 +2,11 @@ package com.yuwen.visionspace.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.Iterator;
+import java.util.Map.Entry;
 import com.yuwen.visionspace.agent.service.McpServerService;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
@@ -81,18 +85,49 @@ public class McpServerController {
         if (detail == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        if (!StringUtils.hasText(detail.getName())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "name is required");
-        }
         if (!StringUtils.hasText(detail.getDeployConfig())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "deployConfig is required");
         }
         // 验证 JSON 格式
+        ObjectNode configNode;
         try {
-            objectMapper.readTree(detail.getDeployConfig());
+            configNode = (ObjectNode) objectMapper.readTree(detail.getDeployConfig());
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "deployConfig is not valid JSON");
         }
+        // 如果 name 为空，尝试从 deployConfig 中提取
+        if (!StringUtils.hasText(detail.getName())) {
+            String extractedName = extractNameFromConfig(configNode);
+            if (!StringUtils.hasText(extractedName)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "name is required");
+            }
+            detail.setName(extractedName);
+        }
+    }
+
+    private String extractNameFromConfig(ObjectNode configNode) {
+        // 尝试从 mcpServers.{server}.name 提取
+        JsonNode mcpServers = configNode.get("mcpServers");
+        if (mcpServers != null && mcpServers.isObject()) {
+            Iterator<Entry<String, JsonNode>> fields = mcpServers.fields();
+            if (fields.hasNext()) {
+                Entry<String, JsonNode> firstServer = fields.next();
+                JsonNode nameNode = firstServer.getValue().get("name");
+                if (nameNode != null && nameNode.isTextual() && !nameNode.asText().isBlank()) {
+                    return nameNode.asText();
+                }
+                // 如果没有 name 字段，返回 server key 作为名称
+                if (!firstServer.getKey().isBlank()) {
+                    return firstServer.getKey();
+                }
+            }
+        }
+        // 尝试从顶层 name 字段提取
+        JsonNode nameNode = configNode.get("name");
+        if (nameNode != null && nameNode.isTextual() && !nameNode.asText().isBlank()) {
+            return nameNode.asText();
+        }
+        return "";
     }
 
     private void validateUpdateParams(McpServerDetail detail) {
