@@ -12,6 +12,7 @@
           @new-chat="handleNewChat"
           @select="handleSelectHistory"
           @collapse="leftCollapsed = true"
+          @settings="settingsModalVisible = true"
         />
       </template>
 
@@ -100,6 +101,9 @@
 
     <!-- 图片预览弹窗 -->
     <ImagePreview v-model:open="previewVisible" :url="previewUrl" />
+
+    <!-- MCP 服务管理抽屉 -->
+    <SettingsModal v-model:open="settingsModalVisible" />
   </div>
 </template>
 
@@ -114,6 +118,7 @@ import AgentChatInput from '@/components/agent/AgentChatInput.vue'
 import AgentTodoList from '@/components/agent/AgentTodoList.vue'
 import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import {useAgentStream} from '@/composables/useAgentStream'
 import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
@@ -190,7 +195,7 @@ const loadHistoryMessages = async (sessionId: string) => {
         return {
           type,
           content: m.content,
-          toolName: m.subType === 'tool-call' || m.subType === 'tool-result' ? m.content.split(':')[0] || '工具' : undefined,
+          toolName: (m.subType === 'tool-call' || m.subType === 'tool-result') ? m.content.split(':')[0] || '工具' : undefined,
           node: 'agent',
           isLoading: false,
           time: m.createdTime
@@ -298,6 +303,7 @@ const handleCancel = () => {}
 // 图片预览
 const previewVisible = ref(false)
 const previewUrl = ref('')
+const settingsModalVisible = ref(false)
 
 const handlePreviewImage = (url: string) => {
   previewUrl.value = url
@@ -310,9 +316,12 @@ const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
 <style scoped>
 .agent-chat-page {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   background: var(--color-bg-primary);
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .collapsed-actions {

@@ -23,9 +23,8 @@ app.use(router)
 app.use(Antd)
 app.use(VueCropper)
 
-// 初始化主题（必须在 mount 之前）
-app.mount('#app')
-
-// 在应用挂载后初始化主题
+// 初始化主题（必须在 mount 之前，避免 FOUC）
 const { initTheme } = useTheme()
 initTheme()
+
+app.mount('#app')
