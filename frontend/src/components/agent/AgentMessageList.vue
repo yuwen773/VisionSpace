@@ -37,7 +37,7 @@
 />
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
-          <ToolConfirmMessage v-else-if="msg.type === 'tool-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
+          <ToolConfirmMessage v-else-if="msg.type === 'mcp-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
         </div>
       </template>
 
@@ -85,7 +85,7 @@ import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 
 interface Message {
-  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
+  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'interrupt' | 'loading'
   content: string
   toolName?: string
   toolCalls?: ToolCallArg[]
@@ -173,12 +173,31 @@ watch(() => props.loading, (val) => {
 <style scoped>
 .agent-message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 20px 0 110px 0;
+  padding: 20px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-default) transparent;
+}
+
+.agent-message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agent-message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-message-list::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 10px;
+}
+
+.agent-message-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
 }
 
 .messages-container {
