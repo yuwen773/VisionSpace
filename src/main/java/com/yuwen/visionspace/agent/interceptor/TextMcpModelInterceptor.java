@@ -1,27 +1,30 @@
 package com.yuwen.visionspace.agent.interceptor;
 
-import com.yuwen.visionspace.agent.service.UserMcpPreferenceService;
-import com.yuwen.visionspace.agent.tool.McpToolCallbackProvider;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.yuwen.visionspace.agent.mcp.McpToolCallbackProvider;
+import com.yuwen.visionspace.mapper.McpServerMapper;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
+import com.yuwen.visionspace.model.entity.McpServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TextMcpModelInterceptor {
 
-    private final UserMcpPreferenceService userMcpPreferenceService;
     private final McpToolCallbackProvider mcpToolCallbackProvider;
+    private final McpServerMapper mcpServerMapper;
 
     /**
      * 优先级规则（从高到低）：
      * 1. AgentChatRequest.enabledMcpServers（会话覆盖）
-     * 2. userMcpPreference.defaultEnabledServers（用户默认偏好）
+     * 2. mcp_server.status=1（全局启用的服务作为默认）
      * 3. disableMcpDefault=true 时，全部忽略，仅使用 enabledMcpServers
      */
     public ToolCallback[] resolveMcpCallbacks(AgentChatRequest chatRequest, Long userId) {
@@ -32,11 +35,18 @@ public class TextMcpModelInterceptor {
             return mcpToolCallbackProvider.getCallbacks(enabledMcpServers);
         }
 
-        // 优先级2: 用户默认偏好
+        // 优先级2: 全局启用的服务（status=1）
         if (!Boolean.TRUE.equals(chatRequest.getDisableMcpDefault())) {
-            List<String> defaultServers = userMcpPreferenceService.getDefaultEnabledServers(userId);
-            if (defaultServers != null && !defaultServers.isEmpty()) {
-                return mcpToolCallbackProvider.getCallbacks(defaultServers);
+            List<McpServer> enabledServers = mcpServerMapper.selectList(
+                new LambdaQueryWrapper<McpServer>()
+                    .eq(McpServer::getUserId, userId)
+                    .eq(McpServer::getStatus, 1)
+            );
+            if (enabledServers != null && !enabledServers.isEmpty()) {
+                List<String> serverCodes = enabledServers.stream()
+                        .map(McpServer::getMcpServerCode)
+                        .collect(Collectors.toList());
+                return mcpToolCallbackProvider.getCallbacks(serverCodes);
             }
         }
 
