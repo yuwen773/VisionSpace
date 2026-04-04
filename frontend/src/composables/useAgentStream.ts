@@ -3,7 +3,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { uploadAgentImage, deleteAgentImage } from '@/api/agentController'
 
 export interface MessageDTO {
-  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-confirm' | 'tool' | 'reasoning'
+  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'reasoning'
   content?: string
   toolCalls?: any[]
   toolName?: string
@@ -30,12 +30,11 @@ export function useAgentStream() {
   const images = ref<{ url: string; title?: string }[]>([])
   const links = ref<{ url: string; title: string; snippet: string; domain: string }[]>([])
   let abortController: AbortController | null = null
-  let seenImageUrls = new Set<string>()
-  let seenLinkUrls = new Set<string>()
 
   const extractResources = (content: string) => {
     if (!content) return
 
+    const seenImageUrls = new Set(images.value.map(img => img.url))
     for (const match of content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
       const url = match[2]
       if (!seenImageUrls.has(url)) {
@@ -44,13 +43,13 @@ export function useAgentStream() {
       }
     }
 
+    const seenLinkUrls = new Set(links.value.map(l => l.url))
     // Negative lookahead (?!!) excludes image syntax ![alt](url)
     for (const match of content.matchAll(/(?!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
       const url = match[2]
       if (!seenLinkUrls.has(url)) {
         try {
           links.value.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
-          seenLinkUrls.add(url)
         } catch {
           // invalid URL
         }
@@ -70,8 +69,6 @@ export function useAgentStream() {
     messages.value = []
     images.value = []
     links.value = []
-    seenImageUrls = new Set<string>()
-    seenLinkUrls = new Set<string>()
   }
 
   const sendMessage = async (message: string, threadId: string, files?: File[]) => {
@@ -167,14 +164,14 @@ export function useAgentStream() {
                 break
               }
 
-              case 'tool-confirm':
+              case 'mcp-confirm':
                 assistantMsgIndex = -1
                 reasoningMsgIndex = -1
                 streamContent = ''
-                pushMessage({ type: 'tool-confirm', content: msgDto.content || '', node: 'agent' })
+                pushMessage({ type: 'mcp-confirm', content: msgDto.content || '', node: 'agent' })
                 break
 
-              case 'tool': {
+              case 'tool-response': {
                 assistantMsgIndex = -1
                 reasoningMsgIndex = -1
                 streamContent = ''
