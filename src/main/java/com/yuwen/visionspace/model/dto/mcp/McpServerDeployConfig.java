@@ -57,4 +57,19 @@ public class McpServerDeployConfig implements Serializable {
      * 远程请求头
      */
     private Map<String, String> remoteHeader;
+
+    /**
+     * STDIO 命令 (如 "npx", "uvx", "node")
+     */
+    private String command;
+
+    /**
+     * STDIO 参数列表 (如 ["-y", "@example/mcp-server"])
+     */
+    private List<String> args;
+
+    /**
+     * SSE URL（前端传入的 url 字段，直接使用）
+     */
+    private String url;
 }

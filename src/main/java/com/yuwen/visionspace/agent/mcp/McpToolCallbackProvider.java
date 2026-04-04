@@ -1,12 +1,10 @@
-package com.yuwen.visionspace.agent.tool;
+package com.yuwen.visionspace.agent.mcp;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.yuwen.visionspace.agent.manager.MCPManager;
-import com.yuwen.visionspace.agent.service.McpServerService;
 import com.yuwen.visionspace.mapper.McpServerMapper;
-import com.yuwen.visionspace.model.dto.mcp.McpServerDetail;
 import com.yuwen.visionspace.model.dto.mcp.McpTool;
-import com.yuwen.visionspace.model.entity.McpServerEntity;
+import com.yuwen.visionspace.model.entity.McpServer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
@@ -17,7 +15,6 @@ import java.util.*;
 @RequiredArgsConstructor
 public class McpToolCallbackProvider {
 
-    private final McpServerService mcpServerService;
     private final MCPManager mcpManager;
     private final McpServerMapper mcpServerMapper;
 
@@ -26,20 +23,19 @@ public class McpToolCallbackProvider {
             return new ToolCallback[0];
         }
 
+        // Batch fetch all servers in one query to avoid N+1
+        List<McpServer> servers = mcpServerMapper.selectList(
+            new LambdaQueryWrapper<McpServer>()
+                .eq(McpServer::getStatus, 1)
+                .in(McpServer::getMcpServerCode, mcpServerCodes)
+        );
+        if (servers == null || servers.isEmpty()) {
+            return new ToolCallback[0];
+        }
+
         List<ToolCallback> callbacks = new ArrayList<>();
-
-        for (String serverCode : mcpServerCodes) {
+        for (McpServer entity : servers) {
             try {
-                McpServerEntity entity = mcpServerMapper.selectOne(
-                    new LambdaQueryWrapper<McpServerEntity>()
-                        .eq(McpServerEntity::getMcpServerCode, serverCode)
-                        .eq(McpServerEntity::getStatus, 1)
-                );
-
-                if (entity == null) {
-                    continue;
-                }
-
                 List<McpTool> tools = mcpManager.getTools(entity);
                 if (tools != null) {
                     for (McpTool tool : tools) {
