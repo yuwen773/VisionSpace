@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -35,13 +36,7 @@ public class MCPManager {
             remoteEndpoint = "/sse";
         }
 
-        HttpClient httpClient = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(60))
-            .build();
-
-        McpClientTransport transport = HttpClientSseClientTransport.builder(entity.getHost())
-            .clientBuilder(httpClient)
+        HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder(entity.getHost())
             .sseEndpoint(remoteEndpoint)
             .build();
 
@@ -58,9 +53,9 @@ public class MCPManager {
         }
 
         String cacheKey = TOOLS_CACHE_PREFIX + entity.getUserId() + ":" + entity.getMcpServerCode();
-        List<McpTool> cached = redisTemplate.opsForValue().get(cacheKey);
+        String cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
-            return cached;
+            return JsonUtils.fromJson(cached, new com.fasterxml.jackson.core.type.TypeReference<List<McpTool>>() {});
         }
 
         try {
@@ -113,10 +108,10 @@ public class MCPManager {
 
             response.setIsError(result.isError());
 
-            List<Content> contents = new ArrayList<>();
+            List<McpServerCallToolResponse.Content> contents = new ArrayList<>();
             for (McpSchema.Content c : result.content()) {
                 if ("text".equals(c.type())) {
-                    TextContent text = new TextContent();
+                    McpServerCallToolResponse.TextContent text = new McpServerCallToolResponse.TextContent();
                     text.setType("text");
                     text.setText(((McpSchema.TextContent) c).text());
                     contents.add(text);
@@ -126,7 +121,7 @@ public class MCPManager {
         } catch (Exception e) {
             log.error("MCP tool call failed: {}", request.getToolName(), e);
             response.setIsError(true);
-            TextContent text = new TextContent();
+            McpServerCallToolResponse.TextContent text = new McpServerCallToolResponse.TextContent();
             text.setType("text");
             text.setText("Tool call failed: " + e.getMessage());
             response.setContent(List.of(text));

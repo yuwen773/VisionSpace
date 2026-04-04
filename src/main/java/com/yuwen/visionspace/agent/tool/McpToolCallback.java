@@ -1,19 +1,20 @@
 package com.yuwen.visionspace.agent.tool;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.manager.MCPManager;
 import com.yuwen.visionspace.model.dto.mcp.*;
 import com.yuwen.visionspace.model.entity.McpServerEntity;
-import com.yuwen.visionspace.utils.JsonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
-import org.springframework.ai.tool.definition.ToolMetadata;
-import org.springframework.ai.tool.support.AbstractToolCallback;
 
 import java.util.Map;
 
 @Slf4j
-public class McpToolCallback extends AbstractToolCallback {
+public class McpToolCallback implements ToolCallback {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final MCPManager mcpManager;
     private final McpServerEntity mcpServerEntity;
     private final McpTool mcpTool;
@@ -26,16 +27,18 @@ public class McpToolCallback extends AbstractToolCallback {
 
     @Override
     public ToolDefinition getToolDefinition() {
+        String inputSchemaJson;
+        try {
+            inputSchemaJson = objectMapper.writeValueAsString(mcpTool.getInputSchema());
+        } catch (Exception e) {
+            log.warn("Failed to serialize input schema", e);
+            inputSchemaJson = "{}";
+        }
         return ToolDefinition.builder()
             .name(mcpTool.getName())
             .description(mcpTool.getDescription())
-            .inputSchema(JsonUtils.toJson(mcpTool.getInputSchema()))
+            .inputSchema(inputSchemaJson)
             .build();
-    }
-
-    @Override
-    public ToolMetadata getMetadata() {
-        return ToolMetadata.builder().returnDirect(false).build();
     }
 
     @Override
@@ -43,6 +46,7 @@ public class McpToolCallback extends AbstractToolCallback {
         Map<String, Object> params = parseInput(functionInput);
 
         McpServerCallToolRequest request = new McpServerCallToolRequest();
+        request.setMcpServerCode(mcpServerEntity.getMcpServerCode());
         request.setToolName(mcpTool.getName());
         request.setToolParams(params);
 
@@ -55,7 +59,7 @@ public class McpToolCallback extends AbstractToolCallback {
             return Map.of();
         }
         try {
-            return JsonUtils.fromJsonToMap(functionInput);
+            return objectMapper.readValue(functionInput, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.warn("Failed to parse tool input: {}", functionInput);
             return Map.of();
@@ -67,9 +71,9 @@ public class McpToolCallback extends AbstractToolCallback {
             return "{}";
         }
         StringBuilder sb = new StringBuilder();
-        for (Content c : response.getContent()) {
-            if (c instanceof TextContent) {
-                sb.append(((TextContent) c).getText());
+        for (McpServerCallToolResponse.Content c : response.getContent()) {
+            if (c instanceof McpServerCallToolResponse.TextContent textContent) {
+                sb.append(textContent.getText());
             }
         }
         return sb.toString();

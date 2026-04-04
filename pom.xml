@@ -281,9 +281,8 @@
         </dependency>
         <!-- MCP Client SDK -->
         <dependency>
-            <groupId>io.modelcontextprotocol</groupId>
-            <artifactId>mcp-client</artifactId>
-            <version>1.0.0</version>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
         </dependency>
     </dependencies>
 

@@ -5,7 +5,7 @@ import com.yuwen.visionspace.agent.tool.McpToolCallbackProvider;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.model.tool.ToolCallback;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
