@@ -33,9 +33,7 @@
   v-else-if="msg.type === 'assistant'"
   :content="msg.content"
   :isLoading="msg.isLoading"
-  :images="images"
-  :has-resources="hasResources"
-  @toggle-resources="emit('toggleResources')"
+  @toggle-resources="(data: ResourceData) => emit('toggleResources', data)"
 />
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
@@ -84,6 +82,7 @@ import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
+import type { ResourceData } from './types'
 
 interface Message {
   type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
@@ -98,26 +97,18 @@ interface Message {
 interface Props {
   messages: Message[]
   loading?: boolean
-  images?: { url: string; title?: string }[]
-  links?: { url: string; title: string; snippet: string; domain: string }[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
-  images: () => [],
-  links: () => [],
 })
-
-const hasResources = computed(() =>
-  (props.images && props.images.length > 0) || (props.links && props.links.length > 0)
-)
 
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
   (e: 'send', text: string): void
-  (e: 'toggleResources'): void
+  (e: 'toggleResources', data: ResourceData): void
 }>()
 
 const quickHints = [

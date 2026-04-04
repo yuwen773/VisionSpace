@@ -64,8 +64,6 @@
         <AgentMessageList
           :messages="messages"
           :loading="streaming || historyLoading"
-          :images="currentImages"
-          :links="currentLinks"
           @confirm="handleConfirm"
           @cancel="handleCancel"
           @send="handleSend"
@@ -91,14 +89,17 @@
       <!-- 右栏 -->
       <template #right>
         <AgentResourcePanel
-          :images="allImages"
-          :links="allLinks"
+          :images="panelImages"
+          :links="panelLinks"
           @close="resourcePanelVisible = false"
           @preview-image="handlePreviewImage"
           @download-image="handleDownloadImage"
         />
       </template>
     </AgentChatLayout>
+
+    <!-- 图片预览弹窗 -->
+    <ImagePreview v-model:open="previewVisible" :url="previewUrl" />
   </div>
 </template>
 
@@ -112,6 +113,8 @@ import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
 import AgentTodoList from '@/components/agent/AgentTodoList.vue'
 import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
+import ImagePreview from '@/components/ImagePreview.vue'
+import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import {useAgentStream} from '@/composables/useAgentStream'
 import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
 
@@ -135,6 +138,8 @@ const threadId = ref(generateThreadId())
 const currentThreadId = ref('')
 const leftCollapsed = ref(false)
 const resourcePanelVisible = ref(false)
+const panelImages = ref<ImageResource[]>([])
+const panelLinks = ref<LinkResource[]>([])
 const todoListExpanded = ref(false)
 const showTodoList = ref(false)
 const historyLoading = ref(false)
@@ -225,22 +230,12 @@ const currentTodoStep = ref(0)
 const agentStream = useAgentStream()
 const messages = agentStream.messages
 const streaming = agentStream.isStreaming
-const allImages = agentStream.images
-const allLinks = agentStream.links
 const sendMessage = agentStream.sendMessage
 const abort = agentStream.abort
 const pushMessage = agentStream.pushMessage
 const resetStream = agentStream.reset
 
-const currentImages = computed(() => {
-  return allImages.value.slice(-4)
-})
-
-const currentLinks = computed(() => {
-  return allLinks.value.slice(0, 3)
-})
-
-const totalResourceCount = computed(() => allImages.value.length + allLinks.value.length)
+const totalResourceCount = computed(() => panelImages.value.length + panelLinks.value.length)
 
 // Watch streaming state
 watch(streaming, (isStreaming) => {
@@ -285,7 +280,11 @@ const handleSelectHistory = async (id: string) => {
   await loadHistoryMessages(id)
 }
 
-const toggleResourcePanel = () => {
+const toggleResourcePanel = (data?: ResourceData) => {
+  if (data) {
+    panelImages.value = data.images
+    panelLinks.value = data.links
+  }
   resourcePanelVisible.value = !resourcePanelVisible.value
 }
 
@@ -295,7 +294,16 @@ const toggleTodoListExpanded = () => {
 
 const handleConfirm = () => {}
 const handleCancel = () => {}
-const handlePreviewImage = (url: string) => { window.open(url, '_blank') }
+
+// 图片预览
+const previewVisible = ref(false)
+const previewUrl = ref('')
+
+const handlePreviewImage = (url: string) => {
+  previewUrl.value = url
+  previewVisible.value = true
+}
+
 const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
 </script>
 
