@@ -37,6 +37,7 @@ import com.yuwen.visionspace.agent.tools.ImageGeneratorTool;
 import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
+import com.yuwen.visionspace.agent.tools.InternalImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
 import com.yuwen.visionspace.utils.JsonUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
@@ -91,6 +92,9 @@ public class ImageAgent {
 
     @Resource
     private ImageFeatureAnalyzerTool imageFeatureAnalyzerTool;
+
+    @Resource
+    private InternalImageSearchTool internalImageSearchTool;
 
     @Resource
     private UserPreferenceService userPreferenceService;
@@ -148,14 +152,16 @@ public class ImageAgent {
             1. 调用 analyzeImageFeatures 分析图片（获取内容描述、色调、风格、氛围、搜索关键词）
             2. 向用户简要展示分析结果，确认理解是否准确
             3. 根据分析结果选择搜索策略：
-               a. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
-               b. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
-               c. 两种方式可结合使用
+               a. 调用 searchInternalImages 用分析结果中的关键词搜索站内图片库
+               b. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
+               c. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
+               d. 以上方式可结合使用，优先站内搜索
             4. 如果以图搜图失败，直接用 searchKeywords 作为降级方案搜索
 
             #### 用户用文字描述需求
-            1. 根据描述提取关键词，调用 searchContentImages 搜索
-            2. 可按需调用 searchIllustrations 搜索插画
+            1. 首先调用 searchInternalImages 在站内图片库中搜索匹配的图片
+            2. 如果站内搜索结果不足，再调用 searchContentImages 从 Pexels 搜索补充
+            3. 可按需调用 searchIllustrations 搜索插画
 
             #### 通用后续步骤
             - 调用 evaluateImageQuality 评估搜索结果
@@ -244,7 +250,7 @@ public class ImageAgent {
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
+                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool, internalImageSearchTool)
                 .hooks(List.of(
                         hitlHook,
                         iterationControlHook,
@@ -683,7 +689,7 @@ public class ImageAgent {
                 .name("image_assistant_mcp")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
+                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool, internalImageSearchTool)
                 .tools(mcpCallbacks)
                 .hooks(List.of(
                         hitlHook,
