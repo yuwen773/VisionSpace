@@ -1,8 +1,12 @@
 package com.yuwen.visionspace.model.dto.agent;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.Getter;
+
 /**
  * 消息类型枚举
  */
+@Getter
 public enum MessageType {
     /**
      * 用户消息
@@ -13,6 +17,11 @@ public enum MessageType {
      * AI 助手消息
      */
     ASSISTANT("assistant"),
+
+    /**
+     * AI 思考内容
+     */
+    REASONING("reasoning"),
 
     /**
      * 工具调用请求
@@ -35,7 +44,9 @@ public enum MessageType {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
+
 }

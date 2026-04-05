@@ -1,237 +1,397 @@
 <template>
   <div class="agent-chat-page">
-    <AgentChatHeader @newChat="handleNewChat" @openHistory="handleOpenHistory" />
+    <AgentChatLayout
+      :left-collapsed="leftCollapsed"
+      :right-expanded="resourcePanelVisible"
+    >
+      <!-- 左栏 -->
+      <template #left>
+        <LeftSidebar
+          :histories="histories"
+          :active-id="currentThreadId"
+          @new-chat="handleNewChat"
+          @select="handleSelectHistory"
+          @collapse="leftCollapsed = true"
+        />
+      </template>
 
-    <!-- 添加进度条 -->
-    <IterationProgress
-      v-if="showProgress"
-      :phase="currentPhase"
-      :iterations="iterations"
-      :remainingIterations="3"
-    />
+      <!-- 中间 -->
+      <template #center>
+        <!-- 左折叠按钮组 -->
+        <div v-if="leftCollapsed" class="collapsed-actions">
+          <button
+            class="toggle-left-btn"
+            @click="leftCollapsed = false"
+            aria-label="展开侧边栏"
+            title="展开侧边栏"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <button
+            class="quick-new-chat-btn"
+            @click="handleNewChat"
+            aria-label="新对话"
+            title="新对话"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
 
-    <HistoryPanel
-      :visible="showHistory"
-      :histories="histories"
-      :activeIndex="-1"
-      @close="showHistory = false"
-      @select="handleSelectHistory"
-    />
+        <!-- 右栏切换按钮 -->
+        <button
+          class="toggle-right-btn"
+          :class="{ active: resourcePanelVisible }"
+          @click="resourcePanelVisible = !resourcePanelVisible"
+          aria-label="切换资源面板"
+          title="资源面板"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+          <span v-if="totalResourceCount > 0" class="resource-badge">{{ totalResourceCount }}</span>
+        </button>
 
-    <AgentMessageList
-      :messages="displayMessages"
-      :loading="streaming"
-    />
+        <!-- 消息列表 -->
+        <AgentMessageList
+          :messages="messages"
+          :loading="streaming || historyLoading"
+          :images="currentImages"
+          :links="currentLinks"
+          @confirm="handleConfirm"
+          @cancel="handleCancel"
+          @send="handleSend"
+          @toggle-resources="toggleResourcePanel"
+        />
 
-    <FeedbackButtons
-      :visible="showFeedback"
-      @feedback="handleFeedback"
-    />
+        <!-- 底部区域：TodoList + 输入框 -->
+        <div class="bottom-area">
+          <AgentTodoList
+            v-if="showTodoList"
+            :steps="todoSteps"
+            :current-step="currentTodoStep"
+            @toggle="toggleTodoListExpanded"
+          />
+          <AgentChatInput
+            :loading="streaming"
+            @send="handleSend"
+            @stop="abort"
+          />
+        </div>
+      </template>
 
-    <AgentChatInput
-      :loading="streaming"
-      @send="handleSend"
-    />
+      <!-- 右栏 -->
+      <template #right>
+        <AgentResourcePanel
+          :images="allImages"
+          :links="allLinks"
+          @close="resourcePanelVisible = false"
+          @preview-image="handlePreviewImage"
+          @download-image="handleDownloadImage"
+        />
+      </template>
+    </AgentChatLayout>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { message } from 'ant-design-vue'
-import AgentChatHeader from '@/components/agent/AgentChatHeader.vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import {message} from 'ant-design-vue'
+import AgentChatLayout from '@/components/agent/AgentChatLayout.vue'
+import type {HistoryItem} from '@/components/agent/LeftSidebar.vue'
+import LeftSidebar from '@/components/agent/LeftSidebar.vue'
 import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
-import FeedbackButtons from '@/components/agent/FeedbackButtons.vue'
-import HistoryPanel from '@/components/agent/HistoryPanel.vue'
-import IterationProgress from '@/components/agent/IterationProgress.vue'
-import type { HistoryItem } from '@/components/agent/HistoryPanel.vue'
-import { useAgentStream } from '@/composables/useAgentStream'
-import { chatUsingPost, feedbackUsingPost } from '@/api/agentController'
+import AgentTodoList from '@/components/agent/AgentTodoList.vue'
+import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
+import {useAgentStream} from '@/composables/useAgentStream'
+import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
 
-const STORAGE_KEY = 'agent_chat_histories'
+const THREAD_ID_KEY = 'agent_current_thread_id'
+const DATE_LOCALE = 'zh-CN'
+const TIME_OPTIONS = { hour: '2-digit', minute: '2-digit' } as const
 
-// Load from localStorage
-const loadHistories = (): HistoryItem[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
+const generateThreadId = () => crypto.randomUUID()
+
+const loadThreadId = (): string => {
+  return localStorage.getItem(THREAD_ID_KEY) || ''
 }
 
-// Save to localStorage
-const saveHistories = (histories: HistoryItem[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(histories))
-  } catch (e) {
-    console.warn('Failed to save histories:', e)
-  }
+const saveThreadId = (id: string) => {
+  if (id) localStorage.setItem(THREAD_ID_KEY, id)
+  else localStorage.removeItem(THREAD_ID_KEY)
 }
 
-// 生成 UUID
-const generateThreadId = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0
-    const v = c === 'x' ? r : (r & 0x3 | 0x8)
-    return v.toString(16)
-  })
-}
-
+// State
 const threadId = ref(generateThreadId())
-const showFeedback = ref(false)
-const showHistory = ref(false)
+const currentThreadId = ref('')
+const leftCollapsed = ref(false)
+const resourcePanelVisible = ref(false)
+const todoListExpanded = ref(false)
+const showTodoList = ref(false)
+const historyLoading = ref(false)
 
-// 进度状态
-const currentPhase = ref<'EXPLORATION' | 'REVIEW' | 'GENERATION' | 'DONE'>('EXPLORATION')
-const iterations = ref([
-  { title: '初始化', description: '开始分析需求', status: 'completed' as const },
+
+// Sessions
+const sessions = ref<SessionItem[]>([])
+
+const loadSessions = async () => {
+  try {
+    const res = await getSessions({ limit: 20 })
+    sessions.value = res?.data?.data || []
+  } catch (e) {
+    console.warn('加载会话列表失败:', e)
+  }
+}
+
+const histories = computed<HistoryItem[]>(() =>
+  sessions.value.map(s => ({
+    id: s.sessionId,
+    title: s.title || '新对话',
+    time: s.updatedTime ? new Date(s.updatedTime).toLocaleString(DATE_LOCALE) : '',
+  }))
+)
+
+const loadHistoryMessages = async (sessionId: string) => {
+  historyLoading.value = true
+  try {
+    const res = await getHistory(sessionId, { limit: 100 })
+    const data = res.data?.data || []
+    if (!data?.messages) {
+      return
+    }
+
+    messages.value = data.messages
+      .map(m => {
+        let type: string
+        if (m.role === 'USER') {
+          type = 'user'
+        } else {
+          switch (m.subType) {
+            case 'reasoning': type = 'reasoning'; break
+            case 'tool-call': type = 'tool-request'; break
+            case 'tool-result': type = 'tool-response'; break
+            default: type = 'assistant'
+          }
+        }
+        return {
+          type,
+          content: m.content,
+          toolName: m.subType === 'tool-call' || m.subType === 'tool-result' ? m.content.split(':')[0] || '工具' : undefined,
+          node: 'agent',
+          isLoading: false,
+          time: m.createdTime
+            ? new Date(m.createdTime).toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS)
+            : '',
+        }
+      })
+  } catch (e) {
+    console.warn('加载历史消息失败:', e)
+    message.warning('历史消息加载失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  const savedThreadId = loadThreadId()
+  await Promise.all([
+    loadSessions(),
+    savedThreadId ? loadHistoryMessages(savedThreadId) : Promise.resolve(),
+  ])
+  currentThreadId.value = savedThreadId
+  threadId.value = savedThreadId
+})
+
+// Todo steps
+const todoSteps = ref([
+  { title: '探索', description: '分析用户需求', status: 'pending' as const },
+  { title: '评审', description: '检查素材质量', status: 'pending' as const },
+  { title: '生成', description: '生成图片', status: 'pending' as const },
+  { title: '优化', description: '等待用户反馈', status: 'pending' as const },
 ])
-const showProgress = ref(false)
 
-const handleOpenHistory = () => {
-  showHistory.value = true
-}
+const currentTodoStep = ref(0)
 
-const histories = ref<HistoryItem[]>(loadHistories())
-const handleSelectHistory = (index: number) => {
-  showHistory.value = false
-}
+// Agent stream
+const agentStream = useAgentStream()
+const messages = agentStream.messages
+const streaming = agentStream.isStreaming
+const allImages = agentStream.images
+const allLinks = agentStream.links
+const sendMessage = agentStream.sendMessage
+const abort = agentStream.abort
+const pushMessage = agentStream.pushMessage
+const resetStream = agentStream.reset
 
-const { messages, isStreaming, sendMessage } = useAgentStream()
-const streaming = isStreaming
+const currentImages = computed(() => {
+  return allImages.value.slice(-4)
+})
 
-// Watch for streaming state (must be after streaming is defined)
+const currentLinks = computed(() => {
+  return allLinks.value.slice(0, 3)
+})
+
+const totalResourceCount = computed(() => allImages.value.length + allLinks.value.length)
+
+// Watch streaming state
 watch(streaming, (isStreaming) => {
   if (isStreaming) {
-    showProgress.value = true
+    showTodoList.value = true
   }
 })
 
-// 用户消息列表（本地维护）
-const userMessages = ref<any[]>([])
+// Handlers
+const handleSend = async (text: string, files: File[] = []) => {
+  if ((!text.trim() && files.length === 0) || streaming.value) return
 
-// 显示消息列表（用户消息 + Agent 消息）
-const displayMessages = computed(() => {
-  const result: any[] = [...userMessages.value]
-
-  // 合并同 type 的消息
-  let lastType = ''
-  let lastContent = ''
-
-  for (const msg of messages.value) {
-    if (msg.type === 'AGENT_MODEL_STREAMING') {
-      if (lastType === 'assistant') {
-        lastContent += msg.content
-      } else {
-        if (lastType) {
-          result.push({ type: lastType, content: lastContent })
-        }
-        lastType = 'assistant'
-        lastContent = msg.content
-      }
-    } else if (msg.type === 'AGENT_TOOL_FINISHED') {
-      if (lastType === 'assistant') {
-        result.push({ type: lastType, content: lastContent })
-        lastType = ''
-        lastContent = ''
-      }
-      result.push({ type: 'tool-response', content: msg.content, toolName: msg.node })
-    } else if (msg.type === 'AGENT_MODEL_FINISHED') {
-      if (lastType === 'assistant' && lastContent) {
-        result.push({ type: 'assistant', content: lastContent })
-      }
-      lastType = ''
-      lastContent = ''
-    }
-  }
-
-  if (lastType === 'assistant' && lastContent) {
-    result.push({ type: 'assistant', content: lastContent })
-  }
-
-  return result
-})
-
-// 发送消息
-const handleSend = async (text: string) => {
-  if (!text.trim()) return
-
-  showFeedback.value = false
-
-  // 添加用户消息到列表
-  userMessages.value.push({
+  pushMessage({
     type: 'user',
     content: text,
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
   })
 
   try {
-    await sendMessage(text, threadId.value)
-
-    // 检查是否需要显示反馈按钮
-    const lastMsg = displayMessages.value[displayMessages.value.length - 1]
-    if (lastMsg?.type === 'assistant') {
-      // 简单判断：如果内容包含"满意"等关键词，显示反馈按钮
-      if (/满意|符合|是否/.test(lastMsg.content)) {
-        showFeedback.value = true
-      }
-    }
+    await sendMessage(text, threadId.value, files.length > 0 ? files : undefined)
+    saveThreadId(threadId.value)
+    currentThreadId.value = threadId.value
   } catch (error) {
     message.error('发送失败，请重试')
   }
 }
 
-// 处理反馈
-const handleFeedback = async (action: string) => {
-  showFeedback.value = false
-
-  try {
-    await feedbackUsingPost({
-      threadId: threadId.value,
-      satisfied: action === 'satisfied',
-      reason: action,
-      action: action.toUpperCase(),
-      currentPhase: 'EXPLORATION',
-    })
-
-    // 重新发送一个空消息触发 Agent 继续
-    await sendMessage('继续', threadId.value)
-  } catch (error) {
-    message.error('反馈发送失败')
-  }
-}
-
-// 新对话
 const handleNewChat = () => {
-  // Save current conversation if has messages
-  if (userMessages.value.length > 0 || messages.value.length > 0) {
-    const historyItem: HistoryItem = {
-      id: threadId.value,
-      title: userMessages.value[0]?.content?.slice(0, 30) || '新对话',
-      time: new Date().toLocaleString('zh-CN'),
-      messages: [...userMessages.value, ...messages.value],
-    }
-    histories.value.unshift(historyItem)
-    saveHistories(histories.value)
-  }
-
+  saveThreadId('')
+  currentThreadId.value = ''
   threadId.value = generateThreadId()
-  messages.value = []
-  userMessages.value = []
-  showFeedback.value = false
+  resetStream()
+  showTodoList.value = false
+  resourcePanelVisible.value = false
 }
 
-onMounted(() => {
-  // 初始时可以显示引导
-})
+const handleSelectHistory = async (id: string) => {
+  currentThreadId.value = id
+  threadId.value = id
+  saveThreadId(id)
+  resetStream()
+  await loadHistoryMessages(id)
+}
+
+const toggleResourcePanel = () => {
+  resourcePanelVisible.value = !resourcePanelVisible.value
+}
+
+const toggleTodoListExpanded = () => {
+  todoListExpanded.value = !todoListExpanded.value
+}
+
+const handleConfirm = () => {}
+const handleCancel = () => {}
+const handlePreviewImage = (url: string) => { window.open(url, '_blank') }
+const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
 </script>
 
 <style scoped>
 .agent-chat-page {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.collapsed-actions {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: var(--color-bg-primary);
+  gap: 6px;
+}
+
+.toggle-left-btn,
+.quick-new-chat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-left-btn:hover,
+.quick-new-chat-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+.quick-new-chat-btn:hover {
+  color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+}
+
+.toggle-right-btn {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-right-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+.toggle-right-btn.active {
+  color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.resource-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-primary-500);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.bottom-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
 }
 </style>

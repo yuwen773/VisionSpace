@@ -50,3 +50,9 @@ build/
 ### Worktrees ###
 .worktrees/
 
+### Docker ###
+.env
+!.env-example
+docker-compose.override.yml
+
+/sql/vision_space.sql

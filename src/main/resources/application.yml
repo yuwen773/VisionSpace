@@ -8,6 +8,28 @@ server:
         max-age: 2592000
 ## 项目自定义配置
 vision-space:
+  # 安全配置
+  security:
+    default-password: "12345678"
+  # 阿里云 AI 配置
+  aliyun-ai:
+    base-url: "https://dashscope.aliyuncs.com/api/v1"
+    create-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting"
+    get-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/tasks/%s"
+  # Agent 配置
+  agent:
+    summary-threshold: 20
+    messages-to-keep: 10
+    max-explore-count: 3
+    max-confirm-count: 2
+    max-iteration-count: 15
+    history-truncate-length: 100
+    history-truncate-reserve: 97
+    max-messages-to-trim: 10
+    max-feedback-history-size: 100
+    summary-max-length: 500
+    summary-truncate-length: 497
+    max-history-page-size: 100
   # 颜色提取配置
   color-extract:
     method: median-cut  # median-cut（默认）或 kmeans
@@ -47,7 +69,7 @@ spring:
   # 数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/yu_picture
+    url: jdbc:mysql://localhost:3306/vision_space
     username: root
     password: 123456
   # Redis 配置
@@ -73,12 +95,40 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
+  # Spring AI 配置
+  # 空间图片分表（暂不启用）
+  # shardingsphere:
+  #   datasource:
+  #     names: yu_picture
+  #     yu_picture:
+  #       type: com.zaxxer.hikari.HikariDataSource
+  #       driver-class-name: com.mysql.cj.jdbc.Driver
+  #       url: jdbc:mysql://localhost:3306/yu_picture
+  #       username: root
+  #       password: 123456
+  #   rules:
+  #     sharding:
+  #       tables:
+  #         picture:
+  #           actual-data-nodes: yu_picture.picture # 动态分表
+  #           table-strategy:
+  #             standard:
+  #               sharding-column: spaceId
+  #               sharding-algorithm-name: picture_sharding_algorithm  # 使用自定义分片算法
+  #       sharding-algorithms:
+  #         picture_sharding_algorithm:
+  #           type: CLASS_BASED
+  #           props:
+  #             strategy: standard
+  #             algorithmClassName: com.yuwen.visionspace.manager.sharding.PictureShardingAlgorithm
+  #   props:
+  #     sql-show: true
 mybatis-plus:
   configuration:
     # MyBatis 配置
     map-underscore-to-camel-case: false
     # 仅在开发环境打印日志
-    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     enable-sql-runner: true
     db-config:

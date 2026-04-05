@@ -5,7 +5,9 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.HookPosition;
 import com.alibaba.cloud.ai.graph.agent.hook.HookPositions;
 import com.alibaba.cloud.ai.graph.agent.hook.ModelHook;
+import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import jakarta.annotation.Resource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.stereotype.Component;
 
@@ -21,9 +23,8 @@ import java.util.concurrent.CompletableFuture;
 @HookPositions({HookPosition.BEFORE_MODEL})
 public class IterationControlHook extends ModelHook {
 
-    private static final int MAX_EXPLORE_COUNT = 3;
-    private static final int MAX_GENERATE_COUNT = 2;
-    private static final int MAX_MODEL_CALLS = 15;
+    @Resource
+    private AgentConstants agentConstants;
 
     @Override
     public String getName() {
@@ -38,17 +39,17 @@ public class IterationControlHook extends ModelHook {
         AgentPhase phase = state.value("phase", AgentPhase.EXPLORATION);
 
         // 硬上限：总模型调用次数
-        if (modelCalls >= MAX_MODEL_CALLS) {
+        if (modelCalls >= agentConstants.getMaxIterationCount()) {
             return stopWithMessage("已达最大迭代次数，为您展示当前最佳结果。");
         }
 
         // 生成阶段上限
-        if (phase == AgentPhase.GENERATION && generateCount >= MAX_GENERATE_COUNT) {
+        if (phase == AgentPhase.GENERATION && generateCount >= agentConstants.getMaxConfirmCount()) {
             return stopWithMessage("已尝试多次生成，为您展示当前最佳结果。");
         }
 
         // 探索阶段上限：自动切换到生成阶段
-        if (phase == AgentPhase.EXPLORATION && exploreCount >= MAX_EXPLORE_COUNT) {
+        if (phase == AgentPhase.EXPLORATION && exploreCount >= agentConstants.getMaxExploreCount()) {
             return CompletableFuture.completedFuture(Map.of(
                     "phase", AgentPhase.GENERATION,
                     "messages", List.of(new AssistantMessage(

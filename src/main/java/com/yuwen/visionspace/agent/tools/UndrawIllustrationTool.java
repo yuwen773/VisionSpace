@@ -25,8 +25,8 @@ public class UndrawIllustrationTool {
 
     private static final String UNDRAW_API_URL = "https://undraw.co/_next/data/_FTM2d-THILOVilGvbqjc/search/%s.json?term=%s";
                                        // https://undraw.co/_next/data/_FTM2d-THILOVilGvbqjc/search/yuwen.json?term=yuwen
-    @Tool(description = "搜索插画图片，用于网站美化和装饰")
-    public List<ImageResource> searchIllustrations(@ToolParam(description = "搜索关键词") String query) {
+    @Tool(name = "searchIllustrations", description = "从 unDraw 图库搜索扁平风格的 SVG 插画。适用于网站装饰、空状态提示、功能引导图等需要简洁矢量插画的场景。返回最多 12 张插画资源的 URL 和标题。")
+    public List<ImageResource> searchIllustrations(@ToolParam(description = "搜索关键词，建议使用英文单词，例如：'developer'、'marketing'、'security'、'teamwork'") String query) {
         List<ImageResource> imageList = new ArrayList<>();
         int searchCount = 12;
         String apiUrl = String.format(UNDRAW_API_URL, query, query);

@@ -1,8 +1,11 @@
 package com.yuwen.visionspace.model.enums;
 
+import lombok.Getter;
+
 /**
  * 图片行为类型枚举
  */
+@Getter
 public enum ActionTypeEnum {
     IMPRESSION(0, "曝光"),
     CLICK(1, "点击"),
@@ -18,14 +21,6 @@ public enum ActionTypeEnum {
     ActionTypeEnum(int value, String label) {
         this.value = value;
         this.label = label;
-    }
-
-    public int getValue() {
-        return value;
-    }
-
-    public String getLabel() {
-        return label;
     }
 
     /**

@@ -1,21 +1,17 @@
 import { ref, onUnmounted } from 'vue'
-
-export interface AgentRunResponse {
-  node: string
-  agent?: string
-  chunk?: string
-  message?: MessageDTO
-  tokenUsage?: any
-  error?: boolean
-  errorType?: string
-  errorMessage?: string
-}
+import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { uploadAgentImage, deleteAgentImage } from '@/api/agentController'
 
 export interface MessageDTO {
-  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-confirm' | 'tool'
+  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-confirm' | 'tool' | 'reasoning'
   content?: string
   toolCalls?: any[]
   toolName?: string
+}
+
+export interface ToolCallArg {
+  name: string
+  args: Record<string, any>
 }
 
 export interface StreamMessage {
@@ -24,150 +20,202 @@ export interface StreamMessage {
   node: string
   isLoading?: boolean
   toolName?: string
+  toolCalls?: ToolCallArg[]
+  time?: string
 }
 
 export function useAgentStream() {
   const messages = ref<StreamMessage[]>([])
   const isStreaming = ref(false)
+  const images = ref<{ url: string; title?: string }[]>([])
+  const links = ref<{ url: string; title: string; snippet: string; domain: string }[]>([])
   let abortController: AbortController | null = null
+  let seenImageUrls = new Set<string>()
+  let seenLinkUrls = new Set<string>()
 
-  const sendMessage = async (message: string, threadId: string) => {
-    isStreaming.value = true
+  const extractResources = (content: string) => {
+    if (!content) return
+
+    for (const match of content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
+      const url = match[2]
+      if (!seenImageUrls.has(url)) {
+        images.value.push({ url, title: match[1] || '图片' })
+        seenImageUrls.add(url)
+      }
+    }
+
+    // Negative lookahead (?!!) excludes image syntax ![alt](url)
+    for (const match of content.matchAll(/(?!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
+      const url = match[2]
+      if (!seenLinkUrls.has(url)) {
+        try {
+          links.value.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
+          seenLinkUrls.add(url)
+        } catch {
+          // invalid URL
+        }
+      }
+    }
+  }
+
+  const pushMessage = (msg: StreamMessage) => {
+    messages.value.push(msg)
+  }
+
+  const updateMessage = (index: number, updates: Partial<StreamMessage>) => {
+    Object.assign(messages.value[index], updates)
+  }
+
+  const reset = () => {
     messages.value = []
+    images.value = []
+    links.value = []
+    seenImageUrls = new Set<string>()
+    seenLinkUrls = new Set<string>()
+  }
+
+  const sendMessage = async (message: string, threadId: string, files?: File[]) => {
+    isStreaming.value = true
+    reset()
     abortController = new AbortController()
 
     const baseUrl = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
     const url = `${baseUrl}/api/agent/image/chat/stream`
 
+    let assistantMsgIndex = -1
+    let reasoningMsgIndex = -1
+    let streamContent = ''
+    let lastAssistantContent = ''
+
+    // Step 1: 上传所有图片，拿到 URL
+    let uploadedUrls: string[] = []
+    if (files && files.length > 0) {
+      try {
+        uploadedUrls = await Promise.all(files.map(f => uploadAgentImage(f)))
+      } catch (e) {
+        isStreaming.value = false
+        throw new Error('图片上传失败，无法发送消息')
+      }
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const body = JSON.stringify({
+      message,
+      imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+      threadId
+    })
+
     try {
-      const response = await fetch(url, {
+      await fetchEventSource(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-        body: JSON.stringify({
-          message: message,
-          threadId: threadId,
-        }),
+        headers,
+        body,
         signal: abortController.signal,
-      })
+        credentials: 'include',
+        openWhenHidden: true,
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+        async onopen(response) {
+          if (response.ok) return
+          throw new Error('Failed to open connection')
+        },
 
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('ReadableStream not supported')
-      }
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let accumulatedContent = ''
-      let isFirstChunk = true
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed.startsWith('data:')) {
-            continue
-          }
-
-          let jsonStr = trimmed.slice(5).trimStart()
-          if (!jsonStr) continue
+        onmessage(event) {
+          if (!event.data) return
 
           try {
-            const data: AgentRunResponse = JSON.parse(jsonStr)
+            const msgDto: MessageDTO = JSON.parse(event.data)
 
-            // 跳过心跳
-            if (data.node === 'heartbeat') continue
-
-            // 处理错误
-            if (data.error) {
-              messages.value.push({
-                type: 'error',
-                content: data.errorMessage || 'Unknown error',
-                node: 'error',
-              })
-              continue
-            }
-
-            // 处理文本 chunk
-            if (data.chunk) {
-              if (isFirstChunk) {
-                messages.value.push({
-                  type: 'assistant',
-                  content: data.chunk,
-                  node: data.node || 'agent',
-                  isLoading: true,
-                })
-                isFirstChunk = false
-              } else {
-                accumulatedContent += data.chunk
-                const lastMsg = messages.value[messages.value.length - 1]
-                if (lastMsg && lastMsg.type === 'assistant') {
-                  lastMsg.content = accumulatedContent
+            switch (msgDto.messageType) {
+              case 'assistant':
+                reasoningMsgIndex = -1
+                streamContent += msgDto.content || ''
+                lastAssistantContent = msgDto.content || ''
+                if (assistantMsgIndex === -1) {
+                  assistantMsgIndex = messages.value.length
+                  pushMessage({ type: 'assistant', content: streamContent, node: 'agent', isLoading: true })
+                } else {
+                  updateMessage(assistantMsgIndex, { content: streamContent })
                 }
-              }
-            }
+                break
 
-            // 处理完整消息
-            if (data.message) {
-              const msgType = data.message.messageType
-              if (msgType === 'tool-request') {
-                messages.value.push({
-                  type: 'tool-request',
-                  content: data.message.content || '',
-                  node: data.node || 'agent',
-                  toolName: data.message.toolName,
-                })
-              } else if (msgType === 'tool-confirm') {
-                messages.value.push({
-                  type: 'tool-confirm',
-                  content: data.message.content || '',
-                  node: data.node || 'agent',
-                })
-              } else if (msgType === 'tool') {
-                messages.value.push({
-                  type: 'tool-response',
-                  content: data.message.content || '',
-                  node: data.node || 'agent',
-                  toolName: data.message.toolName,
-                })
+              case 'reasoning':
+                if (reasoningMsgIndex === -1) {
+                  reasoningMsgIndex = messages.value.length
+                  pushMessage({ type: 'reasoning', content: msgDto.content || '', node: 'agent' })
+                } else {
+                  updateMessage(reasoningMsgIndex, {
+                    content: messages.value[reasoningMsgIndex].content + (msgDto.content || ''),
+                  })
+                }
+                break
+
+              case 'tool-request': {
+                assistantMsgIndex = -1
+                reasoningMsgIndex = -1
+                streamContent = ''
+                const toolCalls = msgDto.toolCalls || []
+                for (const tc of toolCalls) {
+                  const name = tc.name || '工具'
+                  let parsedArgs: Record<string, any> = {}
+                  try {
+                    parsedArgs = JSON.parse(tc.arguments || '{}')
+                  } catch {
+                    parsedArgs = { _raw: tc.arguments }
+                  }
+                  pushMessage({ type: 'tool-request', content: '', node: 'agent', toolName: name, toolCalls: [{ name, args: parsedArgs }] })
+                }
+                break
               }
-              // 重置 chunk 累积
-              isFirstChunk = true
-              accumulatedContent = ''
+
+              case 'tool-confirm':
+                assistantMsgIndex = -1
+                reasoningMsgIndex = -1
+                streamContent = ''
+                pushMessage({ type: 'tool-confirm', content: msgDto.content || '', node: 'agent' })
+                break
+
+              case 'tool': {
+                assistantMsgIndex = -1
+                reasoningMsgIndex = -1
+                streamContent = ''
+                const toolContent = msgDto.content || ''
+                pushMessage({ type: 'tool-response', content: toolContent, node: 'agent', toolName: msgDto.toolName })
+                extractResources(toolContent)
+                break
+              }
             }
           } catch (e) {
-            // JSON 解析失败，跳过
+            console.error('JSON parse error:', e)
           }
-        }
-      }
+        },
 
-      // 标记最后一条消息为完成
-      const lastMsg = messages.value[messages.value.length - 1]
-      if (lastMsg && lastMsg.type === 'assistant') {
-        lastMsg.isLoading = false
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Request was aborted')
-      } else {
-        console.error('SSE stream error:', error)
-        throw error
-      }
+        onclose() {
+          // Extract resources from final accumulated assistant content
+          if (lastAssistantContent) {
+            extractResources(streamContent)
+          }
+          if (assistantMsgIndex !== -1) {
+            updateMessage(assistantMsgIndex, { isLoading: false })
+          }
+        },
+
+        onerror(err) {
+          console.error('SSE error:', err)
+          if (assistantMsgIndex !== -1) {
+            updateMessage(assistantMsgIndex, { isLoading: false })
+          }
+          throw err
+        },
+      })
     } finally {
       isStreaming.value = false
       abortController = null
+      // 发送失败时清理已上传的图片
+      if (uploadedUrls.length > 0) {
+        for (const url of uploadedUrls) {
+          deleteAgentImage(url).catch(() => {})
+        }
+      }
     }
   }
 
@@ -186,7 +234,11 @@ export function useAgentStream() {
   return {
     messages,
     isStreaming,
+    images,
+    links,
     sendMessage,
     abort,
+    pushMessage,
+    reset,
   }
 }

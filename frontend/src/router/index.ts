@@ -3,7 +3,7 @@ import HomePage from '@/pages/HomePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
-import AdminLayout from '@/layouts/AdminLayout.vue'
+import AdminLayout from '../layout/AdminLayout.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
 import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
@@ -43,6 +43,7 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: HomePage,
+          meta: { showFooter: true },
         },
         {
           path: 'add_picture',
@@ -69,6 +70,7 @@ const router = createRouter({
           path: 'my_space',
           name: 'MySpace',
           component: MySpacePage,
+          meta: { showFooter: true },
         },
         {
           path: 'space/:id',
@@ -87,6 +89,12 @@ const router = createRouter({
           name: 'SpaceAnalyze',
           component: SpaceAnalyzePage,
           props: true,
+          meta: { showFooter: true },
+        },
+        {
+          path: 'feedback',
+          name: 'Feedback',
+          component: () => import('@/pages/FeedbackPage.vue'),
         },
         {
           path: 'spaceUserManage/:spaceId',
@@ -132,6 +140,11 @@ const router = createRouter({
           path: 'storage_config_manage',
           name: 'StorageConfigManage',
           component: StorageConfigManagePage,
+        },
+        {
+          path: 'feedback_manage',
+          name: 'FeedbackManage',
+          component: () => import('@/pages/admin/FeedbackManagePage.vue'),
         },
       ],
     },

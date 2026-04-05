@@ -16,6 +16,7 @@ import com.yuwen.visionspace.model.vo.LoginUserVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.UserService;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
@@ -28,6 +29,9 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Value("${vision-space.security.default-password}")
+    private String defaultPassword;
 
     /**
      * 用户注册
@@ -82,9 +86,7 @@ public class UserController {
         ThrowUtils.throwIf(userAddRequest == null, ErrorCode.PARAMS_ERROR);
         User user = new User();
         BeanUtil.copyProperties(userAddRequest, user);
-        // 默认密码
-        final String DEFAULT_PASSWORD = "12345678";
-        String encryptPassword = userService.getEncryptPassword(DEFAULT_PASSWORD);
+        String encryptPassword = userService.getEncryptPassword(defaultPassword);
         user.setUserPassword(encryptPassword);
         // 插入数据库
         boolean result = userService.save(user);

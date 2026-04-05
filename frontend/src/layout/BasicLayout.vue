@@ -27,7 +27,7 @@
       </a-layout>
 
       <!-- 底部 -->
-      <a-layout-footer class="layout-footer">
+      <a-layout-footer v-if="$route.meta.showFooter" class="layout-footer">
         <!-- 链接网格 -->
         <div class="footer-grid">
           <!-- Logo 列 -->
