@@ -279,6 +279,11 @@
             <artifactId>webp-imageio</artifactId>
             <version>0.1.6</version>
         </dependency>
+        <!-- MCP Client SDK -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

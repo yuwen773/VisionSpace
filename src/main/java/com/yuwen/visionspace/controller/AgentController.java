@@ -124,9 +124,11 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         Long userId = loginUser != null ? loginUser.getId() : null;
 
-        log.info("Agent 流式对话请求, threadId={}, userId={}, message={}", threadId, userId, request.getMessage());
+        log.info("Agent 流式对话请求, threadId={}, userId={}, message={}, enabledMcpServers={}, disableMcpDefault={}",
+                threadId, userId, request.getMessage(), request.getEnabledMcpServers(), request.getDisableMcpDefault());
 
-        return imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId)
+        return imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId,
+                request.getEnabledMcpServers(), request.getDisableMcpDefault())
                 .filter(Objects::nonNull)
                 .map(data -> ServerSentEvent.<String>builder()
                         .data(toJson(data))
