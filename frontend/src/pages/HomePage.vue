@@ -2,10 +2,12 @@
   <div id="homePage">
     <!-- 沉浸式背景层 -->
     <div class="ambient-bg">
+      <!-- 星点背景 (纯 CSS，零 JS 开销) -->
+      <div class="starfield"></div>
+      <div class="starfield starfield-2"></div>
       <div class="gradient-orb orb-1"></div>
       <div class="gradient-orb orb-2"></div>
       <div class="gradient-orb orb-3"></div>
-      <canvas id="particleCanvas" ref="particleCanvas"></canvas>
     </div>
 
     <!-- 主内容区 -->
@@ -242,7 +244,6 @@ const router = useRouter()
 const heroSection = ref<HTMLElement>()
 const galleryRef = ref<HTMLElement>()
 const loaderRef = ref<HTMLElement>()
-const particleCanvas = ref<HTMLCanvasElement>()
 
 // 搜索状态
 const searchText = ref('')
@@ -293,7 +294,6 @@ const titleWords = ['发现', '视觉', '灵感']
 const observedPictures = ref<Set<string>>(new Set())
 let impressionObserver: IntersectionObserver | null = null
 let scrollObserver: IntersectionObserver | null = null
-let particleAnimationId: number | null = null
 
 /**
  * 图片加载完成
@@ -532,61 +532,6 @@ const initScrollObserver = () => {
   scrollObserver.observe(loaderRef.value)
 }
 
-/**
- * 初始化粒子背景
- */
-const initParticles = () => {
-  const canvas = particleCanvas.value
-  if (!canvas) return
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const resizeCanvas = () => {
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-  }
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
-
-  const particles: { x: number; y: number; size: number; speedX: number; speedY: number; opacity: number }[] = []
-  const particleCount = 50
-
-  for (let i = 0; i < particleCount; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 0.5,
-      speedX: (Math.random() - 0.5) * 0.3,
-      speedY: (Math.random() - 0.5) * 0.3,
-      opacity: Math.random() * 0.5 + 0.1
-    })
-  }
-
-  const animate = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    particles.forEach(p => {
-      p.x += p.speedX
-      p.y += p.speedY
-
-      if (p.x < 0) p.x = canvas.width
-      if (p.x > canvas.width) p.x = 0
-      if (p.y < 0) p.y = canvas.height
-      if (p.y > canvas.height) p.y = 0
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(168, 85, 247, ${p.opacity})`
-      ctx.fill()
-    })
-
-    particleAnimationId = requestAnimationFrame(animate)
-  }
-
-  animate()
-}
-
 onMounted(async () => {
   // 获取分类
   try {
@@ -602,7 +547,6 @@ onMounted(async () => {
   updateColumnCount()
   initImpressionObserver()
   initScrollObserver()
-  initParticles()
   loadPictures()
 
   window.addEventListener('resize', updateColumnCount)
@@ -611,7 +555,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (impressionObserver) impressionObserver.disconnect()
   if (scrollObserver) scrollObserver.disconnect()
-  if (particleAnimationId) cancelAnimationFrame(particleAnimationId)
   window.removeEventListener('resize', updateColumnCount)
 })
 </script>
@@ -633,53 +576,103 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* 纯 CSS 星点背景（零 JS 开销） */
+.starfield {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 10%, rgba(255,255,255,0.8) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 70% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 70%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 55%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(2px 2px at 35% 75%, rgba(168,85,247,0.6) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 60% 85%, rgba(236,72,153,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 5% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 78% 8%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 48% 25%, rgba(168,85,247,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 88% 92%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 22% 65%, rgba(255,255,255,0.3) 0%, transparent 100%);
+  animation: starfield-drift 120s linear infinite;
+}
+
+.starfield-2 {
+  background-image:
+    radial-gradient(1px 1px at 18% 28%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 33% 72%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 62% 18%, rgba(255,255,255,0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 48%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 92%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 12% 58%, rgba(168,85,247,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 72% 82%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 95% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(2px 2px at 50% 50%, rgba(168,85,247,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 28% 8%, rgba(255,255,255,0.5) 0%, transparent 100%);
+  animation: starfield-drift 180s linear infinite reverse;
+  opacity: 0.7;
+}
+
+@keyframes starfield-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-200px); }
+}
+
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: 0.4;
-  animation: float-orb 20s ease-in-out infinite;
+  animation: orb-breathe 12s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, rgba(110, 53, 235, 0.15) 50%, transparent 70%);
+  top: -250px;
+  right: -150px;
+  animation-name: orb-breathe-1;
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
-  top: 40%;
-  left: -150px;
-  animation-delay: -7s;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, rgba(168, 85, 247, 0.1) 50%, transparent 70%);
+  top: 35%;
+  left: -200px;
+  animation-name: orb-breathe-2;
+  animation-delay: -4s;
 }
 
 .orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
-  bottom: -100px;
-  right: 20%;
-  animation-delay: -14s;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(34, 104, 245, 0.1) 50%, transparent 70%);
+  bottom: -150px;
+  right: 15%;
+  animation-name: orb-breathe-3;
+  animation-delay: -8s;
 }
 
-@keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 10px) scale(1.02); }
+/* orb 呼吸动画：translate + scale + opacity 联动 */
+@keyframes orb-breathe-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+  33% { transform: translate(40px, -40px) scale(1.08); opacity: 0.9; }
+  66% { transform: translate(-30px, 30px) scale(0.95); opacity: 0.6; }
 }
 
-#particleCanvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+@keyframes orb-breathe-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+  40% { transform: translate(-50px, 30px) scale(1.1); opacity: 0.85; }
+  70% { transform: translate(30px, -20px) scale(0.92); opacity: 0.5; }
+}
+
+@keyframes orb-breathe-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  50% { transform: translate(20px, -50px) scale(1.12); opacity: 0.8; }
 }
 
 /* ========== 主内容区 ========== */
@@ -717,18 +710,24 @@ onUnmounted(() => {
 .brand-logo {
   width: 64px;
   height: 64px;
-  animation: pulse-glow 3s ease-in-out infinite;
+  animation: logo-breathe 4s ease-in-out infinite;
 }
 
 .brand-icon {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 20px rgba(168, 85, 247, 0.5));
+  filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5));
+  transition: filter 0.4s ease;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(168, 85, 247, 0.5)); }
-  50% { transform: scale(1.05); filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.7)); }
+.brand-logo:hover .brand-icon {
+  filter: drop-shadow(0 0 25px rgba(168, 85, 247, 0.8));
+}
+
+/* 只用 filter + opacity 做呼吸，不碰 scale（避免 layout thrashing） */
+@keyframes logo-breathe {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5)); }
+  50% { filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.8)); }
 }
 
 .brand-text {
@@ -888,13 +887,18 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   flex-shrink: 0;
   box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
 
   &:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 8px 35px rgba(244, 114, 182, 0.55), 0 0 20px rgba(168, 85, 247, 0.3);
+  }
+
+  &:active {
+    transform: translateY(-1px) scale(0.98);
+    box-shadow: 0 2px 12px rgba(168, 85, 247, 0.4);
   }
 }
 
