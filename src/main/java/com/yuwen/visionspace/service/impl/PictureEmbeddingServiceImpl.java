@@ -7,12 +7,14 @@ import com.yuwen.visionspace.service.VlCaptionService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -24,6 +26,9 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     private VectorStore vectorStore;
 
     @Resource
+    private EmbeddingModel embeddingModel;
+
+    @Resource
     private PictureService pictureService;
 
     @Resource
@@ -33,9 +38,34 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     @Async("embeddingExecutor")
     public void generateAndStoreEmbedding(Picture picture) {
         try {
-            Document doc = buildDocument(picture);
+            // 1. 生成富描述
+            String richCaption = vlCaptionService.generateRichCaption(picture.getImageUrl());
+
+            // 2. 构建多模态输入 (text + image)
+            List<Map<String, Object>> contents = new ArrayList<>();
+            contents.add(Map.of("text",
+                    (picture.getName() != null ? picture.getName() : "") + ". " +
+                            (picture.getIntroduction() != null ? picture.getIntroduction() : "")));
+            contents.add(Map.of("image", picture.getImageUrl()));
+
+            // 3. 调用 embedding 模型生成向量（使用 YAML 配置的 qwen3-vl-embedding + enable_fusion）
+            EmbeddingResponse embeddingResponse = embeddingModel.embed(
+                    new EmbeddingRequest(contents, null));
+
+            float[] vector = embeddingResponse.getResults().get(0).getOutput();
+
+            // 4. 构建 Document（content = richCaption 用于 Chroma 存储可读文本）
+            Map<String, Object> metadata = buildMetadata(picture);
+            Document doc = new Document(DOC_ID_PREFIX + picture.getId(), richCaption, metadata);
+
+            // 5. 注入向量到 Document（跳过 VectorStore 重新 embedding）
+            doc.setEmbedding(vector);
+
+            // 6. 存入 Chroma
             vectorStore.add(List.of(doc));
-            log.info("图片嵌入生成成功, pictureId={}", picture.getId());
+
+            log.info("图片嵌入生成成功(多模态融合), pictureId={}, 向量维度={}",
+                    picture.getId(), vector.length);
         } catch (Exception e) {
             log.error("图片嵌入生成失败, pictureId={}", picture.getId(), e);
         }
@@ -51,9 +81,35 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
             } catch (Exception deleteEx) {
                 log.debug("删除旧嵌入失败（可能不存在）, pictureId={}", picture.getId());
             }
-            Document doc = buildDocument(picture);
+
+            // 1. 生成富描述
+            String richCaption = vlCaptionService.generateRichCaption(picture.getImageUrl());
+
+            // 2. 构建多模态输入 (text + image)
+            List<Map<String, Object>> contents = new ArrayList<>();
+            contents.add(Map.of("text",
+                    (picture.getName() != null ? picture.getName() : "") + ". " +
+                            (picture.getIntroduction() != null ? picture.getIntroduction() : "")));
+            contents.add(Map.of("image", picture.getImageUrl()));
+
+            // 3. 调用 embedding 模型生成向量
+            EmbeddingResponse embeddingResponse = embeddingModel.embed(
+                    new EmbeddingRequest(contents, null));
+
+            float[] vector = embeddingResponse.getResults().get(0).getOutput();
+
+            // 4. 构建 Document（content = richCaption 用于 Chroma 存储可读文本）
+            Map<String, Object> metadata = buildMetadata(picture);
+            Document doc = new Document(DOC_ID_PREFIX + picture.getId(), richCaption, metadata);
+
+            // 5. 注入向量到 Document
+            doc.setEmbedding(vector);
+
+            // 6. 存入 Chroma
             vectorStore.add(List.of(doc));
-            log.info("图片嵌入更新成功, pictureId={}", picture.getId());
+
+            log.info("图片嵌入更新成功(多模态融合), pictureId={}, 向量维度={}",
+                    picture.getId(), vector.length);
         } catch (Exception e) {
             log.error("图片嵌入更新失败, pictureId={}", picture.getId(), e);
         }
@@ -87,15 +143,25 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
         for (int i = 0; i < pictures.size(); i += batchSize) {
             List<Picture> batch = pictures.subList(i, Math.min(i + batchSize, pictures.size()));
-            List<Document> docs = batch.stream()
-                    .map(this::buildDocument)
-                    .collect(Collectors.toList());
-            try {
-                vectorStore.add(docs);
-                successCount += batch.size();
-                log.info("全量同步进度: {}/{}", Math.min(i + batchSize, pictures.size()), pictures.size());
-            } catch (Exception e) {
-                log.error("批量嵌入失败, offset={}", i, e);
+            List<Document> docs = new ArrayList<>();
+            for (Picture picture : batch) {
+                try {
+                    Document doc = buildDocumentWithMultimodalEmbedding(picture);
+                    if (doc != null) {
+                        docs.add(doc);
+                    }
+                } catch (Exception e) {
+                    log.error("构建文档嵌入失败, pictureId={}", picture.getId(), e);
+                }
+            }
+            if (!docs.isEmpty()) {
+                try {
+                    vectorStore.add(docs);
+                    successCount += docs.size();
+                    log.info("全量同步进度: {}/{}", Math.min(i + batchSize, pictures.size()), pictures.size());
+                } catch (Exception e) {
+                    log.error("批量嵌入失败, offset={}", i, e);
+                }
             }
         }
 
@@ -103,24 +169,40 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         return successCount;
     }
 
-    private Document buildDocument(Picture picture) {
+    /**
+     * 构建带有多模态融合向量的 Document
+     */
+    private Document buildDocumentWithMultimodalEmbedding(Picture picture) {
         // 1. 生成富描述
         String richCaption = vlCaptionService.generateRichCaption(picture.getImageUrl());
 
-        // 2. 构建多模态融合输入（text + image）
-        // qwen3-vl-embedding 支持 enable_fusion=true 将 text 和 image 融合为单一向量
-        // Spring AI 会自动处理，只需传正确的格式
+        // 2. 构建多模态输入 (text + image)
         List<Map<String, Object>> contents = new ArrayList<>();
         contents.add(Map.of("text",
                 (picture.getName() != null ? picture.getName() : "") + ". " +
                         (picture.getIntroduction() != null ? picture.getIntroduction() : "")));
         contents.add(Map.of("image", picture.getImageUrl()));
 
-        // 3. 注意：Spring AI DashScopeEmbeddingModel 会自动使用配置的
-        //    qwen3-vl-embedding + enable_fusion=true 参数
-        //    这里只构建 content，embedding 由框架处理
+        // 3. 调用 embedding 模型生成向量
+        EmbeddingResponse embeddingResponse = embeddingModel.embed(
+                new EmbeddingRequest(contents, null));
+
+        float[] vector = embeddingResponse.getResults().get(0).getOutput();
 
         // 4. 构建 metadata
+        Map<String, Object> metadata = buildMetadata(picture);
+
+        // 5. 构建 Document 并注入向量
+        Document doc = new Document(DOC_ID_PREFIX + picture.getId(), richCaption, metadata);
+        doc.setEmbedding(vector);
+
+        return doc;
+    }
+
+    /**
+     * 构建 metadata
+     */
+    private Map<String, Object> buildMetadata(Picture picture) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("pictureId", picture.getId());
         metadata.put("imageUrl", picture.getUrl() != null ? picture.getUrl() : "");
@@ -133,8 +215,6 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
         metadata.put("visibility", picture.getVisibility() != null ? picture.getVisibility() : "public");
         metadata.put("indexedAt", System.currentTimeMillis());
-
-        // 5. content 使用 richCaption（可读文本，qwen3-vl-embedding 实际向量由框架生成）
-        return new Document(DOC_ID_PREFIX + picture.getId(), richCaption, metadata);
+        return metadata;
     }
 }
