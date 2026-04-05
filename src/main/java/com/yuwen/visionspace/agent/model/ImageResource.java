@@ -32,6 +32,11 @@ public class ImageResource implements Serializable {
      */
     private String url;
 
+    /**
+     * 图片来源
+     */
+    private String source;
+
     @Serial
     private static final long serialVersionUID = 1L;
 }

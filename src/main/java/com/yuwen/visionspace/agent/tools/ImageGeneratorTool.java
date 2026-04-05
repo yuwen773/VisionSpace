@@ -74,6 +74,7 @@ public class ImageGeneratorTool {
                             .category(categoryEnum)
                             .description(description)
                             .url(imageUrl)
+                            .source("generated")
                             .build());
                 }
             }

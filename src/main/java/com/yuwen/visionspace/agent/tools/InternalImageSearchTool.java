@@ -52,6 +52,7 @@ public class InternalImageSearchTool {
                             .category(ImageCategoryEnum.CONTENT)
                             .url(imageUrl)
                             .description(description)
+                            .source("internal")
                             .build());
                 }
             }

@@ -49,6 +49,7 @@ public class ImageSearchTool {
                             .category(ImageCategoryEnum.CONTENT)
                             .description(photo.getStr("alt", query))
                             .url(src.getStr("medium"))
+                            .source("external")
                             .build());
                 }
             }

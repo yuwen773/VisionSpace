@@ -1,7 +1,9 @@
 package com.yuwen.visionspace.controller;
 
+import com.yuwen.visionspace.annotation.AuthCheck;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
+import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ public class VectorStoreController {
      * 全量同步站内图片到向量库
      */
     @PostMapping("/full-sync")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Integer> fullSync() {
         log.info("开始全量同步站内图片到向量库");
         int count = pictureEmbeddingService.fullSync();

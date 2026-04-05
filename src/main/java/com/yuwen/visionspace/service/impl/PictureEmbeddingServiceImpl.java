@@ -39,7 +39,11 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     public void updateEmbedding(Picture picture) {
         try {
             String docId = "picture_" + picture.getId();
-            vectorStore.delete(List.of(docId));
+            try {
+                vectorStore.delete(List.of(docId));
+            } catch (Exception deleteEx) {
+                log.debug("删除旧嵌入失败（可能不存在）, pictureId={}", picture.getId());
+            }
             Document doc = buildDocument(picture);
             vectorStore.add(List.of(doc));
             log.info("图片嵌入更新成功, pictureId={}", picture.getId());
@@ -64,6 +68,10 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     public int fullSync() {
         // Use MyBatis Plus lambdaQuery to find all approved public pictures
         List<Picture> pictures = pictureService.lambdaQuery()
+                .select(Picture::getId, Picture::getUrl, Picture::getThumbnailUrl,
+                        Picture::getName, Picture::getIntroduction, Picture::getCategory,
+                        Picture::getTags, Picture::getPicColor, Picture::getUserId,
+                        Picture::getSpaceId, Picture::getReviewStatus)
                 .isNull(Picture::getSpaceId)
                 .eq(Picture::getReviewStatus, 1)
                 .list();
