@@ -88,9 +88,18 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { ImageResource, LinkResource } from './types'
 
-export type { ImageResource, LinkResource }
+export interface ImageResource {
+  url: string
+  title?: string
+}
+
+export interface LinkResource {
+  url: string
+  title: string
+  snippet: string
+  domain: string
+}
 
 interface Props {
   images?: ImageResource[]

@@ -1,0 +1,8 @@
+tree d577e0f290132bf3c54ce0ab5644f40a8235e0fd
+parent 8615bd75ebabeb519d7fa4550c70e6a714d550bc
+author yuwen <212556642@qq.com> 1774962741 +0800
+committer yuwen <212556642@qq.com> 1774962741 +0800
+
+feat(agent): 进度条逻辑修复和历史记录持久化
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

@@ -596,6 +596,25 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     @Override
+    public List<PictureVO> getUserRecentPictures(Long userId, int count) {
+        if (userId == null) {
+            return new ArrayList<>();
+        }
+        QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId)
+                .orderByDesc("createTime")
+                .last("LIMIT " + count);
+        List<Picture> pictures = this.list(queryWrapper);
+        if (pictures == null || pictures.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return pictures.stream().map(picture -> {
+            PictureVO pictureVO = PictureVO.objToVo(picture);
+            return pictureVO;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
     public void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser) {
         // 1. 获取和校验参数
         List<Long> pictureIdList = pictureEditByBatchRequest.getPictureIdList();

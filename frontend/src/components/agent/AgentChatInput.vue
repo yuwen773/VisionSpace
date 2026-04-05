@@ -6,7 +6,7 @@
         <div v-for="(att, i) in attachments" :key="i" class="attachment-card">
           <!-- Image preview -->
           <template v-if="att.previewUrl">
-            <div class="img-preview" @click="openPreview(att.previewUrl!)">
+            <div class="img-preview" @click="lightboxUrl = att.previewUrl">
               <img :src="att.previewUrl" :alt="att.name" />
               <div class="img-zoom-hint">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -98,13 +98,23 @@
     </div>
 
     <!-- Full-size image preview lightbox -->
-    <ImagePreview v-model:open="previewOpen" :url="lightboxUrl" />
+    <Teleport to="body">
+      <transition name="lightbox">
+        <div v-if="lightboxUrl" class="lightbox-overlay" @click="lightboxUrl = null">
+          <button class="lightbox-close" @click="lightboxUrl = null" aria-label="关闭">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <img :src="lightboxUrl" class="lightbox-img" @click.stop />
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onUnmounted } from 'vue'
-import ImagePreview from '@/components/ImagePreview.vue'
+import { ref, computed, nextTick, onUnmounted, onMounted } from 'vue'
 
 interface Attachment {
   file: File
@@ -130,13 +140,14 @@ const isFocused = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const attachments = ref<Attachment[]>([])
-const previewOpen = ref(false)
-const lightboxUrl = ref('')
+const lightboxUrl = ref<string | null>(null)
 
-const openPreview = (url: string) => {
-  lightboxUrl.value = url
-  previewOpen.value = true
+const handleKeydownGlobal = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && lightboxUrl.value) lightboxUrl.value = null
 }
+
+onMounted(() => document.addEventListener('keydown', handleKeydownGlobal))
+onUnmounted(() => document.removeEventListener('keydown', handleKeydownGlobal))
 
 const canSend = computed(() => inputText.value.trim() || attachments.value.length > 0)
 
@@ -668,4 +679,54 @@ onUnmounted(() => {
 .disclaimer {
   font-style: italic;
 }
+
+/* ============ Lightbox ============ */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+  cursor: default;
+}
+
+.lightbox-enter-active { transition: opacity 0.25s ease; }
+.lightbox-leave-active { transition: opacity 0.2s ease; }
+.lightbox-enter-from,
+.lightbox-leave-to { opacity: 0; }
 </style>

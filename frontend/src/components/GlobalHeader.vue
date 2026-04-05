@@ -119,10 +119,10 @@
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
-                    <a-menu-item key="feedback" class="menu-item">
+                    <a-menu-item key="user_center" class="menu-item">
                       <div class="menu-item-inner">
-                        <span class="menu-icon">💬</span>
-                        <span class="menu-text">意见反馈</span>
+                        <span class="menu-icon">👤</span>
+                        <span class="menu-text">用户中心</span>
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
@@ -343,8 +343,8 @@ router.afterEach((to) => {
 const handleUserMenuClick = ({ key }: { key: string }) => {
   if (key === 'my_space') {
     router.push('/my_space')
-  } else if (key === 'feedback') {
-    router.push('/feedback')
+  } else if (key === 'user_center') {
+    router.push('/user/center')
   } else if (key === 'admin') {
     router.push('/admin')
   } else if (key === 'logout') {

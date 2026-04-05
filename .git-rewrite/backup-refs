@@ -1,0 +1,14 @@
+2903ec604fa6e26a43640de766fe5631dda074fe commit	refs/heads/feature/agent-dev
+49ecc31ad4dfabac0efae1fafdd9489c69adaa2e commit	refs/heads/main
+661e2268be48dcc7ea1e7b65183b2ba2719a65aa commit	refs/heads/pr/agent-enhancement
+661e2268be48dcc7ea1e7b65183b2ba2719a65aa commit	refs/heads/worktree-feature-agent-dev
+904ddb4f3ddde466a9ba5e4aa767251b5690422e commit	refs/heads/worktree-feedback-to-user-center
+21ab46584ae5f1d45ba648ab3a7d31fb9833fc92 commit	refs/remotes/origin/feature/agent-dev
+3dfdb5483f12e5b0b12c8630f033ce901453c3de commit	refs/remotes/origin/feature/recommend-page-vo
+6be468139d8497c3ea9f433b5c4b10b8c5b871f0 commit	refs/remotes/origin/feature/user-center
+49ecc31ad4dfabac0efae1fafdd9489c69adaa2e commit	refs/remotes/origin/main
+904ddb4f3ddde466a9ba5e4aa767251b5690422e commit	refs/remotes/origin/worktree-feedback-to-user-center
+1156898ac037d84db501d4051aa644d1de0ef977 commit	refs/stash
+cf19ea266ce862cd45ef0f15963c1080a5cf1a4a commit	refs/tags/1.0.1
+ccf88b3df28b63c7f8f5a439cc3d323f21a76817 commit	refs/tags/springboot2.x+java8
+31d9dd05251e67f62c1624789f74282dd7f54a75 tag	refs/tags/v1.0.0

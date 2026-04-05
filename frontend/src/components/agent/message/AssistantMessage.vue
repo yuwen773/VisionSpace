@@ -7,9 +7,9 @@
       <div class="message-body markdown-body" v-html="renderedContent"></div>
 
       <!-- 内联缩略图 -->
-      <div v-if="allImages.length > 0" class="message-images">
+      <div v-if="images && images.length > 0" class="message-images">
         <img
-          v-for="(img, index) in allImages"
+          v-for="(img, index) in images"
           :key="index"
           :src="img.url"
           :alt="img.title || '图片'"
@@ -21,14 +21,14 @@
       <button
         v-if="hasResources"
         class="resource-trigger-btn"
-        @click="handleToggleResources"
+        @click="emit('toggleResources')"
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
         </svg>
-        {{ allImages.length }} 张图片 · {{ imageSourceCount }} 个来源
+        {{ images?.length || 0 }} 张图片 · {{ linkCount || 0 }} 个来源
       </button>
 
       <!-- 操作按钮栏（类 Grok） -->
@@ -70,106 +70,35 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
-import type { ImageResource, LinkResource, ResourceData } from '../types'
 
 interface Props {
   content: string
   isLoading?: boolean
-  images?: ImageResource[]
+  images?: { url: string; title?: string }[]
+  linkCount?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   isLoading: false,
   images: undefined,
+  linkCount: undefined,
 })
 
 const emit = defineEmits<{
   (e: 'previewImage', url: string): void
-  (e: 'toggleResources', data: ResourceData): void
+  (e: 'toggleResources'): void
   (e: 'regenerate'): void
   (e: 'share'): void
 }>()
 
 const { render } = useMarkdown()
+const renderedContent = computed(() => render(props.content))
+
 const liked = ref(false)
 
-const isImageUrl = (url: string): boolean => {
-  const imageExts = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
-  const imageHosts = ['images.pexels.com', 'images.unsplash.com', 'imgur.com']
-  if (imageExts.test(url)) return true
-  try {
-    const hostname = new URL(url).hostname
-    if (imageHosts.some(h => hostname.includes(h))) return true
-  } catch { /* invalid url */ }
-  return false
-}
-
-const extractedImages = computed(() => {
-  const images: ImageResource[] = []
-  for (const match of props.content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
-    images.push({ url: match[2], title: match[1] || undefined })
-  }
-  for (const match of props.content.matchAll(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
-    if (isImageUrl(match[2])) {
-      images.push({ url: match[2], title: match[1] })
-    }
-  }
-  return images
-})
-
-const processedContent = computed(() => {
-  return props.content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[$1]($2)')
-})
-
-const allImages = computed(() => {
-  const seen = new Set<string>()
-  const result: ImageResource[] = []
-  const sources = [...(props.images || []), ...extractedImages.value]
-  for (const img of sources) {
-    if (!seen.has(img.url)) {
-      seen.add(img.url)
-      result.push(img)
-    }
-  }
-  return result
-})
-
-const imageSourceCount = computed(() => {
-  const domains = new Set<string>()
-  for (const img of allImages.value) {
-    try {
-      domains.add(new URL(img.url).hostname)
-    } catch { /* invalid url */ }
-  }
-  return domains.size
-})
-
-function getExtractedLinks() {
-  const seen = new Set<string>()
-  const links: LinkResource[] = []
-  for (const match of processedContent.value.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
-    const url = match[2]
-    if (seen.has(url)) continue
-    seen.add(url)
-    try {
-      links.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
-    } catch { /* invalid url */ }
-  }
-  return links
-}
-
-const handleToggleResources = () => {
-  emit('toggleResources', {
-    images: allImages.value,
-    links: getExtractedLinks(),
-  })
-}
-
-const renderedContent = computed(() => render(processedContent.value))
-
 const hasResources = computed(() =>
-  allImages.value.length > 0 || imageSourceCount.value > 0
+  (props.images && props.images.length > 0) || (props.linkCount && props.linkCount > 0)
 )
 
 const copyContent = async () => {

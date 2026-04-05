@@ -1,0 +1,7 @@
+feat(agent): 添加消息滑入动画和打字指示器
+
+- 为所有消息类型添加 slide-in 过渡动画
+- 将简单的 a-spin 替换为三dot弹跳动画指示器
+- 动画效果：0.3s ease-out, translateY(20px) 滑入
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

@@ -98,12 +98,15 @@ export function useAgentStream() {
       }
     }
 
+    // Step 2: 构建消息文本，图片 URL 拼在前面
+    let fullMessage = message
+    if (uploadedUrls.length > 0) {
+      const imageUrlsText = uploadedUrls.map(url => `用户上传了图片：${url}`).join('\n')
+      fullMessage = `${imageUrlsText}\n\n${message}`
+    }
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const body = JSON.stringify({
-      message,
-      imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
-      threadId
-    })
+    const body = JSON.stringify({ message: fullMessage, threadId })
 
     try {
       await fetchEventSource(url, {

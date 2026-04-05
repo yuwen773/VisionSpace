@@ -1,0 +1,14 @@
+refs/heads/feature/agent-dev
+refs/heads/main
+refs/heads/pr/agent-enhancement
+refs/heads/worktree-feature-agent-dev
+refs/heads/worktree-feedback-to-user-center
+refs/remotes/origin/feature/agent-dev
+refs/remotes/origin/feature/recommend-page-vo
+refs/remotes/origin/feature/user-center
+refs/remotes/origin/main
+refs/remotes/origin/worktree-feedback-to-user-center
+refs/stash
+refs/tags/1.0.1
+refs/tags/springboot2.x+java8
+refs/tags/v1.0.0

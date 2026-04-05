@@ -1,31 +1,21 @@
 <template>
   <div class="user-message">
     <div class="message-content">
-      <div v-if="textContent" class="message-text">{{ textContent }}</div>
+      <!-- Image grid -->
+      <div v-if="images && images.length > 0" class="message-images" :class="`grid-${Math.min(images.length, 4)}`">
+        <div v-for="(img, i) in images.slice(0, 4)" :key="i" class="img-thumb">
+          <img :src="img" alt="附件图片" />
+        </div>
+        <div v-if="images.length > 4" class="img-more">+{{ images.length - 4 }}</div>
+      </div>
+      <div v-if="content" class="message-text">{{ content }}</div>
       <div class="message-time">{{ displayTime }}</div>
     </div>
-
-    <!-- 图片网格：气泡下方，右对齐 -->
-    <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
-      <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="openPreview(img.url)">
-        <img :src="img.url" alt="附件图片" />
-        <div class="img-zoom-hint">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </div>
-      </div>
-      <div v-if="extraCount > 0" class="img-more">+{{ extraCount }}</div>
-    </div>
-
-    <!-- Lightbox preview -->
-    <ImagePreview v-model:open="previewOpen" :url="previewUrl" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import ImagePreview from '@/components/ImagePreview.vue'
+import { computed } from 'vue'
 
 interface Props {
   content: string
@@ -39,46 +29,6 @@ const props = withDefaults(defineProps<Props>(), {
   images: () => [],
 })
 
-const IMAGE_TAG_REGEX = /<image-analysis>([^<]+)<\/image-analysis>/g
-
-interface ParsedImage {
-  url: string
-}
-
-const isSafeUrl = (url: string): boolean => {
-  return /^https?:\/\//i.test(url.trim())
-}
-
-const parsedImages = computed<ParsedImage[]>(() => {
-  if (!props.content) return []
-  const urls: ParsedImage[] = []
-  const regex = new RegExp(IMAGE_TAG_REGEX.source, 'g')
-  let match
-  while ((match = regex.exec(props.content)) !== null) {
-    const url = match[1].trim()
-    if (isSafeUrl(url)) {
-      urls.push({ url })
-    }
-  }
-  return urls
-})
-
-const displayImages = computed(() => parsedImages.value.slice(0, 4))
-const extraCount = computed(() => Math.max(0, parsedImages.value.length - 4))
-const previewOpen = ref(false)
-const previewUrl = ref('')
-
-const openPreview = (url: string) => {
-  previewUrl.value = url
-  previewOpen.value = true
-}
-
-// 过滤掉 <image-analysis> 标签，只展示纯文字
-const textContent = computed(() => {
-  if (!props.content) return ''
-  return props.content.replace(IMAGE_TAG_REGEX, '').trim()
-})
-
 const displayTime = computed(() => {
   if (props.time) return props.time
   return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -88,10 +38,9 @@ const displayTime = computed(() => {
 <style scoped>
 .user-message {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
+  justify-content: flex-end;
   padding: 8px 16px;
-  gap: 4px;
 }
 
 .message-content {
@@ -162,65 +111,36 @@ const displayTime = computed(() => {
 
 /* ============ Image Grid ============ */
 .message-images {
-  display: inline-grid;
+  display: grid;
   gap: 4px;
   margin-bottom: 6px;
   border-radius: 12px;
   overflow: hidden;
 }
 
-.message-images.grid-1 { grid-template-columns: 48px; }
-.message-images.grid-2,
-.message-images.grid-3,
-.message-images.grid-4 { grid-template-columns: 48px 48px; }
+.message-images.grid-1 { grid-template-columns: 1fr; }
+.message-images.grid-2 { grid-template-columns: 1fr 1fr; }
+.message-images.grid-3 { grid-template-columns: 1fr 1fr; }
+.message-images.grid-4 { grid-template-columns: 1fr 1fr; }
 
 .img-thumb {
   position: relative;
-  width: 48px;
-  height: 48px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.1);
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.img-thumb:hover {
-  border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: scale(1.05);
-}
-
-.img-thumb:hover .img-zoom-hint {
-  opacity: 1;
 }
 
 .img-thumb img {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1;
   object-fit: cover;
   display: block;
 }
 
-.img-zoom-hint {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+/* 3-image layout: first image spans full width */
+.grid-3 .img-thumb:first-child {
+  grid-column: 1 / -1;
 }
-
-
 
 .img-more {
   position: absolute;
@@ -237,5 +157,4 @@ const displayTime = computed(() => {
 .message-images:has(.img-more) {
   position: relative;
 }
-
 </style>
