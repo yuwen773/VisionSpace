@@ -72,7 +72,8 @@ public class AgentController {
         log.info("Agent 对话请求, threadId={}, message={}", threadId, request.getMessage());
 
         // 使用 invokeAndGetOutput 支持中断
-        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(request.getMessage(), config);
+        String fullMessage = buildUserMessage(request.getMessage(), request.getImageUrls());
+        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(fullMessage, config);
 
         // 检查是否返回了中断
         if (result.isPresent() && result.get() instanceof InterruptionMetadata) {
@@ -125,7 +126,7 @@ public class AgentController {
 
         log.info("Agent 流式对话请求, threadId={}, userId={}, message={}", threadId, userId, request.getMessage());
 
-        return imageAgent.stream(request.getMessage(), threadId, userId)
+        return imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId)
                 .filter(Objects::nonNull)
                 .map(data -> ServerSentEvent.<String>builder()
                         .data(toJson(data))
@@ -168,6 +169,21 @@ public class AgentController {
         }
 
         sb.append("\n请选择是否满意上述结果，或提供改进建议。");
+        return sb.toString();
+    }
+
+    /**
+     * 构建用户消息，支持图片URL
+     */
+    private String buildUserMessage(String userMessage, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return userMessage != null ? userMessage : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String url : imageUrls) {
+            sb.append("<image-analysis>").append(url).append("</image-analysis>\n");
+        }
+        sb.append("\n").append(userMessage != null ? userMessage : "");
         return sb.toString();
     }
 

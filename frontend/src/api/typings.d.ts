@@ -795,30 +795,4 @@ declare namespace API {
     current?: number
     pageSize?: number
   }
-
-  type UserPictureStatsResponse = {
-    uploadCount?: number
-    likeCount?: number
-    reviewPassCount?: number
-    reviewPassRate?: number
-  }
-
-  type BaseResponseUserPictureStatsResponse_ = {
-    code?: number
-    data?: UserPictureStatsResponse
-    message?: string
-  }
-
-  type RecentPictureVO = {
-    id?: number
-    url?: string
-    thumbnailUrl?: string
-    name?: string
-  }
-
-  type BaseResponseListRecentPictureVO_ = {
-    code?: number
-    data?: RecentPictureVO[]
-    message?: string
-  }
 }

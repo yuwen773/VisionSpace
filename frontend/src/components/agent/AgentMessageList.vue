@@ -27,7 +27,7 @@
       <!-- Messages -->
       <template v-for="(msg, index) in messages" :key="index">
         <div class="msg-animate">
-          <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" :images="msg.images" />
+          <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" />
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
   v-else-if="msg.type === 'assistant'"
@@ -57,9 +57,17 @@
 
     <!-- Scroll-to-bottom -->
     <transition name="scroll-reveal">
-      <button v-if="showScrollBtn" class="scroll-btn" @click="scrollToBottom" aria-label="滚动到底部">
-        <svg class="scroll-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9" />
+      <button
+        v-if="showScrollBtn"
+        class="scroll-btn"
+        :class="{ 'has-unread': unreadCount > 0 }"
+        @click="scrollToBottom"
+        aria-label="滚动到底部"
+      >
+        <span v-if="unreadCount > 0" class="scroll-pulse" aria-hidden="true"></span>
+        <svg class="scroll-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="7 7 12 12 17 7" />
+          <polyline points="7 13 12 18 17 13" opacity="0.4" />
         </svg>
         <span v-if="unreadCount > 0" class="scroll-badge">{{ unreadCount }}</span>
       </button>
@@ -119,9 +127,10 @@ const quickHints = [
 ]
 
 const listRef = ref<HTMLElement | null>(null)
-const showScrollBtn = ref(false)
 const unreadCount = ref(0)
 const isAtBottom = ref(true)
+
+const showScrollBtn = computed(() => !isAtBottom.value)
 
 const scrollToBottom = () => {
   if (listRef.value) {
@@ -134,11 +143,17 @@ const scrollToBottom = () => {
 const checkBottom = () => {
   if (!listRef.value) return
   const el = listRef.value
-  isAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  isAtBottom.value = distanceToBottom < 80
+
+  if (isAtBottom.value) {
+    unreadCount.value = 0
+  }
 }
 
 onMounted(() => {
   listRef.value?.addEventListener('scroll', checkBottom, { passive: true })
+  nextTick(checkBottom)
 })
 
 onUnmounted(() => {
@@ -151,7 +166,6 @@ watch(() => props.messages.length, () => {
       scrollToBottom()
     } else {
       unreadCount.value++
-      showScrollBtn.value = true
     }
   })
 })
@@ -170,7 +184,10 @@ watch(() => props.loading, (val) => {
   flex: 1;
   overflow-y: auto;
   position: relative;
-  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px 0 110px 0;
 }
 
 .messages-container {
@@ -396,94 +413,152 @@ watch(() => props.loading, (val) => {
 
 /* ============ Scroll Button ============ */
 .scroll-btn {
-  position: absolute;
-  bottom: 20px;
-  right: 24px;
-  width: 40px;
-  height: 40px;
+  position: sticky;
+  bottom: 16px;
+  align-self: flex-end;
+  margin-right: 28px;
+  z-index: 50;
+  flex: none;
+
+  width: 44px;
+  height: 44px;
+  aspect-ratio: 1;
   border-radius: 50%;
-  border: 1px solid var(--color-border-subtle);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  color: var(--color-text-secondary);
+  border: none;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-400, var(--color-primary-500)));
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 0 transparent;
-  position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-primary-500) 35%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .scroll-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--color-primary-500) 40%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-[data-theme="aurora"] .scroll-btn:hover {
-  border-color: rgba(34, 104, 245, 0.4);
-  color: #2268f5;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 0 20px rgba(34, 104, 245, 0.12);
-}
-
-[data-theme="pop"] .scroll-btn:hover {
-  border-color: rgba(168, 85, 247, 0.4);
-  color: #a855f7;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 0 20px rgba(168, 85, 247, 0.12);
+.scroll-btn:hover .scroll-icon {
+  transform: translateY(2px);
 }
 
 .scroll-btn:active {
-  transform: scale(0.92);
+  transform: scale(0.88);
+  transition-duration: 0.1s;
+}
+
+.scroll-btn:active .scroll-icon {
+  transform: translateY(3px);
 }
 
 .scroll-icon {
   flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Aurora theme */
+[data-theme="aurora"] .scroll-btn {
+  background: linear-gradient(135deg, #2268f5, #5b9aff);
+  box-shadow: 0 4px 20px rgba(34, 104, 245, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="aurora"] .scroll-btn:hover {
+  box-shadow: 0 8px 28px rgba(34, 104, 245, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Pop theme */
+[data-theme="pop"] .scroll-btn {
+  background: linear-gradient(135deg, #a855f7, #c084fc);
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="pop"] .scroll-btn:hover {
+  box-shadow: 0 8px 28px rgba(168, 85, 247, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Unread pulse ring */
+.scroll-pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: scrollPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes scrollPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+[data-theme="aurora"] .scroll-pulse {
+  border: 2px solid rgba(34, 104, 245, 0.5);
+}
+
+[data-theme="pop"] .scroll-pulse {
+  border: 2px solid rgba(168, 85, 247, 0.5);
+}
+
+/* Badge */
 .scroll-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  font-size: 10px;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 18px;
   text-align: center;
   color: #fff;
   pointer-events: none;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px var(--color-bg-primary, #fff),
+    0 2px 8px rgba(239, 68, 68, 0.4);
+  animation: badgePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-[data-theme="aurora"] .scroll-badge {
-  background: #2268f5;
-  box-shadow: 0 0 8px rgba(34, 104, 245, 0.4);
-}
-
-[data-theme="pop"] .scroll-badge {
-  background: #a855f7;
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+@keyframes badgePop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
 }
 
 /* Scroll button reveal animation */
 .scroll-reveal-enter-active {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .scroll-reveal-leave-active {
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in;
 }
 
 .scroll-reveal-enter-from {
   opacity: 0;
-  transform: translateY(8px) scale(0.9);
+  transform: translateY(12px) scale(0.85);
 }
 
 .scroll-reveal-leave-to {
   opacity: 0;
-  transform: scale(0.9);
+  transform: scale(0.85);
 }
 
 /* ============ Message Animation ============ */

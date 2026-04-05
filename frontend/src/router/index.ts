@@ -19,7 +19,6 @@ import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
 import DashboardPage from '@/pages/admin/DashboardPage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AgentChatPage from '@/pages/AgentChatPage.vue'
-import UserCenterPage from '@/pages/user/UserCenterPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -93,6 +92,11 @@ const router = createRouter({
           meta: { showFooter: true },
         },
         {
+          path: 'feedback',
+          name: 'Feedback',
+          component: () => import('@/pages/FeedbackPage.vue'),
+        },
+        {
           path: 'spaceUserManage/:spaceId',
           name: 'SpaceUserManage',
           component: SpaceUserManagePage,
@@ -103,12 +107,6 @@ const router = createRouter({
           name: 'AgentChat',
           component: AgentChatPage,
           meta: { title: '智能助手' },
-        },
-        {
-          path: 'user/center',
-          name: 'UserCenter',
-          component: UserCenterPage,
-          meta: { title: '用户中心', requiresAuth: true },
         },
       ],
     },

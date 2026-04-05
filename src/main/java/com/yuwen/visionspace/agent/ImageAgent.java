@@ -175,15 +175,17 @@ public class ImageAgent {
      * 对话入口（带会话隔离）
      *
      * @param userMessage 用户消息
+     * @param imageUrls   图片URL列表
      * @param threadId    会话ID，用于隔离不同对话的上下文
      */
-    public String chat(String userMessage, String threadId) {
+    public String chat(String userMessage, List<String> imageUrls, String threadId) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
         try {
-            AssistantMessage response = agent.call(userMessage, config);
-            chatHistoryService.saveUserMessage(threadId, null, userMessage);
+            String fullMessage = buildUserMessage(userMessage, imageUrls);
+            AssistantMessage response = agent.call(fullMessage, config);
+            chatHistoryService.saveUserMessage(threadId, null, fullMessage);
             chatHistoryService.saveAssistantMessage(threadId, response.getText(), "text");
             return response.getText();
         } catch (Exception e) {
@@ -195,14 +197,15 @@ public class ImageAgent {
     /**
      * 流式对话入口
      */
-    public Flux<MessageDTO> stream(String userMessage, String threadId, Long userId) {
+    public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
-        chatHistoryService.saveUserMessage(threadId, userId, userMessage);
+        String fullMessage = buildUserMessage(userMessage, imageUrls);
+        chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
 
         try {
-            Flux<NodeOutput> stream = agent.stream(userMessage, config);
+            Flux<NodeOutput> stream = agent.stream(fullMessage, config);
 
             StringBuilder assistantContent = new StringBuilder();
             StringBuilder reasoningContent = new StringBuilder();
@@ -345,6 +348,21 @@ public class ImageAgent {
     private int getExploreCount(String threadId) {
         // 后续可通过 MemorySaver 或 Redis 读取实际计数
         return 0;
+    }
+
+    /**
+     * 构建带有图片分析标签的用户消息
+     */
+    private String buildUserMessage(String userMessage, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return userMessage != null ? userMessage : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String url : imageUrls) {
+            sb.append("<image-analysis>").append(url).append("</image-analysis>\n");
+        }
+        sb.append("\n").append(userMessage != null ? userMessage : "");
+        return sb.toString();
     }
 
     /**
