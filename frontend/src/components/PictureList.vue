@@ -8,95 +8,16 @@
 
     <!-- 图片列表 -->
     <div v-else class="picture-grid">
-      <div
+      <PictureCardEnhanced
         v-for="picture in dataList"
         :key="picture.id"
-        class="picture-card pop-card"
-        :class="{ 'card-hover': showCardMap[picture.id] }"
+        :pic="picture"
+        :show-card="showCardMap[picture.id]"
+        :image-loaded="imageLoadedStates[picture.id]"
         @click="doClickPicture(picture)"
         @mouseenter="() => setCardShow(picture.id, true)"
         @mouseleave="() => setCardShow(picture.id, false)"
-      >
-        <!-- 图片容器 -->
-        <div class="picture-container">
-          <img
-            :alt="picture.name"
-            :src="picture.thumbnailUrl || picture.url"
-            class="picture-image"
-            :class="{ 'image-loaded': imageLoadedStates[picture.id] }"
-            @load="() => (imageLoadedStates[picture.id] = true)"
-          />
-
-          <!-- 悬浮遮罩 -->
-          <transition name="mask">
-            <div v-if="showCardMap[picture.id]" class="picture-mask">
-              <div class="mask-actions">
-                <button
-                  class="action-btn pop-btn secondary"
-                  @click.stop="(e) => doShare(picture, e)"
-                  v-if="showOp"
-                >
-                  <Share2 :size="16" />
-                  <span>分享</span>
-                </button>
-                <button
-                  class="action-btn pop-btn outline"
-                  @click.stop="(e) => doSearch(picture, e)"
-                >
-                  <Search :size="16" />
-                  <span>搜图</span>
-                </button>
-                <button
-                  class="action-btn pop-btn outline"
-                  @click.stop="(e) => doEdit(picture, e)"
-                  v-if="showOp && canEdit"
-                >
-                  <Pencil :size="16" />
-                  <span>编辑</span>
-                </button>
-                <button
-                  class="action-btn pop-btn primary"
-                  style="background: var(--color-pink);"
-                  @click.stop="(e) => doDelete(picture, e)"
-                  v-if="showOp && canDelete"
-                >
-                  <Trash2 :size="16" />
-                  <span>删除</span>
-                </button>
-              </div>
-            </div>
-          </transition>
-
-          <!-- 审核状态标签 -->
-          <div v-if="picture.reviewStatus" class="review-status-badge" :class="getReviewStatusClass(picture.reviewStatus)">
-            <span>{{ getReviewStatusText(picture.reviewStatus) }}</span>
-          </div>
-        </div>
-
-        <!-- 图片信息 -->
-        <div class="picture-info">
-          <h3 class="picture-name" :title="picture.name">{{ picture.name }}</h3>
-          <div class="picture-meta">
-            <span v-if="picture.category" class="meta-category pop-tag sunshine">
-              <Folder :size="12" style="vertical-align: middle;" /> {{ picture.category }}
-            </span>
-            <div class="meta-tags" v-if="picture.tags && picture.tags.length > 0">
-              <a-tag v-for="tag in picture.tags.slice(0, 3)" :key="tag" size="small" class="pop-tag">
-                {{ tag }}
-              </a-tag>
-              <span v-if="picture.tags.length > 3" class="tags-more">
-                +{{ picture.tags.length - 3 }}
-              </span>
-            </div>
-          </div>
-          <div class="picture-footer">
-            <span class="picture-size"><Package :size="12" style="vertical-align: middle;" /> {{ formatSize(picture.pictureSize) }}</span>
-            <span class="picture-dimensions" v-if="picture.width && picture.height">
-              <Ruler :size="12" style="vertical-align: middle;" /> {{ picture.width }} × {{ picture.height }}
-            </span>
-          </div>
-        </div>
-      </div>
+      />
     </div>
 
     <!-- 分享弹窗 -->
@@ -113,6 +34,7 @@ import { ref, reactive } from 'vue'
 import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture'
 import { formatSize } from '@/utils'
 import { Camera, Share2, Search, Pencil, Trash2, Folder, Package, Ruler } from 'lucide-vue-next'
+import PictureCardEnhanced from './PictureCardEnhanced.vue'
 
 const router = useRouter()
 

@@ -1,96 +1,98 @@
 <template>
   <div class="agent-chat-input" :class="{ focused: isFocused, 'has-content': inputText.length > 0 || attachments.length > 0 }">
-    <div class="input-container">
-      <!-- Attachment preview strip -->
-      <div v-if="attachments.length > 0" class="attachment-strip">
-        <div v-for="(att, i) in attachments" :key="i" class="attachment-card">
-          <!-- Image preview -->
-          <template v-if="att.previewUrl">
-            <div class="img-preview" @click="openPreview(att.previewUrl!)">
-              <img :src="att.previewUrl" :alt="att.name" />
-              <div class="img-zoom-hint">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <PulsingBorder>
+      <div class="input-container">
+        <!-- Attachment preview strip -->
+        <div v-if="attachments.length > 0" class="attachment-strip">
+          <div v-for="(att, i) in attachments" :key="i" class="attachment-card">
+            <!-- Image preview -->
+            <template v-if="att.previewUrl">
+              <div class="img-preview" @click="openPreview(att.previewUrl!)">
+                <img :src="att.previewUrl" :alt="att.name" />
+                <div class="img-zoom-hint">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </div>
+              </div>
+              <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
+            </template>
+            <!-- File chip -->
+            <template v-else>
+              <div class="file-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                  <polyline points="13 2 13 9 20 9" />
                 </svg>
               </div>
-            </div>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
-          </template>
-          <!-- File chip -->
-          <template v-else>
-            <div class="file-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-                <polyline points="13 2 13 9 20 9" />
+              <span class="file-name" :title="att.name">{{ truncateName(att.name) }}</span>
+              <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Input row -->
+        <div class="input-row">
+          <!-- Left toolbar -->
+          <div class="toolbar-left">
+            <button class="toolbar-btn attach-btn" @click="triggerFilePicker" aria-label="添加附件" title="上传图片或文件">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
-            </div>
-            <span class="file-name" :title="att.name">{{ truncateName(att.name) }}</span>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
-          </template>
-        </div>
-      </div>
+            </button>
+          </div>
+          <input ref="fileInputRef" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" class="hidden-input" @change="handleFileSelect" />
 
-      <!-- Input row -->
-      <div class="input-row">
-        <!-- Left toolbar -->
-        <div class="toolbar-left">
-          <button class="toolbar-btn attach-btn" @click="triggerFilePicker" aria-label="添加附件" title="上传图片或文件">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
-        </div>
-        <input ref="fileInputRef" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" class="hidden-input" @change="handleFileSelect" />
+          <!-- Textarea -->
+          <div class="textarea-wrap">
+            <textarea
+              ref="textareaRef"
+              v-model="inputText"
+              :placeholder="inputText.length === 0 && attachments.length === 0 ? 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片' : ''"
+              :rows="1"
+              class="chat-textarea"
+              @input="autoResize"
+              @focus="isFocused = true"
+              @blur="isFocused = false"
+              @keydown="handleKeydown"
+              @paste="handlePaste"
+            />
+            <transition name="count-fade">
+              <span v-if="inputText.length > 0" class="char-count">{{ inputText.length }}</span>
+            </transition>
+          </div>
 
-        <!-- Textarea -->
-        <div class="textarea-wrap">
-          <textarea
-            ref="textareaRef"
-            v-model="inputText"
-            :placeholder="inputText.length === 0 && attachments.length === 0 ? 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片' : ''"
-            :rows="1"
-            class="chat-textarea"
-            @input="autoResize"
-            @focus="isFocused = true"
-            @blur="isFocused = false"
-            @keydown="handleKeydown"
-            @paste="handlePaste"
-          />
-          <transition name="count-fade">
-            <span v-if="inputText.length > 0" class="char-count">{{ inputText.length }}</span>
+          <!-- Send / Stop -->
+          <transition name="action-swap" mode="out-in">
+            <button
+              v-if="!loading"
+              key="send"
+              class="action-btn send-btn"
+              :disabled="!canSend"
+              @click="handleSend"
+              aria-label="发送"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+
+            <button
+              v-else
+              key="stop"
+              class="action-btn stop-btn"
+              @click="handleStop"
+              aria-label="停止生成"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="3" />
+              </svg>
+            </button>
           </transition>
         </div>
-
-        <!-- Send / Stop -->
-        <transition name="action-swap" mode="out-in">
-          <button
-            v-if="!loading"
-            key="send"
-            class="action-btn send-btn"
-            :disabled="!canSend"
-            @click="handleSend"
-            aria-label="发送"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-
-          <button
-            v-else
-            key="stop"
-            class="action-btn stop-btn"
-            @click="handleStop"
-            aria-label="停止生成"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="4" y="4" width="16" height="16" rx="3" />
-            </svg>
-          </button>
-        </transition>
       </div>
-    </div>
+    </PulsingBorder>
 
     <!-- Hint -->
     <div class="input-hint">
@@ -105,6 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import PulsingBorder from '@/components/shaders/PulsingBorder.vue'
 
 interface Attachment {
   file: File

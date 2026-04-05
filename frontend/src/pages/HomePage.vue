@@ -1,5 +1,6 @@
 <template>
   <div id="homePage">
+    <AmbientMeshGradient />
     <!-- 沉浸式背景层 -->
     <div class="ambient-bg">
       <div class="gradient-orb orb-1"></div>
@@ -235,6 +236,7 @@ import { useRouter } from 'vue-router'
 import { getRecommendListUsingGet } from '@/api/pictureRecommend'
 import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api/pictureAction'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
+import AmbientMeshGradient from '@/components/shaders/AmbientMeshGradient.vue'
 
 const router = useRouter()
 

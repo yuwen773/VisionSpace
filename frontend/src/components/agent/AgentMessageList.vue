@@ -93,7 +93,12 @@
 
       <!-- Messages -->
       <template v-for="(msg, index) in messages" :key="index">
-        <div class="msg-animate">
+        <motion.div
+          class="msg-animate"
+          :initial="{ opacity: 0, x: msg.type === 'user' ? 40 : -40 }"
+          :animate="{ opacity: 1, x: 0 }"
+          :transition="stagger(index * 0.06)"
+        >
           <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" />
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
@@ -105,7 +110,7 @@
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
           <ToolConfirmMessage v-else-if="msg.type === 'mcp-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
-        </div>
+        </motion.div>
       </template>
 
       <!-- Typing indicator -->
@@ -142,12 +147,14 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue'
+import { motion } from 'motion-v'
 import UserMessage from './message/UserMessage.vue'
 import AssistantMessage from './message/AssistantMessage.vue'
 import ReasoningMessage from './message/ReasoningMessage.vue'
 import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
+import { useVisualEnhance } from '@/composables/useVisualEnhance'
 import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 
@@ -183,6 +190,8 @@ const quickHints = [
   '用水彩风格画一只猫',
   '复古海报风格的旅行插画',
 ]
+
+const { springConfig, stagger } = useVisualEnhance()
 
 const listRef = ref<HTMLElement | null>(null)
 const unreadCount = ref(0)

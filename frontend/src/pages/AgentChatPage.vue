@@ -1,5 +1,6 @@
 <template>
   <div class="agent-chat-page">
+    <AmbientMeshGradient />
     <AgentChatLayout
       :left-collapsed="leftCollapsed"
       :right-expanded="resourcePanelVisible"
@@ -122,6 +123,7 @@ import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import {useAgentStream} from '@/composables/useAgentStream'
 import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
+import AmbientMeshGradient from '@/components/shaders/AmbientMeshGradient.vue'
 
 const THREAD_ID_KEY = 'agent_current_thread_id'
 const DATE_LOCALE = 'zh-CN'

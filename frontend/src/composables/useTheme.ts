@@ -74,6 +74,9 @@ export const useTheme = () => {
       // 更新当前主题
       currentTheme.value = theme
 
+      // 触发主题切换动画
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }))
+
       // 保存到 localStorage
       localStorage.setItem(STORAGE_KEY, theme)
 

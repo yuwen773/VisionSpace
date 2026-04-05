@@ -998,3 +998,6 @@ ul, ol {
     display: none !important;
   }
 }
+
+/* ========== 视觉升级扩展 ========== */
+@import './visual-upgrade-extension.css';

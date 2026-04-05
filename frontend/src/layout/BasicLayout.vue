@@ -1,5 +1,6 @@
 <template>
   <div id="basicLayout" :class="{ 'full-screen-layout': $route.meta.fullScreen }">
+    <ThemeTransitionEffect />
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="gradient-orb orb-1"></div>
@@ -80,6 +81,7 @@
 
 <script setup lang="ts">
 import GlobalHeader from '@/components/GlobalHeader.vue'
+import ThemeTransitionEffect from '@/components/ThemeTransitionEffect.vue'
 </script>
 
 <style lang="less" scoped>
