@@ -27,7 +27,7 @@ defineProps<{
 <style scoped>
 .agent-chat-layout {
   display: flex;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   background: var(--color-bg-primary);
 }

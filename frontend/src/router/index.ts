@@ -106,7 +106,7 @@ const router = createRouter({
           path: 'agent',
           name: 'AgentChat',
           component: AgentChatPage,
-          meta: { title: '智能助手' },
+          meta: { title: '智能助手', fullScreen: true },
         },
       ],
     },

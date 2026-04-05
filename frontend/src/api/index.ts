@@ -5,6 +5,7 @@
 import * as agentController from './agentController'
 import * as fileController from './fileController'
 import * as mainController from './mainController'
+import * as mcpController from './mcpController'
 import * as pictureController from './pictureController'
 import * as spaceController from './spaceController'
 import * as spaceAnalyzeController from './spaceAnalyzeController'
@@ -14,6 +15,7 @@ export default {
   agentController,
   fileController,
   mainController,
+  mcpController,
   pictureController,
   spaceController,
   spaceAnalyzeController,
