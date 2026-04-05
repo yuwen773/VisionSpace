@@ -1,6 +1,7 @@
 export interface ImageResource {
   url: string
   title?: string
+  source?: 'internal' | 'external' | 'generated'
 }
 
 export interface LinkResource {
