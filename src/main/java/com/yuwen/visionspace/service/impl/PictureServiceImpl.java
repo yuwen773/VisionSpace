@@ -41,6 +41,7 @@ import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.PictureContentService;
+import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
@@ -106,6 +107,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private PictureContentService pictureContentService;
+
+    @Resource
+    private PictureEmbeddingService pictureEmbeddingService;
 
     @Resource
     private UploadQuotaManager uploadQuotaManager;
@@ -333,6 +337,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             throw e;
         }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
+        // 异步生成向量嵌入（仅审核通过的公开图片）
+        if (picture.getReviewStatus() != null && picture.getReviewStatus() == 1 && picture.getSpaceId() == null) {
+            pictureEmbeddingService.generateAndStoreEmbedding(picture);
+        }
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         PictureVO pictureVO = PictureVO.objToVo(picture);
@@ -593,6 +601,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         updatePicture.setReviewTime(new Date());
         boolean result = this.updateById(updatePicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 审核通过且为公开图片时，异步生成向量嵌入
+        if (pictureReviewRequest.getReviewStatus() == 1 && oldPicture.getSpaceId() == null) {
+            Picture reviewedPicture = this.getById(id);
+            if (reviewedPicture != null) {
+                pictureEmbeddingService.generateAndStoreEmbedding(reviewedPicture);
+            }
+        }
     }
 
     /**
@@ -779,6 +794,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return lockedPicture;
         });
+        // 异步删除向量嵌入
+        pictureEmbeddingService.deleteEmbedding(pictureId);
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容
         this.clearPictureFile(deletedPicture);
@@ -806,6 +823,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 异步更新向量嵌入
+        Picture updatedPicture = this.getById(id);
+        if (updatedPicture != null && updatedPicture.getReviewStatus() != null
+                && updatedPicture.getReviewStatus() == 1 && updatedPicture.getSpaceId() == null) {
+            pictureEmbeddingService.updateEmbedding(updatedPicture);
+        }
     }
 
     /**
