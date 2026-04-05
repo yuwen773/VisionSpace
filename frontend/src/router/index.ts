@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomePage from '@/pages/HomePage.vue'
+import LandingPage from '@/pages/LandingPage.vue'
+import ExplorePage from '@/pages/ExplorePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
@@ -43,7 +44,12 @@ const router = createRouter({
         {
           path: '',
           name: 'home',
-          component: HomePage,
+          component: LandingPage,
+        },
+        {
+          path: 'explore',
+          name: 'Explore',
+          component: ExplorePage,
           meta: { showFooter: true },
         },
         {
