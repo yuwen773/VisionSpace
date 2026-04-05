@@ -21,7 +21,7 @@
             <div class="logo-badge bg-coral">NEW</div>
           </div>
           <h1 class="logo-title">VisionSpace</h1>
-          <p class="logo-subtitle">✨ 欢迎回来！继续你的创意之旅 ✨</p>
+          <p class="logo-subtitle">欢迎回来！继续你的创意之旅</p>
         </div>
 
         <!-- 登录表单 -->
@@ -43,7 +43,7 @@
               class="pop-input"
             >
               <template #prefix>
-                <span class="input-icon">👤</span>
+                <User :size="18" class="input-icon" />
               </template>
             </a-input>
           </a-form-item>
@@ -62,7 +62,7 @@
               class="pop-input"
             >
               <template #prefix>
-                <span class="input-icon">🔑</span>
+                <KeyRound :size="18" class="input-icon" />
               </template>
             </a-input-password>
           </a-form-item>
@@ -70,13 +70,13 @@
           <div class="form-tips">
             <span>还没有账号？</span>
             <router-link to="/user/register" class="tips-link">
-              🎉 去注册
+              去注册
             </router-link>
           </div>
 
           <a-form-item>
             <button html-type="submit" class="pop-btn primary">
-              <span class="btn-icon">🚀</span>
+              <Rocket :size="20" class="btn-icon" />
               <span>立即登录</span>
             </button>
           </a-form-item>
@@ -99,6 +99,7 @@ import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLoginUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
+import { User, KeyRound, Rocket } from 'lucide-vue-next'
 
 const formState = reactive<API.UserLoginRequest>({
   userAccount: '',
@@ -302,7 +303,8 @@ const handleSubmit = async (values: any) => {
 
 .pop-input {
   .input-icon {
-    font-size: var(--text-xl);
+    display: flex;
+    align-items: center;
   }
 }
 
@@ -337,7 +339,8 @@ const handleSubmit = async (values: any) => {
   gap: var(--space-3);
 
   .btn-icon {
-    font-size: var(--text-xl);
+    display: flex;
+    align-items: center;
   }
 }
 

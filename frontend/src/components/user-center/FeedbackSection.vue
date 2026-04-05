@@ -14,7 +14,7 @@
           :class="{ active: feedbackForm.type === item.value }"
           @click="feedbackForm.type = item.value"
         >
-          <span class="type-icon">{{ item.icon }}</span>
+          <component :is="item.icon" :size="24" class="type-icon" />
           <span class="type-name">{{ item.label }}</span>
           <div v-if="feedbackForm.type === item.value" class="type-glow" />
         </div>
@@ -94,12 +94,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
 import { addFeedbackUsingPost, uploadFeedbackAttachment } from '@/api/feedbackController'
 
 const feedbackTypeOptions = [
-  { value: 1, label: '产品建议', icon: '💡' },
-  { value: 2, label: '内容举报', icon: '🚩' },
-  { value: 3, label: '工单支持', icon: '🎫' },
+  { value: 1, label: '产品建议', icon: Lightbulb },
+  { value: 2, label: '内容举报', icon: Flag },
+  { value: 3, label: '工单支持', icon: Ticket },
 ]
 
 const feedbackForm = ref({
@@ -249,7 +250,9 @@ const doFeedbackSubmit = async () => {
 }
 
 .type-icon {
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .type-name {

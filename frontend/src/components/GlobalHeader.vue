@@ -66,8 +66,8 @@
         <!-- 主题切换按钮 -->
         <div class="theme-toggle-wrapper" @click="toggleTheme" :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'">
           <div class="theme-toggle-pill" :class="currentTheme">
-            <span class="theme-icon-item sun">☀️</span>
-            <span class="theme-icon-item moon">🌙</span>
+            <Sun :size="14" class="theme-icon-item sun" />
+            <Moon :size="14" class="theme-icon-item moon" />
             <div class="theme-toggle-slider"></div>
           </div>
         </div>
@@ -82,7 +82,7 @@
               <div class="user-info">
                 <span class="user-name">{{ loginUserStore.loginUser.userAccount ?? 'User' }}</span>
                 <span class="user-role">
-                  <span class="role-icon">{{ isAdmin ? '👑' : '👤' }}</span>
+                  <component :is="isAdmin ? Crown : User" :size="14" class="role-icon" />
                 </span>
               </div>
               <span class="user-arrow">
@@ -114,21 +114,21 @@
                   <a-menu @click="handleUserMenuClick" class="user-menu">
                     <a-menu-item key="my_space" class="menu-item">
                       <div class="menu-item-inner">
-                        <span class="menu-icon">🏠</span>
+                        <Home :size="16" class="menu-icon" />
                         <span class="menu-text">我的空间</span>
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
                     <a-menu-item key="feedback" class="menu-item">
                       <div class="menu-item-inner">
-                        <span class="menu-icon">💬</span>
+                        <MessageSquare :size="16" class="menu-icon" />
                         <span class="menu-text">意见反馈</span>
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
                     <a-menu-item v-if="isAdmin" key="admin" class="menu-item">
                       <div class="menu-item-inner">
-                        <span class="menu-icon">⚙️</span>
+                        <Settings :size="16" class="menu-icon" />
                         <span class="menu-text">后台管理</span>
                       </div>
                       <div class="menu-item-shine"></div>
@@ -136,7 +136,7 @@
                     <a-menu-divider class="menu-divider" />
                     <a-menu-item key="logout" class="menu-item logout-item">
                       <div class="menu-item-inner">
-                        <span class="menu-icon">👋</span>
+                        <LogOut :size="16" class="menu-icon" />
                         <span class="menu-text">退出登录</span>
                       </div>
                       <div class="menu-item-shine logout-shine"></div>
@@ -151,12 +151,12 @@
         <!-- 未登录状态 -->
         <div v-else class="auth-buttons">
           <button @click="goToLogin" class="cosmic-btn secondary">
-            <span class="btn-icon">🔑</span>
+            <LogIn :size="16" class="btn-icon" />
             <span class="btn-text">登录</span>
             <span class="btn-glow"></span>
           </button>
           <button @click="goToRegister" class="cosmic-btn primary">
-            <span class="btn-icon">✨</span>
+            <Sparkles :size="16" class="btn-icon" />
             <span class="btn-text">注册</span>
             <span class="btn-glow"></span>
           </button>
@@ -203,7 +203,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watchEffect, onMounted, onUnmounted, h } from 'vue'
 import type { MenuProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
@@ -212,6 +212,7 @@ import { userLogoutUsingPost } from '@/api/userController.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
 import { listMyTeamSpaceUsingPost } from '@/api/spaceUserController.ts'
 import { useTheme } from '@/composables/useTheme'
+import { Home, Camera, Cloud, Users, Rocket, MessageSquare, Settings, LogOut, LogIn, User, Crown, Sparkles, Sun, Moon } from 'lucide-vue-next'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
@@ -241,27 +242,33 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
 const originItems = [
   {
     key: '/',
-    label: '🏠 主页',
+    icon: () => h(Home, { size: 16 }),
+    label: '主页',
   },
   {
     key: '/agent',
-    label: '🤖 智能助手',
+    icon: () => h(Sparkles, { size: 16 }),
+    label: 'SpaceMind',
   },
   {
     key: '/add_picture',
-    label: '📸 创建图片',
+    icon: () => h(Camera, { size: 16 }),
+    label: '创建图片',
   },
   {
     key: '/add_space',
-    label: '☁️ 创建空间',
+    icon: () => h(Cloud, { size: 16 }),
+    label: '创建空间',
     children: [
       {
         key: '/add_space',
-        label: '🏠 私人空间',
+        icon: () => h(Home, { size: 16 }),
+        label: '私人空间',
       },
       {
         key: '/add_space?type=' + SPACE_TYPE_ENUM.TEAM,
-        label: '👥 团队空间',
+        icon: () => h(Users, { size: 16 }),
+        label: '团队空间',
       },
     ],
   },
@@ -291,12 +298,14 @@ const menuItems = computed(() => {
 
   const teamSpaceSubMenus = teamSpaceList.value.map((item) => ({
     key: '/space/' + item.spaceId,
-    label: '🚀 ' + (item.space?.spaceName || '未知空间'),
+    icon: () => h(Rocket, { size: 16 }),
+    label: item.space?.spaceName || '未知空间',
   }))
 
   const teamSpaceGroupMenus = {
     key: '/space',
-    label: '👥 我的团队',
+    icon: () => h(Users, { size: 16 }),
+    label: '我的团队',
     children: teamSpaceSubMenus,
   }
 
@@ -1058,7 +1067,8 @@ onUnmounted(() => {
   transition: all var(--transition-base);
 
   .menu-icon {
-    font-size: 16px;
+    display: flex;
+    align-items: center;
     transition: transform var(--transition-bounce);
   }
 
@@ -1215,7 +1225,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   opacity: 0.4;
   filter: grayscale(1);
@@ -1291,7 +1300,8 @@ onUnmounted(() => {
   outline: none;
 
   .btn-icon {
-    font-size: 16px;
+    display: flex;
+    align-items: center;
     transition: transform var(--transition-bounce);
   }
 

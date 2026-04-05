@@ -49,7 +49,7 @@
               {{ word }}
             </span>
           </h1>
-          <p class="hero-subtitle">{{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace ✨' }}</p>
+          <p class="hero-subtitle">{{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace' }}</p>
         </div>
 
         <!-- 上传方式切换 -->

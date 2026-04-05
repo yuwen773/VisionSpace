@@ -23,7 +23,7 @@
               :class="{ active: form.type === type.value }"
               @click="form.type = type.value"
             >
-              <span class="type-icon">{{ type.icon }}</span>
+              <component :is="type.icon" :size="24" class="type-icon" />
               <span class="type-label">{{ type.label }}</span>
             </div>
           </div>
@@ -93,6 +93,7 @@
 import { ref, reactive } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
+import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
 import { addFeedbackUsingPost, uploadFeedbackAttachment } from '@/api/feedbackController'
 
 const router = useRouter()
@@ -100,9 +101,9 @@ const submitting = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const typeOptions = [
-  { value: 1, label: '产品建议', icon: '💡' },
-  { value: 2, label: '内容举报', icon: '🚩' },
-  { value: 3, label: '工单支持', icon: '🎫' },
+  { value: 1, label: '产品建议', icon: Lightbulb },
+  { value: 2, label: '内容举报', icon: Flag },
+  { value: 3, label: '工单支持', icon: Ticket },
 ]
 
 const form = reactive({
@@ -343,7 +344,9 @@ const doSubmit = async () => {
   }
 
   .type-icon {
-    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .type-label {

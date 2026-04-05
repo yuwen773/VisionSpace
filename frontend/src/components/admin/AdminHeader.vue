@@ -4,7 +4,7 @@
     <div class="header-left">
       <nav class="breadcrumb">
         <router-link to="/admin/dashboard" class="breadcrumb-item">
-          <span class="breadcrumb-icon">🏠</span>
+          <Home :size="14" class="breadcrumb-icon" />
           <span class="breadcrumb-text">首页</span>
         </router-link>
         <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
@@ -68,14 +68,14 @@
             </div>
             <a-menu @click="handleMenuClick" class="user-menu">
               <a-menu-item key="my_space">
-                <span>🏠</span> 我的空间
+                <Home :size="16" style="margin-right: 8px" /> 我的空间
               </a-menu-item>
               <a-menu-item key="home">
-                <span>✨</span> 返回首页
+                <Sparkles :size="16" style="margin-right: 8px" /> 返回首页
               </a-menu-item>
               <a-menu-divider />
               <a-menu-item key="logout" class="logout-item">
-                <span>👋</span> 退出登录
+                <LogOut :size="16" style="margin-right: 8px" /> 退出登录
               </a-menu-item>
             </a-menu>
           </div>
@@ -91,6 +91,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/userLogin'
 import { userLogoutUsingPost } from '@/api/userController'
+import { Home, Sparkles, LogOut } from 'lucide-vue-next'
 
 const loginUserStore = useLoginUserStore()
 const route = useRoute()
@@ -187,7 +188,8 @@ const doLogout = async () => {
   }
 
   .breadcrumb-icon {
-    font-size: 14px;
+    display: flex;
+    align-items: center;
   }
 }
 

@@ -54,7 +54,7 @@
             {{ word }}
           </span>
         </h1>
-        <p class="page-subtitle">在梦幻星空中开辟属于你的视觉领地 ✨</p>
+        <p class="page-subtitle">在梦幻星空中开辟属于你的视觉领地</p>
       </section>
 
       <!-- 表单与信息区域 -->
