@@ -21,7 +21,7 @@
             <div class="logo-badge bg-sunshine">NEW</div>
           </div>
           <h1 class="logo-title">VisionSpace</h1>
-          <p class="logo-subtitle">✨ 加入 VisionSpace，开启创意之旅 ✨</p>
+          <p class="logo-subtitle">加入 VisionSpace，开启创意之旅</p>
         </div>
 
         <!-- 注册表单 -->
@@ -43,7 +43,7 @@
               class="pop-input"
             >
               <template #prefix>
-                <span class="input-icon">👤</span>
+                <User :size="18" class="input-icon" />
               </template>
             </a-input>
           </a-form-item>
@@ -62,7 +62,7 @@
               class="pop-input"
             >
               <template #prefix>
-                <span class="input-icon">🔑</span>
+                <KeyRound :size="18" class="input-icon" />
               </template>
             </a-input-password>
           </a-form-item>
@@ -81,7 +81,7 @@
               class="pop-input"
             >
               <template #prefix>
-                <span class="input-icon">🛡️</span>
+                <Shield :size="18" class="input-icon" />
               </template>
             </a-input-password>
           </a-form-item>
@@ -89,13 +89,13 @@
           <div class="form-tips">
             <span>已有账号？</span>
             <router-link to="/user/login" class="tips-link">
-              🚀 立即登录
+              立即登录
             </router-link>
           </div>
 
           <a-form-item>
             <button html-type="submit" class="pop-btn primary">
-              <span class="btn-icon">🎉</span>
+              <PartyPopper :size="20" class="btn-icon" />
               <span>创建账号</span>
             </button>
           </a-form-item>
@@ -111,7 +111,7 @@
     </div>
     <!-- 底部版权 -->
     <div class="footer-text">
-      <p>🎨 注册即表示您同意我们的服务条款和隐私政策</p>
+      <p>注册即表示您同意我们的服务条款和隐私政策</p>
       <p class="copyright">&copy; 2026 VisionSpace. All rights reserved.</p>
     </div>
   </div>
@@ -122,6 +122,7 @@ import { reactive } from 'vue'
 import { userRegisterUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
+import { User, KeyRound, Shield, Rocket, PartyPopper } from 'lucide-vue-next'
 
 const formState = reactive<API.UserRegisterRequest>({
   userAccount: '',
@@ -317,7 +318,8 @@ const handleSubmit = async (values: any) => {
 
 .pop-input {
   .input-icon {
-    font-size: var(--text-xl);
+    display: flex;
+    align-items: center;
   }
 }
 
@@ -352,7 +354,8 @@ const handleSubmit = async (values: any) => {
   gap: var(--space-3);
 
   .btn-icon {
-    font-size: var(--text-xl);
+    display: flex;
+    align-items: center;
   }
 }
 

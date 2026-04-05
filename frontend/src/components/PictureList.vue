@@ -3,7 +3,7 @@
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-state">
       <a-spin size="large" />
-      <p class="loading-text">📸 加载中...</p>
+      <p class="loading-text"><Camera :size="20" style="vertical-align: middle;" /> 加载中...</p>
     </div>
 
     <!-- 图片列表 -->
@@ -36,14 +36,14 @@
                   @click.stop="(e) => doShare(picture, e)"
                   v-if="showOp"
                 >
-                  <span>📤</span>
+                  <Share2 :size="16" />
                   <span>分享</span>
                 </button>
                 <button
                   class="action-btn pop-btn outline"
                   @click.stop="(e) => doSearch(picture, e)"
                 >
-                  <span>🔍</span>
+                  <Search :size="16" />
                   <span>搜图</span>
                 </button>
                 <button
@@ -51,7 +51,7 @@
                   @click.stop="(e) => doEdit(picture, e)"
                   v-if="showOp && canEdit"
                 >
-                  <span>✏️</span>
+                  <Pencil :size="16" />
                   <span>编辑</span>
                 </button>
                 <button
@@ -60,7 +60,7 @@
                   @click.stop="(e) => doDelete(picture, e)"
                   v-if="showOp && canDelete"
                 >
-                  <span>🗑️</span>
+                  <Trash2 :size="16" />
                   <span>删除</span>
                 </button>
               </div>
@@ -78,7 +78,7 @@
           <h3 class="picture-name" :title="picture.name">{{ picture.name }}</h3>
           <div class="picture-meta">
             <span v-if="picture.category" class="meta-category pop-tag sunshine">
-              📁 {{ picture.category }}
+              <Folder :size="12" style="vertical-align: middle;" /> {{ picture.category }}
             </span>
             <div class="meta-tags" v-if="picture.tags && picture.tags.length > 0">
               <a-tag v-for="tag in picture.tags.slice(0, 3)" :key="tag" size="small" class="pop-tag">
@@ -90,9 +90,9 @@
             </div>
           </div>
           <div class="picture-footer">
-            <span class="picture-size">📦 {{ formatSize(picture.pictureSize) }}</span>
+            <span class="picture-size"><Package :size="12" style="vertical-align: middle;" /> {{ formatSize(picture.pictureSize) }}</span>
             <span class="picture-dimensions" v-if="picture.width && picture.height">
-              📐 {{ picture.width }} × {{ picture.height }}
+              <Ruler :size="12" style="vertical-align: middle;" /> {{ picture.width }} × {{ picture.height }}
             </span>
           </div>
         </div>
@@ -112,6 +112,7 @@ import ShareModal from '@/components/ShareModal.vue'
 import { ref, reactive } from 'vue'
 import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture'
 import { formatSize } from '@/utils'
+import { Camera, Share2, Search, Pencil, Trash2, Folder, Package, Ruler } from 'lucide-vue-next'
 
 const router = useRouter()
 

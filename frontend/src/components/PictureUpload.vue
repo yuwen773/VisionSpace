@@ -10,13 +10,13 @@
       <div v-if="picture?.url" class="uploaded-image">
         <img :src="picture?.url" alt="avatar" />
         <div class="image-overlay">
-          <span class="overlay-text">📸 点击更换</span>
+          <span class="overlay-text"><Camera :size="20" style="vertical-align: middle; margin-right: 4px;" /> 点击更换</span>
         </div>
       </div>
       <div v-else class="upload-placeholder">
         <div class="upload-icon">
           <loading-outlined v-if="loading" class="animate-spin" />
-          <span v-else class="icon-plus">📸</span>
+          <Camera v-else :size="40" class="icon-plus" />
         </div>
         <div class="upload-text">
           <span class="text-main">点击或拖拽上传</span>
@@ -30,6 +30,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { LoadingOutlined } from '@ant-design/icons-vue'
+import { Camera } from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
 import type { UploadProps } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
@@ -158,11 +159,12 @@ const beforeUpload = (file: UploadProps['fileList'][number]) => {
 }
 
 .upload-icon {
-  font-size: var(--text-5xl);
   color: var(--color-coral);
 
   .icon-plus {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 

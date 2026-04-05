@@ -25,7 +25,7 @@
           class="nav-item"
           :class="{ active: isActive(item.path) }"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
+          <component :is="item.icon" :size="18" class="nav-icon" />
           <span v-show="!isCollapsed" class="nav-label">{{ item.label }}</span>
         </router-link>
       </div>
@@ -37,6 +37,7 @@
 <script lang="ts" setup>
 import { ref, inject, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { BarChart3, Users, Image, Cloud, HardDrive, MessageSquare } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -44,12 +45,12 @@ const sidebarCollapsed = inject<Ref<boolean>>('sidebarCollapsed', ref(false))
 const isCollapsed = sidebarCollapsed
 
 const menuItems = [
-  { path: '/admin/dashboard', label: '仪表盘', icon: '📊' },
-  { path: '/admin/user_manage', label: '用户管理', icon: '👥' },
-  { path: '/admin/picture_manage', label: '图片管理', icon: '🖼️' },
-  { path: '/admin/space_manage', label: '空间管理', icon: '☁️' },
-  { path: '/admin/storage_config_manage', label: '存储配置', icon: '💾' },
-  { path: '/admin/feedback_manage', label: '反馈管理', icon: '💬' },
+  { path: '/admin/dashboard', label: '仪表盘', icon: BarChart3 },
+  { path: '/admin/user_manage', label: '用户管理', icon: Users },
+  { path: '/admin/picture_manage', label: '图片管理', icon: Image },
+  { path: '/admin/space_manage', label: '空间管理', icon: Cloud },
+  { path: '/admin/storage_config_manage', label: '存储配置', icon: HardDrive },
+  { path: '/admin/feedback_manage', label: '反馈管理', icon: MessageSquare },
 ]
 
 const isActive = (path: string) => {
@@ -205,7 +206,6 @@ const toggleCollapse = () => {
   }
 
   .nav-icon {
-    font-size: 16px;
     flex-shrink: 0;
     transition: transform 0.15s ease;
   }

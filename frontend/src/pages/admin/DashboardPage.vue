@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <span>📊</span>
+          <BarChart3 :size="28" />
           <span>管理仪表盘</span>
         </h1>
         <p class="page-subtitle">系统运行状态总览</p>
@@ -260,9 +260,9 @@
             :style="{ animationDelay: `${index * 0.05}s` }"
           >
             <div class="activity-icon" :class="activity.type">
-              <span v-if="activity.type === 'upload'">📤</span>
-              <span v-else-if="activity.type === 'create'">✨</span>
-              <span v-else>📊</span>
+              <Upload v-if="activity.type === 'upload'" :size="16" />
+              <Sparkles v-else-if="activity.type === 'create'" :size="16" />
+              <BarChart3 v-else :size="16" />
             </div>
             <div class="activity-content">
               <span class="activity-text">{{ activity.text }}</span>
@@ -354,6 +354,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { BarChart3, Upload, Sparkles } from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
@@ -604,7 +605,8 @@ onMounted(() => {
     margin: 0 0 8px 0;
 
     span:first-child {
-      font-size: 28px;
+      display: flex;
+      align-items: center;
     }
   }
 
@@ -980,7 +982,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  font-size: 16px;
 
   &.upload {
     background: var(--admin-success-bg);

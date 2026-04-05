@@ -12,14 +12,14 @@
       <div class="share-content">
         <!-- 标题 -->
         <div class="share-header">
-          <span class="header-icon">📤</span>
+          <Share2 :size="28" class="header-icon" />
           <h3 class="header-title">{{ title }}</h3>
         </div>
 
         <!-- 分享链接 -->
         <div class="share-section">
           <div class="section-label">
-            <span>🔗</span>
+            <Link :size="18" />
             <span>复制分享链接</span>
           </div>
           <div class="link-wrapper pop-card">
@@ -35,7 +35,7 @@
         <!-- 二维码 -->
         <div class="share-section">
           <div class="section-label">
-            <span>📱</span>
+            <Smartphone :size="18" />
             <span>手机扫码查看</span>
           </div>
           <div class="qrcode-wrapper pop-card">
@@ -45,7 +45,7 @@
 
         <!-- 底部提示 -->
         <div class="share-footer">
-          <span class="footer-text">💡 分享给好友，一起欣赏精彩图片</span>
+          <span class="footer-text"><Lightbulb :size="14" style="vertical-align: middle; margin-right: 4px;" /> 分享给好友，一起欣赏精彩图片</span>
         </div>
       </div>
     </a-modal>
@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Share2, Link, Smartphone, Lightbulb } from 'lucide-vue-next'
 
 interface Props {
   link: string
@@ -140,7 +141,8 @@ defineExpose({
 }
 
 .header-icon {
-  font-size: var(--text-3xl);
+  display: flex;
+  align-items: center;
 }
 
 .header-title {
