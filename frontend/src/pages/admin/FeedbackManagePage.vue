@@ -269,74 +269,14 @@
     </a-modal>
 
     <!-- 图片预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :title="null"
-      :footer="null"
-      :centered="true"
-      :width="900"
-      class="image-preview-modal"
-      :bodyStyle="{ padding: 0, background: 'transparent' }"
-      :modalStyle="{ background: 'transparent' }"
-    >
-      <div class="preview-wrapper">
-        <div class="preview-toolbar">
-          <div class="toolbar-group">
-            <button class="toolbar-btn" @click="zoomOut" title="缩小">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-            </button>
-            <span class="zoom-level">{{ Math.round(previewScale * 100) }}%</span>
-            <button class="toolbar-btn" @click="zoomIn" title="放大">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/>
-                <line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-            </button>
-            <button class="toolbar-btn" @click="resetZoom" title="重置">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="1 4 1 10 7 10"/>
-                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-              </svg>
-            </button>
-          </div>
-          <div class="toolbar-group">
-            <button class="toolbar-btn" @click="rotateImage" title="旋转">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="23 4 23 10 17 10"/>
-                <polyline points="1 20 1 14 7 14"/>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="preview-container" @wheel.prevent="handleWheel">
-          <img
-            :src="previewUrl"
-            class="preview-image"
-            :style="{
-              transform: `translate(${translate.x}px, ${translate.y}px) scale(${previewScale}) rotate(${previewRotate}deg)`,
-            }"
-            @mousedown="startDrag"
-            @mousemove="onDrag"
-            @mouseup="endDrag"
-            @mouseleave="endDrag"
-            :draggable="false"
-          />
-        </div>
-      </div>
-    </a-modal>
+    <ImagePreview v-model:open="previewVisible" :url="previewUrl" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import ImagePreview from '@/components/ImagePreview.vue'
 import {
   listFeedbackByPageUsingPost,
   updateFeedbackStatusUsingPost,
@@ -352,59 +292,6 @@ const detailVisible = ref(false)
 const currentFeedback = ref<any>(null)
 const previewVisible = ref(false)
 const previewUrl = ref('')
-const previewScale = ref(1)
-const previewRotate = ref(0)
-const isDragging = ref(false)
-const dragStart = ref({ x: 0, y: 0 })
-const translate = ref({ x: 0, y: 0 })
-const translateStart = ref({ x: 0, y: 0 })
-
-const zoomIn = () => {
-  previewScale.value = Math.min(previewScale.value + 0.25, 5)
-}
-
-const zoomOut = () => {
-  previewScale.value = Math.max(previewScale.value - 0.25, 0.25)
-}
-
-const resetZoom = () => {
-  previewScale.value = 1
-  previewRotate.value = 0
-  translate.value = { x: 0, y: 0 }
-}
-
-const rotateImage = () => {
-  previewRotate.value = (previewRotate.value + 90) % 360
-}
-
-const handleWheel = (e: WheelEvent) => {
-  if (e.deltaY < 0) {
-    zoomIn()
-  } else {
-    zoomOut()
-  }
-}
-
-const startDrag = (e: MouseEvent) => {
-  if (previewScale.value > 1) {
-    isDragging.value = true
-    dragStart.value = { x: e.clientX, y: e.clientY }
-    translateStart.value = { ...translate.value }
-  }
-}
-
-const onDrag = (e: MouseEvent) => {
-  if (isDragging.value && previewScale.value > 1) {
-    translate.value = {
-      x: translateStart.value.x + (e.clientX - dragStart.value.x),
-      y: translateStart.value.y + (e.clientY - dragStart.value.y),
-    }
-  }
-}
-
-const endDrag = () => {
-  isDragging.value = false
-}
 
 const stats = reactive({
   pending: 0,
@@ -546,9 +433,6 @@ const doUpdateStatus = async () => {
 
 const previewImage = (url: string) => {
   previewUrl.value = url
-  previewScale.value = 1
-  previewRotate.value = 0
-  translate.value = { x: 0, y: 0 }
   previewVisible.value = true
 }
 
@@ -1241,114 +1125,6 @@ onMounted(() => {
     .stat-value {
       font-size: var(--admin-text-xl);
     }
-  }
-}
-</style>
-
-<!-- 图片预览弹窗样式 -->
-<style lang="less">
-.image-preview-modal {
-  .ant-modal-content {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-  }
-
-  .ant-modal-body {
-    padding: 0;
-  }
-
-  .ant-modal-close {
-    color: white;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-
-    &:hover {
-      color: white;
-      background: rgba(255, 255, 255, 0.1);
-    }
-  }
-
-  .preview-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: var(--admin-space-3);
-  }
-
-  .preview-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--admin-space-4);
-    padding: var(--admin-space-3);
-    background: rgba(31, 35, 40, 0.9);
-    border-radius: var(--admin-radius-lg);
-    backdrop-filter: blur(8px);
-  }
-
-  .toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: var(--admin-space-2);
-  }
-
-  .toolbar-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: var(--admin-radius-md);
-    color: white;
-    cursor: pointer;
-    transition: all var(--admin-transition-fast);
-
-    svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-  }
-
-  .zoom-level {
-    min-width: 50px;
-    text-align: center;
-    font-size: var(--admin-text-sm);
-    font-weight: 600;
-    color: white;
-    font-family: var(--admin-font-mono);
-  }
-
-  .preview-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    max-height: 75vh;
-    overflow: hidden;
-    background: rgba(0, 0, 0, 0.9);
-    border-radius: var(--admin-radius-lg);
-    cursor: grab;
-
-    &:active {
-      cursor: grabbing;
-    }
-  }
-
-  .preview-image {
-    max-width: 100%;
-    max-height: 75vh;
-    object-fit: contain;
-    display: block;
-    transition: transform 0.15s ease;
-    user-select: none;
   }
 }
 </style>

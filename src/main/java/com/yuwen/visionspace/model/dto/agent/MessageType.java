@@ -36,7 +36,7 @@ public enum MessageType {
     /**
      * 工具响应
      */
-    TOOL_RESPONSE("tool");
+    TOOL_RESPONSE("tool-response");
 
     private final String value;
 

@@ -28,7 +28,7 @@ public class AgentMessage implements Serializable {
     private String role;
 
     /**
-     * 子类型: text / reasoning / tool-call / tool-result / tool-confirm（USER 为 NULL）
+     * 子类型: text / reasoning / tool-call / tool-result / mcp-confirm（USER 为 NULL）
      */
     private String subType;
 

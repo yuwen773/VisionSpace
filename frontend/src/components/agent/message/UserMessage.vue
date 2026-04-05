@@ -7,7 +7,7 @@
 
     <!-- 图片网格：气泡下方，右对齐 -->
     <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
-      <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="previewUrl = img.url">
+      <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="openPreview(img.url)">
         <img :src="img.url" alt="附件图片" />
         <div class="img-zoom-hint">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -19,23 +19,13 @@
     </div>
 
     <!-- Lightbox preview -->
-    <Teleport to="body">
-      <transition name="lightbox">
-        <div v-if="previewUrl" class="lightbox-overlay" @click="previewUrl = null">
-          <button class="lightbox-close" @click="previewUrl = null" aria-label="关闭">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-          <img :src="previewUrl" class="lightbox-img" @click.stop />
-        </div>
-      </transition>
-    </Teleport>
+    <ImagePreview v-model:open="previewOpen" :url="previewUrl" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import ImagePreview from '@/components/ImagePreview.vue'
 
 interface Props {
   content: string
@@ -75,7 +65,13 @@ const parsedImages = computed<ParsedImage[]>(() => {
 
 const displayImages = computed(() => parsedImages.value.slice(0, 4))
 const extraCount = computed(() => Math.max(0, parsedImages.value.length - 4))
-const previewUrl = ref<string | null>(null)
+const previewOpen = ref(false)
+const previewUrl = ref('')
+
+const openPreview = (url: string) => {
+  previewUrl.value = url
+  previewOpen.value = true
+}
 
 // 过滤掉 <image-analysis> 标签，只展示纯文字
 const textContent = computed(() => {
@@ -173,15 +169,15 @@ const displayTime = computed(() => {
   overflow: hidden;
 }
 
-.message-images.grid-1 { grid-template-columns: 64px; }
-.message-images.grid-2 { grid-template-columns: 64px 64px; }
-.message-images.grid-3 { grid-template-columns: 64px 64px; }
-.message-images.grid-4 { grid-template-columns: 64px 64px; }
+.message-images.grid-1 { grid-template-columns: 48px; }
+.message-images.grid-2,
+.message-images.grid-3,
+.message-images.grid-4 { grid-template-columns: 48px 48px; }
 
 .img-thumb {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.1);
@@ -242,47 +238,4 @@ const displayTime = computed(() => {
   position: relative;
 }
 
-/* ============ Lightbox ============ */
-.lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(12px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: zoom-out;
-}
-
-.lightbox-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lightbox-img {
-  max-width: 90vw;
-  max-height: 90vh;
-  border-radius: 12px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
-  object-fit: contain;
-  cursor: default;
-}
-
-.lightbox-enter-active { transition: opacity 0.25s ease; }
-.lightbox-leave-active { transition: opacity 0.2s ease; }
-.lightbox-enter-from,
-.lightbox-leave-to { opacity: 0; }
 </style>

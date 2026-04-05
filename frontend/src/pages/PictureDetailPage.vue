@@ -260,54 +260,7 @@
     </div>
 
     <!-- 全屏预览模态框 -->
-    <Teleport to="body">
-      <Transition name="fullscreen">
-        <div v-if="isFullscreen" class="fullscreen-modal" @click="toggleFullscreen">
-          <button class="fullscreen-close" @click="toggleFullscreen">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-
-          <div class="fullscreen-image-wrapper" @click.stop>
-            <img
-              :src="picture.previewUrl || picture.url"
-              :alt="picture.name"
-              class="fullscreen-image"
-              @wheel="handleWheel"
-              ref="fullscreenImgRef"
-            />
-          </div>
-
-          <div class="fullscreen-toolbar">
-            <button class="toolbar-btn" @click.stop="zoomOut">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-            </button>
-            <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
-            <button class="toolbar-btn" @click.stop="zoomIn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/>
-                <line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-            </button>
-            <div class="toolbar-divider"></div>
-            <button class="toolbar-btn" @click.stop="resetZoom">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <ImagePreview v-model:open="isFullscreen" :url="picture.previewUrl || picture.url" :alt="picture.name" />
 
     <!-- 分享弹窗 -->
     <ShareModal ref="shareModalRef" :link="shareLink" title="分享图片" />
@@ -322,6 +275,7 @@ import { useRouter } from 'vue-router'
 import { downloadImage, formatSize, toHexColor } from '@/utils'
 import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
+import ImagePreview from '@/components/ImagePreview.vue'
 
 interface Props {
   id: number | string
@@ -332,13 +286,11 @@ const router = useRouter()
 
 // Refs
 const imageStage = ref<HTMLElement>()
-const fullscreenImgRef = ref<HTMLImageElement>()
 
 // State
 const picture = ref<API.PictureVO>({})
 const imageLoaded = ref(false)
 const isFullscreen = ref(false)
-const zoomLevel = ref(1)
 
 // Fetch picture detail
 const fetchDetailPicture = async () => {
@@ -415,50 +367,10 @@ const goBack = () => {
 // Fullscreen
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value
-  if (isFullscreen.value) {
-    zoomLevel.value = 1
-  }
-}
-
-// Zoom controls for fullscreen
-const zoomIn = () => {
-  zoomLevel.value = Math.min(zoomLevel.value + 0.25, 5)
-  applyZoom()
-}
-
-const zoomOut = () => {
-  zoomLevel.value = Math.max(zoomLevel.value - 0.25, 0.5)
-  applyZoom()
-}
-
-const resetZoom = () => {
-  zoomLevel.value = 1
-  applyZoom()
-}
-
-const handleWheel = (e: WheelEvent) => {
-  e.preventDefault()
-  const delta = e.deltaY > 0 ? -0.1 : 0.1
-  zoomLevel.value = Math.max(0.5, Math.min(5, zoomLevel.value + delta))
-  applyZoom()
-}
-
-const applyZoom = () => {
-  if (fullscreenImgRef.value) {
-    fullscreenImgRef.value.style.transform = `scale(${zoomLevel.value})`
-  }
-}
-
-// Keyboard handler
-const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape' && isFullscreen.value) {
-    toggleFullscreen()
-  }
 }
 
 onMounted(() => {
   fetchDetailPicture()
-  window.addEventListener('keydown', handleKeydown)
 })
 
 watch(() => props.id, () => {
@@ -1136,132 +1048,6 @@ kbd {
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
-}
-
-/* ========== 全屏预览模态框 ========== */
-.fullscreen-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(250, 247, 255, 0.95);
-  backdrop-filter: blur(30px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fullscreen-close {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 14px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  z-index: 10;
-  box-shadow: var(--shadow-md);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: rotate(90deg);
-  }
-}
-
-.fullscreen-image-wrapper {
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow: hidden;
-  cursor: grab;
-
-  &:active {
-    cursor: grabbing;
-  }
-}
-
-.fullscreen-image {
-  max-width: 90vw;
-  max-height: 85vh;
-  object-fit: contain;
-  transition: transform 0.3s ease;
-  user-select: none;
-}
-
-.fullscreen-toolbar {
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg);
-}
-
-.toolbar-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: scale(1.1);
-  }
-}
-
-.zoom-level {
-  min-width: 60px;
-  text-align: center;
-  font-size: 14px;
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-}
-
-.toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border-default);
-  margin: 0 4px;
-}
-
-/* 全屏过渡动画 */
-.fullscreen-enter-active,
-.fullscreen-leave-active {
-  transition: all 0.4s ease;
-
-  .fullscreen-image-wrapper {
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-}
-
-.fullscreen-enter-from,
-.fullscreen-leave-to {
-  opacity: 0;
-
-  .fullscreen-image-wrapper {
-    transform: scale(0.9);
-    opacity: 0;
-  }
 }
 
 /* ========== 响应式 ========== */

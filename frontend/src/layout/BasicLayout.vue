@@ -1,5 +1,5 @@
 <template>
-  <div id="basicLayout">
+  <div id="basicLayout" :class="{ 'full-screen-layout': $route.meta.fullScreen }">
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="gradient-orb orb-1"></div>
@@ -15,8 +15,8 @@
 
       <!-- 主要内容区域 -->
       <a-layout>
-        <a-layout-content class="layout-content">
-          <div class="content-wrapper">
+        <a-layout-content class="layout-content" :class="{ 'full-screen-content': $route.meta.fullScreen }">
+          <div class="content-wrapper" :class="{ 'full-screen-wrapper': $route.meta.fullScreen }">
             <router-view v-slot="{ Component }">
               <transition name="page" mode="out-in">
                 <component :is="Component" :key="$route.fullPath" />
@@ -89,6 +89,27 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   background: var(--color-bg-primary);
   overflow-x: hidden;
   width: 100%;
+
+  &.full-screen-layout {
+    height: 100vh;
+    overflow: hidden;
+
+    .main-layout {
+      height: 100%;
+    }
+
+    // 内部 a-layout 也需要约束
+    .ant-layout {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .layout-content {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  }
 }
 
 /* ========== 背景装饰 ========== */
@@ -153,6 +174,8 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   position: relative;
   z-index: 1;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: transparent;
 }
 
@@ -162,18 +185,36 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   padding: 0;
   line-height: normal;
   height: auto;
+  flex-shrink: 0;
 }
 
 /* ========== 内容区域 ========== */
 .layout-content {
   background: transparent;
   padding: var(--space-6);
-  min-height: calc(100vh - 64px - 200px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  &.full-screen-content {
+    padding: 0;
+  }
 }
 
 .content-wrapper {
   max-width: var(--container-2xl);
   margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  &.full-screen-wrapper {
+    max-width: none;
+    margin: 0;
+  }
 }
 
 /* ========== 页面切换动画 ========== */

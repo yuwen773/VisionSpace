@@ -98,7 +98,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveToolConfirmMessage(String sessionId, String content) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "tool-confirm", content);
+        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "mcp-confirm", content);
         messageMapper.insert(message);
     }
 

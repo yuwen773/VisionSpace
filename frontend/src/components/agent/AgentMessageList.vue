@@ -33,13 +33,11 @@
   v-else-if="msg.type === 'assistant'"
   :content="msg.content"
   :isLoading="msg.isLoading"
-  :images="images"
-  :has-resources="hasResources"
-  @toggle-resources="emit('toggleResources')"
+  @toggle-resources="(data: ResourceData) => emit('toggleResources', data)"
 />
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
-          <ToolConfirmMessage v-else-if="msg.type === 'tool-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
+          <ToolConfirmMessage v-else-if="msg.type === 'mcp-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
         </div>
       </template>
 
@@ -84,9 +82,10 @@ import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
+import type { ResourceData } from './types'
 
 interface Message {
-  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'tool-confirm' | 'interrupt' | 'loading'
+  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'interrupt' | 'loading'
   content: string
   toolName?: string
   toolCalls?: ToolCallArg[]
@@ -98,26 +97,18 @@ interface Message {
 interface Props {
   messages: Message[]
   loading?: boolean
-  images?: { url: string; title?: string }[]
-  links?: { url: string; title: string; snippet: string; domain: string }[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
-  images: () => [],
-  links: () => [],
 })
-
-const hasResources = computed(() =>
-  (props.images && props.images.length > 0) || (props.links && props.links.length > 0)
-)
 
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
   (e: 'send', text: string): void
-  (e: 'toggleResources'): void
+  (e: 'toggleResources', data: ResourceData): void
 }>()
 
 const quickHints = [
@@ -182,12 +173,31 @@ watch(() => props.loading, (val) => {
 <style scoped>
 .agent-message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 20px 0 110px 0;
+  padding: 20px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-default) transparent;
+}
+
+.agent-message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agent-message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-message-list::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 10px;
+}
+
+.agent-message-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
 }
 
 .messages-container {
