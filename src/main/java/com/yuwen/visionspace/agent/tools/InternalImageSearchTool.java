@@ -28,19 +28,33 @@ public class InternalImageSearchTool {
     @Tool(name = "searchInternalImages", description = "从站内图片库中通过语义搜索查找图片。适用于用户需要特定风格、主题、颜色或类型的站内已有图片。优先使用此工具搜索站内资源，结果不足时再使用外部搜索。")
     public List<ImageResource> searchInternalImages(
             @ToolParam(description = "搜索描述，使用自然语言描述想要的图片特征，例如：'科技感蓝色背景图'、'温暖的自然风光'、'简洁的商务插图'") String query,
+            @ToolParam(description = "当前空间 ID", required = false) Long currentSpaceId,
+            @ToolParam(description = "当前用户 ID", required = false) Long currentUserId,
+            @ToolParam(description = "是否为管理员", required = false) Boolean isAdmin,
             @ToolParam(description = "返回结果数量，默认 5，最大 10", required = false) Integer topK
     ) {
-        int k = (topK != null && topK > 0 && topK <= 10) ? topK : 5;
+        int k = (topK != null && topK > 0 && topK <= 10) ? topK : 8;
         List<ImageResource> results = new ArrayList<>();
 
         try {
-            List<Document> docs = vectorStore.similaritySearch(
-                    SearchRequest.builder()
-                            .query(query)
-                            .topK(k)
-                            .similarityThreshold(0.0)
-                            .build()
-            );
+            SearchRequest.SearchRequestBuilder builder = SearchRequest.builder()
+                    .query(query)
+                    .topK(k)
+                    .similarityThreshold(0.0);
+
+            // 非管理员用户需要权限过滤
+            if (currentSpaceId != null && (isAdmin == null || !isAdmin)) {
+                String filterExpression;
+                if (currentUserId != null) {
+                    filterExpression = "spaceId == " + currentSpaceId +
+                            " && (visibility == 'public' || userId == " + currentUserId + ")";
+                } else {
+                    filterExpression = "spaceId == " + currentSpaceId + " && visibility == 'public'";
+                }
+                builder.filterExpression(filterExpression);
+            }
+
+            List<Document> docs = vectorStore.similaritySearch(builder.build());
 
             for (Document doc : docs) {
                 Map<String, Object> meta = doc.getMetadata();

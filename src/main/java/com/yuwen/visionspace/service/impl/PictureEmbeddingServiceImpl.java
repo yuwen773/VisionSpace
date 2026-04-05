@@ -127,6 +127,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("picColor", picture.getPicColor() != null ? picture.getPicColor() : "");
         metadata.put("spaceId", picture.getSpaceId() != null ? picture.getSpaceId() : 0L);
         metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
+        metadata.put("visibility", picture.getVisibility() != null ? picture.getVisibility() : "public");
         metadata.put("indexedAt", System.currentTimeMillis());
 
         return new Document(DOC_ID_PREFIX + picture.getId(), content.toString(), metadata);
