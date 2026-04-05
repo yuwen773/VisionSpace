@@ -3,6 +3,7 @@ package com.yuwen.visionspace.service.impl;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureService;
+import com.yuwen.visionspace.service.VlCaptionService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -24,6 +25,9 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
     @Resource
     private PictureService pictureService;
+
+    @Resource
+    private VlCaptionService vlCaptionService;
 
     @Override
     @Async("embeddingExecutor")
