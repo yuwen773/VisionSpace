@@ -7,7 +7,8 @@
       <a-avatar :src="loginUser.userAvatar" :size="64" class="avatar-preview" />
       <div class="avatar-info">
         <span class="field-label">头像</span>
-        <a-button class="change-avatar-btn" @click="showAvatarModal">更换头像</a-button>
+        <a-button class="change-avatar-btn" :loading="avatarUploading" @click="triggerAvatarUpload">更换头像</a-button>
+        <input ref="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="handleAvatarChange" />
       </div>
     </div>
 
@@ -53,7 +54,7 @@
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/userLogin'
-import { updateUserUsingPost } from '@/api/userController'
+import { updateUserUsingPost, uploadAvatarUsingPost } from '@/api/userController'
 
 const loginUserStore = useLoginUserStore()
 const loginUser = loginUserStore.loginUser
@@ -95,8 +96,34 @@ const saveField = async (field: EditableField) => {
   }
 }
 
-const showAvatarModal = () => {
-  message.info('头像上传功能待实现')
+const avatarUploading = ref(false)
+const avatarInput = ref<HTMLInputElement>()
+
+const triggerAvatarUpload = () => {
+  avatarInput.value?.click()
+}
+
+const handleAvatarChange = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  if (file.size > 2 * 1024 * 1024) {
+    message.error('文件大小不能超过 2MB')
+    return
+  }
+  avatarUploading.value = true
+  try {
+    const res = await uploadAvatarUsingPost(file)
+    if (res.data.code === 0) {
+      await loginUserStore.fetchUserLogin()
+      message.success('头像更换成功')
+    }
+  } catch {
+    message.error('头像上传失败')
+  } finally {
+    avatarUploading.value = false
+    // 清空 input 以便重复选择同一文件
+    if (avatarInput.value) avatarInput.value.value = ''
+  }
 }
 </script>
 

@@ -2,7 +2,7 @@
   <div class="assistant-message">
     <div class="message-content">
       <div class="message-header">
-        <span class="agent-name">智能助手</span>
+        <span class="agent-name">SpaceMind</span>
       </div>
       <div class="message-body markdown-body" v-html="finalContent"></div>
 
@@ -248,9 +248,11 @@ const copyContent = async () => {
 }
 
 .agent-name {
+  font-family: var(--font-display);
   font-size: 12px;
   font-weight: 600;
   color: var(--color-primary-500);
+  letter-spacing: -0.01em;
 }
 
 .message-body {

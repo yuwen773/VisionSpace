@@ -162,3 +162,14 @@ export const getUserRecentPicturesUsingGet = (count: number) => {
     params: { count }
   });
 };
+
+/** uploadAvatar POST /api/user/avatar/upload */
+export async function uploadAvatarUsingPost(file: File, options?: { [key: string]: any }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<API.BaseResponseString_>('/api/user/avatar/upload', {
+    method: 'POST',
+    data: formData,
+    ...(options || {}),
+  })
+}

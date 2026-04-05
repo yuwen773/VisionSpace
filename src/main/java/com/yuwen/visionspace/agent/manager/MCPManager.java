@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.agent.manager;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.model.dto.mcp.*;
 import com.yuwen.visionspace.model.entity.McpServer;
 import com.yuwen.visionspace.utils.JsonUtils;

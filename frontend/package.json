@@ -18,7 +18,6 @@
     "ant-design-vue": "^4.2.6",
     "axios": "^1.12.2",
     "echarts": "^6.0.0",
-    "echarts-wordcloud": "^2.1.0",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.9.0",
     "lucide-vue-next": "^1.0.0",

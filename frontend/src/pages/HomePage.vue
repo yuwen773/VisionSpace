@@ -78,7 +78,7 @@
               </svg>
             </div>
             <div class="quick-text">
-              <span class="quick-title">AI 智能助手</span>
+              <span class="quick-title">SpaceMind</span>
               <span class="quick-desc">描述需求，AI 帮您找图</span>
             </div>
             <div class="quick-arrow">
@@ -1476,9 +1476,11 @@ onUnmounted(() => {
 }
 
 .quick-title {
+  font-family: var(--font-display);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text-primary);
+  letter-spacing: -0.02em;
 }
 
 .quick-desc {

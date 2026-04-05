@@ -10,25 +10,32 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.storage.FileUploadService;
 import com.yuwen.visionspace.model.dto.user.*;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/user")
 public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private FileUploadService fileUploadService;
 
     @Value("${vision-space.security.default-password}")
     private String defaultPassword;
@@ -176,6 +183,30 @@ public class UserController {
         // 调用 service 层的方法进行会员兑换
         boolean result = userService.exchangeVip(loginUser, vipCode);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 上传用户头像
+     */
+    @PostMapping("/avatar/upload")
+    public BaseResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file,
+                                             HttpServletRequest request) {
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");
+        User loginUser = userService.getLoginUser(request);
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
+
+        String pathPrefix = "/avatar/" + loginUser.getId() + "/";
+        String url = fileUploadService.uploadImageFile(file, pathPrefix);
+
+        // 更新用户头像字段
+        User updateUser = new User();
+        updateUser.setId(loginUser.getId());
+        updateUser.setUserAvatar(url);
+        boolean updated = userService.updateById(updateUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "头像更新失败");
+
+        log.info("用户头像上传成功: userId={}, url={}", loginUser.getId(), url);
+        return ResultUtils.success(url);
     }
 
 }

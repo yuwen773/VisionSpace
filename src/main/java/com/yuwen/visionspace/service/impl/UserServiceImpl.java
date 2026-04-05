@@ -27,6 +27,7 @@ import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         implements UserService {
-
     /**
      * 用户注册
      *
@@ -251,7 +251,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Autowired
     private ResourceLoader resourceLoader;
 
-    @Resource
+    @jakarta.annotation.Resource
+    @Lazy
     private PictureService pictureService;
 
     // 文件读写锁（确保并发安全）

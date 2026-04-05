@@ -3,10 +3,22 @@
     <!-- Header -->
     <div class="sidebar-header">
       <div class="brand">
-        <div class="brand-orb" aria-hidden="true">
-          <span class="orb-core"></span>
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <!-- 连线 -->
+            <line x1="12" y1="3" x2="4" y2="9" class="mark-line mark-line-1" />
+            <line x1="12" y1="3" x2="20" y2="9" class="mark-line mark-line-2" />
+            <line x1="4" y1="9" x2="12" y2="21" class="mark-line mark-line-3" />
+            <line x1="20" y1="9" x2="12" y2="21" class="mark-line mark-line-4" />
+            <line x1="4" y1="9" x2="20" y2="9" class="mark-line mark-line-5" />
+            <!-- 节点 -->
+            <circle cx="12" cy="3" r="2" class="mark-node mark-node-top" />
+            <circle cx="4" cy="9" r="1.6" class="mark-node mark-node-left" />
+            <circle cx="20" cy="9" r="1.6" class="mark-node mark-node-right" />
+            <circle cx="12" cy="21" r="2.4" class="mark-node mark-node-core" />
+          </svg>
         </div>
-        <span class="brand-name">智能助手</span>
+        <span class="brand-name">SpaceMind</span>
         <button class="collapse-btn" @click="emit('collapse')" aria-label="收起侧边栏" title="收起侧边栏">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -147,34 +159,67 @@ const groupedHistories = computed(() => {
   margin-bottom: 0;
 }
 
-.brand-orb {
-  width: 26px;
-  height: 26px;
+.brand-mark {
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.orb-core {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: var(--gradient-aurora);
+.mark-line {
+  stroke: var(--color-primary-500);
+  stroke-width: 1.2;
+  opacity: 0.35;
+  stroke-linecap: round;
 }
 
-[data-theme="aurora"] .orb-core {
-  box-shadow: 0 0 16px rgba(34, 104, 245, 0.35);
+.mark-node {
+  fill: var(--color-primary-500);
+  opacity: 0.9;
 }
 
-[data-theme="pop"] .orb-core {
-  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+.mark-node-core {
+  fill: url(#markGrad);
+  opacity: 1;
+  animation: nodeBreath 3s ease-in-out infinite;
+}
+
+[data-theme="aurora"] .mark-node-core {
+  filter: drop-shadow(0 0 4px rgba(34, 104, 245, 0.5));
+}
+
+[data-theme="pop"] .mark-node-core {
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.5));
+}
+
+.mark-line-1 { animation: lineFade 4s ease-in-out 0s infinite; }
+.mark-line-2 { animation: lineFade 4s ease-in-out 0.5s infinite; }
+.mark-line-3 { animation: lineFade 4s ease-in-out 1s infinite; }
+.mark-line-4 { animation: lineFade 4s ease-in-out 1.5s infinite; }
+.mark-line-5 { animation: lineFade 4s ease-in-out 2s infinite; }
+
+.mark-node-top { animation: nodeBreath 3s ease-in-out 0s infinite; }
+.mark-node-left { animation: nodeBreath 3s ease-in-out 0.4s infinite; }
+.mark-node-right { animation: nodeBreath 3s ease-in-out 0.8s infinite; }
+
+@keyframes nodeBreath {
+  0%, 100% { opacity: 0.7; transform-origin: center; }
+  50% { opacity: 1; }
+}
+
+@keyframes lineFade {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.6; }
 }
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--color-text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   flex: 1;
 }
 

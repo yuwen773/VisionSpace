@@ -3,24 +3,91 @@
     <div class="messages-container">
       <!-- Welcome Screen -->
       <div v-if="messages.length === 0" class="welcome">
-        <div class="welcome-orb" aria-hidden="true">
-          <span class="orb-ring"></span>
-          <span class="orb-core"></span>
+        <!-- 星云光晕 -->
+        <div class="nebula" aria-hidden="true">
+          <div class="nebula-cloud n1"></div>
+          <div class="nebula-cloud n2"></div>
+          <div class="nebula-cloud n3"></div>
         </div>
-        <div class="welcome-text">
-          <h2 class="welcome-title">智能图片助手</h2>
-          <p class="welcome-desc">描述您想要的画面，我来帮您寻找或创作</p>
-        </div>
-        <div class="welcome-hints">
-          <button
-            v-for="(hint, i) in quickHints"
-            :key="i"
-            class="hint-chip"
-            :style="{ animationDelay: i * 50 + 'ms' }"
-            @click="emit('send', hint)"
-          >
-            {{ hint }}
-          </button>
+        <!-- 漂浮星尘 -->
+        <div class="starfield" aria-hidden="true"></div>
+
+        <!-- 主舞台 -->
+        <div class="welcome-stage">
+          <!-- 星座动画 -->
+          <div class="constellation" aria-hidden="true">
+            <svg class="constellation-svg" viewBox="0 0 240 220" fill="none">
+              <defs>
+                <linearGradient id="nodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="var(--color-primary-400)" />
+                  <stop offset="100%" stop-color="var(--color-accent-purple, var(--color-secondary-400))" />
+                </linearGradient>
+                <filter id="nodeGlow">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <filter id="coreGlow">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <!-- 连线 -->
+              <line x1="120" y1="20" x2="60" y2="65" class="c-line" style="animation-delay:0s" />
+              <line x1="120" y1="20" x2="180" y2="65" class="c-line" style="animation-delay:0.2s" />
+              <line x1="60" y1="65" x2="30" y2="130" class="c-line" style="animation-delay:0.4s" />
+              <line x1="60" y1="65" x2="120" y2="110" class="c-line" style="animation-delay:0.6s" />
+              <line x1="180" y1="65" x2="210" y2="130" class="c-line" style="animation-delay:0.3s" />
+              <line x1="180" y1="65" x2="120" y2="110" class="c-line" style="animation-delay:0.5s" />
+              <line x1="60" y1="65" x2="180" y2="65" class="c-line" style="animation-delay:1.2s" />
+              <line x1="120" y1="110" x2="30" y2="130" class="c-line" style="animation-delay:0.8s" />
+              <line x1="120" y1="110" x2="210" y2="130" class="c-line" style="animation-delay:0.7s" />
+              <line x1="120" y1="110" x2="80" y2="180" class="c-line" style="animation-delay:0.9s" />
+              <line x1="120" y1="110" x2="160" y2="180" class="c-line" style="animation-delay:1s" />
+              <line x1="30" y1="130" x2="80" y2="180" class="c-line" style="animation-delay:1.3s" />
+              <line x1="210" y1="130" x2="160" y2="180" class="c-line" style="animation-delay:1.1s" />
+              <line x1="80" y1="180" x2="160" y2="180" class="c-line" style="animation-delay:1.5s" />
+              <!-- 节点 -->
+              <circle cx="120" cy="20" r="4" class="c-node c-node-lg" style="animation-delay:0s" filter="url(#nodeGlow)" />
+              <circle cx="60" cy="65" r="3.2" class="c-node" style="animation-delay:0.3s" />
+              <circle cx="180" cy="65" r="3.2" class="c-node" style="animation-delay:0.5s" />
+              <circle cx="120" cy="110" r="5.5" class="c-node c-node-core" style="animation-delay:0.1s" filter="url(#coreGlow)" />
+              <circle cx="30" cy="130" r="2.8" class="c-node" style="animation-delay:0.7s" />
+              <circle cx="210" cy="130" r="2.8" class="c-node" style="animation-delay:0.9s" />
+              <circle cx="80" cy="180" r="3" class="c-node" style="animation-delay:1.1s" />
+              <circle cx="160" cy="180" r="3" class="c-node" style="animation-delay:1.3s" />
+              <!-- 微尘粒子 -->
+              <circle cx="45" cy="40" r="1" class="c-dust" style="animation-delay:0s" />
+              <circle cx="195" cy="45" r="0.8" class="c-dust" style="animation-delay:1s" />
+              <circle cx="15" cy="100" r="0.7" class="c-dust" style="animation-delay:2s" />
+              <circle cx="225" cy="95" r="0.9" class="c-dust" style="animation-delay:0.5s" />
+              <circle cx="100" cy="200" r="0.8" class="c-dust" style="animation-delay:1.5s" />
+              <circle cx="140" cy="195" r="0.6" class="c-dust" style="animation-delay:2.5s" />
+            </svg>
+          </div>
+          <div class="welcome-text">
+            <h2 class="welcome-title">SpaceMind</h2>
+            <p class="welcome-desc">描述您想要的画面，我来帮您寻找或创作</p>
+          </div>
+          <div class="welcome-hints">
+            <button
+              v-for="(hint, i) in quickHints"
+              :key="i"
+              class="hint-card"
+              :style="{ animationDelay: (500 + i * 80) + 'ms' }"
+              @click="emit('send', hint)"
+            >
+              <svg class="hint-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              <span>{{ hint }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -209,19 +276,169 @@ watch(() => props.loading, (val) => {
 
 /* ============ Welcome Screen ============ */
 .welcome {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 50vh;
+  min-height: 60vh;
   text-align: center;
   padding: 40px 20px;
+  overflow: hidden;
+}
+
+/* Nebula backdrop */
+.nebula {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  animation: nebulaFadeIn 1.5s ease both;
+}
+
+@keyframes nebulaFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.nebula-cloud {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.35;
+  animation: nebulaDrift 12s ease-in-out infinite;
+}
+
+[data-theme="aurora"] .n1 {
+  width: 320px;
+  height: 320px;
+  top: 5%;
+  left: 15%;
+  background: radial-gradient(circle, rgba(34, 104, 245, 0.4) 0%, transparent 70%);
+}
+
+[data-theme="aurora"] .n2 {
+  width: 250px;
+  height: 250px;
+  top: 40%;
+  right: 10%;
+  background: radial-gradient(circle, rgba(110, 53, 235, 0.35) 0%, transparent 70%);
+  animation-delay: 3s;
+}
+
+[data-theme="aurora"] .n3 {
+  width: 200px;
+  height: 200px;
+  bottom: 10%;
+  left: 30%;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.2) 0%, transparent 70%);
+  animation-delay: 6s;
+}
+
+[data-theme="pop"] .n1 {
+  width: 320px;
+  height: 320px;
+  top: 5%;
+  left: 15%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 70%);
+}
+
+[data-theme="pop"] .n2 {
+  width: 250px;
+  height: 250px;
+  top: 40%;
+  right: 10%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%);
+  animation-delay: 3s;
+}
+
+[data-theme="pop"] .n3 {
+  width: 200px;
+  height: 200px;
+  bottom: 10%;
+  left: 30%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+  animation-delay: 6s;
+}
+
+@keyframes nebulaDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(15px, -10px) scale(1.05); }
+  66% { transform: translate(-10px, 8px) scale(0.97); }
+}
+
+/* Starfield */
+.starfield {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: nebulaFadeIn 2s ease 0.3s both;
+}
+
+[data-theme="aurora"] .starfield::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(200, 220, 255, 0.7);
+  box-shadow:
+    30px 40px 0 0 rgba(200, 220, 255, 0.3),
+    80px 15px 0 0 rgba(200, 220, 255, 0.5),
+    140px 70px 0 0 rgba(200, 220, 255, 0.2),
+    200px 30px 0 0 rgba(200, 220, 255, 0.6),
+    260px 80px 0 0 rgba(200, 220, 255, 0.3),
+    50px 120px 0 0 rgba(200, 220, 255, 0.4),
+    180px 140px 0 0 rgba(200, 220, 255, 0.5),
+    100px 180px 0 0 rgba(200, 220, 255, 0.2),
+    300px 100px 0 0 rgba(200, 220, 255, 0.4),
+    220px 170px 0 0 rgba(200, 220, 255, 0.3),
+    350px 50px 0 0 rgba(200, 220, 255, 0.5),
+    370px 160px 0 0 rgba(200, 220, 255, 0.2);
+  animation: starTwinkle 4s ease-in-out infinite;
+}
+
+[data-theme="pop"] .starfield::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(220, 200, 255, 0.7);
+  box-shadow:
+    30px 40px 0 0 rgba(220, 200, 255, 0.3),
+    80px 15px 0 0 rgba(220, 200, 255, 0.5),
+    140px 70px 0 0 rgba(220, 200, 255, 0.2),
+    200px 30px 0 0 rgba(220, 200, 255, 0.6),
+    260px 80px 0 0 rgba(220, 200, 255, 0.3),
+    50px 120px 0 0 rgba(220, 200, 255, 0.4),
+    180px 140px 0 0 rgba(220, 200, 255, 0.5),
+    100px 180px 0 0 rgba(220, 200, 255, 0.2),
+    300px 100px 0 0 rgba(220, 200, 255, 0.4),
+    220px 170px 0 0 rgba(220, 200, 255, 0.3),
+    350px 50px 0 0 rgba(220, 200, 255, 0.5),
+    370px 160px 0 0 rgba(220, 200, 255, 0.2);
+  animation: starTwinkle 4s ease-in-out infinite;
+}
+
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Welcome stage — content above backdrop */
+.welcome-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 @keyframes welcomeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
@@ -229,123 +446,210 @@ watch(() => props.loading, (val) => {
   }
 }
 
-/* Welcome Orb */
-.welcome-orb {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 28px;
-  animation: welcomeOrbIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
+/* Constellation */
+.constellation {
+  width: 160px;
+  height: 150px;
+  margin-bottom: 20px;
+  animation: constellationIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
 }
 
-.orb-core {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--gradient-aurora);
-  display: block;
-  z-index: 1;
-}
-
-.orb-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  animation: orbRingSpin 8s linear infinite;
-}
-
-[data-theme="aurora"] .orb-core {
-  box-shadow: 0 0 30px rgba(34, 104, 245, 0.4), 0 0 60px rgba(110, 53, 235, 0.2);
-}
-
-[data-theme="aurora"] .orb-ring {
-  border-color: rgba(34, 104, 245, 0.2);
-  box-shadow: 0 0 20px rgba(34, 104, 245, 0.1);
-}
-
-[data-theme="pop"] .orb-core {
-  box-shadow: 0 0 24px rgba(168, 85, 247, 0.3), 0 0 48px rgba(236, 72, 153, 0.12);
-}
-
-[data-theme="pop"] .orb-ring {
-  border-color: rgba(168, 85, 247, 0.15);
-}
-
-@keyframes orbRingSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes welcomeOrbIn {
-  from { opacity: 0; transform: scale(0.8); }
+@keyframes constellationIn {
+  from { opacity: 0; transform: scale(0.7); }
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes hintChipIn {
-  from { opacity: 0; transform: scale(0.9) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+.constellation-svg {
+  width: 100%;
+  height: 100%;
 }
 
+.c-line {
+  stroke: var(--color-primary-400, var(--color-primary-500));
+  stroke-width: 1;
+  opacity: 0.4;
+  stroke-linecap: round;
+  animation: cLineBreath 4s ease-in-out infinite;
+}
+
+.c-node {
+  fill: var(--color-primary-400, var(--color-primary-500));
+  opacity: 0.85;
+  animation: cNodeBreath 3.5s ease-in-out infinite;
+}
+
+.c-node-lg {
+  opacity: 0.95;
+}
+
+.c-node-core {
+  fill: url(#nodeGrad);
+  opacity: 1;
+  animation: cCoreBreath 3s ease-in-out infinite;
+}
+
+[data-theme="aurora"] .c-node-core {
+  filter: drop-shadow(0 0 10px rgba(34, 104, 245, 0.6));
+}
+
+[data-theme="pop"] .c-node-core {
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.6));
+}
+
+.c-dust {
+  fill: var(--color-primary-300, var(--color-primary-400));
+  opacity: 0;
+  animation: dustDrift 5s ease-in-out infinite;
+}
+
+@keyframes cLineBreath {
+  0%, 100% { opacity: 0.3; stroke-width: 1; }
+  50% { opacity: 0.65; stroke-width: 1.4; }
+}
+
+@keyframes cNodeBreath {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+@keyframes cCoreBreath {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+}
+
+@keyframes dustDrift {
+  0% { opacity: 0; transform: translateY(0); }
+  30% { opacity: 0.5; }
+  70% { opacity: 0.4; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Welcome text */
 .welcome-text {
-  animation: welcomeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+  animation: welcomeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
 }
 
 .welcome-title {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 700;
-  color: var(--color-text-primary);
-  margin: 0 0 6px;
+  margin: 0 0 10px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, var(--color-primary-400, var(--color-primary-500)) 0%, var(--color-accent-purple, var(--color-secondary-400)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="aurora"] .welcome-title {
+  background: linear-gradient(135deg, #6aa3ff 0%, #a270fc 50%, #2268f5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="pop"] .welcome-title {
+  background: linear-gradient(135deg, #c084fc 0%, #f472b6 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .welcome-desc {
-  font-size: 14px;
-  color: var(--color-text-tertiary);
+  font-size: 15px;
+  color: var(--color-text-secondary);
   margin: 0;
-  max-width: 360px;
-  line-height: 1.5;
+  max-width: 400px;
+  line-height: 1.6;
 }
 
-/* Quick hint chips */
+/* Quick hint cards */
 .welcome-hints {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
-  margin-top: 24px;
-  animation: welcomeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
+  margin-top: 28px;
+  animation: welcomeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
 }
 
-.hint-chip {
-  padding: 8px 16px;
-  border-radius: 20px;
+@keyframes hintCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.hint-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
   border: 1px solid var(--color-border-default);
-  background: var(--color-bg-elevated);
+  background: var(--glass-bg, rgba(26, 35, 50, 0.6));
+  backdrop-filter: var(--glass-blur-light, blur(12px));
+  -webkit-backdrop-filter: var(--glass-blur-light, blur(12px));
   color: var(--color-text-secondary);
   font-family: var(--font-body);
   font-size: 13px;
   cursor: pointer;
-  transition: all var(--transition-base, 200ms ease);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   line-height: 1.4;
-  animation: hintChipIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: hintCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  position: relative;
+  overflow: hidden;
 }
 
-.hint-chip:hover {
+.hint-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  border-radius: inherit;
+}
+
+[data-theme="aurora"] .hint-card::before {
+  background: linear-gradient(135deg, rgba(34, 104, 245, 0.1) 0%, rgba(110, 53, 235, 0.05) 100%);
+}
+
+[data-theme="pop"] .hint-card::before {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(236, 72, 153, 0.04) 100%);
+}
+
+.hint-icon {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.hint-card:hover {
   border-color: var(--color-primary-500);
+  color: var(--color-text-primary);
+  transform: translateY(-2px);
+}
+
+.hint-card:hover::before {
+  opacity: 1;
+}
+
+.hint-card:hover .hint-icon {
+  opacity: 1;
   color: var(--color-primary-500);
 }
 
-[data-theme="aurora"] .hint-chip:hover {
-  background: rgba(34, 104, 245, 0.08);
-  box-shadow: 0 0 12px rgba(34, 104, 245, 0.1);
+[data-theme="aurora"] .hint-card:hover {
+  box-shadow: 0 0 0 1px rgba(34, 104, 245, 0.15), 0 4px 16px rgba(34, 104, 245, 0.12);
 }
 
-[data-theme="pop"] .hint-chip:hover {
-  background: rgba(168, 85, 247, 0.06);
+[data-theme="pop"] .hint-card:hover {
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.12), 0 4px 16px rgba(168, 85, 247, 0.1);
+}
+
+.hint-card:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.hint-card span {
+  position: relative;
+  z-index: 1;
 }
 
 /* ============ Typing Indicator ============ */

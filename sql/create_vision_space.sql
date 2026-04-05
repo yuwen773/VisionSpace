@@ -20,6 +20,50 @@ use vision_space;
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+-- ----------------------------
+-- Table structure for agent_message
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_message`;
+CREATE TABLE `agent_message`  (
+                                  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                  `sessionId` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '会话ID',
+                                  `role` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '角色: USER/ASSISTANT/TOOL/SYSTEM',
+                                  `subType` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '消息类型',
+                                  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息内容',
+                                  `tokenCount` int(11) NULL DEFAULT 0 COMMENT 'Token数量',
+                                  `isSummary` tinyint(4) NULL DEFAULT 0 COMMENT '0=原始 1=摘要',
+                                  `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                  PRIMARY KEY (`id`) USING BTREE,
+                                  INDEX `idx_sessionId_time`(`sessionId`, `createdTime`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2039687491759828995 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Agent消息记录表' ROW_FORMAT = Dynamic;
+
+--
+-- ----------------------------
+-- Table structure for agent_session
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_session`;
+CREATE TABLE `agent_session`  (
+                                  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                  `sessionId` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '会话ID (threadId)',
+                                  `userId` bigint(20) NOT NULL COMMENT '用户ID',
+                                  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '新对话' COMMENT '会话标题',
+                                  `modelName` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '使用的模型',
+                                  `status` tinyint(4) NULL DEFAULT 1 COMMENT '状态: 0-结束 1-进行中',
+                                  `lastMessage` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '最后一条消息摘要',
+                                  `messageCount` int(11) NULL DEFAULT 0 COMMENT '消息条数',
+                                  `summaryContent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '对话摘要',
+                                  `summaryAt` datetime NULL DEFAULT NULL COMMENT '最后一次总结时间',
+                                  `checkpointData` mediumblob NULL COMMENT 'Checkpoint JSON ???ݣ?gzipѹ????',
+                                  `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                  `updatedTime` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                                  `expiredTime` datetime NULL DEFAULT NULL COMMENT '过期时间',
+                                  `isDelete` tinyint(4) NULL DEFAULT 0 COMMENT '是否删除',
+                                  PRIMARY KEY (`id`) USING BTREE,
+                                  UNIQUE INDEX `sessionId`(`sessionId`) USING BTREE,
+                                  INDEX `idx_userId`(`userId`) USING BTREE,
+                                  INDEX `idx_status`(`status`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2039687121910296579 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Agent会话表' ROW_FORMAT = Dynamic;
+
 
 -- ----------------------------
 -- Table structure for picture
