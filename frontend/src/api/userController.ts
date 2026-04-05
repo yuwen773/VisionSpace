@@ -149,3 +149,16 @@ export async function updateUserUsingPost(
     ...(options || {}),
   })
 }
+
+export const getUserPictureStatsUsingGet = () => {
+  return request<API.BaseResponseUserPictureStatsResponse_>('/api/user/picture/stats', {
+    method: 'get'
+  });
+};
+
+export const getUserRecentPicturesUsingGet = (count: number) => {
+  return request<API.BaseResponseListRecentPictureVO_>('/api/user/picture/recent', {
+    method: 'get',
+    params: { count }
+  });
+};
