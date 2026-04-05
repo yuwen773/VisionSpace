@@ -207,7 +207,7 @@ import { ref, computed, watchEffect, onMounted, onUnmounted, h } from 'vue'
 import type { MenuProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { Sun, Moon, Crown, User, Home, MessageSquare, Settings, LogOut, KeyRound, Sparkles, Camera, Cloud, Users, Rocket } from 'lucide-vue-next'
+import { Sun, Moon, Crown, User, Home, MessageSquare, Settings, LogOut, KeyRound, Sparkles, Camera, Cloud, Users, Rocket, Compass } from 'lucide-vue-next'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLogoutUsingPost } from '@/api/userController.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
@@ -242,8 +242,13 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
 const originItems = [
   {
     key: '/',
-    label: '主页',
+    label: '首页',
     icon: () => h(Home, { size: 16 }),
+  },
+  {
+    key: '/explore',
+    label: '探索',
+    icon: () => h(Compass, { size: 16 }),
   },
   {
     key: '/agent',
