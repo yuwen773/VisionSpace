@@ -8,6 +8,7 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
@@ -44,14 +45,22 @@ public class InternalImageSearchTool {
 
             // 非管理员用户需要权限过滤
             if (currentSpaceId != null && (isAdmin == null || !isAdmin)) {
-                String filterExpression;
+                Filter.Expression filter;
                 if (currentUserId != null) {
-                    filterExpression = "spaceId == " + currentSpaceId +
-                            " && (visibility == 'public' || userId == " + currentUserId + ")";
+                    filter = Filter.and(
+                            Filter.eq("spaceId", currentSpaceId),
+                            Filter.or(
+                                    Filter.eq("visibility", "public"),
+                                    Filter.eq("userId", currentUserId)
+                            )
+                    );
                 } else {
-                    filterExpression = "spaceId == " + currentSpaceId + " && visibility == 'public'";
+                    filter = Filter.and(
+                            Filter.eq("spaceId", currentSpaceId),
+                            Filter.eq("visibility", "public")
+                    );
                 }
-                builder.filterExpression(filterExpression);
+                builder.filter(filter);
             }
 
             List<Document> docs = vectorStore.similaritySearch(builder.build());
