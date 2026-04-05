@@ -38,7 +38,7 @@ public class InternalImageSearchTool {
                     SearchRequest.builder()
                             .query(query)
                             .topK(k)
-                            .similarityThreshold(0.5)
+                            .similarityThreshold(0.0)
                             .build()
             );
 

@@ -338,7 +338,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
         // 异步生成向量嵌入（仅审核通过的公开图片）
-        if (picture.getReviewStatus() != null && picture.getReviewStatus() == 1 && picture.getSpaceId() == null) {
+        if (picture.getReviewStatus() != null
+                && picture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
+                && picture.getSpaceId() == null) {
             pictureEmbeddingService.generateAndStoreEmbedding(picture);
         }
         // 可自行实现，如果是更新，可以清理图片资源
@@ -602,7 +604,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         boolean result = this.updateById(updatePicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         // 审核通过且为公开图片时，异步生成向量嵌入
-        if (pictureReviewRequest.getReviewStatus() == 1 && oldPicture.getSpaceId() == null) {
+        if (pictureReviewRequest.getReviewStatus() != null
+                && pictureReviewRequest.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
+                && oldPicture.getSpaceId() == null) {
             Picture reviewedPicture = this.getById(id);
             if (reviewedPicture != null) {
                 pictureEmbeddingService.generateAndStoreEmbedding(reviewedPicture);
@@ -823,11 +827,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        // 异步更新向量嵌入
-        Picture updatedPicture = this.getById(id);
-        if (updatedPicture != null && updatedPicture.getReviewStatus() != null
-                && updatedPicture.getReviewStatus() == 1 && updatedPicture.getSpaceId() == null) {
-            pictureEmbeddingService.updateEmbedding(updatedPicture);
+        // 异步更新向量嵌入（仅审核通过的公开图片）
+        if (oldPicture.getSpaceId() == null && oldPicture.getReviewStatus() != null
+                && oldPicture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())) {
+            pictureEmbeddingService.updateEmbedding(oldPicture);
         }
     }
 
@@ -1054,6 +1057,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         createOutPaintingTaskRequest.setParameters(createPictureOutPaintingTaskRequest.getParameters());
         // 创建任务
         return aliYunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
+    }
+
+    @Override
+    public List<Picture> listApprovedPublicPictures() {
+        return this.lambdaQuery()
+                .select(Picture::getId, Picture::getUrl, Picture::getThumbnailUrl,
+                        Picture::getName, Picture::getIntroduction, Picture::getCategory,
+                        Picture::getTags, Picture::getPicColor, Picture::getUserId,
+                        Picture::getSpaceId, Picture::getReviewStatus)
+                .isNull(Picture::getSpaceId)
+                .eq(Picture::getReviewStatus, PictureReviewStatusEnum.PASS.getValue())
+                .list();
     }
 
     /**

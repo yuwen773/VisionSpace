@@ -2,6 +2,7 @@ package com.yuwen.visionspace.service.impl;
 
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
+import com.yuwen.visionspace.service.PictureService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -16,11 +17,13 @@ import java.util.stream.Collectors;
 @Service
 public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
+    private static final String DOC_ID_PREFIX = "picture_";
+
     @Resource
     private VectorStore vectorStore;
 
     @Resource
-    private PictureServiceImpl pictureService;
+    private PictureService pictureService;
 
     @Override
     @Async("embeddingExecutor")
@@ -38,7 +41,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     @Async("embeddingExecutor")
     public void updateEmbedding(Picture picture) {
         try {
-            String docId = "picture_" + picture.getId();
+            String docId = DOC_ID_PREFIX + picture.getId();
             try {
                 vectorStore.delete(List.of(docId));
             } catch (Exception deleteEx) {
@@ -56,7 +59,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     @Async("embeddingExecutor")
     public void deleteEmbedding(Long pictureId) {
         try {
-            String docId = "picture_" + pictureId;
+            String docId = DOC_ID_PREFIX + pictureId;
             vectorStore.delete(List.of(docId));
             log.info("图片嵌入删除成功, pictureId={}", pictureId);
         } catch (Exception e) {
@@ -66,15 +69,8 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
     @Override
     public int fullSync() {
-        // Use MyBatis Plus lambdaQuery to find all approved public pictures
-        List<Picture> pictures = pictureService.lambdaQuery()
-                .select(Picture::getId, Picture::getUrl, Picture::getThumbnailUrl,
-                        Picture::getName, Picture::getIntroduction, Picture::getCategory,
-                        Picture::getTags, Picture::getPicColor, Picture::getUserId,
-                        Picture::getSpaceId, Picture::getReviewStatus)
-                .isNull(Picture::getSpaceId)
-                .eq(Picture::getReviewStatus, 1)
-                .list();
+        // Use query method to find all approved public pictures
+        List<Picture> pictures = pictureService.listApprovedPublicPictures();
 
         if (pictures.isEmpty()) {
             log.info("没有需要索引的公开图片");
@@ -133,6 +129,6 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
         metadata.put("indexedAt", System.currentTimeMillis());
 
-        return new Document("picture_" + picture.getId(), content.toString(), metadata);
+        return new Document(DOC_ID_PREFIX + picture.getId(), content.toString(), metadata);
     }
 }

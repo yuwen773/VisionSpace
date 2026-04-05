@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * 向量库管理接口
  */
@@ -27,9 +29,16 @@ public class VectorStoreController {
      */
     @PostMapping("/full-sync")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Integer> fullSync() {
-        log.info("开始全量同步站内图片到向量库");
-        int count = pictureEmbeddingService.fullSync();
-        return ResultUtils.success(count);
+    public BaseResponse<String> fullSync() {
+        log.info("触发全量同步站内图片到向量库");
+        CompletableFuture.runAsync(() -> {
+            try {
+                int count = pictureEmbeddingService.fullSync();
+                log.info("全量同步完成, count={}", count);
+            } catch (Exception e) {
+                log.error("全量同步失败", e);
+            }
+        });
+        return ResultUtils.success("全量同步已触发，请查看日志了解进度");
     }
 }

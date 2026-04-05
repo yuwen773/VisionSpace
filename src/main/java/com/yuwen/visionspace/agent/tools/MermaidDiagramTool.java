@@ -54,6 +54,7 @@ public class MermaidDiagramTool {
                         .category(ImageCategoryEnum.ARCHITECTURE)
                         .description(description)
                         .url(fileInfo.getUrl())
+                        .source("generated")
                         .build());
             }
         } catch (Exception e) {

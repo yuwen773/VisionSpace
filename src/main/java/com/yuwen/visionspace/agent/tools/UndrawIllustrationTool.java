@@ -55,6 +55,7 @@ public class UndrawIllustrationTool {
                             .category(ImageCategoryEnum.ILLUSTRATION)
                             .description(title)
                             .url(media)
+                            .source("external")
                             .build());
                 }
             }

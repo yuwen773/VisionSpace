@@ -35,6 +35,7 @@ public class SimilarImageSearchTool {
                         .category(ImageCategoryEnum.CONTENT)
                         .description(result.getFromUrl())
                         .url(result.getThumbUrl())
+                        .source("external")
                         .build());
             }
         } catch (Exception e) {
