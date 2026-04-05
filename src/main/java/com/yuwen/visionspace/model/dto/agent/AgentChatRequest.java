@@ -32,4 +32,14 @@ public class AgentChatRequest implements Serializable {
      * 用户上传的图片 URL 列表（后端拼接为 <image-analysis> 标签）
      */
     private List<String> imageUrls;
+
+    /**
+     * 会话级别的 MCP 服务器覆盖列表（优先级最高）
+     */
+    private List<String> enabledMcpServers;
+
+    /**
+     * 禁用用户默认 MCP 偏好，仅使用 enabledMcpServers
+     */
+    private Boolean disableMcpDefault;
 }

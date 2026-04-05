@@ -13,6 +13,7 @@ import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
+import com.yuwen.visionspace.agent.interceptor.TextMcpModelInterceptor;
 import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -22,6 +23,7 @@ import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
+import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.MessageType;
 import jakarta.annotation.PostConstruct;
@@ -30,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -90,7 +93,69 @@ public class ImageAgent {
     @Resource
     private BaseCheckpointSaver checkpointSaver;
 
+    @Resource
+    private TextMcpModelInterceptor textMcpModelInterceptor;
+
     private ReactAgent agent;
+
+    /**
+     * 内置工具的 instruction
+     */
+    private static final String AGENT_INSTRUCTION = """
+            你是一个智能图片助手。
+
+            ## 工作流程
+            你必须在以下阶段间切换：
+
+            ### 阶段 1：EXPLORATION（探索）
+
+            #### 用户提供了参考图片 URL
+            1. 调用 analyzeImageFeatures 分析图片（获取内容描述、色调、风格、氛围、搜索关键词）
+            2. 向用户简要展示分析结果，确认理解是否准确
+            3. 根据分析结果选择搜索策略：
+               a. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
+               b. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
+               c. 两种方式可结合使用
+            4. 如果以图搜图失败，直接用 searchKeywords 作为降级方案搜索
+
+            #### 用户用文字描述需求
+            1. 根据描述提取关键词，调用 searchContentImages 搜索
+            2. 可按需调用 searchIllustrations 搜索插画
+
+            #### 通用后续步骤
+            - 调用 evaluateImageQuality 评估搜索结果
+            - matchScore >= 0.5：展示结果，询问用户满意度
+            - matchScore < 0.5：调整关键词重新搜索
+
+            ### 阶段 2：GENERATION（生成）
+            当探索次数耗尽或用户主动要求生成时：
+            1. 告知用户即将使用 AIGC 生成（此时会暂停等待确认）
+            2. 调用 generateImages 生成图片
+            3. 展示生成结果，询问用户满意度
+
+            ### 满意度询问规则（每次展示结果后必须执行）
+            你必须主动询问：
+            "这些图片是否符合您的预期？"
+            并提示用户可以：
+            - 表示满意 → 结束
+            - 要求换一批 → 回到探索阶段
+            - 要求重新生成 → 回到生成阶段
+            - 描述更具体的需求 → 调整策略
+
+            ### 反馈消息格式
+            当收到 [用户反馈] 开头的消息时，按以下格式解析：
+            - 满意度：满意/不满意
+            - 动作：RESEARCH / REGENERATE / RETURN
+            - 原因：用户的具体反馈
+            - 当前探索次数：帮助判断是否应切换阶段
+            - 当前阶段：EXPLORATION / GENERATION
+
+            ## 重要约束
+            - 每次只返回 3-5 张最相关的图片
+            - 清晰标注图片来源（站外搜索 / AIGC 生成）
+            - 探索阶段全自动执行，不暂停
+            - AIGC 生成前必须暂停等待用户确认
+            """;
 
     @PostConstruct
     public void init() {
@@ -104,61 +169,7 @@ public class ImageAgent {
         agent = ReactAgent.builder()
                 .name("image_assistant")
                 .model(chatModel)
-                .instruction("""
-                    你是一个智能图片助手。
-
-                    ## 工作流程
-                    你必须在以下阶段间切换：
-
-                    ### 阶段 1：EXPLORATION（探索）
-
-                    #### 用户提供了参考图片 URL
-                    1. 调用 analyzeImageFeatures 分析图片（获取内容描述、色调、风格、氛围、搜索关键词）
-                    2. 向用户简要展示分析结果，确认理解是否准确
-                    3. 根据分析结果选择搜索策略：
-                       a. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
-                       b. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
-                       c. 两种方式可结合使用
-                    4. 如果以图搜图失败，直接用 searchKeywords 作为降级方案搜索
-
-                    #### 用户用文字描述需求
-                    1. 根据描述提取关键词，调用 searchContentImages 搜索
-                    2. 可按需调用 searchIllustrations 搜索插画
-
-                    #### 通用后续步骤
-                    - 调用 evaluateImageQuality 评估搜索结果
-                    - matchScore >= 0.5：展示结果，询问用户满意度
-                    - matchScore < 0.5：调整关键词重新搜索
-
-                    ### 阶段 2：GENERATION（生成）
-                    当探索次数耗尽或用户主动要求生成时：
-                    1. 告知用户即将使用 AIGC 生成（此时会暂停等待确认）
-                    2. 调用 generateImages 生成图片
-                    3. 展示生成结果，询问用户满意度
-
-                    ### 满意度询问规则（每次展示结果后必须执行）
-                    你必须主动询问：
-                    "这些图片是否符合您的预期？"
-                    并提示用户可以：
-                    - 表示满意 → 结束
-                    - 要求换一批 → 回到探索阶段
-                    - 要求重新生成 → 回到生成阶段
-                    - 描述更具体的需求 → 调整策略
-
-                    ### 反馈消息格式
-                    当收到 [用户反馈] 开头的消息时，按以下格式解析：
-                    - 满意度：满意/不满意
-                    - 动作：RESEARCH / REGENERATE / RETURN
-                    - 原因：用户的具体反馈
-                    - 当前探索次数：帮助判断是否应切换阶段
-                    - 当前阶段：EXPLORATION / GENERATION
-
-                    ## 重要约束
-                    - 每次只返回 3-5 张最相关的图片
-                    - 清晰标注图片来源（站外搜索 / AIGC 生成）
-                    - 探索阶段全自动执行，不暂停
-                    - AIGC 生成前必须暂停等待用户确认
-                    """)
+                .instruction(AGENT_INSTRUCTION)
                 .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
                 .hooks(List.of(
                         hitlHook,
@@ -195,17 +206,43 @@ public class ImageAgent {
     }
 
     /**
-     * 流式对话入口
+     * 流式对话入口（无 MCP）
      */
     public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId) {
+        return stream(userMessage, imageUrls, threadId, userId, null, false);
+    }
+
+    /**
+     * 流式对话入口（支持 MCP）
+     *
+     * @param userMessage 用户消息
+     * @param imageUrls 图片URL列表
+     * @param threadId 会话ID
+     * @param userId 用户ID
+     * @param enabledMcpServers 启用的 MCP 服务器代码列表（可选）
+     * @param disableMcpDefault 是否禁用默认 MCP
+     */
+    public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId,
+                                   List<String> enabledMcpServers, Boolean disableMcpDefault) {
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(threadId)
                 .build();
         String fullMessage = buildUserMessage(userMessage, imageUrls);
         chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
 
+        // 解析 MCP 回调
+        AgentChatRequest chatRequest = new AgentChatRequest();
+        chatRequest.setEnabledMcpServers(enabledMcpServers);
+        chatRequest.setDisableMcpDefault(disableMcpDefault);
+        ToolCallback[] mcpCallbacks = textMcpModelInterceptor.resolveMcpCallbacks(chatRequest, userId);
+
+        // 选择 Agent：无 MCP 用内置 agent，有 MCP 创建 combined agent
+        ReactAgent activeAgent = (mcpCallbacks == null || mcpCallbacks.length == 0)
+                ? agent
+                : buildMcpAgent(mcpCallbacks);
+
         try {
-            Flux<NodeOutput> stream = agent.stream(fullMessage, config);
+            Flux<NodeOutput> stream = activeAgent.stream(fullMessage, config);
 
             StringBuilder assistantContent = new StringBuilder();
             StringBuilder reasoningContent = new StringBuilder();
@@ -348,6 +385,34 @@ public class ImageAgent {
     private int getExploreCount(String threadId) {
         // 后续可通过 MemorySaver 或 Redis 读取实际计数
         return 0;
+    }
+
+    /**
+     * 构建支持 MCP 工具的 Agent
+     * 合并内置工具和 MCP 回调
+     */
+    private ReactAgent buildMcpAgent(ToolCallback[] mcpCallbacks) {
+        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
+                .approvalOn("generateImages", ToolConfig.builder()
+                        .description("即将使用 AIGC 生成图片，需要用户确认")
+                        .build())
+                .build();
+
+        return ReactAgent.builder()
+                .name("image_assistant_mcp")
+                .model(chatModel)
+                .instruction(AGENT_INSTRUCTION)
+                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
+                .tools(mcpCallbacks)
+                .hooks(List.of(
+                        hitlHook,
+                        iterationControlHook,
+                        messageTrimmingHook,
+                        summarizationHook,
+                        ModelCallLimitHook.builder().runLimit(15).build()
+                ))
+                .saver(checkpointSaver)
+                .build();
     }
 
     /**
