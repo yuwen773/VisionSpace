@@ -50,6 +50,17 @@ services:
     networks:
       - internal
 
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:1.0.0
+    container_name: vision-space-chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - vision-space
+
   backend:
     build:
       context: .
@@ -97,6 +108,7 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  chroma-data:
 
 networks:
   internal:
