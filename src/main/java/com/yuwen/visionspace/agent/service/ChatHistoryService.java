@@ -171,6 +171,17 @@ public class ChatHistoryService {
     // ==================== 辅助方法 ====================
 
     /**
+     * 验证会话是否属于指定用户
+     */
+    public boolean isSessionOwner(String sessionId, Long userId) {
+        if (sessionId == null || userId == null) {
+            return false;
+        }
+        AgentSession session = sessionMapper.selectBySessionId(sessionId);
+        return session != null && userId.equals(session.getUserId());
+    }
+
+    /**
      * 确保 Session 记录存在，不存在则自动创建（幂等）
      */
     private void ensureSessionExists(String sessionId, Long userId, String firstMessage) {

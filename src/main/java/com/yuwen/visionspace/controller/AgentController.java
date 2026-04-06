@@ -59,7 +59,12 @@ public class AgentController {
      * 图片助手对话
      */
     @PostMapping("/image/chat")
-    public BaseResponse<String> chat(@RequestBody AgentChatRequest request) {
+    public BaseResponse<String> chat(@RequestBody AgentChatRequest request,
+                                      HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        if (loginUser == null) {
+            throw new NotLoginException("未登录", null, null);
+        }
         String threadId = request.getThreadId();
         if (threadId == null || threadId.isBlank()) {
             threadId = UUID.randomUUID().toString();
@@ -93,14 +98,24 @@ public class AgentController {
      * 处理用户反馈
      */
     @PostMapping("/image/feedback")
-    public BaseResponse<String> feedback(@RequestBody FeedbackRequest request) {
-        log.info("收到反馈, threadId={}, satisfied={}, reason={}, phase={}",
-                request.getThreadId(), request.getSatisfied(),
+    public BaseResponse<String> feedback(@RequestBody FeedbackRequest request,
+                                          HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        if (loginUser == null) {
+            throw new NotLoginException("未登录", null, null);
+        }
+        // 验证会话归属当前用户
+        if (!chatHistoryService.isSessionOwner(request.getThreadId(), loginUser.getId())) {
+            throw new NotLoginException("无权操作该会话", null, null);
+        }
+
+        log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}, phase={}",
+                request.getThreadId(), loginUser.getId(), request.getSatisfied(),
                 request.getReason(), request.getCurrentPhase());
 
         String result = imageAgent.handleFeedback(
                 request.getThreadId(),
-                request.getUserId(),
+                String.valueOf(loginUser.getId()),
                 request.getSatisfied(),
                 request.getReason(),
                 request.getAction(),
@@ -204,6 +219,10 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         if (loginUser == null) {
             throw new NotLoginException("未登录", null, null);
+        }
+        // 验证会话归属当前用户
+        if (!chatHistoryService.isSessionOwner(threadId, loginUser.getId())) {
+            throw new NotLoginException("无权访问该会话", null, null);
         }
         return ResultUtils.success(chatHistoryService.loadHistory(threadId, beforeId, Math.min(limit, agentConstants.getMaxHistoryPageSize())));
     }
