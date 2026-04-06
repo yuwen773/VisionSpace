@@ -7,23 +7,30 @@
  * 风格: 明亮紫粉、梦幻渐变、创意空间
  */
 
-:root {
+/* 紫漾主题变量 - 当 .theme-pop 激活时生效 */
+.theme-pop {
   /* ========== 主色系 - 紫粉渐变 ========== */
   --color-primary: #a855f7;
   --color-primary-light: #c084fc;
   --color-primary-dark: #9333ea;
+  --color-primary-300: #d8b4fe;
   --color-primary-400: #c084fc;
   --color-primary-500: #a855f7;
+  --color-primary-600: #9333ea;
 
   --color-secondary: #ec4899;
   --color-secondary-light: #f472b6;
   --color-secondary-dark: #db2777;
   --color-secondary-500: #ec4899;
+  --color-secondary-600: #db2777;
 
   --color-accent: #f472b6;
   --color-accent-light: #fb7185;
   --color-accent-dark: #e11d48;
   --color-accent-purple: #8b5cf6;
+  --color-accent-pink: #ec4899;
+  --color-accent-cyan: #22d3ee;
+  --color-accent-cyan-dark: #06b6d4;
 
   /* 极光紫粉系 */
   --color-violet: #8b5cf6;
@@ -228,7 +235,6 @@
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-border-accent: var(--border-accent);
-
 }
 
 /* ========== 字体导入 ========== */

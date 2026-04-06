@@ -43,8 +43,11 @@ body {
 }
 
 /* 提升的卡片背景 - 紫漾主题使用白色卡片背景 */
-:root {
+.theme-pop {
   --color-bg-elevated: var(--bg-card);
+  --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 243, 255, 0.98) 100%);
+  --gradient-card-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(237, 233, 254, 1) 100%);
+  --color-bg-hover: var(--bg-hover);
 }
 
 /* ========== 选中文本 ========== */
@@ -182,7 +185,7 @@ h6 { font-size: var(--text-lg); }
 }
 
 /* ========== 波普输入框 ========== */
-.pop-input {
+.theme-pop .pop-input {
   font-family: var(--font-body);
   font-weight: 500;
   font-size: var(--text-base);
@@ -196,6 +199,7 @@ h6 { font-size: var(--text-lg); }
 
   &:hover {
     border-color: var(--border-strong);
+    background: var(--bg-hover);
   }
 
   &:focus {
