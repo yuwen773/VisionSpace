@@ -2447,6 +2447,27 @@ section#hero.is-visible .brand-section {
 }
 
 @media (max-width: 768px) {
+  /* 移动端取消 scroll-snap，改为自然滚动 */
+  #landingPage {
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .main-content {
+    scroll-snap-type: none;
+    height: auto;
+    overflow-y: auto;
+  }
+
+  section {
+    height: auto;
+    min-height: 100vh;
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
+    overflow: visible;
+  }
+
   .hero-section {
     padding: 40px 16px 60px;
   }
@@ -2553,36 +2574,241 @@ section#hero.is-visible .brand-section {
 }
 
 @media (max-width: 480px) {
-  .hero-title {
-    gap: 8px 16px;
+  /* Hero */
+  .hero-section {
+    padding: 32px 12px 48px;
   }
 
   .brand-section {
+    margin-bottom: 20px;
+  }
+
+  .brand-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand-name {
+    font-size: 16px;
+    letter-spacing: 4px;
+  }
+
+  .brand-tagline {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .hero-title {
+    font-size: clamp(40px, 10vw, 56px);
+    gap: 8px 16px;
+    margin-bottom: 16px;
+  }
+
+  .hero-subtitle {
+    font-size: 14px;
     margin-bottom: 24px;
+  }
+
+  .hero-cta-group {
+    max-width: 280px;
+    gap: 10px;
+  }
+
+  .cta-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+
+  /* Brand Essence */
+  .brand-essence-section {
+    padding: 60px 0;
+  }
+
+  .glass-text-block {
+    padding: 24px 16px;
+  }
+
+  .editorial-heading {
+    font-size: clamp(22px, 6vw, 28px);
+    margin-bottom: 20px;
+  }
+
+  .editorial-paragraph {
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  .editorial-highlight {
+    font-size: 13.5px;
+  }
+
+  .quote-mark {
+    font-size: 60px;
+    top: 8px;
+    left: 12px;
+  }
+
+  .accent-bar {
+    left: 16px;
+    right: 16px;
+  }
+
+  /* Experiences */
+  .experiences-section {
+    padding: 60px 0;
+  }
+
+  .section-heading {
+    font-size: clamp(22px, 6vw, 28px);
+  }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .split-heading {
+    font-size: 28px;
+    margin-bottom: 16px;
+  }
+
+  .split-body {
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+
+  .split-stats {
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-num {
+    font-size: 22px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+  }
+
+  /* Visual Universe */
+  .visual-universe-section {
+    padding: 60px 0;
+  }
+
+  .universe-heading {
+    font-size: clamp(22px, 6vw, 28px);
+  }
+
+  .universe-hint {
+    font-size: 12px;
+  }
+
+  .universe-dome-wrap {
+    height: 300px;
+  }
+
+  .gallery-wrapper {
+    height: 300px;
+  }
+
+  .orbit-deco-1 { width: 260px; height: 260px; }
+  .orbit-deco-2 { width: 220px; height: 220px; }
+  .orbit-deco-3 { width: 320px; height: 320px; }
+
+  /* AI Magic */
+  .ai-magic-section {
+    padding: 60px 0;
+  }
+
+  .ai-chat-preview {
+    border-radius: 16px;
+  }
+
+  .chat-header {
+    padding: 12px 16px;
+  }
+
+  .chat-name {
+    font-size: 13px;
+  }
+
+  .chat-status {
+    font-size: 11px;
+  }
+
+  .chat-messages {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .msg-bubble {
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 10px 14px;
+  }
+
+  .chat-images {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .chat-note {
+    font-size: 11px;
+  }
+
+  .ai-outpaint-preview {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .outpaint-label {
+    font-size: 16px;
+  }
+
+  .outpaint-desc {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .compare-arrow svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Final CTA */
+  .final-cta-section {
+    padding: 60px 0;
+  }
+
+  .cta-title {
+    font-size: clamp(24px, 7vw, 32px);
+    margin-bottom: 14px;
+  }
+
+  .cta-subtitle {
+    font-size: 14px;
+    margin-bottom: 32px;
+    padding: 0 12px;
+  }
+
+  .cta-buttons {
+    gap: 12px;
+  }
+
+  .cta-final-primary,
+  .cta-final-secondary {
+    padding: 14px 28px;
+    font-size: 15px;
+  }
+
+  /* Shared */
+  .section-inner {
+    padding: 0 12px;
   }
 
   .feature-card {
     padding: 24px 20px;
-  }
-
-  .universe-dome-wrap {
-    height: 340px;
-  }
-
-  .gallery-wrapper {
-    height: 340px;
-  }
-
-  .orbit-deco-1 { width: 280px; height: 280px; }
-  .orbit-deco-2 { width: 240px; height: 240px; }
-  .orbit-deco-3 { width: 360px; height: 360px; }
-
-  .chat-images {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .final-cta-section {
-    padding: 80px 0;
   }
 }
 </style>
