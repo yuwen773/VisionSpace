@@ -69,28 +69,6 @@
             </svg>
           </button>
         </div>
-
-        <!-- AI 助手快捷入口 -->
-        <div class="quick-entry">
-          <div class="quick-entry-inner" @click="router.push('/agent')">
-            <div class="quick-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-              </svg>
-            </div>
-            <div class="quick-text">
-              <span class="quick-title">SpaceMind</span>
-              <span class="quick-desc">描述需求，AI 帮您找图</span>
-            </div>
-            <div class="quick-arrow">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
         <!-- 分类标签 - 毛玻璃效果 -->
         <div class="category-pills">
           <button

@@ -127,7 +127,13 @@ const THREAD_ID_KEY = 'agent_current_thread_id'
 const DATE_LOCALE = 'zh-CN'
 const TIME_OPTIONS = { hour: '2-digit', minute: '2-digit' } as const
 
-const generateThreadId = () => crypto.randomUUID()
+const generateThreadId = () =>
+  typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+      })
 
 const loadThreadId = (): string => {
   return localStorage.getItem(THREAD_ID_KEY) || ''

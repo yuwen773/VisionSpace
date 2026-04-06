@@ -120,33 +120,32 @@ const resetUpload = () => {
 </script>
 
 <style scoped lang="less">
-/* ========== Default Variables (Aurora Dark Theme) ========== */
+/* ========== Theme-aware Variables (Adapts to Aurora/Ziyan) ========== */
 .url-picture-upload {
-  /* 输入框颜色 - 默认深色主题 */
   --upload-bg: transparent;
-  --upload-icon-bg: rgba(168, 85, 247, 0.15);
-  --upload-icon-border: rgba(168, 85, 247, 0.3);
-  --upload-icon-color: #a855f7;
-  --upload-hint-color: rgba(255, 255, 255, 0.6);
-  --upload-input-bg: rgba(255, 255, 255, 0.08);
-  --upload-input-border: rgba(255, 255, 255, 0.15);
-  --upload-input-focus-border: rgba(168, 85, 247, 0.5);
-  --upload-input-color: #ffffff;
-  --upload-input-placeholder: rgba(255, 255, 255, 0.4);
-  --upload-btn-bg: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #db2777 100%);
-  --upload-btn-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-  --upload-error-bg: rgba(239, 68, 68, 0.15);
-  --upload-error-border: rgba(239, 68, 68, 0.3);
-  --upload-error-color: #f87171;
-  --upload-preview-bg: rgba(0, 0, 0, 0.3);
-  --upload-preview-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
-  --upload-change-btn-bg: rgba(255, 255, 255, 0.08);
-  --upload-change-btn-border: rgba(255, 255, 255, 0.12);
-  --upload-change-btn-color: rgba(255, 255, 255, 0.8);
-  --upload-change-btn-hover-bg: rgba(255, 255, 255, 0.12);
-  --upload-change-btn-hover-border: rgba(168, 85, 247, 0.4);
-  --upload-change-btn-hover-color: white;
-  --upload-glow-color: rgba(168, 85, 247, 0.2);
+  --upload-icon-bg: var(--color-info-bg);
+  --upload-icon-border: var(--color-border-accent);
+  --upload-icon-color: var(--color-accent-purple);
+  --upload-hint-color: var(--color-text-tertiary);
+  --upload-input-bg: var(--color-bg-tertiary);
+  --upload-input-border: var(--color-border-default);
+  --upload-input-focus-border: var(--color-accent-purple);
+  --upload-input-color: var(--color-text-primary);
+  --upload-input-placeholder: var(--color-text-tertiary);
+  --upload-btn-bg: var(--gradient-aurora);
+  --upload-btn-shadow: var(--shadow-glow-sm);
+  --upload-error-bg: var(--color-error-bg);
+  --upload-error-border: var(--color-error-light);
+  --upload-error-color: var(--color-error);
+  --upload-preview-bg: rgba(0, 0, 0, 0.05);
+  --upload-preview-shadow: var(--shadow-lg);
+  --upload-change-btn-bg: var(--color-bg-elevated, var(--color-bg-secondary));
+  --upload-change-btn-border: var(--color-border-default);
+  --upload-change-btn-color: var(--color-text-secondary);
+  --upload-change-btn-hover-bg: var(--color-bg-hover);
+  --upload-change-btn-hover-border: var(--color-accent-purple);
+  --upload-change-btn-hover-color: var(--color-text-primary);
+  --upload-glow-color: var(--color-star-glow, rgba(168, 85, 247, 0.2));
 }
 
 .url-picture-upload {

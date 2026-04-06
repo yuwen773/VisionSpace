@@ -14,9 +14,14 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
-
   },
   server: {
     allowedHosts: process.env.VITE_DEV_HOST ? [process.env.VITE_DEV_HOST] : [],
-  }
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+    },
+  },
 })

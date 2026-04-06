@@ -178,13 +178,13 @@ const beforeUpload = (file: UploadProps['fileList'][number]) => {
 
 .text-main {
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   font-size: var(--text-lg);
 }
 
 .text-sub {
   font-size: var(--text-sm);
-  color: var(--text-tertiary);
+  color: var(--color-text-tertiary);
   font-weight: 600;
 }
 

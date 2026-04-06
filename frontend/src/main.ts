@@ -12,6 +12,12 @@ import 'ant-design-vue/dist/reset.css'
 import VueCropper from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 
+// 引入主题管理 - 预加载两个主题的 CSS
+import '@/styles/global.css'
+import '@/styles/global-ziyan.css'
+import '@/styles/antd-theme.css'
+import '@/styles/antd-theme-ziyan.css'
+
 // 引入主题管理
 import { useTheme } from '@/composables/useTheme'
 

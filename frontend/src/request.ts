@@ -1,16 +1,17 @@
 import axios from 'axios'
 import { warn } from 'vue'
-const devUrl = 'http://localhost:8081' // 开发
-const prodUrl = 'http://8.163.10.130' //config .env 生产：实际部署
+
+const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+
 //创建axios实例
 const myAxios = axios.create({
-  baseURL: devUrl,
+  baseURL,
   timeout: 5000,
   withCredentials: true,
 })
 
 // 添加请求拦截器
-axios.interceptors.request.use(
+myAxios.interceptors.request.use(
   function (config) {
     // 在发送请求之前做些什么
     return config
@@ -22,13 +23,13 @@ axios.interceptors.request.use(
 )
 
 // 添加响应拦截器
-axios.interceptors.response.use(
+myAxios.interceptors.response.use(
   function (response) {
     // 2xx 范围内的状态码都会触发该函数。
     // 对响应数据做点什么
     const { data } = response
     if (data.code === 0 || data.code === 200) {
-      return data
+      return response
     }
     if (data.code === 404) {
       warn(data.message)
@@ -38,7 +39,7 @@ axios.interceptors.response.use(
   },
   function (error) {
     // 超出 2xx 范围的状态码都会触发该函数。
-    // 对响应错误做点什么
+    // 对响应错误做些什么
     return Promise.reject(error)
   },
 )
