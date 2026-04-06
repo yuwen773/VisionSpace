@@ -21,6 +21,7 @@ import DashboardPage from '@/pages/admin/DashboardPage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AgentChatPage from '@/pages/AgentChatPage.vue'
 import UserCenterPage from '@/pages/user/UserCenterPage.vue'
+import TestPage from "@/pages/TestPage.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -45,6 +46,13 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: LandingPage,
+          meta: { fullWidth: true, showFooter: false },
+        },
+        {
+          path: 'test',
+          name: 'test',
+          component: TestPage,
+          meta: { fullScreen: true },
         },
         {
           path: 'explore',
