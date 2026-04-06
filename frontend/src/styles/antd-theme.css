@@ -4,7 +4,7 @@
  */
 
 /* ========== 全局 Ant Design 变量覆盖 - 深空黑版 ========== */
-:root {
+.theme-aurora {
   --ant-primary-color: #2268f5;
   --ant-primary-color-hover: #4485ff;
   --ant-primary-color-active: #0a4ee6;

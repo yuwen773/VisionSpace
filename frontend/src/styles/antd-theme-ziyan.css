@@ -5,7 +5,7 @@
  */
 
 /* ========== 全局 Ant Design 变量覆盖 ========== */
-:root {
+.theme-pop {
   --ant-primary-color: var(--color-primary);
   --ant-primary-color-hover: var(--color-primary-light);
   --ant-primary-color-active: var(--color-primary-dark);

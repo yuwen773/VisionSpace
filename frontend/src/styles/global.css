@@ -18,7 +18,7 @@
 }
 
 /* ========== 深空黑设计令牌 (内联以确保动态加载正常工作) ========== */
-:root {
+.theme-aurora {
   /* 极光主色 */
   --color-primary-50: #e8f4ff;
   --color-primary-100: #c4ddff;
@@ -219,6 +219,9 @@
   /* ========== 波普主题变量映射 (兼容深空黑) ========== */
 
   /* 波普主题颜色 - 调整为深空黑风格 */
+  --color-primary: var(--color-primary-500);
+  --color-primary-light: var(--color-primary-400);
+  --color-primary-dark: var(--color-primary-600);
   --color-coral: #ff6b6b;
   --color-coral-light: #ff8e8e;
   --color-coral-dark: #e84545;
@@ -251,10 +254,18 @@
   --border-bold: var(--color-border-strong);
   --border-medium: var(--color-border-default);
   --border-light: var(--color-border-subtle);
+  --border-default: var(--color-border-default);
+  --border-subtle: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+  --border-accent: var(--color-border-accent);
 
   /* 波普主题阴影 */
   --shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-pop-lg: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow-glow-purple: var(--shadow-glow-md);
+  --shadow-glow-pink: var(--shadow-glow-pink);
+  --shadow-card: var(--shadow-lg);
+  --shadow-card-hover: var(--shadow-xl);
 
   /* 波普主题渐变 */
   --gradient-sunset: linear-gradient(135deg, #ff6b6b 0%, #ec4899 100%);
@@ -542,7 +553,7 @@ ul, ol {
 }
 
 /* 波普输入框 - 深空黑版 */
-.pop-input {
+.theme-aurora .pop-input {
   font-family: var(--font-body);
   font-weight: 500;
   font-size: var(--text-base);
@@ -555,12 +566,12 @@ ul, ol {
   width: 100%;
 }
 
-.pop-input:hover {
+.theme-aurora .pop-input:hover {
   border-color: var(--color-primary-500);
   background: rgba(26, 35, 50, 0.7);
 }
 
-.pop-input:focus {
+.theme-aurora .pop-input:focus {
   outline: none;
   border-color: var(--color-primary-500);
   box-shadow: 0 0 0 3px rgba(34, 104, 245, 0.12);

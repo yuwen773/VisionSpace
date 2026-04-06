@@ -302,9 +302,102 @@ const handleSubmit = async (values: any) => {
 }
 
 .pop-input {
+  transition: all var(--transition-bounce);
+
   .input-icon {
     display: flex;
     align-items: center;
+    color: var(--text-tertiary);
+    transition: all var(--transition-bounce);
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    .input-icon {
+      color: var(--color-primary);
+    }
+  }
+
+  &:focus-within {
+    transform: translateY(-2px);
+    .input-icon {
+      color: var(--color-primary);
+    }
+  }
+}
+
+/* 兼容 Ant Design Vue 4 的 hover/focus 样式 */
+:deep(.ant-input-affix-wrapper.pop-input),
+:deep(.ant-input-affix-wrapper-lg.pop-input) {
+  border: 1.5px solid var(--border-default) !important;
+  background: var(--bg-secondary) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 12px 20px !important;
+  transition: all var(--transition-bounce) !important;
+  box-shadow: none !important;
+
+  /* 内部真实 input 元素优化 */
+  .ant-input {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: var(--text-base) !important;
+    font-weight: 600 !important;
+
+    &::placeholder {
+      color: var(--text-tertiary) !important;
+      font-weight: 500 !important;
+      transition: all var(--transition-bounce) !important;
+      opacity: 0.7 !important;
+    }
+  }
+
+  /* 前缀图标容器优化 */
+  .ant-input-prefix {
+    margin-right: var(--space-3) !important;
+    color: var(--text-tertiary) !important;
+    transition: all var(--transition-bounce) !important;
+  }
+
+  &:hover {
+    border-color: var(--color-primary) !important;
+    background: var(--bg-hover) !important;
+    transform: translateY(-2px) !important;
+
+    .ant-input-prefix {
+      color: var(--color-primary) !important;
+    }
+
+    .ant-input::placeholder {
+      color: var(--color-primary) !important;
+      opacity: 0.6 !important;
+    }
+  }
+
+  &-focused,
+  &:focus,
+  &:focus-within {
+    border-color: var(--color-primary) !important;
+    background: var(--bg-secondary) !important;
+    box-shadow: var(--shadow-glow-purple) !important;
+    transform: translateY(-2px) !important;
+
+    .ant-input-prefix {
+      color: var(--color-primary) !important;
+    }
+
+    .ant-input::placeholder {
+      color: var(--color-primary) !important;
+      opacity: 0.6 !important;
+    }
+  }
+}
+
+/* 移除 Ant Design 默认的校验状态阴影，改用自定义发光 */
+:deep(.ant-form-item-has-error) .pop-input {
+  border-color: var(--color-error) !important;
+  &:focus,
+  &:focus-within {
+    box-shadow: 0 0 0 4px var(--color-error-bg) !important;
   }
 }
 
