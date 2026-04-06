@@ -119,7 +119,7 @@ const handleSubmit = async (values: any) => {
     }
     message.success('🎉 登录成功！欢迎回来！')
     // 登录成功后跳转回原页面（防止开放重定向攻击）
-    let redirect = router.currentRoute.value.query.redirect as string
+    const redirect = router.currentRoute.value.query.redirect as string
     if (redirect && !redirect.startsWith('http://') && !redirect.startsWith('https://')) {
       await router.push({ path: redirect, replace: true })
     } else if (loginUserStore.loginUser.userRole === 'admin') {
