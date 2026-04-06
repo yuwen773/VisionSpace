@@ -56,4 +56,7 @@ build/
 !.env-example
 docker-compose.override.yml
 
+
+## MUST BE IGNORED
 /sql/vision_space.sql
+/src/main/resources/application-server.yml
