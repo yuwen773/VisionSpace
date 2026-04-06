@@ -19,8 +19,8 @@ const cornersRef = ref<NodeListOf<HTMLDivElement> | null>(null);
 const spinTl = ref<gsap.core.Timeline | null>(null);
 
 const constants = {
-  borderWidth: 3,
-  cornerSize: 12,
+  borderWidth: 2,
+  cornerSize: 16,
   parallaxStrength: 0.00005
 };
 
@@ -41,12 +41,12 @@ const setupAnimation = () => {
   if (!cursorRef.value) return;
 
   const originalCursor = document.body.style.cursor;
+  const cursor = cursorRef.value;
+  cornersRef.value = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner');
+
   if (props.hideDefaultCursor) {
     document.body.style.cursor = 'none';
   }
-
-  const cursor = cursorRef.value;
-  cornersRef.value = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner');
 
   let activeTarget: Element | null = null;
   let currentTargetMove: ((ev: Event) => void) | null = null;
@@ -87,7 +87,9 @@ const setupAnimation = () => {
 
   createSpinTimeline();
 
-  const moveHandler = (e: MouseEvent) => moveCursor(e.clientX, e.clientY);
+  const moveHandler = (e: MouseEvent) => {
+    moveCursor(e.clientX, e.clientY);
+  };
   window.addEventListener('mousemove', moveHandler);
 
   const enterHandler = (e: MouseEvent) => {
@@ -349,30 +351,70 @@ watch(
 </script>
 
 <template>
-  <div
-    ref="cursorRef"
-    class="top-0 left-0 z-[9999] fixed w-0 h-0 -translate-x-1/2 -translate-y-1/2 pointer-events-none mix-blend-difference transform opacity-0"
-    :style="{ willChange: 'transform' }"
-  >
-    <div
-      class="top-1/2 left-1/2 absolute bg-white rounded-full w-1 h-1 -translate-x-1/2 -translate-y-1/2 transform"
-      :style="{ willChange: 'transform' }"
-    />
-    <div
-      class="top-1/2 left-1/2 absolute border-[3px] border-white border-r-0 border-b-0 w-3 h-3 -translate-x-[150%] -translate-y-[150%] target-cursor-corner transform"
-      :style="{ willChange: 'transform' }"
-    />
-    <div
-      class="top-1/2 left-1/2 absolute border-[3px] border-white border-b-0 border-l-0 w-3 h-3 -translate-y-[150%] translate-x-1/2 target-cursor-corner transform"
-      :style="{ willChange: 'transform' }"
-    />
-    <div
-      class="top-1/2 left-1/2 absolute border-[3px] border-white border-t-0 border-l-0 w-3 h-3 translate-x-1/2 translate-y-1/2 target-cursor-corner transform"
-      :style="{ willChange: 'transform' }"
-    />
-    <div
-      class="top-1/2 left-1/2 absolute border-[3px] border-white border-t-0 border-r-0 w-3 h-3 -translate-x-[150%] translate-y-1/2 target-cursor-corner transform"
-      :style="{ willChange: 'transform' }"
-    />
-  </div>
+  <Teleport to="body">
+    <div ref="cursorRef" class="target-cursor" :style="{ willChange: 'transform' }">
+      <div class="target-cursor-dot" :style="{ willChange: 'transform' }" />
+      <div class="target-cursor-corner target-cursor-corner-tl" :style="{ willChange: 'transform' }" />
+      <div class="target-cursor-corner target-cursor-corner-tr" :style="{ willChange: 'transform' }" />
+      <div class="target-cursor-corner target-cursor-corner-br" :style="{ willChange: 'transform' }" />
+      <div class="target-cursor-corner target-cursor-corner-bl" :style="{ willChange: 'transform' }" />
+    </div>
+  </Teleport>
 </template>
+
+<style scoped>
+.target-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99999;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.target-cursor-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent-purple);
+  border-radius: 50%;
+  box-shadow: 0 0 6px 2px var(--color-accent-purple);
+}
+
+.target-cursor-corner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-accent-purple);
+}
+
+.target-cursor-corner-tl {
+  border-right: 0;
+  border-bottom: 0;
+  transform: translate(-150%, -150%);
+}
+
+.target-cursor-corner-tr {
+  border-bottom: 0;
+  border-left: 0;
+  transform: translate(50%, -150%);
+}
+
+.target-cursor-corner-br {
+  border-top: 0;
+  border-left: 0;
+  transform: translate(50%, 50%);
+}
+
+.target-cursor-corner-bl {
+  border-top: 0;
+  border-right: 0;
+  transform: translate(-150%, 50%);
+}
+</style>
