@@ -95,11 +95,14 @@
         </pluginRepository>
     </pluginRepositories>
     <dependencies>
+        <!-- spring-ai-alibaba-dashscope (SNAPSHOT, 暂时移除，未来需要时再启用) -->
+        <!--
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-dashscope</artifactId>
             <version>1.1.2.3-SNAPSHOT</version>
         </dependency>
+        -->
         <!-- Redisson（RedisSaver 需要） -->
         <dependency>
             <groupId>org.redisson</groupId>
