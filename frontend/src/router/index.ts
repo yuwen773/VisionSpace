@@ -6,14 +6,12 @@ import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
 import AdminLayout from '../layout/AdminLayout.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
-import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
 import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
 import PictureDetailPage from '@/pages/PictureDetailPage.vue'
 import SpaceManagePage from '@/pages/admin/SpaceManagePage.vue'
 import AddSpacePage from '@/pages/user/AddSpacePage.vue'
 import MySpacePage from '@/pages/MySpacePage.vue'
 import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
-import SearchPicturePage from '@/pages/SearchPicturePage.vue'
 import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
@@ -21,7 +19,6 @@ import DashboardPage from '@/pages/admin/DashboardPage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AgentChatPage from '@/pages/AgentChatPage.vue'
 import UserCenterPage from '@/pages/user/UserCenterPage.vue'
-import TestPage from "@/pages/TestPage.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -49,12 +46,6 @@ const router = createRouter({
           meta: { fullWidth: true, showFooter: false },
         },
         {
-          path: 'test',
-          name: 'test',
-          component: TestPage,
-          meta: { fullScreen: true },
-        },
-        {
           path: 'explore',
           name: 'Explore',
           component: ExplorePage,
@@ -64,11 +55,6 @@ const router = createRouter({
           path: 'add_picture',
           name: 'AddPicture',
           component: AddPicturePage,
-        },
-        {
-          path: 'add_picture/batch',
-          name: 'AddPictureBatch',
-          component: AddPictureBatchPage,
         },
         {
           path: 'picture/:id',
@@ -94,22 +80,11 @@ const router = createRouter({
           props: true,
         },
         {
-          path: 'search_picture',
-          name: 'SearchPicture',
-          component: SearchPicturePage,
-          props: true,
-        },
-        {
           path: 'space_analyze',
           name: 'SpaceAnalyze',
           component: SpaceAnalyzePage,
           props: true,
           meta: { showFooter: true },
-        },
-        {
-          path: 'feedback',
-          name: 'Feedback',
-          component: () => import('@/pages/FeedbackPage.vue'),
         },
         {
           path: 'spaceUserManage/:spaceId',
