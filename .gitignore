@@ -1,9 +1,15 @@
 ### Custom ###
 application-local.yml
 application-prod.yml
-/docs/
+/docs/*
+!/docs/agents/
+/docs/agents/*
+!/docs/agents/issue-tracker.md
+!/docs/agents/triage-labels.md
+!/docs/agents/domain.md
 /.claude/
 CLAUDE.md
+!/CLAUDE.md
 ### Maven ###
 .mvn/
 *.jar
