@@ -20,20 +20,6 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
             @Param("beforeId") Long beforeId,
             @Param("limit") int limit);
 
-    @Select("SELECT * FROM agent_message " +
-            "WHERE sessionId = #{sessionId} " +
-            "ORDER BY createdTime ASC LIMIT #{limit}")
-    java.util.List<AgentMessage> selectBySessionIdOrderByTimeASC(
-            @Param("sessionId") String sessionId,
-            @Param("limit") int limit);
-
-    @Select("SELECT * FROM agent_message " +
-            "WHERE sessionId = #{sessionId} " +
-            "ORDER BY createdTime DESC LIMIT #{limit}")
-    java.util.List<AgentMessage> selectBySessionIdOrderByTimeDESC(
-            @Param("sessionId") String sessionId,
-            @Param("limit") int limit);
-
     @Update("UPDATE agent_message SET isSummary = 1 " +
             "WHERE sessionId = #{sessionId} AND createdTime < #{summaryTime}")
     int markAsSummary(@Param("sessionId") String sessionId,

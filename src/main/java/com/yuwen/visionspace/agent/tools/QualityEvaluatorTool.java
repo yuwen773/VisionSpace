@@ -9,7 +9,6 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -20,6 +19,11 @@ import java.util.Locale;
 @Slf4j
 @Component
 public class QualityEvaluatorTool {
+
+    /**
+     * 数量充足、但命中意图的图片不足半数时的中性分数。
+     */
+    private static final double NEUTRAL_SCORE = 0.3;
 
     /**
      * 评估图片列表与用户意图的匹配度
@@ -48,78 +52,55 @@ public class QualityEvaluatorTool {
         // 简单规则判断：数量 < 3 时建议生成
         if (count < 3) {
             return QualityResult.builder()
-                    .matchScore(0.3)
+                    .matchScore(NEUTRAL_SCORE)
                     .reason("搜索结果数量较少")
                     .suggestions(List.of("搜索结果不足，建议使用 AIGC 补充生成"))
                     .action(ActionType.REGENERATE)
                     .build();
         }
 
-        // 语义匹配度评估
-        double semanticScore = calculateSemanticMatch(userIntent, images);
-        if (semanticScore < 0.3) {
-            return QualityResult.builder()
-                    .matchScore(semanticScore)
-                    .reason("图片与用户意图不匹配")
-                    .suggestions(List.of("图片类型不符合需求，建议使用 AIGC 生成符合意图的图片"))
-                    .action(ActionType.REGENERATE)
-                    .build();
-        }
+        // 数量 >= 3 时，数量本身已足以展示；语义匹配只作为加分项，不作为否决条件。
+        // 注意：搜索结果（Pexels/unDraw/以图搜图）的 category 固定为 CONTENT，且描述多为英文，
+        // 无法据此可靠判断中文意图是否匹配，因此这里只给出信号，由模型结合 reason 决定下一步。
+        String normalizedIntent = userIntent == null ? "" : userIntent.toLowerCase(Locale.ROOT);
+        String[] intentWords = normalizedIntent.split("[\\s,，.。;；]+");
+        int matchCount = (int) images.stream()
+                .filter(image -> isIntentMatchImage(normalizedIntent, intentWords, image))
+                .count();
+        boolean hasSignal = matchCount > 0;
 
-        // 数量 >= 3 且语义匹配度尚可，返回中等偏上评分
         return QualityResult.builder()
-                .matchScore(semanticScore)
-                .reason("搜索结果数量充足，图片与意图基本匹配")
-                .suggestions(List.of("可以先展示搜索结果，询问用户满意度"))
+                .matchScore(scoreFromMatchRatio(matchCount, images.size()))
+                .reason(hasSignal
+                        ? "搜索结果数量充足，且存在与意图相符的图片描述"
+                        : "搜索结果数量充足，但未能从描述中确认与意图的匹配度")
+                .suggestions(hasSignal
+                        ? List.of("可以先展示搜索结果，询问用户满意度")
+                        : List.of("建议先展示搜索结果，由用户判断是否符合意图；如明显不符再考虑 AIGC 生成"))
                 .action(ActionType.RETURN)
                 .build();
     }
 
     /**
-     * 计算图片列表与用户意图的语义匹配度
-     *
-     * @param userIntent 用户意图描述
-     * @param images 图片列表
-     * @return 匹配度分数 (0.0 - 1.0)
+     * 由匹配比例换算匹配度分数。
+     * 半数以上命中时给 0.6~0.9，否则统一给中性分。
      */
-    private double calculateSemanticMatch(String userIntent, List<ImageResource> images) {
-        if (userIntent == null || userIntent.isEmpty()) {
-            return 0.6; // 无意图信息时返回中等分数
-        }
-
-        String normalizedIntent = userIntent.toLowerCase(Locale.ROOT);
-
-        int matchCount = 0;
-        for (ImageResource image : images) {
-            if (isIntentMatchImage(normalizedIntent, image)) {
-                matchCount++;
-            }
-        }
-
-        // 计算匹配比例
-        double matchRatio = (double) matchCount / images.size();
-
-        // 结合数量因素：数量越多，匹配要求越高
-        // 如果有3张图，至少需要50%匹配才算良好
-        // 如果有5张图，至少需要60%匹配才算良好
-        double quantityFactor = Math.min(1.0, (double) images.size() / 5.0);
-        double threshold = 0.5 - (1.0 - quantityFactor) * 0.2;
-
-        if (matchRatio >= threshold) {
-            return Math.min(0.9, 0.6 + matchRatio * 0.3);
-        } else {
-            return Math.max(0.3, matchRatio * 0.6);
-        }
+    private double scoreFromMatchRatio(int matchCount, int total) {
+        double matchRatio = (double) matchCount / total;
+        return matchRatio >= 0.5
+                ? Math.min(0.9, 0.6 + matchRatio * 0.3)
+                : NEUTRAL_SCORE;
     }
 
     /**
      * 判断用户意图是否与单张图片匹配
      *
      * @param normalizedIntent 规范化的用户意图（小写）
+     * @param intentWords      预切分好的意图关键词
      * @param image 图片资源
      * @return 是否匹配
      */
-    private boolean isIntentMatchImage(String normalizedIntent, ImageResource image) {
+    private boolean isIntentMatchImage(String normalizedIntent, String[] intentWords, ImageResource image) {
         // 检查类别关键词
         ImageCategoryEnum category = image.getCategory();
         if (category != null) {
@@ -146,8 +127,7 @@ public class QualityEvaluatorTool {
         String description = image.getDescription();
         if (description != null && !description.isEmpty()) {
             String normalizedDesc = description.toLowerCase(Locale.ROOT);
-            // 简单的关键词重叠检查
-            String[] intentWords = normalizedIntent.split("[\\s,，.。;；]+");
+            // 简单的关键词重叠检查（intentWords 在调用方预先切分，避免每张图重复 split）
             for (String word : intentWords) {
                 if (word.length() >= 2 && normalizedDesc.contains(word)) {
                     return true;

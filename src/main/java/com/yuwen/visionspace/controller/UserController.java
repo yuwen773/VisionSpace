@@ -14,7 +14,10 @@ import com.yuwen.visionspace.manager.storage.FileUploadService;
 import com.yuwen.visionspace.model.dto.user.*;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
+import com.yuwen.visionspace.model.vo.PictureVO;
+import com.yuwen.visionspace.model.vo.UserPictureStatsResponse;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -33,6 +36,9 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private PictureService pictureService;
 
     @Resource
     private FileUploadService fileUploadService;
@@ -183,6 +189,29 @@ public class UserController {
         // 调用 service 层的方法进行会员兑换
         boolean result = userService.exchangeVip(loginUser, vipCode);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 获取当前用户上传图片的统计数据（总数 / 审核通过数 / 通过率）
+     */
+    @GetMapping("/picture/stats")
+    public BaseResponse<UserPictureStatsResponse> getUserPictureStats(HttpServletRequest request) {
+        // getLoginUser 未登录时直接抛 NOT_LOGIN_ERROR，不会返回 null
+        return ResultUtils.success(userService.getUserPictureStats(userService.getLoginUser(request)));
+    }
+
+    /**
+     * 获取当前用户最近上传的图片
+     *
+     * @param count 返回条数，默认 6，最大 50
+     */
+    @GetMapping("/picture/recent")
+    public BaseResponse<List<PictureVO>> getUserRecentPictures(
+            @RequestParam(defaultValue = "6") int count,
+            HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        return ResultUtils.success(
+                pictureService.getUserRecentPictures(loginUser.getId(), Math.clamp(count, 1, 50)));
     }
 
     /**
