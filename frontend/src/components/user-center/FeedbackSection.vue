@@ -138,8 +138,9 @@ const handleFeedbackFileChange = async (e: Event) => {
       (async () => {
         try {
           const res = await uploadFeedbackAttachment(file)
-          if (res.data.code === 0 && res.data.data) {
-            feedbackForm.value.pictureUrls.push(res.data.data)
+          // uploadFeedbackAttachment 返回的是裸字符串（上传后的 URL）
+          if (res.data) {
+            feedbackForm.value.pictureUrls.push(res.data)
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : '图片上传失败'

@@ -41,8 +41,7 @@ coverage/
 *.pid
 seed/
 
-# src/api 下除下列手写文件外，均由 npm run openapi2ts 自动生成。
-# 生成产物不入库，避免每次重新生成产生无意义 diff；手写文件仍需提交。
-/src/api/**
-!/src/api/pictureAction.ts
-!/src/api/pictureRecommend.ts
+# 注意：src/api 下的生成产物仍然入库。
+# 当前 @umijs/openapi 1.14.1 生成结果与库内产物命名不兼容（函数名无 UsingPost 后缀、
+# 类型名无尾下划线），且会覆盖 pictureAction.ts / pictureRecommend.ts / mcpController.ts /
+# storageConfigController.ts 四个手写文件。生成器对齐前请勿重新生成后直接提交。

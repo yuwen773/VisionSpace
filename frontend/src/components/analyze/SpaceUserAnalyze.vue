@@ -55,6 +55,7 @@ import { message } from 'ant-design-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
 import { getSpaceUserAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
+import { toId } from '@/utils'
 
 interface Props {
   queryAll?: boolean
@@ -85,7 +86,7 @@ const fetchData = async () => {
     const res = await getSpaceUserAnalyzeUsingPost({
       queryAll: props.queryAll,
       queryPublic: props.queryPublic,
-      spaceId: props.spaceId,
+      spaceId: toId(props.spaceId),
       timeDimension: timeDimension.value,
     })
     if (res.data.code === 0 && res.data.data) {

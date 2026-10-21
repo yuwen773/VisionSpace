@@ -210,11 +210,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { getRecommendListUsingGet } from '@/api/pictureRecommend'
+import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api/pictureRecommend'
 import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api/pictureAction'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
+import { toId } from '@/utils'
 
 const router = useRouter()
 
@@ -228,7 +229,7 @@ const searchText = ref('')
 const isSearchFocused = ref(false)
 
 // 数据状态
-const currentType = ref('hot')
+const currentType = ref<PictureRecommendRequest['type']>('hot')
 const pictureList = ref<any[]>([])
 const page = ref(1)
 const size = ref  (24)
@@ -435,7 +436,7 @@ const handlePictureClick = async (picture: any) => {
 /**
  * 上报点击
  */
-const reportClick = async (pictureId: string) => {
+const reportClick = async (pictureId: number) => {
   try {
     await reportPictureAction({
       pictureId: pictureId,
@@ -450,7 +451,7 @@ const reportClick = async (pictureId: string) => {
 /**
  * 上报曝光
  */
-const reportImpression = async (pictureId: string) => {
+const reportImpression = async (pictureId: number) => {
   try {
     await reportPictureAction({
       pictureId: pictureId,
@@ -465,8 +466,8 @@ const reportImpression = async (pictureId: string) => {
 /**
  * 设置曝光追踪 ref
  */
-const setImpressionRef = (el: HTMLElement | null, pictureId: string) => {
-  if (!el) return
+const setImpressionRef = (el: Element | ComponentPublicInstance | null, pictureId: number) => {
+  if (!(el instanceof HTMLElement)) return
   if (impressionObserver) {
     impressionObserver.observe(el)
   }
@@ -480,10 +481,11 @@ const initImpressionObserver = () => {
     (entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          const pictureId = entry.target.dataset.pictureId as string
+          const pictureId = (entry.target as HTMLElement).dataset.pictureId as string
           if (pictureId && !observedPictures.value.has(pictureId)) {
             observedPictures.value.add(pictureId)
-            reportImpression(pictureId)
+            const id = toId(pictureId)
+            if (id !== undefined) reportImpression(id)
           }
         }
       })

@@ -397,7 +397,9 @@ const doDelete = async (id: number | undefined) => {
   }
 }
 
-const toggleStatus = async (record: API.Space) => {
+type AdminSpaceRow = API.Space & { status?: number }
+
+const toggleStatus = async (record: AdminSpaceRow) => {
   if (!record.id) return
   const newStatus = record.status === 1 ? 0 : 1
   try {
@@ -473,9 +475,11 @@ const batchOperation = async (options: BatchOperationOptions) => {
   try {
     const promises = selectedRowKeys.value.map(id => operation(id))
     const results = await Promise.allSettled(promises)
-    const failed = results.filter(
-      r => r.status === 'rejected' || r.value?.data?.code !== 0
-    )
+    const failed = results.filter((r) => {
+      if (r.status === 'rejected') return true
+      const value = r.value as { data?: { code?: number } } | undefined
+      return value?.data?.code !== 0
+    })
     if (failed.length === 0) {
       message.success(successMessage)
       selectedRowKeys.value = []
@@ -499,12 +503,12 @@ const getLevelClass = (level: number) => {
   return classMap[level] || 'basic'
 }
 
-const getCapacityPercent = (record: API.Space) => {
+const getCapacityPercent = (record: AdminSpaceRow) => {
   if (!record.maxSize || record.maxSize === 0) return 0
-  return Math.min(100, Math.round((record.totalSize / record.maxSize) * 100))
+  return Math.min(100, Math.round(((record.totalSize ?? 0) / record.maxSize) * 100))
 }
 
-const getCapacityClass = (record: API.Space) => {
+const getCapacityClass = (record: AdminSpaceRow) => {
   const percent = getCapacityPercent(record)
   if (percent >= 90) return 'danger'
   if (percent >= 70) return 'warning'

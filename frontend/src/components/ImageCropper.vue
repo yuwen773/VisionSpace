@@ -146,6 +146,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
+import { toId } from '@/utils'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import PictureEditWebSocket from '@/utils/pictureEditWebSocket.ts'
 import { PICTURE_EDIT_ACTION_ENUM, PICTURE_EDIT_MESSAGE_TYPE_ENUM } from '@/constants/picture.ts'
@@ -153,10 +154,10 @@ import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
 
 interface Props {
   imageUrl?: string
-  picture: API.PictureVO
+  picture?: API.PictureVO
   onSuccess?: (newPicture: API.PictureVO) => void
   space?: API.SpaceVO
-  spaceId?: number
+  spaceId?: number | string
 }
 
 const props = defineProps<Props>()
@@ -227,8 +228,9 @@ const handleUpload = async ({ file }: any) => {
   loading.value = true
   try {
     const params: API.PictureUploadRequest = props.picture ? { id: props.picture.id } : {}
-    if (props.spaceId) {
-      params.spaceId = props.spaceId
+    const spaceId = toId(props.spaceId)
+    if (spaceId !== undefined) {
+      params.spaceId = spaceId
     }
     const res = await uploadPictureUsingPost(params, {}, file)
     if (res.data.code === 0 && res.data.data) {

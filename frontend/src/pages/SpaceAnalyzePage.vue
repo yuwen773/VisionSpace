@@ -190,6 +190,7 @@ import SpaceTagAnalyze from '@/components/analyze/SpaceTagAnalyze.vue'
 import SpaceSizeAnalyze from '@/components/analyze/SpaceSizeAnalyze.vue'
 import SpaceUserAnalyze from '@/components/analyze/SpaceUserAnalyze.vue'
 import SpaceRankAnalyze from '@/components/analyze/SpaceRankAnalyze.vue'
+import { toId } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -200,7 +201,7 @@ const categoryCount = ref(0)
 const tagCount = ref(0)
 
 // Computed
-const spaceId = computed(() => route.query?.spaceId as string)
+const spaceId = computed(() => toId(route.query?.spaceId as string | undefined))
 const queryAll = computed(() => !!route.query?.queryAll)
 const queryPublic = computed(() => !!route.query?.queryPublic)
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')

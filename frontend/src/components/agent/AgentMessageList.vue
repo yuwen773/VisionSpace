@@ -152,7 +152,7 @@ import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 
 interface Message {
-  type: 'user' | 'assistant' | 'reasoning' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'interrupt' | 'loading'
+  type: string
   content: string
   toolName?: string
   toolCalls?: ToolCallArg[]

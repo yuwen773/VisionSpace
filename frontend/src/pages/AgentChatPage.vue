@@ -262,6 +262,7 @@ const handleSend = async (text: string, files: File[] = []) => {
   pushMessage({
     type: 'user',
     content: text,
+    node: 'user',
     time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
   })
 

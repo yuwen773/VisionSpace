@@ -7,7 +7,10 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
 
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // vue-cropper 1.1.4 typings import an unpublished .vue file (TS7016);
+      // point the specifier at the local shim instead.
+      "vue-cropper": ["./src/types/vue-cropper.d.ts"]
     },
     "types": ["vitest/globals"]
   }

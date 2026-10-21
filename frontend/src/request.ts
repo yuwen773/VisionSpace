@@ -33,8 +33,9 @@ myAxios.interceptors.response.use(
     }
     if (data.code === 404) {
       warn(data.message)
-      return
     }
+    // 必须始终返回 response：调用方普遍直接读 res.data.code，
+    // 返回 undefined 会在下游抛出 TypeError。
     return response
   },
   function (error) {

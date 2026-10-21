@@ -113,12 +113,12 @@
         v-for="record in dataList"
         :key="record.id"
         class="picture-card"
-        :class="{ selected: selectedIds.includes(record.id) }"
+        :class="{ selected: record.id !== undefined && selectedIds.includes(record.id) }"
       >
         <div class="card-checkbox">
           <a-checkbox
-            :checked="selectedIds.includes(record.id)"
-            @change="(e: any) => toggleSelect(record.id, e.target.checked)"
+            :checked="record.id !== undefined && selectedIds.includes(record.id)"
+            @change="(e: any) => record.id !== undefined && toggleSelect(record.id, e.target.checked)"
           />
         </div>
 
@@ -131,8 +131,8 @@
             :preview="true"
           />
           <div class="format-badge">{{ record.picFormat?.toUpperCase() }}</div>
-          <div class="status-badge" :class="getStatusClass(record.reviewStatus)">
-            {{ PIC_REVIEW_STATUS_MAP[record.reviewStatus] }}
+          <div class="status-badge" :class="getStatusClass(record.reviewStatus ?? 0)">
+            {{ record.reviewStatus !== undefined ? PIC_REVIEW_STATUS_MAP[record.reviewStatus] : '' }}
           </div>
         </div>
 
@@ -143,10 +143,10 @@
 
           <p class="picture-intro" v-if="record.introduction">{{ record.introduction }}</p>
 
-          <div class="info-tags" v-if="record.category || parseTags(record.tags).length">
+          <div class="info-tags" v-if="record.category || (record.tags?.length ?? 0)">
             <a-tag v-if="record.category" color="blue" class="category-tag">{{ record.category }}</a-tag>
-            <a-tag v-for="tag in parseTags(record.tags).slice(0, 2)" :key="tag" class="tag-item">{{ tag }}</a-tag>
-            <span v-if="parseTags(record.tags).length > 2" class="tag-more">+{{ parseTags(record.tags).length - 2 }}</span>
+            <a-tag v-for="tag in (record.tags ?? []).slice(0, 2)" :key="tag" class="tag-item">{{ tag }}</a-tag>
+            <span v-if="(record.tags?.length ?? 0) > 2" class="tag-more">+{{ (record.tags?.length ?? 0) - 2 }}</span>
           </div>
 
           <div class="specs-row">
@@ -162,7 +162,7 @@
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              {{ formatSize(record.picSize) }}
+              {{ formatSize(record.picSize ?? 0) }}
             </span>
           </div>
 
@@ -204,7 +204,7 @@
                   class="action-btn"
                   :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
                   :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
-                  @click="goToEdit(record.id)"
+                  @click="record.id !== undefined && goToEdit(record.id)"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -302,11 +302,20 @@ import { formatSize } from '@/utils'
 
 const router = useRouter()
 
-const dataList = ref<API.Picture[]>([])
+// 管理端列表走 /picture/list/page，返回的是 Picture 实体，本身不含统计字段。
+// 这里把统计字段声明为可选，避免伪造出「一定存在」的类型。
+type AdminPictureRow = API.Picture & {
+  likeCount?: number
+  collectCount?: number
+  downloadCount?: number
+  viewCount?: number
+}
+
+const dataList = ref<AdminPictureRow[]>([])
 const spaceList = ref<API.Space[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
-const selectedIds = ref<(string | number)[]>([])
+const selectedIds = ref<number[]>([])
 
 const searchParams = reactive<API.PictureQueryRequest>({
   current: 1,
@@ -335,9 +344,7 @@ const fetchData = async () => {
     const res = await listPictureByPageUsingPost({
       ...searchParams,
       reviewStatus: searchParams.reviewStatus ? Number(searchParams.reviewStatus) : undefined,
-      tags: searchParams.tags
-        ? searchParams.tags.split(/,|，/).map((tag: string) => tag.trim())
-        : undefined,
+      tags: searchParams.tags?.length ? searchParams.tags : undefined,
     })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data.records ?? []
@@ -382,7 +389,7 @@ const resetSearch = () => {
   fetchData()
 }
 
-const toggleSelect = (id: string | number, checked: boolean) => {
+const toggleSelect = (id: number, checked: boolean) => {
   if (checked) {
     selectedIds.value.push(id)
   } else {

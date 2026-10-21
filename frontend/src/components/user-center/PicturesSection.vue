@@ -61,7 +61,7 @@ const pictureStats = ref<API.UserPictureStatsResponse>({
   reviewPassRate: 0
 })
 
-const recentPictures = ref<API.RecentPictureVO[]>([])
+const recentPictures = ref<API.PictureVO[]>([])
 const loading = ref(false)
 
 const loadData = async () => {

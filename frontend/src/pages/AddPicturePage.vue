@@ -321,6 +321,7 @@ import {
 } from '@/api/pictureController.ts'
 import { useRouter, useRoute } from 'vue-router'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
+import { toId } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -344,7 +345,7 @@ const titleWords = computed(() =>
 )
 
 // 空间ID
-const spaceId = computed(() => route.query?.spaceId)
+const spaceId = computed(() => toId(route.query?.spaceId as string | undefined))
 const spaceName = ref<string>('')
 const imageLoaded = computed(() => !!picture.value)
 
@@ -399,7 +400,7 @@ const handSubmit = async () => {
     return
   }
   try {
-    const res = await editPictureUsingPost({ id: pictureId, spaceId: spaceId.value, ...pictureForm })
+    const res = await editPictureUsingPost({ id: pictureId, ...pictureForm })
     if (res.data.code === 0 && res.data.data) {
       message.success(route.query.id ? '修改成功' : '创建成功')
       router.push(`/picture/${pictureId}`)
@@ -433,7 +434,7 @@ const getOldPicture = async () => {
   const id = route.query.id
   if (id) {
     try {
-      const res = await getPictureVoByIdUsingGet({ id: id as string })
+      const res = await getPictureVoByIdUsingGet({ id: toId(id as string) as number })
       if (res.data.code === 0 && res.data.data) {
         picture.value = res.data.data
         pictureForm.name = picture.value.name || ''
@@ -451,7 +452,7 @@ const getOldPicture = async () => {
 const getOldSpace = async () => {
   if (spaceId.value) {
     try {
-      const res = await getSpaceVoByIdUsingGet({ id: spaceId.value as string })
+      const res = await getSpaceVoByIdUsingGet({ id: spaceId.value as number })
       if (res.data.code === 0 && res.data.data) {
         space.value = res.data.data
         spaceName.value = res.data.data.spaceName || String(spaceId.value)

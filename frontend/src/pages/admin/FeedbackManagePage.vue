@@ -32,7 +32,7 @@
       <div class="filter-tabs">
         <button
           v-for="tab in statusTabs"
-          :key="tab.value"
+          :key="tab.value ?? 'all'"
           class="filter-tab"
           :class="{ active: searchParams.status === tab.value }"
           @click="changeStatus(tab.value)"
@@ -287,7 +287,7 @@ const loginUserStore = useLoginUserStore()
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
 
 const loading = ref(false)
-const dataList = ref([])
+const dataList = ref<API.FeedbackVO[]>([])
 const detailVisible = ref(false)
 const currentFeedback = ref<any>(null)
 const previewVisible = ref(false)
@@ -439,10 +439,13 @@ const previewImage = (url: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await listFeedbackByPageUsingPost(searchParams)
-    if (res.data.code === 0) {
-      dataList.value = res.data.data.records || []
-      pagination.value.total = res.data.data.total || 0
+    const res = await listFeedbackByPageUsingPost({
+      ...searchParams,
+      type: searchParams.type ?? undefined,
+      status: searchParams.status ?? undefined,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      dataList.value = res.data.data.records ?? []
       updateStats(dataList.value)
     }
   } finally {

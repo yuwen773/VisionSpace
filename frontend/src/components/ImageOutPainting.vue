@@ -132,10 +132,11 @@ import {
   getPictureOutPaintingTaskUsingGet,
   uploadPictureByUrlUsingPost,
 } from '@/api/pictureController.ts'
+import { toId } from '@/utils'
 
 interface Props {
   picture?: API.PictureVO
-  spaceId?: string
+  spaceId?: number | string
   onSuccess?: (newPicture: API.PictureVO) => void
 }
 
@@ -171,7 +172,7 @@ const handleUpload = async () => {
   try {
     const params: API.PictureUploadRequest = {
       fileUrl: resultImageUrl.value,
-      spaceId: props.spaceId,
+      spaceId: toId(props.spaceId),
     }
     if (props.picture) {
       params.id = props.picture.id
@@ -224,7 +225,7 @@ const startPolling = () => {
   pollingTimer = setInterval(async () => {
     try {
       const res = await getPictureOutPaintingTaskUsingGet({
-        taskId: taskId.value,
+        taskId: taskId.value as string,
       })
       if (res.data.code === 0 && res.data.data) {
         const taskResult = res.data.data.output

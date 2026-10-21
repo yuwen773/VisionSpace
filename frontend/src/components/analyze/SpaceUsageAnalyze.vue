@@ -118,6 +118,7 @@ import { ref, watchEffect } from 'vue'
 import { message } from 'ant-design-vue'
 import { getSpaceUsageAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
 import { formatSize } from '@/utils'
+import { toId } from '@/utils'
 
 interface Props {
   queryAll?: boolean
@@ -141,7 +142,7 @@ const fetchData = async () => {
     const res = await getSpaceUsageAnalyzeUsingPost({
       queryAll: props.queryAll,
       queryPublic: props.queryPublic,
-      spaceId: props.spaceId,
+      spaceId: toId(props.spaceId),
     })
     if (res.data.code === 0 && res.data.data) {
       data.value = res.data.data
