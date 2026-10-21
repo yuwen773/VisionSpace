@@ -10,10 +10,22 @@ public interface AgentSessionMapper extends BaseMapper<AgentSession> {
     @Select("SELECT * FROM agent_session WHERE sessionId = #{sessionId} AND isDelete = 0")
     AgentSession selectBySessionId(@Param("sessionId") String sessionId);
 
+    /**
+     * 按游标取用户的会话列表（最近活跃在前）。
+     * <p>
+     * 排序键与游标键必须同源，否则 {@code id < beforeId} 会与 updatedTime 排序打架：
+     * id 大但 updatedTime 旧的会话会被永久跳过。这里统一用 {@code (updatedTime, id)}
+     * 复合键排序与比较。
+     * <p>
+     * 注意：updatedTime 会被新消息改写，分页期间若有会话收到新消息，它会上移到首页，
+     * 可能被重复返回。会话列表按「最近活跃」排序本身就有这个特性，接受该抖动。
+     */
     @Select("SELECT * FROM agent_session " +
             "WHERE userId = #{userId} AND isDelete = 0 " +
-            "AND (#{beforeId} IS NULL OR id < #{beforeId}) " +
-            "ORDER BY updatedTime DESC LIMIT #{limit}")
+            "AND (#{beforeId} IS NULL OR (updatedTime, id) < " +
+            "(SELECT updatedTime, id FROM agent_session " +
+            "WHERE id = #{beforeId} AND userId = #{userId} AND isDelete = 0)) " +
+            "ORDER BY updatedTime DESC, id DESC LIMIT #{limit}")
     java.util.List<AgentSession> selectByUserIdCursor(
             @Param("userId") Long userId,
             @Param("beforeId") Long beforeId,
