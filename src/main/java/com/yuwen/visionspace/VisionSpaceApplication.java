@@ -2,6 +2,7 @@ package com.yuwen.visionspace;
 
 import com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeChatAutoConfiguration;
 import com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeEmbeddingAutoConfiguration;
+import com.yuwen.visionspace.config.ProductionSecretsGuard;
 import org.dromara.x.file.storage.spring.EnableFileStorage;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration;
@@ -20,7 +21,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class VisionSpaceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(VisionSpaceApplication.class, args);
+        SpringApplication application = new SpringApplication(VisionSpaceApplication.class);
+        // 显式 prod profile 且秘密未注入时，在创建任何业务 Bean 之前失败。
+        application.addInitializers(new ProductionSecretsGuard());
+        application.run(args);
     }
 
 }

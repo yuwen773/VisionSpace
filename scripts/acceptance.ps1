@@ -55,6 +55,8 @@ New-Item -ItemType Directory -Path $runDir | Out-Null
 Push-Location $repo
 try {
     Run-Gate 'runner-tests' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-acceptance-results.ps1') }
+    # 候选内容脱敏扫描：只记录文件:行号:规则名，不输出命中内容。
+    Run-Gate 'secret-scan' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'secret-scan.ps1') }
     try {
         if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both MySqlBin and RedisBin, or neither.' }
         $mysqlPort = Free-Port
