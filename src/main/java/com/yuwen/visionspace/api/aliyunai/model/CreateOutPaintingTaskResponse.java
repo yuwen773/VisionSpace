@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.api.aliyunai.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,8 +17,12 @@ public class CreateOutPaintingTaskResponse {
 
     /**
      * 表示任务的输出信息
+     * <p>
+     * {@code @Schema(name=...)} 不可省略：{@link GetOutPaintingTaskResponse} 里也有一个
+     * 同名的静态内部类 {@code Output}，springdoc 会按简单类名合并两者，只保留交集字段。
      */
     @Data
+    @Schema(name = "CreateOutPaintingTaskOutput")
     public static class Output {
 
         /**
