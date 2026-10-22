@@ -1083,7 +1083,6 @@ declare namespace API {
     userProfile?: string
     userRole?: string
     vipExpireTime?: string
-    vipCode?: string
     vipNumber?: number
     createTime?: string
   }

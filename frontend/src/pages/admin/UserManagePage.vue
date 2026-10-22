@@ -101,8 +101,8 @@
               {{ record.userRole === 'admin' ? '管理员' : '普通用户' }}
             </a-tag>
           </template>
-          <template v-else-if="column.dataIndex === 'vipCode'">
-            <span class="vip-info" v-if="record.vipCode">
+          <template v-else-if="column.dataIndex === 'vipNumber'">
+            <span class="vip-info" v-if="record.vipNumber">
               <svg class="vip-icon" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
               </svg>
@@ -208,7 +208,7 @@ import dayjs from 'dayjs'
 const columns = [
   { title: '用户', dataIndex: 'userName', width: 200 },
   { title: '角色', dataIndex: 'userRole', width: 120 },
-  { title: 'VIP', dataIndex: 'vipCode', width: 120 },
+  { title: 'VIP', dataIndex: 'vipNumber', width: 120 },
   { title: '注册时间', dataIndex: 'createTime', width: 140, sorter: true },
   { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
 ]

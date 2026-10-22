@@ -167,8 +167,8 @@ public class PictureController {
         // 查询数据库
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 获取封装类
-        return ResultUtils.success(picture);
+        // 原始查询同样不返回内容地址，避免成为私人内容的读取旁路
+        return ResultUtils.success(pictureService.getAdminPictureView(picture));
     }
 
     /**
@@ -184,21 +184,42 @@ public class PictureController {
         Long spaceId = picture.getSpaceId();
         Space space = null;
         if (spaceId != null) {
+            // 空间图片：只有当前空间的成员（或所有者）可读
             boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
             ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
-            // 已经改为使用注解鉴权
-            // User loginUser = userService.getLoginUser(request);
-            // pictureService.checkPictureAuth(loginUser, picture);
             space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+        } else if (picture.getReviewStatus() == null
+                || picture.getReviewStatus() != PictureReviewStatusEnum.PASS.getValue()) {
+            // 未审核或未通过的公开图片只对作者与管理员可见
+            User viewer = userService.getLoginUser(request);
+            ThrowUtils.throwIf(!picture.getUserId().equals(viewer.getId()) && !userService.isAdmin(viewer),
+                    ErrorCode.NO_AUTH_ERROR);
+            PictureVO restricted = pictureService.getPictureVO(picture, request);
+            restricted.setPermissionList(spaceUserAuthManager.getPermissionList(null, viewer));
+            return ResultUtils.success(restricted);
         }
-        // 获取权限列表
-        User loginUser = userService.getLoginUser(request);
+        // 已审核的公开图片允许匿名浏览；登录用户额外获得权限列表
+        User loginUser = getLoginUserIfPresent(request);
         List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
         PictureVO pictureVO = pictureService.getPictureVO(picture, request);
         pictureVO.setPermissionList(permissionList);
         // 获取封装类
         return ResultUtils.success(pictureVO);
+    }
+
+    /**
+     * 匿名可读的入口需要区分"未登录"与"登录但无权限"，这里只取登录态，不抛异常。
+     */
+    private User getLoginUserIfPresent(HttpServletRequest request) {
+        try {
+            return userService.getLoginUser(request);
+        } catch (BusinessException e) {
+            if (ErrorCode.NOT_LOGIN_ERROR.getCode() == e.getCode()) {
+                return null;
+            }
+            throw e;
+        }
     }
 
     /**
@@ -212,6 +233,10 @@ public class PictureController {
         // 查询数据库
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
+        // 管理列表不返回原始内容地址，其余响应结构保持不变
+        picturePage.setRecords(picturePage.getRecords().stream()
+                .map(pictureService::getAdminPictureView)
+                .toList());
         return ResultUtils.success(picturePage);
     }
 

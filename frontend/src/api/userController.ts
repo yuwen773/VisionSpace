@@ -86,7 +86,7 @@ export async function getUserByIdUsingGet(
   params: API.getUserByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseUser>('/user/get', {
+  return request<API.BaseResponseUserVO>('/user/get', {
     method: 'GET',
     params: {
       ...params,

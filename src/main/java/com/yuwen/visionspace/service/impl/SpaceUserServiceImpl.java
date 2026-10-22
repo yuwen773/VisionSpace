@@ -50,12 +50,15 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
     private SpaceService spaceService;
 
     @Override
-    public long addSpaceUser(SpaceUserAddRequest spaceUserAddRequest) {
+    public long addSpaceUser(SpaceUserAddRequest spaceUserAddRequest, User operator) {
         // 参数校验
         ThrowUtils.throwIf(spaceUserAddRequest == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(operator == null || operator.getId() == null, ErrorCode.NO_AUTH_ERROR);
         SpaceUser spaceUser = new SpaceUser();
         BeanUtils.copyProperties(spaceUserAddRequest, spaceUser);
         validSpaceUser(spaceUser, true);
+        // 业务边界复核：只有空间所有者或该空间的团队管理员能管理成员
+        checkManageAuth(operator, spaceUser.getSpaceId());
         // 数据库操作
         boolean result = this.save(spaceUser);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -81,6 +84,29 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         if (spaceRole != null && spaceRoleEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间角色不存在");
         }
+    }
+
+    /**
+     * 成员管理权限：空间所有者拥有全部权限；团队管理员需是当前空间的 admin 成员。
+     * 平台管理员不因平台角色自动获得他人空间的成员管理权限。
+     */
+    @Override
+    public void checkManageAuth(User operator, Long spaceId) {
+        ThrowUtils.throwIf(spaceId == null, ErrorCode.PARAMS_ERROR);
+        Space space = spaceService.getById(spaceId);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+        if (space.getUserId() != null && space.getUserId().equals(operator.getId())) {
+            return;
+        }
+        SpaceUser membership = this.lambdaQuery()
+                .eq(SpaceUser::getSpaceId, spaceId)
+                .eq(SpaceUser::getUserId, operator.getId())
+                .one();
+        ThrowUtils.throwIf(membership == null,
+                ErrorCode.NO_AUTH_ERROR, "没有空间成员管理权限");
+        boolean isSpaceAdmin = SpaceRoleEnum.ADMIN.getValue().equals(membership.getSpaceRole());
+        ThrowUtils.throwIf(!isSpaceAdmin,
+                ErrorCode.NO_AUTH_ERROR, "没有空间成员管理权限");
     }
 
     @Override
