@@ -8,7 +8,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.Resource;
 import java.io.File;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -83,36 +82,6 @@ public class FileUploadService {
     public String uploadImageFile(MultipartFile file, String pathPrefix) {
         return uploadFile(file, pathPrefix, 2L * 1024 * 1024,
                 Arrays.asList("jpeg", "png", "jpg", "webp"));
-    }
-
-    /**
-     * 通过 URL 删除文件
-     *
-     * @param fileUrl                文件公网 URL
-     * @param pathPrefixSafetyCheck  安全校验前缀，非 null 时验证存储 key 必须以此开头
-     */
-    public void deleteFileByUrl(String fileUrl, String pathPrefixSafetyCheck) {
-        if (fileUrl == null || fileUrl.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件地址不能为空");
-        }
-        try {
-            URI uri = new URI(fileUrl);
-            String path = uri.getPath();
-            if (path == null || path.isEmpty()) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "无效的文件地址");
-            }
-            String key = path.startsWith("/") ? path.substring(1) : path;
-            if (pathPrefixSafetyCheck != null && !key.startsWith(pathPrefixSafetyCheck)) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "非法的文件路径");
-            }
-            boolean deleted = pictureStorageService.deleteObject(key);
-            log.info("文件删除: key={}, success={}", key, deleted);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("文件删除失败: fileUrl={}", fileUrl, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件删除失败");
-        }
     }
 
     private String getFileExtension(String originalFilename) {

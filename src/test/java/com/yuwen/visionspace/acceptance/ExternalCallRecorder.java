@@ -41,6 +41,13 @@ public final class ExternalCallRecorder implements AutoCloseable {
         return List.copyOf(calls);
     }
 
+    /**
+     * 记录不经过 HTTP 的替身调用（例如存储读写的直接适配）。
+     */
+    public void record(Call call) {
+        calls.add(call);
+    }
+
     @Override
     public void close() {
         server.stop(0);

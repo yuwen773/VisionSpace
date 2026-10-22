@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatSize, toHexColor, lerp, clamp } from '@/utils'
+import { contentSrc, formatSize, toHexColor, lerp, clamp } from '@/utils'
 
 describe('formatSize', () => {
   it('按量级选择 B / KB / MB', () => {
@@ -44,5 +44,18 @@ describe('lerp / clamp', () => {
     expect(clamp(5, 1, 10)).toBe(5)
     expect(clamp(-5, 1, 10)).toBe(1)
     expect(clamp(50, 1, 10)).toBe(10)
+  })
+})
+
+describe('contentSrc', () => {
+  it('受控内容入口补上 API 源站与 context-path', () => {
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+    expect(contentSrc('/picture/content/1/original')).toBe(`${base}/api/picture/content/1/original`)
+  })
+
+  it('源站地址与空值不被改写', () => {
+    expect(contentSrc('https://example.com/a.jpg')).toBe('https://example.com/a.jpg')
+    expect(contentSrc(null)).toBe('')
+    expect(contentSrc(undefined)).toBe('')
   })
 })

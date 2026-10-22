@@ -18,6 +18,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.manager.auth.annotation.SaSpaceCheckPermission;
@@ -30,6 +31,7 @@ import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.vo.PictureTagCategory;
 import com.yuwen.visionspace.model.vo.PictureVO;
+import com.yuwen.visionspace.service.PictureContentService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
@@ -40,6 +42,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +75,12 @@ public class PictureController {
 
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
+
+    @Resource
+    private PictureContentAuthManager pictureContentAuthManager;
+
+    @Resource
+    private PictureContentService pictureContentService;
 
     @Resource
     private Cache<String, String> pictureListCache;
@@ -180,27 +189,24 @@ public class PictureController {
         // 查询数据库
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        // 元数据可见性与内容鉴权共用同一判定，避免"能看到记录却读不到内容"的不一致
+        User viewer = getLoginUserIfPresent(request);
+        ThrowUtils.throwIf(!pictureContentAuthManager.canReadContent(picture, viewer), ErrorCode.NO_AUTH_ERROR);
         // 空间权限校验
         Long spaceId = picture.getSpaceId();
         Space space = null;
         if (spaceId != null) {
-            // 空间图片：只有当前空间的成员（或所有者）可读
-            boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
-            ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
             space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
         } else if (picture.getReviewStatus() == null
                 || picture.getReviewStatus() != PictureReviewStatusEnum.PASS.getValue()) {
             // 未审核或未通过的公开图片只对作者与管理员可见
-            User viewer = userService.getLoginUser(request);
-            ThrowUtils.throwIf(!picture.getUserId().equals(viewer.getId()) && !userService.isAdmin(viewer),
-                    ErrorCode.NO_AUTH_ERROR);
             PictureVO restricted = pictureService.getPictureVO(picture, request);
             restricted.setPermissionList(spaceUserAuthManager.getPermissionList(null, viewer));
             return ResultUtils.success(restricted);
         }
         // 已审核的公开图片允许匿名浏览；登录用户额外获得权限列表
-        User loginUser = getLoginUserIfPresent(request);
+        User loginUser = viewer;
         List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
         PictureVO pictureVO = pictureService.getPictureVO(picture, request);
         pictureVO.setPermissionList(permissionList);
@@ -253,10 +259,20 @@ public class PictureController {
         // 空间权限校验
         Long spaceId = pictureQueryRequest.getSpaceId();
         if (spaceId == null) {
-            // 公开图库
-            // 普通用户默认只能看到审核通过的数据
-            pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            // 公开图库：已审核内容匿名可见；作者仍可查看自己的未审核图片
+            User viewer = getLoginUserIfPresent(request);
+            if (pictureQueryRequest.getReviewStatus() == null) {
+                pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            }
             pictureQueryRequest.setNullSpaceId(true);
+            if (pictureQueryRequest.getReviewStatus() != PictureReviewStatusEnum.PASS.getValue()) {
+                // 未审核查询必须绑定到本人：匿名请求直接拒绝，
+                // 登录用户也不能借该入口枚举他人的待审内容
+                ThrowUtils.throwIf(viewer == null, ErrorCode.NO_AUTH_ERROR);
+                if (!userService.isAdmin(viewer)) {
+                    pictureQueryRequest.setUserId(viewer.getId());
+                }
+            }
         } else {
             boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
             ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
@@ -279,8 +295,13 @@ public class PictureController {
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 30, ErrorCode.PARAMS_ERROR);
+        // 缓存键与响应不区分查看者，因此这里只允许公开图库查询：
+        // 空间图片按成员关系判定，不能进入共享缓存
+        ThrowUtils.throwIf(pictureQueryRequest.getSpaceId() != null, ErrorCode.PARAMS_ERROR,
+                "缓存列表仅支持公开图库");
         // 普通用户默认只能看到审核通过的数据
         pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+        pictureQueryRequest.setNullSpaceId(true);
         // 查询缓存，缓存中没有，再查询数据库
         // 构建缓存的 key
         String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
@@ -372,13 +393,23 @@ public class PictureController {
      * 以图搜图
      */
     @PostMapping("/search/picture")
-    public BaseResponse<List<ImageSearchResult>> searchPictureByPicture(@RequestBody SearchPictureByPictureRequest searchPictureByPictureRequest) {
+    public BaseResponse<List<ImageSearchResult>> searchPictureByPicture(
+            @RequestBody SearchPictureByPictureRequest searchPictureByPictureRequest) {
         ThrowUtils.throwIf(searchPictureByPictureRequest == null, ErrorCode.PARAMS_ERROR);
         Long pictureId = searchPictureByPictureRequest.getPictureId();
         ThrowUtils.throwIf(pictureId == null || pictureId <= 0, ErrorCode.PARAMS_ERROR);
         Picture picture = pictureService.getById(pictureId);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-        List<ImageSearchResult> resultList = ImageSearchApiFacade.searchImage(picture.getUrl());
+        // 外部服务以匿名身份抓取图片，因此只接受当前也允许匿名读取的内容；
+        // 需要登录才能读的图片不对外发起抓取
+        ThrowUtils.throwIf(!pictureContentAuthManager.canReadContent(picture, null),
+                ErrorCode.NO_AUTH_ERROR);
+        // 只把受控内容入口的绝对地址交给外部服务，不暴露源站地址
+        String contentUrl = pictureContentService.contentUrl(picture, PictureContentService.ContentKind.ORIGINAL);
+        ThrowUtils.throwIf(contentUrl == null, ErrorCode.NOT_FOUND_ERROR, "该图片没有可用的内容记录");
+        String absoluteUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path(contentUrl).toUriString();
+        List<ImageSearchResult> resultList = ImageSearchApiFacade.searchImage(absoluteUrl);
         return ResultUtils.success(resultList);
     }
 

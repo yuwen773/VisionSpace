@@ -8,6 +8,7 @@ import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.model.vo.RecommendPageVO;
 import com.yuwen.visionspace.model.vo.RecommendPictureVO;
+import com.yuwen.visionspace.service.PictureContentService;
 import com.yuwen.visionspace.service.PictureRecommendService;
 import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
@@ -35,6 +36,9 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     @Resource
     private PictureStatsService pictureStatsService;
+
+    @Resource
+    private PictureContentService pictureContentService;
 
     @Override
     public List<Long> getRecommendPictureIds(String type, int page, int size) {
@@ -89,6 +93,11 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         List<RecommendPictureVO> records = pictures.stream()
                 .map(RecommendPictureVO::objToVo)
                 .collect(Collectors.toList());
+        // 推荐列表同样只返回受控内容入口
+        for (int i = 0; i < records.size(); i++) {
+            records.get(i).setContentEndpoint(
+                    pictureContentService.contentUrl(pictures.get(i), PictureContentService.ContentKind.THUMBNAIL));
+        }
 
         Long total = getRecommendTotal(type);
 
@@ -107,7 +116,8 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     private long countRecommendPictures(String type) {
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda().eq(Picture::getReviewStatus, 1);
+        // 公开推荐只包含公共图库：空间图片不进入匿名可见的推荐流
+        queryWrapper.lambda().eq(Picture::getReviewStatus, 1).isNull(Picture::getSpaceId);
 
         switch (type) {
             case "latest":
@@ -138,7 +148,8 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
      */
     private List<Picture> calculateRecommendPictures(String type, int page, int size) {
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda().eq(Picture::getReviewStatus, 1);
+        // 公开推荐只包含公共图库：空间图片不进入匿名可见的推荐流
+        queryWrapper.lambda().eq(Picture::getReviewStatus, 1).isNull(Picture::getSpaceId);
 
         List<Picture> pictures;
         boolean useDbPagination = false;

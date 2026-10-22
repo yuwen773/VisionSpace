@@ -68,4 +68,11 @@ public class RecommendPictureVO implements Serializable {
         vo.setTags(JSONUtil.toList(picture.getTags(), String.class));
         return vo;
     }
+
+    /**
+     * 推荐列表只返回受控内容入口，不携带源站地址。
+     */
+    public void setContentEndpoint(String endpoint) {
+        this.thumbnailUrl = endpoint;
+    }
 }

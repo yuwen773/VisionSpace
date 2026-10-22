@@ -282,3 +282,27 @@ CREATE TABLE `mcp_server` (
                               UNIQUE KEY `uk_mcp_server_code_user` (`mcpServerCode`, `userId`),
                               KEY `idx_user_id` (`userId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MCP服务器配置表';
+
+-- ----------------------------
+-- Table structure for picture_file（#34 资源记录）
+-- ----------------------------
+CREATE TABLE `picture_file` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '资源标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '所有者用户 id',
+  `spaceId` bigint(20) NULL DEFAULT NULL COMMENT '空间 id（公共图库为空）',
+  `pictureId` bigint(20) NULL DEFAULT NULL COMMENT '绑定后的图片 id（临时上传为空）',
+  `purpose` varchar(32) NOT NULL COMMENT '用途：gallery / agent-chat',
+  `kind` varchar(16) NOT NULL COMMENT '内容类型：original / thumbnail / preview',
+  `platform` varchar(32) NOT NULL COMMENT '存储平台标识',
+  `objectKey` varchar(768) NOT NULL COMMENT '存储对象键（含 basePath）',
+  `url` varchar(1024) NULL DEFAULT NULL COMMENT '上传时返回的地址，仅作记录',
+  `fileSize` bigint(20) NULL DEFAULT NULL COMMENT '文件字节数',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=TEMP 1=ACTIVE 2=DELETED 3=SUPERSEDED',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_picture_kind`(`pictureId`, `kind`, `status`) USING BTREE,
+  INDEX `idx_owner_purpose_status`(`ownerUserId`, `purpose`, `status`) USING BTREE,
+  INDEX `idx_platform_key`(`platform`, `objectKey`(191)) USING BTREE,
+  INDEX `idx_url`(`url`(191)) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '图片资源记录';

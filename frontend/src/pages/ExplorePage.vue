@@ -99,7 +99,7 @@
               <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
                 <div class="item-skeleton" v-if="!loadedImages.has(picture.id)"></div>
                 <img
-                  :src="picture.thumbnailUrl || picture.url"
+                  :src="contentSrc(picture.thumbnailUrl || picture.url)"
                   :alt="picture.name"
                   class="item-image"
                   :class="{ loaded: loadedImages.has(picture.id) }"
@@ -215,7 +215,7 @@ import { useRouter } from 'vue-router'
 import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api-custom/picture'
 import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
-import { toId } from '@/utils'
+import { contentSrc, toId } from '@/utils'
 
 const router = useRouter()
 

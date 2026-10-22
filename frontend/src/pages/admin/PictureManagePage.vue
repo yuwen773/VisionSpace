@@ -134,7 +134,7 @@
           </div>
           <a-image
             v-else
-            :src="record.thumbnailUrl || record.url"
+            :src="contentSrc(record.thumbnailUrl || record.url)"
             :width="200"
             :height="160"
             class="picture-img"
@@ -308,7 +308,7 @@ import {
   PIC_REVIEW_STATUS_ENUM,
   PIC_REVIEW_STATUS_MAP,
 } from '@/constants/picture.ts'
-import { formatSize } from '@/utils'
+import { contentSrc, formatSize } from '@/utils'
 
 const router = useRouter()
 
