@@ -41,7 +41,7 @@ coverage/
 *.pid
 seed/
 
-# 注意：src/api 下的生成产物仍然入库。
-# 当前 @umijs/openapi 1.14.1 生成结果与库内产物命名不兼容（函数名无 UsingPost 后缀、
-# 类型名无尾下划线），且会覆盖 pictureAction.ts / pictureRecommend.ts / mcpController.ts /
-# storageConfigController.ts 四个手写文件。生成器对齐前请勿重新生成后直接提交。
+# src/api/ 下的产物入库，由 `npm run openapi2ts` 生成。
+# 生成器会 rimraf 整个 src/api/，因此手写客户端放在 src/api-custom/（不在忽略范围内）。
+# 命名对齐（UsingPost 后缀、尾下划线别名）由 openapi.config.js 的 hook 与
+# scripts/postgen-typings.mjs 维持，重新生成后无需人工修补。

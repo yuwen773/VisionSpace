@@ -10,7 +10,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "openapi2ts": "node openapi.config.js",
+    "openapi2ts": "node openapi.config.js && node scripts/postgen-typings.mjs",
     "format": "prettier --write src/",
     "test": "vitest run",
     "test:watch": "vitest"
