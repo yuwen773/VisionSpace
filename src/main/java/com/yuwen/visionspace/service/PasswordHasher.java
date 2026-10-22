@@ -48,7 +48,7 @@ public class PasswordHasher {
         if (rawPassword == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码不能为空");
         }
-        return cn.hutool.crypto.digest.BCrypt.hashpw(peppered(rawPassword), salt());
+        return cn.hutool.crypto.digest.BCrypt.hashpw(prehashed(rawPassword), salt());
     }
 
     /**
@@ -62,7 +62,7 @@ public class PasswordHasher {
             return constantTimeEquals(legacyDigest(rawPassword), storedPassword.toLowerCase());
         }
         try {
-            return cn.hutool.crypto.digest.BCrypt.checkpw(peppered(rawPassword), storedPassword);
+            return cn.hutool.crypto.digest.BCrypt.checkpw(prehashed(rawPassword), storedPassword);
         } catch (IllegalArgumentException e) {
             // 存储值不是可识别的 BCrypt 摘要：按不匹配处理，不抛给调用方
             return false;
@@ -116,7 +116,7 @@ public class PasswordHasher {
     /**
      * BCrypt 输入统一为 SHA-256 的 Base64，避免 72 字节截断带来的前缀等价。
      */
-    private String peppered(String rawPassword) {
+    private String prehashed(String rawPassword) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(rawPassword.getBytes(StandardCharsets.UTF_8));

@@ -31,8 +31,6 @@ vision-space:
   web:
     # 允许携带 Cookie 调用的跨站来源（协议 + 主机 + 端口）。同源请求不受限制。
     trusted-origins: ${VISION_SPACE_TRUSTED_ORIGINS:http://localhost:5173}
-    # 对外入口说明，仅用于部署排障，不参与鉴权
-    public-origin: ${VISION_SPACE_PUBLIC_ORIGIN:}
     csrf-enabled: ${VISION_SPACE_CSRF_ENABLED:true}
     csrf-cookie-name: VS_CSRF
     csrf-header-name: X-CSRF-Token

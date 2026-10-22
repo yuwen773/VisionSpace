@@ -46,7 +46,6 @@ vision-space:
     # 生产为 HTTPS 同源入口：同源请求不受该列表限制，这里只放行额外的可信来源。
     # 需要跨站访问时显式列出（含协议），留空表示只信同源。
     trusted-origins: ${VISION_SPACE_TRUSTED_ORIGINS:}
-    public-origin: ${VISION_SPACE_PUBLIC_ORIGIN:}
     csrf-enabled: true
   pexels:
     api-key: ${VISION_SPACE_PEXELS_API_KEY:}

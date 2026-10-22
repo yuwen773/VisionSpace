@@ -1,7 +1,7 @@
 package com.yuwen.visionspace.manager.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yuwen.visionspace.common.BaseResponse;
+import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.config.WebSecurityProperties;
 import com.yuwen.visionspace.exception.ErrorCode;
@@ -222,6 +222,6 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/json;charset=UTF-8");
         objectMapper.writeValue(response.getWriter(),
-                new BaseResponse<>(ErrorCode.FORBIDDEN_ERROR.getCode(), null, message));
+                ResultUtils.error(ErrorCode.FORBIDDEN_ERROR.getCode(), message));
     }
 }

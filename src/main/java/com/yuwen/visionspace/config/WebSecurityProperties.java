@@ -26,13 +26,6 @@ public class WebSecurityProperties {
     private List<String> trustedOrigins = new ArrayList<>();
 
     /**
-     * 访问入口（协议 + 主机 + 端口），用于拼接 Cookie 与跨站判定。
-     *
-     * <p>只用于日志与文档，不参与鉴权：鉴权只看请求自身的 Origin / Host / 代理头。
-     */
-    private String publicOrigin = "";
-
-    /**
      * 状态修改请求的 CSRF 防护开关。生产与开发都必须保持开启；
      * 仅在隔离验收里显式关闭以证明防护确实生效过。
      */
