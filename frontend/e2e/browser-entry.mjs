@@ -293,6 +293,59 @@ try {
     await page.close()
   })
 
+  await step('SSE 流式入口同源可用，且缺令牌的流式写请求被拒绝', async () => {
+    const page = await context.newPage()
+    record(page)
+    await page.goto(`${origin}/user/login`)
+    await registerAndLogin(page, `sse_${Date.now()}`)
+
+    // 带令牌：必须建立同源的 text/event-stream 连接（模型不可达不影响「流已打开」这一契约）
+    const opened = await page.evaluate(async () => {
+      const token = document.cookie
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('VS_CSRF='))
+      const controller = new AbortController()
+      const res = await fetch('/api/agent/image/chat/stream', {
+        method: 'POST',
+        credentials: 'include',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': decodeURIComponent(token.slice('VS_CSRF='.length)),
+        },
+        body: JSON.stringify({ message: 'acceptance ping', threadId: 'acceptance-thread' }),
+      })
+      const contentType = res.headers.get('content-type') || ''
+      // 只需要读到响应头；随后立刻中断，避免等待模型
+      controller.abort()
+      return { ok: res.ok, status: res.status, contentType }
+    })
+    assert.equal(opened.ok, true, `SSE 入口必须接受同源带令牌请求：${JSON.stringify(opened)}`)
+    assert.ok(
+      opened.contentType.includes('text/event-stream'),
+      `SSE 必须返回事件流：${JSON.stringify(opened)}`,
+    )
+
+    // 缺令牌：同源但未带双提交令牌的流式写请求必须被挡在建立流之前
+    const missing = await page.evaluate(async () => {
+      const res = await fetch('/api/agent/image/chat/stream', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'acceptance ping' }),
+      })
+      return { status: res.status, contentType: res.headers.get('content-type') || '' }
+    })
+    assert.equal(missing.status, 403, `缺令牌的 SSE 写请求必须被拒绝：${JSON.stringify(missing)}`)
+    const sseCalls = calls.filter((c) => c.kind === 'http' && c.url.includes('/agent/image/chat/stream'))
+    assert.ok(sseCalls.length > 0, 'SSE 请求必须真实到达同源入口')
+    for (const call of sseCalls) {
+      assert.equal(new URL(call.url).origin, origin, `SSE 必须同源：${call.url}`)
+    }
+    await page.close()
+  })
+
   await step('生产构建不使用固定主机：http 入口只服务当前源', async () => {
     const page = await browser.newPage()
     record(page)

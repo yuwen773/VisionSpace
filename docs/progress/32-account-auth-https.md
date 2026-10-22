@@ -31,7 +31,7 @@
 | 30.1 REST、SSE、上传、WebSocket 走同一同源入口；无固定公网 ws 地址、无混合内容、配置变量不自相矛盾 | `apiOrigin.ts` 是唯一来源；`webSocketUrl` 由 `window.location` 推导 `wss`；`apiOrigin.spec.ts` 7 条；浏览器验收「页面发起的全部 API 请求都与页面同源」「wss 由 https 页面推导」 | 已覆盖 |
 | 30.2 Cookie、错误与重连契约一致；生产切换入口不改业务代码 | Cookie 统一 `SameSite=Strict` + Sa-Token `Secure`；入口差异只体现在 `VITE_API_BASE_URL` 与反向代理配置；浏览器验收断言 https 入口下会话 Cookie 均为 `Secure` 且下发 `VS_CSRF` | 已覆盖 |
 | 30.3 开发跨域只放行可信 Origin；状态修改有可验证的 CSRF 防护，不接受仅靠 CORS/Cookie 属性 | `CsrfProtectionFilter`（会话绑定 + 双提交 + 来源判定）；`CsrfProtectionFilter` 的 HTTP 用例：`stateChangingRequestFromUntrustedOriginIsRejectedWithoutWrites`（40300 且零写入）、`missingOrMismatchedCsrfTokenIsRejectedWithoutStateChange`、`csrfCookieIsVisibleToPageScriptsOutsideTheApiContextPath`；`RequestOriginPolicyTest` 9 条 | 已覆盖 |
-| 30.4 真实浏览器链路验证 API、SSE、WSS 与注销后拒绝；恶意来源与无效防护信息零状态修改 | `scripts/browser-acceptance.ps1` + `frontend/e2e/browser-entry.mjs` 7 步真实 Chromium：Secure Cookie、同源 API、注销后 40100、wss 握手失败、跨站 Origin 403、缺令牌 403、http 入口只服务当前源 | 已覆盖（详见下节） |
+| 30.4 真实浏览器链路验证 API、SSE、WSS 与注销后拒绝；恶意来源与无效防护信息零状态修改 | `scripts/browser-acceptance.ps1` + `frontend/e2e/browser-entry.mjs` 8 步真实 Chromium：Secure Cookie、同源 API、注销后 40100、wss 握手失败、跨站 Origin 403、缺令牌 403、SSE 同源可用且缺令牌 403、http 入口只服务当前源 | 已覆盖（详见下节） |
 
 ## 数据兼容与安全回滚（07.2）
 
@@ -65,7 +65,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/browser-acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>' -SkipInstall
 ```
 
-`target/browser-acceptance/summary.json`：isolation、backend、browser、cleanup 全部 PASS，7 个浏览器步骤全绿（`passed: 7, failed: 0`）。
+`target/browser-acceptance/summary.json`：isolation、backend、browser、cleanup 全部 PASS，8 个浏览器步骤全绿（`passed: 8, failed: 0`）。
 
 这一轮浏览器验收抓到了三个只在真实入口下才出现的问题，均已修复并补了回归用例：
 
@@ -78,7 +78,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/browser-acceptance.ps1 `
 ## 人工关卡（未完成，不计入通过）
 
 1. **真实生产域名与证书。** 浏览器验收用 `127.0.0.1` 自签证书，验证的是「同源入口 + TLS + wss 推导」这套形状，不等于 `visionspace.space` 的证书链、HSTS 与 CDN 配置已验证。
-2. **真实浏览器对 SSE 的端到端观察。** 浏览器验收覆盖了 API、WSS 与注销后拒绝；Agent SSE 只验证了「地址同源 + 带令牌头」的代码路径与单元测试，没有真实模型调用（隔离后端把外部服务指向不可达地址）。
+2. **SSE 的模型输出未验证。** 浏览器验收已覆盖「同源 POST 建立 `text/event-stream` 连接」与「缺令牌被拒绝」两个入口契约，但隔离后端把外部模型指向不可达地址，所以没有真实 token 流。模型侧的输出与重连语义不在本工单范围。
 3. **多实例与滚动发布。** 注销撤销、并发升级与 CSRF 都只在单进程 + 单 Redis 内验证；滚动发布期间新旧实例并存的窗口没有实测。
 4. **生产回滚演练。** 「回滚需配合数据恢复」只在文档层说明，没有在含存量数据的库上演练过。
 5. **浏览器验收未接入 CI。** `scripts/browser-acceptance.ps1` 本轮只在 Windows + 原生 MySQL/Redis 上跑通。它的 Linux 分支（Docker + `Start-Process -WindowStyle`）没有实测过，所以没有加进 `.github/workflows/acceptance.yml`——宁可让它保持手动关卡，也不提交一条没验证过的流水线配置。接入前需要先在 Linux 上跑通一次，并处理 `playwright-core` 的浏览器安装与 BLOCKED_ENV 退出码。
