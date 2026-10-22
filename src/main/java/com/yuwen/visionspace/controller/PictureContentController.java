@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 图片实际内容入口。
@@ -62,20 +61,12 @@ public class PictureContentController {
 
     private ResponseEntity<byte[]> respond(Long pictureId, PictureContentService.ContentKind kind,
                                            boolean download, HttpServletRequest request) {
-        User viewer = getLoginUserIfPresent(request);
+        User viewer = userService.getLoginUserIfPresent(request);
         PictureContentService.Content content;
         try {
             content = pictureContentService.loadContent(pictureId, kind, viewer, download);
         } catch (BusinessException e) {
-            // 内容入口返回二进制响应，鉴权失败同样用 HTTP 状态码表达
-            HttpStatus status = switch (e.getCode()) {
-                case 40100 -> HttpStatus.UNAUTHORIZED;
-                case 40101 -> HttpStatus.FORBIDDEN;
-                case 40400 -> HttpStatus.NOT_FOUND;
-                case 40000 -> HttpStatus.BAD_REQUEST;
-                default -> HttpStatus.INTERNAL_SERVER_ERROR;
-            };
-            return ResponseEntity.status(status).build();
+            return ResponseEntity.status(httpStatus(e.getCode())).build();
         }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(content.contentType()));
@@ -90,16 +81,22 @@ public class PictureContentController {
     }
 
     /**
-     * 匿名入口需要区分"未登录"与"登录但无权限"，这里只取登录态，不抛异常。
+     * 业务错误码到 HTTP 状态码。内容入口返回二进制响应，鉴权失败同样用状态码表达。
      */
-    private User getLoginUserIfPresent(HttpServletRequest request) {
-        try {
-            return userService.getLoginUser(request);
-        } catch (BusinessException e) {
-            if (ErrorCode.NOT_LOGIN_ERROR.getCode() == e.getCode()) {
-                return null;
-            }
-            throw e;
+    private HttpStatus httpStatus(int code) {
+        if (code == ErrorCode.NOT_LOGIN_ERROR.getCode()) {
+            return HttpStatus.UNAUTHORIZED;
         }
+        if (code == ErrorCode.NO_AUTH_ERROR.getCode()) {
+            return HttpStatus.FORBIDDEN;
+        }
+        if (code == ErrorCode.NOT_FOUND_ERROR.getCode()) {
+            return HttpStatus.NOT_FOUND;
+        }
+        if (code == ErrorCode.PARAMS_ERROR.getCode()) {
+            return HttpStatus.BAD_REQUEST;
+        }
+        return HttpStatus.INTERNAL_SERVER_ERROR;
     }
+
 }

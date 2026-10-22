@@ -103,16 +103,7 @@ public class AgentImageUploadService {
     public boolean deleteImage(Long resourceId, User loginUser) {
         ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         ThrowUtils.throwIf(resourceId == null || resourceId <= 0, ErrorCode.PARAMS_ERROR, "资源标识不能为空");
-        PictureFile file = pictureFileService.getById(resourceId);
-        if (file == null) {
-            return false;
-        }
-        // 归属判定只看服务端记录，不解析客户端传来的 URL
-        ThrowUtils.throwIf(!loginUser.getId().equals(file.getOwnerUserId()), ErrorCode.NO_AUTH_ERROR);
-        if (PictureFileStatusEnum.DELETED.getValue() == file.getStatus()) {
-            return false;
-        }
-        return pictureFileService.deleteFile(file);
+        return deleteOwnedRecord(pictureFileService.getById(resourceId), loginUser);
     }
 
     /**
@@ -150,9 +141,15 @@ public class AgentImageUploadService {
     public boolean deleteImageByExactUrl(String imageUrl, User loginUser) {
         ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         ThrowUtils.throwIf(StrUtil.isBlank(imageUrl), ErrorCode.PARAMS_ERROR, "资源地址不能为空");
-        PictureFile file = pictureFileService.findByExactUrl(imageUrl.trim());
+        return deleteOwnedRecord(pictureFileService.findByExactUrl(imageUrl.trim()), loginUser);
+    }
+
+    /**
+     * 按资源记录删除：归属只看服务端记录，已删除的记录按成功处理。
+     * 未知记录同样按"不存在或无权"拒绝，不区分两者以避免探测他人资源。
+     */
+    private boolean deleteOwnedRecord(PictureFile file, User loginUser) {
         if (file == null || !loginUser.getId().equals(file.getOwnerUserId())) {
-            // 不区分"不存在"与"不属于你"，避免探测他人资源
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         if (PictureFileStatusEnum.DELETED.getValue() == file.getStatus()) {

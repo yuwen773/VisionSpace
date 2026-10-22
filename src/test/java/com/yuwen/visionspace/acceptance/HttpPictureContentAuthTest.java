@@ -90,10 +90,13 @@ class HttpPictureContentAuthTest {
     @Test
     void approvedPublicContentIsReadableAnonymouslyForEveryKind() throws Exception {
         try (var anonymous = client()) {
-            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/original");
-            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/thumbnail");
+            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/original",
+                    "/public/original.jpg");
+            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/thumbnail",
+                    "/public/thumb.jpg");
             // 预览缺失时退回原图，仍按同一授权判定
-            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/preview");
+            assertContent(anonymous, "/picture/content/" + PUBLIC_PICTURE + "/preview",
+                    "/public/original.jpg");
         }
     }
 
@@ -179,6 +182,13 @@ class HttpPictureContentAuthTest {
                 assertTrue(record.path("thumbnailUrl").isNull(), "admin listing must not expose thumbnail");
                 assertTrue(record.path("previewUrl").isNull(), "admin listing must not expose preview");
             }
+
+            // 审核需要看图：管理员走受控入口读未审核内容，而不是拿源站地址
+            seedResource(PENDING_PICTURE, ownerId, null, "original", "pending/original.jpg");
+            assertContent(admin, "/picture/content/" + PENDING_PICTURE + "/original",
+                    "/pending/original.jpg");
+            // 团队空间按成员关系判定，平台管理员不因平台角色获得成员权限
+            assertDenied(admin, "/picture/content/" + TEAM_PICTURE + "/original");
         }
     }
 
@@ -351,11 +361,30 @@ class HttpPictureContentAuthTest {
     }
 
     private void assertContent(HttpClient client, String path) throws Exception {
+        assertContent(client, path, null);
+    }
+
+    /**
+     * 校验内容可读，并（可选）确认读取的是记录里的那个对象键，
+     * 避免"只验了授权、没验路由"。
+     */
+    private void assertContent(HttpClient client, String path, String expectedKey) throws Exception {
+        int before = recorder.calls().size();
         var response = send(client, HttpRequest.newBuilder(uri(path)).GET().build());
         assertEquals(200, response.statusCode(), path + " -> " + response.body());
         assertEquals("acceptance-image-bytes", response.body());
         assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("image/"),
                 path + " content type: " + response.headers().firstValue("Content-Type"));
+        if (expectedKey != null) {
+            List<ExternalCallRecorder.Call> reads = recorder.calls().subList(before, recorder.calls().size())
+                    .stream().filter(call -> "READ".equals(call.method())).toList();
+            assertEquals(1, reads.size(), path + " must read exactly one object: " + reads);
+            // 记录格式与方法一致：Call(method, platform, objectKey)
+            assertEquals(RecordingStorageConfiguration.PLATFORM, reads.get(0).path(),
+                    path + " must read through the recorded platform");
+            assertEquals(expectedKey, reads.get(0).body(),
+                    path + " must read the recorded object key");
+        }
     }
 
     private void assertDenied(HttpClient client, String path) throws Exception {

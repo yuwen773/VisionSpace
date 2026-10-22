@@ -181,9 +181,11 @@ public class PictureFileServiceImpl extends ServiceImpl<PictureFileMapper, Pictu
         if (ownerUserId == null) {
             return 0L;
         }
+        // 只统计仍然占用存储的记录：被替换的旧对象已删除，不应继续计入额度
         return this.lambdaQuery()
                 .eq(PictureFile::getOwnerUserId, ownerUserId)
-                .ne(PictureFile::getStatus, PictureFileStatusEnum.DELETED.getValue())
+                .in(PictureFile::getStatus, PictureFileStatusEnum.TEMP.getValue(),
+                        PictureFileStatusEnum.ACTIVE.getValue())
                 .list()
                 .stream()
                 .map(PictureFile::getFileSize)

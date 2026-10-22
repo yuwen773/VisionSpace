@@ -55,6 +55,14 @@ public interface UserService extends IService<User> {
     User getLoginUser(HttpServletRequest request);
 
     /**
+     * 获取当前登录用户；匿名请求返回 null，而不是抛出未登录异常。
+     *
+     * <p>用于既允许匿名又允许登录的入口：调用方按 null 走匿名分支，
+     * 其余错误照常抛出。
+     */
+    User getLoginUserIfPresent(HttpServletRequest request);
+
+    /**
      * 获得脱敏后的登录用户信息
      *
      * @param user

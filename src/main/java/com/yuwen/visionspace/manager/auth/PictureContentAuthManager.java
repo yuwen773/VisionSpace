@@ -22,8 +22,10 @@ import jakarta.annotation.Resource;
  * <ul>
  *   <li>已审核的公共图库图片：允许匿名读取；</li>
  *   <li>未审核的公共图库图片：仅作者与平台管理员；</li>
- *   <li>空间图片：空间所有者、当前团队成员（viewer 及以上）与平台管理员；</li>
- *   <li>团队管理员或平台管理员身份都不扩展到其他用户的私人资源。</li>
+ *   <li>私有空间：空间所有者与平台管理员；</li>
+ *   <li>团队空间：空间所有者与当前团队成员（viewer 及以上），平台管理员不因平台角色
+ *       自动获得成员权限；</li>
+ *   <li>平台管理员身份不扩展到其他用户的公共图库未审核内容以外的场景。</li>
  * </ul>
  * 成员被移除或降权后，下一次请求即按新的成员关系判定。
  */
@@ -79,11 +81,6 @@ public class PictureContentAuthManager {
         if (viewer == null) {
             return false;
         }
-        // 平台管理员保留违规处置能力（独立管理入口由后续工单负责），
-        // 但普通浏览仍按成员关系判定；这里与既有空间接口保持一致。
-        if (userService.isAdmin(viewer)) {
-            return true;
-        }
         Space space = spaceService.getById(spaceId);
         if (space == null) {
             return false;
@@ -92,7 +89,12 @@ public class PictureContentAuthManager {
             return true;
         }
         if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间只对所有者开放
+            // 私有空间只对所有者与平台管理员开放
+            return userService.isAdmin(viewer);
+        }
+        // 团队空间按成员关系判定：平台管理员不因平台角色自动获得成员权限，
+        // 与 StpInterfaceImpl 的团队空间分支保持一致
+        if (userService.isAdmin(viewer)) {
             return false;
         }
         SpaceUser spaceUser = spaceUserService.lambdaQuery()

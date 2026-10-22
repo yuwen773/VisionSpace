@@ -190,7 +190,7 @@ public class PictureController {
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
         // 元数据可见性与内容鉴权共用同一判定，避免"能看到记录却读不到内容"的不一致
-        User viewer = getLoginUserIfPresent(request);
+        User viewer = userService.getLoginUserIfPresent(request);
         ThrowUtils.throwIf(!pictureContentAuthManager.canReadContent(picture, viewer), ErrorCode.NO_AUTH_ERROR);
         // 空间权限校验
         Long spaceId = picture.getSpaceId();
@@ -212,20 +212,6 @@ public class PictureController {
         pictureVO.setPermissionList(permissionList);
         // 获取封装类
         return ResultUtils.success(pictureVO);
-    }
-
-    /**
-     * 匿名可读的入口需要区分"未登录"与"登录但无权限"，这里只取登录态，不抛异常。
-     */
-    private User getLoginUserIfPresent(HttpServletRequest request) {
-        try {
-            return userService.getLoginUser(request);
-        } catch (BusinessException e) {
-            if (ErrorCode.NOT_LOGIN_ERROR.getCode() == e.getCode()) {
-                return null;
-            }
-            throw e;
-        }
     }
 
     /**
@@ -260,7 +246,7 @@ public class PictureController {
         Long spaceId = pictureQueryRequest.getSpaceId();
         if (spaceId == null) {
             // 公开图库：已审核内容匿名可见；作者仍可查看自己的未审核图片
-            User viewer = getLoginUserIfPresent(request);
+            User viewer = userService.getLoginUserIfPresent(request);
             if (pictureQueryRequest.getReviewStatus() == null) {
                 pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
             }

@@ -70,9 +70,9 @@ public class RecommendPictureVO implements Serializable {
     }
 
     /**
-     * 推荐列表只返回受控内容入口，不携带源站地址。
+     * 推荐列表的缩略图只返回受控内容入口，不携带源站地址。
      */
-    public void setContentEndpoint(String endpoint) {
+    public void setThumbnailEndpoint(String endpoint) {
         this.thumbnailUrl = endpoint;
     }
 }

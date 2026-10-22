@@ -1,4 +1,5 @@
 import { saveAs } from 'file-saver'
+import { API_BASE_URL } from '@/request'
 
 export const formatSize = (size: number) => {
   if (!size && size !== 0) return '未知'
@@ -6,8 +7,6 @@ export const formatSize = (size: number) => {
   if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB'
   return (size / (1024 * 1024)).toFixed(2) + ' MB'
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
 
 /**
  * 后端返回的受控内容入口是站内相对路径（/picture/content/...），

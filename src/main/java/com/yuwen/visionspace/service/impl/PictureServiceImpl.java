@@ -195,6 +195,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         // 用户级速率与额度：超限时在进入对象存储前拒绝，拒绝路径零副作用
         uploadQuotaManager.checkRate(loginUser.getId(), PictureFilePurposeEnum.GALLERY);
+        // 上传前的预检只能看已用额度；本次文件大小要等上传完成后才知道
         uploadQuotaManager.checkQuota(loginUser.getId(), null);
         UploadPictureResult uploadPictureResult;
         try {
@@ -202,6 +203,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         } catch (RuntimeException e) {
             // 存储失败不计入当日上传次数
             uploadQuotaManager.refundRate(loginUser.getId(), PictureFilePurposeEnum.GALLERY);
+            throw e;
+        }
+        try {
+            // 把本次上传的字节数计入额度，避免"已用未超、再加就超"的请求落库
+            uploadQuotaManager.checkQuota(loginUser.getId(), uploadPictureResult.getPicSize());
+        } catch (RuntimeException e) {
+            discardUploadedObjects(loginUser.getId(), uploadPictureResult);
             throw e;
         }
         // 登记资源归属：所有者、平台与对象键都来自服务端，后续删除/读取以记录为准
@@ -608,21 +616,20 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      * 由后续重试或维护清理处理；数据库删除与额度释放已经生效。
      */
     private void cleanupRecordedFiles(Long pictureId, List<PictureFile> files) {
-        for (PictureFile file : files) {
-            if (!pictureFileService.deleteFile(file)) {
-                log.warn("图片资源删除未完成: pictureId={}, fileId={}, kind={}",
-                        pictureId, file.getId(), file.getKind());
-            }
-        }
+        cleanupFiles(files, "图片资源删除未完成: pictureId=" + pictureId);
     }
 
     /**
      * 清理被重新上传替换掉的旧资源。
      */
     private void cleanupReplacedFiles(List<PictureFile> superseded) {
-        for (PictureFile file : superseded) {
+        cleanupFiles(superseded, "被替换的资源删除未完成");
+    }
+
+    private void cleanupFiles(List<PictureFile> files, String reason) {
+        for (PictureFile file : files) {
             if (!pictureFileService.deleteFile(file)) {
-                log.warn("被替换的资源删除未完成: fileId={}, kind={}", file.getId(), file.getKind());
+                log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
             }
         }
     }

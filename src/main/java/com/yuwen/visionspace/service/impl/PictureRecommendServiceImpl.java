@@ -95,7 +95,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
                 .collect(Collectors.toList());
         // 推荐列表同样只返回受控内容入口
         for (int i = 0; i < records.size(); i++) {
-            records.get(i).setContentEndpoint(
+            records.get(i).setThumbnailEndpoint(
                     pictureContentService.contentUrl(pictures.get(i), PictureContentService.ContentKind.THUMBNAIL));
         }
 

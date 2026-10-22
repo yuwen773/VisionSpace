@@ -2,9 +2,9 @@
 //
 // 这个目录不在 src/api/ 下——生成器每次运行都会 rimraf 整个 src/api/，
 // 所以手写文件必须放在它的作用范围之外。
-import request from '@/request'
+import request, { API_BASE_URL } from '@/request'
 
-const BASE_URL = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
+const BASE_URL = API_BASE_URL
 
 // ============ 图片上传 ============
 // 走原生 fetch 而非 axios：上传需要 FormData，且要读原始 JSON 拿 data 字段。

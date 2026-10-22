@@ -11,6 +11,10 @@ import java.util.Date;
  *
  * <p>一次上传的每个对象（原图、缩略图、预览）各占一条记录，记录可信的所有者、
  * 存储平台与对象键。删除、替换与内容读取都以本表为准，而不是解析客户端传来的 URL。
+ *
+ * <p>本表不使用全局 {@code isDelete} 逻辑删除：{@link #status} 需要区分
+ * TEMP / ACTIVE / DELETED / SUPERSEDED 四种状态，两态的逻辑删除表达不了
+ * "已替换"与"已删除"的差别。查询一律显式带 status 条件。
  */
 @Data
 @TableName("picture_file")

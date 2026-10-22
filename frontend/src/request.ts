@@ -1,7 +1,13 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { warn } from 'vue'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+/**
+ * 后端源站地址。请求实例与页面里的内容入口（/picture/content/...）共用同一个来源，
+ * 避免两处各自兜底、生产环境取值不一致。
+ */
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+
+const baseURL = API_BASE_URL
 
 //创建axios实例
 const myAxios = axios.create({

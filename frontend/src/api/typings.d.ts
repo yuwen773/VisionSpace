@@ -235,6 +235,18 @@ declare namespace API {
     message?: string
   }
 
+  type AgentImageVO = {
+    resourceId?: number
+    url?: string
+    size?: number
+  }
+
+  type BaseResponseAgentImageVO = {
+    code?: number
+    data?: AgentImageVO
+    message?: string
+  }
+
   type BaseResponseString = {
     code?: number
     data?: string

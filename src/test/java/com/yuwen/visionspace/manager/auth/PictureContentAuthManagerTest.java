@@ -86,6 +86,19 @@ class PictureContentAuthManagerTest {
         assertFalse(manager.canReadContent(picture, null));
         assertFalse(manager.canReadContent(picture, user(STRANGER)));
         assertTrue(manager.canReadContent(picture, user(OWNER)));
+        // 平台管理员保留违规处置能力，可以读取私有空间内容
+        assertTrue(manager.canReadContent(picture, user(ADMIN)));
+    }
+
+    @Test
+    void platformAdminDoesNotGainTeamMembership() {
+        Picture picture = spacePicture(SPACE_ID);
+        when(spaceService.getById(SPACE_ID)).thenReturn(space(OWNER, SpaceTypeEnum.TEAM.getValue()));
+        LambdaQueryChainWrapper<SpaceUser> noMemberQuery = queryReturning(null);
+        when(spaceUserService.lambdaQuery()).thenReturn(noMemberQuery);
+
+        // 与 StpInterfaceImpl 一致：平台管理员不因平台角色自动获得团队成员权限
+        assertFalse(manager.canReadContent(picture, user(ADMIN)));
     }
 
     @Test
