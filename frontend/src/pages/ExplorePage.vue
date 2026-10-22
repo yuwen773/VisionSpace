@@ -212,8 +212,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api/pictureRecommend'
-import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api/pictureAction'
+import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api-custom/picture'
+import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
 import { toId } from '@/utils'
 

@@ -2,12 +2,12 @@
 /* eslint-disable */
 import request from '@/request'
 
-/** addFeedback POST /api/feedback/add */
+/** 此处后端没有提供注释 POST /feedback/add */
 export async function addFeedbackUsingPost(
   body: API.FeedbackAddRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseLong_>('/api/feedback/add', {
+  return request<API.BaseResponseLong>('/feedback/add', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -17,23 +17,26 @@ export async function addFeedbackUsingPost(
   })
 }
 
-/** getFeedbackById GET /api/feedback/get/{id} */
+/** 此处后端没有提供注释 GET /feedback/get/${param0} */
 export async function getFeedbackByIdUsingGet(
-  params: { id: number },
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getFeedbackByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseFeedbackVO_>(`/api/feedback/get/${params.id}`, {
+  const { id: param0, ...queryParams } = params
+  return request<API.BaseResponseFeedbackVO>(`/feedback/get/${param0}`, {
     method: 'GET',
+    params: { ...queryParams },
     ...(options || {}),
   })
 }
 
-/** listFeedbackByPage POST /api/feedback/list/page */
+/** 此处后端没有提供注释 POST /feedback/list/page */
 export async function listFeedbackByPageUsingPost(
   body: API.FeedbackQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePageFeedbackVO_>('/api/feedback/list/page', {
+  return request<API.BaseResponsePageFeedbackVO>('/feedback/list/page', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -43,12 +46,12 @@ export async function listFeedbackByPageUsingPost(
   })
 }
 
-/** updateFeedbackStatus POST /api/feedback/update/status */
+/** 此处后端没有提供注释 POST /feedback/update/status */
 export async function updateFeedbackStatusUsingPost(
   body: API.FeedbackUpdateStatusRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/feedback/update/status', {
+  return request<API.BaseResponseBoolean>('/feedback/update/status', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -58,17 +61,38 @@ export async function updateFeedbackStatusUsingPost(
   })
 }
 
-/** uploadFeedbackAttachment POST /feedback/upload */
-export async function uploadFeedbackAttachment(
-  file: File,
+/** 此处后端没有提供注释 POST /feedback/upload */
+export async function uploadFeedbackAttachmentUsingPost(
+  body: {},
+  file?: File,
   options?: { [key: string]: any }
 ) {
   const formData = new FormData()
-  formData.append('file', file)
 
-  return request<string>('/api/feedback/upload', {
+  if (file) {
+    formData.append('file', file)
+  }
+
+  Object.keys(body).forEach((ele) => {
+    const item = (body as any)[ele]
+
+    if (item !== undefined && item !== null) {
+      if (typeof item === 'object' && !(item instanceof File)) {
+        if (item instanceof Array) {
+          item.forEach((f) => formData.append(ele, f || ''))
+        } else {
+          formData.append(ele, new Blob([JSON.stringify(item)], { type: 'application/json' }))
+        }
+      } else {
+        formData.append(ele, item)
+      }
+    }
+  })
+
+  return request<API.BaseResponseString>('/feedback/upload', {
     method: 'POST',
     data: formData,
+    requestType: 'form',
     ...(options || {}),
   })
 }

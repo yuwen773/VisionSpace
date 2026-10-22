@@ -271,8 +271,13 @@ declare namespace API {
     nextCursor?: number
   }
 
+  type CreateOutPaintingTaskOutput = {
+    taskId?: string
+    taskStatus?: string
+  }
+
   type CreateOutPaintingTaskResponse = {
-    output?: Output
+    output?: CreateOutPaintingTaskOutput
     code?: string
     message?: string
     requestId?: string
@@ -354,9 +359,21 @@ declare namespace API {
     needTools?: boolean
   }
 
+  type GetOutPaintingTaskOutput = {
+    taskId?: string
+    taskStatus?: string
+    submitTime?: string
+    scheduledTime?: string
+    endTime?: string
+    outputImageUrl?: string
+    code?: string
+    message?: string
+    taskMetrics?: TaskMetrics
+  }
+
   type GetOutPaintingTaskResponse = {
     requestId?: string
-    output?: Output1
+    output?: GetOutPaintingTaskOutput
   }
 
   type getPictureByIdUsingGetParams = {
@@ -367,7 +384,7 @@ declare namespace API {
     taskId: string
   }
 
-  type getPictureVOByIdUsingGetParams = {
+  type getPictureVoByIdUsingGetParams = {
     id: number
   }
 
@@ -386,7 +403,7 @@ declare namespace API {
     id: number
   }
 
-  type getSpaceVOByIdUsingGetParams = {
+  type getSpaceVoByIdUsingGetParams = {
     id: number
   }
 
@@ -398,7 +415,7 @@ declare namespace API {
     count?: number
   }
 
-  type getUserVOByIdUsingGetParams = {
+  type getUserVoByIdUsingGetParams = {
     id: number
   }
 
@@ -415,9 +432,9 @@ declare namespace API {
 
   type IPageMcpServerDetail = {
     size?: number
+    records?: McpServerDetail[]
     current?: number
     total?: number
-    records?: McpServerDetail[]
     pages?: number
   }
 
@@ -472,11 +489,6 @@ declare namespace API {
   type OrderItem = {
     column?: string
     asc?: boolean
-  }
-
-  type Output = {
-    taskId?: string
-    taskStatus?: string
   }
 
   type PageFeedbackVO = {
@@ -994,8 +1006,10 @@ declare namespace API {
     updateTime?: string
   }
 
-  type uploadPictureUsingPostParams = {
-    pictureUploadRequest: PictureUploadRequest
+  type TaskMetrics = {
+    total?: number
+    succeeded?: number
+    failed?: number
   }
 
   type User = {
@@ -1078,81 +1092,45 @@ declare namespace API {
     vipCode?: string
   }
 
-  // ===== 兼容层：旧版生成器（尾下划线命名）的别名 =====
+  // === 生成后补丁：尾下划线别名（scripts/postgen-typings.mjs） ===
   type BaseResponseAdminDashboardStatsVO_ = BaseResponseAdminDashboardStatsVO
   type BaseResponseBoolean_ = BaseResponseBoolean
   type BaseResponseCreateOutPaintingTaskResponse_ = BaseResponseCreateOutPaintingTaskResponse
   type BaseResponseFeedbackVO_ = BaseResponseFeedbackVO
   type BaseResponseGetOutPaintingTaskResponse_ = BaseResponseGetOutPaintingTaskResponse
-  type BaseResponseInt_ = BaseResponseInteger
+  type BaseResponseInteger_ = BaseResponseInteger
   type BaseResponseListImageSearchResult_ = BaseResponseListImageSearchResult
   type BaseResponseListPictureVO_ = BaseResponseListPictureVO
+  type BaseResponseListSpace_ = BaseResponseListSpace
   type BaseResponseListSpaceCategoryAnalyzeResponse_ = BaseResponseListSpaceCategoryAnalyzeResponse
   type BaseResponseListSpaceLevel_ = BaseResponseListSpaceLevel
   type BaseResponseListSpaceSizeAnalyzeResponse_ = BaseResponseListSpaceSizeAnalyzeResponse
   type BaseResponseListSpaceTagAnalyzeResponse_ = BaseResponseListSpaceTagAnalyzeResponse
   type BaseResponseListSpaceUserAnalyzeResponse_ = BaseResponseListSpaceUserAnalyzeResponse
   type BaseResponseListSpaceUserVO_ = BaseResponseListSpaceUserVO
-  type BaseResponseListSpace_ = BaseResponseListSpace
   type BaseResponseLoginUserVO_ = BaseResponseLoginUserVO
   type BaseResponseLong_ = BaseResponseLong
   type BaseResponsePageFeedbackVO_ = BaseResponsePageFeedbackVO
-  type BaseResponsePagePictureVO_ = BaseResponsePagePictureVO
   type BaseResponsePagePicture_ = BaseResponsePagePicture
-  type BaseResponsePageSpaceVO_ = BaseResponsePageSpaceVO
+  type BaseResponsePagePictureVO_ = BaseResponsePagePictureVO
   type BaseResponsePageSpace_ = BaseResponsePageSpace
+  type BaseResponsePageSpaceVO_ = BaseResponsePageSpaceVO
   type BaseResponsePageUserVO_ = BaseResponsePageUserVO
+  type BaseResponsePicture_ = BaseResponsePicture
   type BaseResponsePictureTagCategory_ = BaseResponsePictureTagCategory
   type BaseResponsePictureVO_ = BaseResponsePictureVO
-  type BaseResponsePicture_ = BaseResponsePicture
+  type BaseResponseSpace_ = BaseResponseSpace
   type BaseResponseSpaceUsageAnalyzeResponse_ = BaseResponseSpaceUsageAnalyzeResponse
   type BaseResponseSpaceUser_ = BaseResponseSpaceUser
   type BaseResponseSpaceVO_ = BaseResponseSpaceVO
-  type BaseResponseSpace_ = BaseResponseSpace
   type BaseResponseString_ = BaseResponseString
-  type BaseResponseUserVO_ = BaseResponseUserVO
   type BaseResponseUser_ = BaseResponseUser
-  type PageFeedbackVO_ = PageFeedbackVO
-  type PagePictureVO_ = PagePictureVO
-  type PagePicture_ = PagePicture
-  type PageSpaceVO_ = PageSpaceVO
-  type PageSpace_ = PageSpace
-  type PageUserVO_ = PageUserVO
-  type getPictureByIdUsingGETParams = getPictureByIdUsingGetParams
-  type getPictureOutPaintingTaskUsingGETParams = getPictureOutPaintingTaskUsingGetParams
-  type getPictureVOByIdUsingGETParams = getPictureVOByIdUsingGetParams
-  type getSpaceByIdUsingGETParams = getSpaceByIdUsingGetParams
-  type getSpaceVOByIdUsingGETParams = getSpaceVOByIdUsingGetParams
-  type getUserByIdUsingGETParams = getUserByIdUsingGetParams
-  type getUserVOByIdUsingGETParams = getUserVOByIdUsingGetParams
-  type uploadPictureUsingPOSTParams = uploadPictureUsingPostParams
-
-  type Output1 = {
-    code?: string
-    endTime?: string
-    message?: string
-    outputImageUrl?: string
-    scheduledTime?: string
-    submitTime?: string
-    taskId?: string
-    taskMetrics?: TaskMetrics
-    taskStatus?: string
-  }
-
-
-  type TaskMetrics = {
-    failed?: number
-    succeeded?: number
-    total?: number
-  }
-
-
-  type testDownloadFileUsingGETParams = {
-    /** filepath */
-    filepath?: string
-  }
-
-  // ===== 补充：旧产物缺失、后端实际存在的类型 =====
   type BaseResponseUserPictureStatsResponse_ = BaseResponseUserPictureStatsResponse
-  type BaseResponseListRecentPictureVO_ = BaseResponseListPictureVO
+  type BaseResponseUserVO_ = BaseResponseUserVO
+  type PageFeedbackVO_ = PageFeedbackVO
+  type PagePicture_ = PagePicture
+  type PagePictureVO_ = PagePictureVO
+  type PageSpace_ = PageSpace
+  type PageSpaceVO_ = PageSpaceVO
+  type PageUserVO_ = PageUserVO
 }

@@ -69,7 +69,7 @@ const loadData = async () => {
   try {
     const [statsRes, picturesRes] = await Promise.all([
       getUserPictureStatsUsingGet(),
-      getUserRecentPicturesUsingGet(6)
+      getUserRecentPicturesUsingGet({ count: 6 })
     ])
     if (statsRes.data.code === 0) {
       pictureStats.value = statsRes.data.data ?? pictureStats.value

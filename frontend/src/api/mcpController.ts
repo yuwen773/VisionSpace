@@ -2,38 +2,81 @@
 /* eslint-disable */
 import request from '@/request'
 
-/**
- * 创建 MCP Server
- * POST /api/mcp-server
- */
-export const createMcpServer = (data: any) =>
-  request('/api/mcp-server', { method: 'POST', data })
+/** 此处后端没有提供注释 GET /mcp-server */
+export async function listMcpServersUsingGet(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.listMcpServersUsingGetParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseIPageMcpServerDetail>('/mcp-server', {
+    method: 'GET',
+    params: {
+      // current has a default value: 1
+      current: '1',
+      // size has a default value: 10
+      size: '10',
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
 
-/**
- * 更新 MCP Server
- * PUT /api/mcp-server
- */
-export const updateMcpServer = (data: any) =>
-  request('/api/mcp-server', { method: 'PUT', data })
+/** 此处后端没有提供注释 PUT /mcp-server */
+export async function updateMcpServerUsingPut(
+  body: API.McpServerDetail,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseVoid>('/mcp-server', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
 
-/**
- * 删除 MCP Server
- * DELETE /api/mcp-server/{mcpServerCode}
- */
-export const deleteMcpServer = (mcpServerCode: string) =>
-  request(`/api/mcp-server/${mcpServerCode}`, { method: 'DELETE' })
+/** 此处后端没有提供注释 POST /mcp-server */
+export async function createMcpServerUsingPost(
+  body: API.McpServerDetail,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString>('/mcp-server', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
 
-/**
- * 获取 MCP Server 详情
- * GET /api/mcp-server/{mcpServerCode}
- */
-export const getMcpServer = (mcpServerCode: string, needTools = false) =>
-  request(`/api/mcp-server/${mcpServerCode}`, { params: { needTools } })
+/** 此处后端没有提供注释 GET /mcp-server/${param0} */
+export async function getMcpServerUsingGet(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getMcpServerUsingGetParams,
+  options?: { [key: string]: any }
+) {
+  const { mcpServerCode: param0, ...queryParams } = params
+  return request<API.BaseResponseMcpServerDetail>(`/mcp-server/${param0}`, {
+    method: 'GET',
+    params: {
+      ...queryParams,
+    },
+    ...(options || {}),
+  })
+}
 
-/**
- * 获取 MCP Server 列表
- * GET /api/mcp-server
- */
-export const listMcpServers = (params: { name?: string; current?: number; size?: number }) =>
-  request('/api/mcp-server', { params })
-
+/** 此处后端没有提供注释 DELETE /mcp-server/${param0} */
+export async function deleteMcpServerUsingDelete(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.deleteMcpServerUsingDeleteParams,
+  options?: { [key: string]: any }
+) {
+  const { mcpServerCode: param0, ...queryParams } = params
+  return request<API.BaseResponseVoid>(`/mcp-server/${param0}`, {
+    method: 'DELETE',
+    params: { ...queryParams },
+    ...(options || {}),
+  })
+}

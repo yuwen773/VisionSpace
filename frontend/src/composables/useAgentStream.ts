@@ -1,6 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
-import { uploadAgentImage, deleteAgentImage } from '@/api/agentController'
+import { uploadAgentImage, deleteAgentImage } from '@/api-custom/agent'
 
 export interface MessageDTO {
   messageType: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'reasoning'

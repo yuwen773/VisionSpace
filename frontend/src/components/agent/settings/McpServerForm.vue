@@ -118,7 +118,7 @@ Authorization: Bearer xxx"
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import type { FormInstance } from 'ant-design-vue'
-import { createMcpServer, updateMcpServer } from '@/api/mcpController'
+import { createMcpServer, updateMcpServer } from '@/api-custom/mcp'
 import type { McpServerVO, McpServerFormData } from '@/types/mcp'
 
 interface Props {

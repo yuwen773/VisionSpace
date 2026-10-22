@@ -232,7 +232,7 @@ const handleUpload = async ({ file }: any) => {
     if (spaceId !== undefined) {
       params.spaceId = spaceId
     }
-    const res = await uploadPictureUsingPost(params, {}, file)
+    const res = await uploadPictureUsingPost({ pictureUploadRequest: params }, file)
     if (res.data.code === 0 && res.data.data) {
       message.success('图片裁剪成功')
       props.onSuccess?.(res.data.data)
