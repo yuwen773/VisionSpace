@@ -11,7 +11,7 @@
 | A12 公开图片删除误扣空间额度 | `0c60261` 已修复空 spaceId 分支；`HttpBaselineTest` 用登录 Cookie 调真实删除入口，检查图片逻辑删除、无关空间额度不变及记录的文件删除。 |
 | A19 历史分页/会话游标不同源 | `9c46db9`、`9ceb073` 已纳入；保留 `ChatHistoryCursorIntegrationTest` 的六条真实 MySQL 回归，不以 Mockito 替代分页 SQL。 |
 | A31 前端请求实例与返回值 | `f5d646d` 及后续生成器适配已纳入；`frontend/src/__tests__/request.spec.ts` 通过真实 Axios 实例和传输适配器验证 Cookie 配置、请求数据、成功/业务错误响应及网络失败。HTTPS 同源、SSE、WebSocket 的生产链路仍属后续票。 |
-| 本地修复未进入 main、尚无自动化入口 | 当前 HEAD 已包含 PR #49 的测试/API 生成修复；本票提供统一脚本与最小 PR workflow。远程运行及分支保护须在后续授权推送后另行核实。 |
+| 本地修复未进入 main、尚无自动化入口 | 当前 HEAD 已包含 PR #49 的测试/API 生成修复；本票提供统一脚本与最小 PR workflow，并已在 PR #50 上实际远程执行通过（见下）。分支保护仍须另行授权配置。 |
 
 不将其他授权缺陷判为已修复：空鉴权上下文、JSON 媒体类型参数解析、私人资源/Agent/MCP 授权矩阵及真实出站控制仍由对应业务票处理。本票仅建立基线，覆盖正常 JSON 的公开删除及明确拒绝路径。
 
@@ -52,7 +52,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 | `BLOCKED_ENV` / 退出 2 | 隔离服务、实例标记或必要环境不可用；不能表述为通过。若同时有真实失败，优先退出 1。 |
 | 既有失败 | 对同一隔离配置复现于起点 HEAD 后，单独记录具体测试、日志和基线比较依据；保持门禁失败，不跳过或删除。 |
 
-`.github/workflows/acceptance.yml` 在 PR、main push 和手动触发时运行同一命令，使用只读仓库权限和超时，并在成功/失败时上传验收日志及 Surefire 报告。无需真实外部服务凭据。此票不配置分支保护，不声称工作流已远程执行。
+`.github/workflows/acceptance.yml` 在 PR、main push 和手动触发时运行同一命令，使用只读仓库权限和超时，并在成功/失败时上传验收日志及 Surefire 报告。无需真实外部服务凭据。工作流已在 PR #50 上实际远程执行通过；此票不配置分支保护。
 
 ## 本次验证记录
 
@@ -67,7 +67,8 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 | 结果分类 | 六个独立场景 PASS：成功、纯隔离错误、混合断言失败、混合普通错误、损坏 XML、无测试报告的构建失败。后三类及混合失败均保留 FAIL。 |
 | 原有有效测试 | 78 条后端、10 条前端原有用例全部保留并实际通过；没有发现需豁免的既有失败。 |
 | Standards / Spec 审查 | 分别完成独立审查；报告混合失败误分类和旧报告混入问题，修复后复核均为 0 剩余发现。 |
-| 现有未提交资料 | 对实施前的 62 个文件复核 SHA-256，0 不匹配；HEAD 与暂存区保持原状。 |
-| Docker / GitHub Actions / 生产 | 本机 Docker BLOCKED_ENV；远程 Actions、真实模型、云对象、生产及人工验收 NOT_RUN。未提交、推送、关闭工单或修改远程治理配置。 |
+| 现有未提交资料 | 实施期间对 62 个未跟踪文件复核 SHA-256，0 不匹配。PR #51（`4aa9fa4`）已将其中的 `.zread/` 与 `软件著作权申请资料/` 加入 `.gitignore`、将 `CONTEXT.md` 纳入版本控制，此后不再出现在 `git status` 中；文件本身未删除。 |
+| Docker / GitHub Actions | 本机 Docker 不可用，原生模式结果不等同容器实测。远程 Actions 已执行：PR #50 的 [run 39734430077](https://github.com/yuwen773/VisionSpace/actions/runs/39734430077) 在 `ubuntu-24.04` 以 Docker 模式 PASS，用时 3 分 07 秒，`summary.json` 记录的 checkout 提交为合并态 `3c93267`（`41ff3a1` merge into `35cdf05`）；MySQL `8.0.36`、Redis `7.2.4`，后端 86 条 / 前端 12 条 / 分类 6 场景 / 类型检查 / 构建 / 清理均 PASS，产物 `acceptance-evidence` 已上传。 |
+| 真实模型、云对象、生产与人工验收 | NOT_RUN。本票未关闭工单，未配置分支保护，未修改远程治理配置；PR #50 按当前授权保持未合并。 |
 
 调试时曾暴露本票新增 DDL 提取错误及测试适配器未覆盖同名 `@Resource` 注入，两处均保留断言并修复后通过；这些不是原有测试失败。结束审计还发现 Windows MySQL 监控程序留下子进程，已在验证随机数据目录后正常关闭此前测试实例，并加入服务端正常关闭、进程退出等待及清理失败记录；最终运行确认无遗留临时服务。前端构建仍输出依赖包体积及现有 CSS 警告，构建退出 0；未在本票修改相关业务样式或打包策略。
