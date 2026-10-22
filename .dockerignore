@@ -54,6 +54,7 @@ Thumbs.db
 .env
 .env.*
 application-local.yml
+application-server.yml
 application-prod.yml
 application-local.properties
 application-prod.properties

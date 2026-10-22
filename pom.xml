@@ -312,6 +312,17 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <!-- 本地/服务器配置含真实密钥，只允许存在于工作树，不得打进镜像 -->
+                <excludes>
+                    <exclude>application-local.yml</exclude>
+                    <exclude>application-server.yml</exclude>
+                    <exclude>application-local.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

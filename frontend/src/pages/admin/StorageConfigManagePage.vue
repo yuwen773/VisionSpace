@@ -233,20 +233,30 @@
           </div>
           <div class="form-row">
             <div class="form-item">
-              <label class="form-label">AccessKey <span class="required">*</span></label>
+              <label class="form-label">
+                AccessKey <span v-if="!editingConfig" class="required">*</span>
+              </label>
               <a-input
                 v-model:value="formData.accessKey"
-                placeholder="AccessKey"
+                :placeholder="editingConfig && formData.hasAccessKey ? '已配置，留空表示不修改' : 'AccessKey'"
                 class="form-input"
               />
+              <span v-if="editingConfig && formData.hasAccessKey" class="form-hint">
+                当前已配置（******）；填写新值才会替换
+              </span>
             </div>
             <div class="form-item">
-              <label class="form-label">SecretKey <span class="required">*</span></label>
+              <label class="form-label">
+                SecretKey <span v-if="!editingConfig" class="required">*</span>
+              </label>
               <a-input-password
                 v-model:value="formData.secretKey"
-                placeholder="SecretKey"
+                :placeholder="editingConfig && formData.hasSecretKey ? '已配置，留空表示不修改' : 'SecretKey'"
                 class="form-input"
               />
+              <span v-if="editingConfig && formData.hasSecretKey" class="form-hint">
+                当前已配置（******）；填写新值才会替换
+              </span>
             </div>
           </div>
         </div>
@@ -340,6 +350,7 @@ import {
   refreshStorageConfigUsingPost,
   type StorageConfigVO,
   type StorageConfigAddRequest,
+  type StorageConfigUpdateRequest,
 } from '@/api-custom/storage'
 
 const configList = ref<StorageConfigVO[]>([])
@@ -349,7 +360,13 @@ const submitLoading = ref(false)
 
 const activeCount = computed(() => configList.value.filter(item => item.isActive === 1).length)
 
-const formData = reactive<StorageConfigAddRequest & { isActiveEnabled: boolean }>({
+const formData = reactive<
+  StorageConfigAddRequest & {
+    isActiveEnabled: boolean
+    hasAccessKey: boolean
+    hasSecretKey: boolean
+  }
+>({
   platform: '',
   platformName: '',
   endpoint: '',
@@ -360,6 +377,8 @@ const formData = reactive<StorageConfigAddRequest & { isActiveEnabled: boolean }
   basePath: '',
   domain: '',
   isActiveEnabled: false,
+  hasAccessKey: false,
+  hasSecretKey: false,
 })
 
 const showEndpoint = computed(() => formData.platform === 'minio' || formData.platform === 'oss')
@@ -415,6 +434,8 @@ const openAddModal = () => {
     basePath: '',
     domain: '',
     isActiveEnabled: false,
+    hasAccessKey: false,
+    hasSecretKey: false,
   })
   modalVisible.value = true
 }
@@ -428,23 +449,29 @@ const openEditModal = (item: StorageConfigVO) => {
     endpoint: item.endpoint || '',
     region: item.region || '',
     bucket: item.bucket,
-    accessKey: item.accessKey || '',
-    secretKey: item.secretKey || '',
+    // 服务端只返回遮蔽值，编辑时密钥留空表示不修改
+    accessKey: '',
+    secretKey: '',
     basePath: item.basePath || '',
     domain: item.domain || '',
     isActiveEnabled: item.isActive === 1,
+    hasAccessKey: item.hasAccessKey === true,
+    hasSecretKey: item.hasSecretKey === true,
   })
   modalVisible.value = true
 }
 
 const handleSubmit = async () => {
-  if (!formData.platformName || !formData.platform || !formData.bucket || !formData.accessKey || !formData.secretKey) {
+  const editing = Boolean(editingConfig.value?.id)
+  const accessKeyMissing = !editing && !formData.accessKey
+  const secretKeyMissing = !editing && !formData.secretKey
+  if (!formData.platformName || !formData.platform || !formData.bucket || accessKeyMissing || secretKeyMissing) {
     message.error('请填写必填项')
     return
   }
   submitLoading.value = true
   try {
-    const { isActiveEnabled, ...submitData } = formData
+    const { isActiveEnabled, hasAccessKey, hasSecretKey, ...submitData } = formData
     const payload = {
       ...submitData,
       isActive: isActiveEnabled ? 1 : 0,
@@ -452,7 +479,11 @@ const handleSubmit = async () => {
 
     let res
     if (editingConfig.value?.id) {
-      res = await updateStorageConfigUsingPost({ id: editingConfig.value.id, ...payload })
+      const update: StorageConfigUpdateRequest = { id: editingConfig.value.id, ...payload }
+      // 留空表示不修改；服务端据此保留原密钥
+      if (!submitData.accessKey) delete update.accessKey
+      if (!submitData.secretKey) delete update.secretKey
+      res = await updateStorageConfigUsingPost(update)
     } else {
       res = await addStorageConfigUsingPost(payload)
     }
@@ -1027,6 +1058,12 @@ onMounted(() => {
   .required {
     color: var(--admin-danger);
   }
+}
+
+.form-hint {
+  font-size: var(--admin-text-xs);
+  color: var(--admin-text-secondary);
+  line-height: 1.4;
 }
 
 .form-input {

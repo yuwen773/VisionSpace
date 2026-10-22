@@ -5,12 +5,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.mapper.StorageConfigMapper;
+import com.yuwen.visionspace.manager.storage.StorageCredentialMasker;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
 import com.yuwen.visionspace.service.StorageConfigService;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,6 +24,9 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
 
     @Override
     public long addStorageConfig(StorageConfig storageConfig) {
+        // 新建时不允许把遮蔽值或占位文本当作真实密钥保存。
+        rejectMaskedCredential(storageConfig.getAccessKey(), "AccessKey");
+        rejectMaskedCredential(storageConfig.getSecretKey(), "SecretKey");
         // 同一时刻仅一个激活平台
         if (storageConfig.getIsActive() != null && storageConfig.getIsActive() == 1) {
             deactivateAll();
@@ -44,6 +47,9 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         if (oldConfig == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
+        // 只替换被显式改动过的凭据；遮蔽值、空白与 null 保留库中原值。
+        storageConfig.setAccessKey(resolveCredential(storageConfig.getAccessKey(), oldConfig.getAccessKey()));
+        storageConfig.setSecretKey(resolveCredential(storageConfig.getSecretKey(), oldConfig.getSecretKey()));
         // 切换激活平台
         if (storageConfig.getIsActive() != null && storageConfig.getIsActive() == 1) {
             deactivateAll();
@@ -53,6 +59,22 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "更新存储配置失败");
         }
         return true;
+    }
+
+    /**
+     * 新建配置时，遮掩值与占位文本都不是可用的真实凭据，必须拒绝。
+     */
+    private void rejectMaskedCredential(String submitted, String field) {
+        if (submitted != null && StorageCredentialMasker.MASK.equals(submitted.trim())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, field + " 不能使用遮蔽值");
+        }
+    }
+
+    /**
+     * 请求未要求替换时返回原值，避免将遮蔽文本或空占位写回真实配置。
+     */
+    private String resolveCredential(String submitted, String current) {
+        return StorageCredentialMasker.isReplacement(submitted) ? submitted.trim() : current;
     }
 
     @Override
@@ -114,12 +136,33 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         wrapper.orderByAsc(StorageConfig::getOrderNum);
         List<StorageConfig> list = this.list(wrapper);
 
-        // 直接返回，管理员已通过 @AuthCheck 校验
-        return list.stream().map(config -> {
-            StorageConfigVO vo = new StorageConfigVO();
-            BeanUtils.copyProperties(config, vo);
-            return vo;
-        }).collect(Collectors.toList());
+        return list.stream().map(this::toVO).collect(Collectors.toList());
+    }
+
+    /**
+     * 逐字段映射，不拷贝凭据原值；AccessKey / SecretKey 只以遮蔽形式出现。
+     */
+    private StorageConfigVO toVO(StorageConfig config) {
+        StorageConfigVO vo = new StorageConfigVO();
+        vo.setId(config.getId());
+        vo.setPlatform(config.getPlatform());
+        vo.setPlatformName(config.getPlatformName());
+        vo.setEndpoint(config.getEndpoint());
+        vo.setRegion(config.getRegion());
+        vo.setBucket(config.getBucket());
+        vo.setDomain(config.getDomain());
+        vo.setBasePath(config.getBasePath());
+        vo.setIsActive(config.getIsActive());
+        vo.setIsDefault(config.getIsDefault());
+        vo.setOrderNum(config.getOrderNum());
+        vo.setStatus(config.getStatus());
+        vo.setCreateTime(config.getCreateTime());
+        vo.setUpdateTime(config.getUpdateTime());
+        vo.setAccessKeyMasked(StorageCredentialMasker.mask(config.getAccessKey()));
+        vo.setSecretKeyMasked(StorageCredentialMasker.mask(config.getSecretKey()));
+        vo.setHasAccessKey(config.getAccessKey() != null && !config.getAccessKey().isBlank());
+        vo.setHasSecretKey(config.getSecretKey() != null && !config.getSecretKey().isBlank());
+        return vo;
     }
 
     @Override

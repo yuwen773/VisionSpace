@@ -35,9 +35,10 @@ public class StorageConfigController {
     private FileStorageInit fileStorageInit;
 
     /**
-     * 获取存储配置列表
+     * 获取存储配置列表（仅管理员）
      */
     @GetMapping("/list")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<List<StorageConfigVO>> listStorageConfig(StorageConfigQueryRequest queryRequest,
                                                                  HttpServletRequest request) {
         List<StorageConfigVO> list = storageConfigService.listStorageConfigVO(queryRequest, request);

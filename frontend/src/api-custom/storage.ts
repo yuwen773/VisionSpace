@@ -12,8 +12,11 @@ export interface StorageConfigVO {
   endpoint?: string
   region?: string
   bucket: string
-  accessKey?: string
-  secretKey?: string
+  // 响应只返回遮蔽值与否，不含真实密钥
+  accessKeyMasked?: string
+  secretKeyMasked?: string
+  hasAccessKey?: boolean
+  hasSecretKey?: boolean
   domain?: string
   basePath?: string
   isActive?: number
@@ -40,8 +43,11 @@ export interface StorageConfigAddRequest {
   status?: number
 }
 
-export interface StorageConfigUpdateRequest extends StorageConfigAddRequest {
+export interface StorageConfigUpdateRequest extends Partial<StorageConfigAddRequest> {
   id: number
+  // 留空或传 ****** 表示保留原密钥，只有其他值才会被替换
+  accessKey?: string
+  secretKey?: string
 }
 
 export interface StorageConfigQueryRequest {
