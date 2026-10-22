@@ -20,6 +20,7 @@
              （ControllerAdviceBean 构造函数已变更，/v3/api-docs 报 NoSuchMethodError）。
              此处显式提升到与 Spring Boot 3.5.x 对齐的版本。 -->
         <springdoc.version>2.8.17</springdoc.version>
+        <acceptance.reportsDirectory>${project.build.directory}/surefire-reports</acceptance.reportsDirectory>
     </properties>
 
     <dependencyManagement>
@@ -312,6 +313,15 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.3</version>
+                <configuration>
+                    <failIfNoTests>true</failIfNoTests>
+                    <reportsDirectory>${acceptance.reportsDirectory}</reportsDirectory>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

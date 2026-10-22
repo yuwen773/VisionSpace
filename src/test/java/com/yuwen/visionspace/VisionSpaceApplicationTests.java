@@ -1,9 +1,9 @@
 package com.yuwen.visionspace;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import com.yuwen.visionspace.acceptance.IsolatedSpringBootTest;
 
-@SpringBootTest
+@IsolatedSpringBootTest
 class VisionSpaceApplicationTests {
 
     @Test

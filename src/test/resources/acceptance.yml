@@ -1,0 +1,51 @@
+# Standalone test configuration. Never import application-local/prod or .env.
+server:
+  address: 127.0.0.1
+  servlet:
+    context-path: /api
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: visionspace-acceptance
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 5000
+  session:
+    store-type: redis
+    timeout: 300
+    redis:
+      namespace: acceptance:session
+  ai:
+    openai:
+      api-key: acceptance-dummy
+      chat:
+        options:
+          model: acceptance-model
+    dashscope:
+      api-key: acceptance-dummy
+    mcp:
+      client:
+        enabled: false
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+  global-config:
+    db-config:
+      logic-delete-field: isDelete
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+vision-space:
+  security:
+    default-password: acceptance-only
+  pexels:
+    api-key: acceptance-dummy
+  vision-recognition:
+    api-key: acceptance-dummy
+    model: acceptance-model
+aliYunAi:
+  apiKey: acceptance-dummy
+logging:
+  level:
+    root: WARN
