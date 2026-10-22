@@ -31,6 +31,14 @@ vision-space:
     summary-max-length: 500
     summary-truncate-length: 497
     max-history-page-size: 100
+  # 上传额度与速率（用户级）
+  upload:
+    # 每个用户每天的 Agent 临时上传次数
+    agent-daily-limit: 100
+    # 每个用户每天在图库中的上传次数
+    gallery-daily-limit: 200
+    # 单个用户可保留的资源总字节数（默认 1 GiB）
+    max-total-bytes: 1073741824
   # 颜色提取配置
   color-extract:
     method: median-cut  # median-cut（默认）或 kmeans

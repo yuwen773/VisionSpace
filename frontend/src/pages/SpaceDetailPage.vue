@@ -259,7 +259,7 @@
             <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
               <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
               <img
-                :src="picture.thumbnailUrl || picture.url"
+                :src="contentSrc(picture.thumbnailUrl || picture.url)"
                 :alt="picture.name"
                 class="item-image"
                 :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
@@ -314,7 +314,7 @@
               <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
                 <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
                 <img
-                  :src="picture.thumbnailUrl || picture.url"
+                  :src="contentSrc(picture.thumbnailUrl || picture.url)"
                   :alt="picture.name"
                   class="item-image"
                   :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
@@ -399,7 +399,7 @@ import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { deletePictureUsingPost, searchPictureByColorUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { formatSize, toId } from '@/utils'
+import { contentSrc, formatSize, toId } from '@/utils'
 import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
 import BatchEditPicture from '@/components/BatchEditPicture.vue'
 import ShareModal from '@/components/ShareModal.vue'

@@ -18,6 +18,7 @@ import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
+import com.yuwen.visionspace.manager.storage.UploadQuotaManager;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
 import com.yuwen.visionspace.manager.upload.PictureUploadTemplate;
 import com.yuwen.visionspace.manager.upload.UrlPictureUpload;
@@ -25,14 +26,18 @@ import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
 import com.yuwen.visionspace.model.dto.picture.*;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureFile;
 import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
+import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PictureContentService;
+import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
@@ -89,6 +94,15 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private PictureStorageService pictureStorageService;
+
+    @Resource
+    private PictureFileService pictureFileService;
+
+    @Resource
+    private PictureContentService pictureContentService;
+
+    @Resource
+    private UploadQuotaManager uploadQuotaManager;
 
 
     @Resource
@@ -179,7 +193,35 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (inputSource instanceof String) {
             pictureUploadTemplate = urlPictureUpload;
         }
-        UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
+        // 用户级速率与额度：超限时在进入对象存储前拒绝，拒绝路径零副作用
+        uploadQuotaManager.checkRate(loginUser.getId(), PictureFilePurposeEnum.GALLERY);
+        // 上传前的预检只能看已用额度；本次文件大小要等上传完成后才知道
+        uploadQuotaManager.checkQuota(loginUser.getId(), null);
+        UploadPictureResult uploadPictureResult;
+        try {
+            uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
+        } catch (RuntimeException e) {
+            // 存储失败不计入当日上传次数
+            uploadQuotaManager.refundRate(loginUser.getId(), PictureFilePurposeEnum.GALLERY);
+            throw e;
+        }
+        try {
+            // 把本次上传的字节数计入额度，避免"已用未超、再加就超"的请求落库
+            uploadQuotaManager.checkQuota(loginUser.getId(), uploadPictureResult.getPicSize());
+        } catch (RuntimeException e) {
+            discardUploadedObjects(loginUser.getId(), uploadPictureResult);
+            throw e;
+        }
+        // 登记资源归属：所有者、平台与对象键都来自服务端，后续删除/读取以记录为准
+        List<PictureFile> uploadedFiles;
+        try {
+            uploadedFiles = pictureFileService.registerUpload(
+                    loginUser, PictureFilePurposeEnum.GALLERY, spaceId, uploadPictureResult);
+        } catch (RuntimeException e) {
+            // 记录登记失败时对象已经写入存储：先按平台与对象键回收，再让请求失败
+            discardUploadedObjects(loginUser.getId(), uploadPictureResult);
+            throw e;
+        }
         // 构造要入库的图片信息
         Picture picture = new Picture();
         // 属性拷贝
@@ -204,31 +246,84 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         // 开启事务
         Long finalSpaceId = spaceId;
-        transactionTemplate.execute(status -> {
-            // 插入数据
-            boolean result = this.saveOrUpdate(picture);
-            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
-            if (finalSpaceId != null) {
-                // 更新空间的使用额度
-                boolean update = spaceService.lambdaUpdate()
-                        .eq(Space::getId, finalSpaceId)
-                        .setSql("totalSize = totalSize + " + picture.getPicSize())
-                        .setSql("totalCount = totalCount + 1")
-                        .update();
-                ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
-            }
-            return picture;
-        });
+        try {
+            transactionTemplate.execute(status -> {
+                // 插入数据
+                boolean result = this.saveOrUpdate(picture);
+                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
+                if (finalSpaceId != null) {
+                    // 更新空间的使用额度
+                    boolean update = spaceService.lambdaUpdate()
+                            .eq(Space::getId, finalSpaceId)
+                            .setSql("totalSize = totalSize + " + picture.getPicSize())
+                            .setSql("totalCount = totalCount + 1")
+                            .update();
+                    ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+                }
+                // 资源记录与图片记录在同一事务内绑定，避免出现无主对象
+                pictureFileService.bindToPicture(picture.getId(), loginUser.getId(), uploadedFiles);
+                return picture;
+            });
+        } catch (RuntimeException e) {
+            // 事务回滚后图片记录不存在，登记的资源仍是临时状态：回收对象并删除记录
+            discardRegisteredFiles(loginUser.getId(), uploadedFiles, uploadPictureResult);
+            throw e;
+        }
+        // 重新上传：旧资源被替换，清理其对象；失败只记录，不回滚已生效的新图
+        List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
+                uploadedFiles.stream().map(PictureFile::getId).toList());
+        if (!superseded.isEmpty()) {
+            this.cleanupReplacedFiles(superseded);
+        }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
-        return PictureVO.objToVo(picture);
+        PictureVO pictureVO = PictureVO.objToVo(picture);
+        // 上传响应同样只返回受控内容入口
+        pictureContentService.fillContentUrls(pictureVO, picture);
+        return pictureVO;
+    }
+
+    /**
+     * 上传后失败时回收已写入存储的对象（还没有资源记录可依据）。
+     */
+    private void discardUploadedObjects(Long userId, UploadPictureResult uploadResult) {
+        if (uploadResult != null) {
+            String platform = uploadResult.getPlatform();
+            // 原图删除失败时不能把缩略图删掉：重试仍需原图定位信息
+            if (pictureStorageService.deleteObject(platform, uploadResult.getStoragePath())) {
+                pictureStorageService.deleteObject(platform, uploadResult.getThumbnailObjectKey());
+            } else {
+                log.warn("上传失败后的原图回收未确认: platform={}, key={}",
+                        platform, uploadResult.getStoragePath());
+            }
+        }
+        uploadQuotaManager.refundRate(userId, PictureFilePurposeEnum.GALLERY);
+    }
+
+    /**
+     * 绑定失败时回收已登记的资源：删除对象与临时记录，并回滚当日上传次数。
+     */
+    private void discardRegisteredFiles(Long userId, List<PictureFile> files,
+                                        UploadPictureResult uploadResult) {
+        if (files == null || files.isEmpty()) {
+            discardUploadedObjects(userId, uploadResult);
+            return;
+        }
+        for (PictureFile file : files) {
+            if (!pictureFileService.deleteFile(file)) {
+                log.warn("上传失败后的资源回收未完成: fileId={}, kind={}", file.getId(), file.getKind());
+            }
+        }
+        uploadQuotaManager.refundRate(userId, PictureFilePurposeEnum.GALLERY);
     }
 
     @Override
     public PictureVO getPictureVO(Picture picture, HttpServletRequest request) {
         // 对象转封装类
         PictureVO pictureVO = PictureVO.objToVo(picture);
+        // 内容地址一律换成本服务的受控入口，不返回源站长期地址
+        pictureContentService.fillContentUrls(pictureVO, picture);
         // 关联查询用户信息
         Long userId = picture.getUserId();
         if (userId != null && userId > 0) {
@@ -264,6 +359,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<PictureVO> pictureVOList = pictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
+        // 列表与详情使用同一套内容入口
+        pictureContentService.fillContentUrls(pictureVOList, pictureList);
         // 1. 关联查询用户信息
         // 1,2,3,4
         Set<Long> userIdSet = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
@@ -484,7 +581,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Async
     @Override
     public void clearPictureFile(Picture oldPicture) {
-        // 判断改图片是否被多条记录使用
+        // 有资源记录的图片：按记录里的平台与对象键精确删除，不解析 URL
+        List<PictureFile> recorded = pictureFileService.listActiveByPicture(oldPicture.getId());
+        if (!recorded.isEmpty()) {
+            this.cleanupRecordedFiles(oldPicture.getId(), recorded);
+            return;
+        }
+        // 兼容路径：没有归属记录的存量图片。仅当同一地址仍被其他记录引用时才跳过，
+        // 不会因为前缀或域名相同而误删其他对象。
         String pictureUrl = oldPicture.getUrl();
         long count = this.lambdaQuery()
                 .eq(Picture::getUrl, pictureUrl)
@@ -504,6 +608,29 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         String previewUrl = oldPicture.getPreviewUrl();
         if (StrUtil.isNotBlank(previewUrl)) {
             pictureStorageService.deleteObject(previewUrl);
+        }
+    }
+
+    /**
+     * 删除图片关联的资源对象。任一对象删除失败只记录日志并保留记录，
+     * 由后续重试或维护清理处理；数据库删除与额度释放已经生效。
+     */
+    private void cleanupRecordedFiles(Long pictureId, List<PictureFile> files) {
+        cleanupFiles(files, "图片资源删除未完成: pictureId=" + pictureId);
+    }
+
+    /**
+     * 清理被重新上传替换掉的旧资源。
+     */
+    private void cleanupReplacedFiles(List<PictureFile> superseded) {
+        cleanupFiles(superseded, "被替换的资源删除未完成");
+    }
+
+    private void cleanupFiles(List<PictureFile> files, String reason) {
+        for (PictureFile file : files) {
+            if (!pictureFileService.deleteFile(file)) {
+                log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
+            }
         }
     }
 
@@ -668,9 +795,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 .limit(12) // 取前 12 个
                 .collect(Collectors.toList());
         // 5. 返回结果
-        return sortedPictureList.stream()
+        List<PictureVO> pictureVOList = sortedPictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
+        pictureContentService.fillContentUrls(pictureVOList, sortedPictureList);
+        return pictureVOList;
     }
 
     @Override
@@ -686,10 +815,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (pictures == null || pictures.isEmpty()) {
             return new ArrayList<>();
         }
-        return pictures.stream().map(picture -> {
-            PictureVO pictureVO = PictureVO.objToVo(picture);
-            return pictureVO;
-        }).collect(Collectors.toList());
+        List<PictureVO> pictureVOList = pictures.stream().map(PictureVO::objToVo).collect(Collectors.toList());
+        pictureContentService.fillContentUrls(pictureVOList, pictures);
+        return pictureVOList;
     }
 
     @Override

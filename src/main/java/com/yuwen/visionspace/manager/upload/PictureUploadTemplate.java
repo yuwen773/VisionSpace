@@ -97,7 +97,10 @@ public abstract class PictureUploadTemplate {
         // 设置 URL 和缩略图地址（x-file-storage 已经处理了 WebP 压缩和缩略图生成）
         uploadPictureResult.setUrl(fileInfo.getUrl());
         uploadPictureResult.setThumbnailUrl(fileInfo.getThUrl());
-        uploadPictureResult.setStoragePath(fileInfo.getPath());
+        // 资源记录使用完整对象键与实际上传平台，删除与读取都不再依赖 URL 解析
+        uploadPictureResult.setStoragePath(PictureStorageService.objectKey(fileInfo));
+        uploadPictureResult.setThumbnailObjectKey(PictureStorageService.thumbnailObjectKey(fileInfo));
+        uploadPictureResult.setPlatform(fileInfo.getPlatform());
         uploadPictureResult.setPicName(FileUtil.mainName(originalFilename));
         uploadPictureResult.setPicSize(fileInfo.getSize());
         // 读取图片宽高

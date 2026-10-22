@@ -111,7 +111,7 @@
               <!-- 图片预览 -->
               <div v-if="picture" class="preview-portal">
                 <div class="preview-image-wrap">
-                  <img :src="picture.url" :alt="picture.name" class="preview-image" />
+                  <img :src="contentSrc(picture.url)" :alt="picture.name" class="preview-image" />
                   <div class="preview-overlay">
                     <button class="preview-action-btn" @click="changeImage">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -290,7 +290,7 @@
     <!-- 图片编辑弹窗 -->
     <ImageCropper
       ref="imageCropperRef"
-      :imageUrl="picture?.url"
+      :imageUrl="contentSrc(picture?.url)"
       :picture="picture"
       :on-success="onCropperSuccess"
       :space="space"
@@ -321,7 +321,7 @@ import {
 } from '@/api/pictureController.ts'
 import { useRouter, useRoute } from 'vue-router'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { toId } from '@/utils'
+import { contentSrc, toId } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()

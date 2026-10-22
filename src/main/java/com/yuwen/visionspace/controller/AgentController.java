@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import com.yuwen.visionspace.agent.service.AgentImageUploadService;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
@@ -55,6 +56,9 @@ public class AgentController {
     @Resource
     private UserService userService;
 
+    @Resource
+    private AgentImageUploadService agentImageUploadService;
+
     /**
      * 图片助手对话
      */
@@ -65,6 +69,8 @@ public class AgentController {
         if (loginUser == null) {
             throw new NotLoginException("未登录", null, null);
         }
+        // 附件必须属于当前用户，未登记或他人的地址在进入模型前拒绝
+        agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
         String threadId = request.getThreadId();
         if (threadId == null || threadId.isBlank()) {
             threadId = UUID.randomUUID().toString();
@@ -138,6 +144,8 @@ public class AgentController {
 
         User loginUser = userService.getLoginUser(httpRequest);
         Long userId = loginUser != null ? loginUser.getId() : null;
+        // 流式入口同样在进入模型前校验附件归属
+        agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
 
         log.info("Agent 流式对话请求, threadId={}, userId={}, message={}, enabledMcpServers={}, disableMcpDefault={}",
                 threadId, userId, request.getMessage(), request.getEnabledMcpServers(), request.getDisableMcpDefault());

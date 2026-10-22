@@ -123,22 +123,23 @@
         </div>
 
         <div class="card-image">
-          <!-- 管理列表只返回元数据，内容地址不在浏览器侧暴露 -->
-          <div v-if="!record.thumbnailUrl && !record.url" class="card-image-placeholder">
+          <!-- 管理列表只返回元数据；审核需要看图时走受控内容入口，不拿源站直链 -->
+          <div v-if="!record.id" class="card-image-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <span>内容地址不对外展示</span>
+            <span>无图片标识</span>
           </div>
           <a-image
             v-else
-            :src="record.thumbnailUrl || record.url"
+            :src="contentSrc(`/picture/content/${record.id}/thumbnail`)"
             :width="200"
             :height="160"
             class="picture-img"
             :preview="true"
+            :fallback="FALLBACK_IMAGE"
           />
           <div class="format-badge">{{ record.picFormat?.toUpperCase() }}</div>
           <div class="status-badge" :class="getStatusClass(record.reviewStatus ?? 0)">
@@ -308,7 +309,14 @@ import {
   PIC_REVIEW_STATUS_ENUM,
   PIC_REVIEW_STATUS_MAP,
 } from '@/constants/picture.ts'
-import { formatSize } from '@/utils'
+import { contentSrc, formatSize } from '@/utils'
+
+// 内容入口可能对无资源记录的存量图片返回 404，用占位图兜底
+const FALLBACK_IMAGE =
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160"><rect width="200" height="160" fill="%23f0f0f0"/><text x="100" y="84" font-size="12" text-anchor="middle" fill="%23999">无可用内容</text></svg>',
+  )
 
 const router = useRouter()
 

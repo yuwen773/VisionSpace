@@ -159,6 +159,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return currentUser;
     }
 
+    @Override
+    public User getLoginUserIfPresent(HttpServletRequest request) {
+        try {
+            return this.getLoginUser(request);
+        } catch (BusinessException e) {
+            if (ErrorCode.NOT_LOGIN_ERROR.getCode() == e.getCode()) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
     /**
      * 获取脱敏类的用户信息
      *

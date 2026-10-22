@@ -19,9 +19,19 @@ public class UploadPictureResult {
     private String thumbnailUrl;
 
     /**
-     * 图片存储路径
+     * 原图对象键（含平台 basePath），用于资源记录
      */
     private String storagePath;
+
+    /**
+     * 缩略图对象键（含平台 basePath），用于资源记录
+     */
+    private String thumbnailObjectKey;
+
+    /**
+     * 实际保存的存储平台标识
+     */
+    private String platform;
 
     /**
      * 图片名称

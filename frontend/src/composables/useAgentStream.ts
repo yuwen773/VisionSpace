@@ -1,6 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
-import { uploadAgentImage, deleteAgentImage } from '@/api-custom/agent'
+import { uploadAgentImage, deleteAgentImage, type AgentImage } from '@/api-custom/agent'
 
 export interface MessageDTO {
   messageType: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'reasoning'
@@ -84,16 +84,17 @@ export function useAgentStream() {
     let streamContent = ''
     let lastAssistantContent = ''
 
-    // Step 1: 上传所有图片，拿到 URL
-    let uploadedUrls: string[] = []
+    // Step 1: 上传所有图片，拿到资源标识与受控内容地址
+    let uploaded: AgentImage[] = []
     if (files && files.length > 0) {
       try {
-        uploadedUrls = await Promise.all(files.map(f => uploadAgentImage(f)))
+        uploaded = await Promise.all(files.map(f => uploadAgentImage(f)))
       } catch (e) {
         isStreaming.value = false
         throw new Error('图片上传失败，无法发送消息')
       }
     }
+    const uploadedUrls = uploaded.map(item => item.url)
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const body = JSON.stringify({
@@ -207,10 +208,10 @@ export function useAgentStream() {
     } finally {
       isStreaming.value = false
       abortController = null
-      // 发送失败时清理已上传的图片
-      if (uploadedUrls.length > 0) {
-        for (const url of uploadedUrls) {
-          deleteAgentImage(url).catch(() => {})
+      // 发送失败时按资源标识清理已上传的图片（重复删除无副作用）
+      if (uploaded.length > 0) {
+        for (const item of uploaded) {
+          deleteAgentImage(item.resourceId).catch(() => {})
         }
       }
     }

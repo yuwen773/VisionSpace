@@ -1,4 +1,5 @@
 import { saveAs } from 'file-saver'
+import { API_BASE_URL } from '@/request'
 
 export const formatSize = (size: number) => {
   if (!size && size !== 0) return '未知'
@@ -7,8 +8,29 @@ export const formatSize = (size: number) => {
   return (size / (1024 * 1024)).toFixed(2) + ' MB'
 }
 
+/**
+ * 后端返回的受控内容入口是站内相对路径（/picture/content/...），
+ * 浏览器渲染前要补上 API 源站与 context-path。其他地址原样返回。
+ */
+export function contentSrc(url?: string | null): string {
+  if (!url) return ''
+  if (url.startsWith('/picture/content/')) {
+    return `${API_BASE_URL}/api${url}`
+  }
+  return url
+}
+
+/**
+ * 下载图片。传入的地址若是本服务的受控内容入口（/picture/content/...），
+ * 追加 download 参数以走服务端鉴权并拿到正确的文件名；源站地址不再直接使用。
+ */
 export function downloadImage(url?: string, fileName?: string): void {
   if (!url) return
+  if (url.startsWith('/picture/content/')) {
+    const target = `${contentSrc(url)}${url.includes('?') ? '&' : '?'}download=true`
+    saveAs(target, fileName)
+    return
+  }
   saveAs(url, fileName)
 }
 

@@ -74,7 +74,7 @@
 
             <!-- 实际图片 -->
             <img
-              :src="picture.previewUrl || picture.url"
+              :src="contentSrc(picture.previewUrl || picture.url)"
               :alt="picture.name"
               class="main-image"
               @load="onImageLoad"
@@ -260,7 +260,7 @@
     </div>
 
     <!-- 全屏预览模态框 -->
-    <ImagePreview v-model:open="isFullscreen" :url="picture.previewUrl || picture.url || ''" :alt="picture.name" />
+    <ImagePreview v-model:open="isFullscreen" :url="contentSrc(picture.previewUrl || picture.url)" :alt="picture.name" />
 
     <!-- 分享弹窗 -->
     <ShareModal ref="shareModalRef" :link="shareLink" title="分享图片" />
@@ -272,7 +272,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { deletePictureUsingPost, getPictureVoByIdUsingGet } from '@/api/pictureController.ts'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { downloadImage, formatSize, toHexColor } from '@/utils'
+import { contentSrc, downloadImage, formatSize, toHexColor } from '@/utils'
 import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
 import ImagePreview from '@/components/ImagePreview.vue'

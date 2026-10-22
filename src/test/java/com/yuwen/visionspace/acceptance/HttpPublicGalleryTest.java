@@ -109,6 +109,22 @@ class HttpPublicGalleryTest {
     @Test
     void publicListingRespectsPagingBounds() throws Exception {
         try (var anonymous = client()) {
+            // 指定未审核状态查询必须登录，匿名不能借此枚举他人的待审图片
+            assertRejected(post(anonymous, "/picture/list/page/vo",
+                    body(Map.of("current", 1, "pageSize", 10, "reviewStatus", 0))),
+                    "anonymous pending listing");
+            // 作者本人可以按未审核状态查自己的图片，但看不到他人的
+            try (var author = client()) {
+                login(author, authorId);
+                var own = post(author, "/picture/list/page/vo",
+                        body(Map.of("current", 1, "pageSize", 10, "reviewStatus", 0)));
+                assertEquals(0, own.path("code").asInt(), own.toString());
+                List<Long> ids = ids(own);
+                assertTrue(ids.contains(PENDING_PICTURE), "author must see own pending picture: " + ids);
+                assertFalse(ids.contains(PASSED_PICTURE), "pending listing must not include others' pictures");
+            }
+        }
+        try (var anonymous = client()) {
             var oversized = post(anonymous, "/picture/list/page/vo",
                     body(Map.of("current", 1, "pageSize", 31)));
             assertEquals(40000, oversized.path("code").asInt(), "page size must stay bounded");

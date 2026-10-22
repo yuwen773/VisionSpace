@@ -4,6 +4,10 @@ import cn.hutool.core.io.FileUtil;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.model.entity.PictureFile;
+import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
+import com.yuwen.visionspace.model.enums.PictureFileStatusEnum;
+import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.utils.PicturePreviewUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +41,9 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
     @Resource
     private PictureMapper pictureMapper;
 
+    @Resource
+    private PictureFileService pictureFileService;
+
     @Async("picturePreviewExecutor")
     @Override
     public void generateAndUpdatePreview(Long pictureId, String picUrl) {
@@ -45,13 +52,31 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
         }
         try {
             log.info(Thread.currentThread().getName(),"start generate preview picture......");
-            String previewUrl = generatePreview(picUrl);
-            if (previewUrl == null || previewUrl.trim().isEmpty()) {
+            Picture picture = pictureMapper.selectById(pictureId);
+            if (picture == null) {
                 return;
             }
+            PreviewObject preview = generatePreview(picUrl);
+            if (preview == null) {
+                return;
+            }
+            // 预览图也是受保护内容：登记归属后，内容入口才能按同一规则鉴权
+            PictureFile previewFile = new PictureFile();
+            previewFile.setOwnerUserId(picture.getUserId());
+            previewFile.setSpaceId(picture.getSpaceId());
+            previewFile.setPictureId(pictureId);
+            previewFile.setPurpose(PictureFilePurposeEnum.GALLERY.getValue());
+            previewFile.setKind(PictureFileService.KIND_PREVIEW);
+            previewFile.setPlatform(preview.platform());
+            previewFile.setObjectKey(preview.objectKey());
+            previewFile.setUrl(preview.url());
+            previewFile.setFileSize(preview.size());
+            previewFile.setStatus(PictureFileStatusEnum.ACTIVE.getValue());
+            pictureFileService.save(previewFile);
+
             Picture updatePicture = new Picture();
             updatePicture.setId(pictureId);
-            updatePicture.setPreviewUrl(previewUrl);
+            updatePicture.setPreviewUrl(preview.url());
             pictureMapper.updateById(updatePicture);
         } catch (Exception e) {
             log.error(Thread.currentThread().getName(),"generate preview failed, pictureId={}, picUrl={}", pictureId, picUrl, e);
@@ -62,7 +87,13 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
     private static final String PREVIEW_FILENAME_PREFIX = "preview_";
     // TODO 升级到 Java 21+ 后改为 "webp"
 
-    private String generatePreview(String picUrl) throws IOException, URISyntaxException {
+    /**
+     * 预览对象的上传结果。
+     */
+    private record PreviewObject(String url, String objectKey, String platform, Long size) {
+    }
+
+    private PreviewObject generatePreview(String picUrl) throws IOException, URISyntaxException {
         String originalFilename = FileUtil.getName(picUrl);
         String previewFilename = PREVIEW_FILENAME_PREFIX + FileUtil.mainName(originalFilename) + "." + PREVIEW_FORMAT;
         File previewTempFile = File.createTempFile("picture-preview-", "." + PREVIEW_FORMAT);
@@ -83,7 +114,10 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
 
             FileInfo previewFileInfo = pictureStorageService.putObject(
                     previewTempFile, "/" + uploadPathPrefix + "/", previewFilename);
-            return previewFileInfo.getUrl();
+            return new PreviewObject(previewFileInfo.getUrl(),
+                    PictureStorageService.objectKey(previewFileInfo),
+                    previewFileInfo.getPlatform(),
+                    previewFileInfo.getSize());
         } finally {
             if (!previewTempFile.delete()) {
                 log.warn(Thread.currentThread().getName(),"failed to delete preview temp file: {}", previewTempFile.getAbsolutePath());

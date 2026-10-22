@@ -32,7 +32,7 @@
             class="picture-item"
             @click="$emit('goToPicture', pic.id!)"
           >
-            <img :src="pic.thumbnailUrl || pic.url" :alt="pic.name" />
+            <img :src="contentSrc(pic.thumbnailUrl || pic.url)" :alt="pic.name" />
             <div class="picture-overlay">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getUserPictureStatsUsingGet, getUserRecentPicturesUsingGet } from '@/api/userController'
+import { contentSrc } from '@/utils'
 
 defineEmits<{
   goToPicture: [id: number]
