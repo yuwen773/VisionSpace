@@ -123,7 +123,17 @@
         </div>
 
         <div class="card-image">
+          <!-- 管理列表只返回元数据，内容地址不在浏览器侧暴露 -->
+          <div v-if="!record.thumbnailUrl && !record.url" class="card-image-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>内容地址不对外展示</span>
+          </div>
           <a-image
+            v-else
             :src="record.thumbnailUrl || record.url"
             :width="200"
             :height="160"
@@ -302,8 +312,8 @@ import { formatSize } from '@/utils'
 
 const router = useRouter()
 
-// 管理端列表走 /picture/list/page，返回的是 Picture 实体，本身不含统计字段。
-// 这里把统计字段声明为可选，避免伪造出「一定存在」的类型。
+// 管理端列表走 /picture/list/page，只返回元数据（不含原图、缩略图与预览地址）；
+// 统计字段由图片统计接口单独提供，这里声明为可选，避免伪造出「一定存在」的类型。
 type AdminPictureRow = API.Picture & {
   likeCount?: number
   collectCount?: number
@@ -749,6 +759,22 @@ const goToEdit = (id: number) => {
 
 .card-image {
   position: relative;
+
+  .card-image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--admin-text-tertiary, #8a8a8a);
+    font-size: 12px;
+
+    svg {
+      width: 32px;
+      height: 32px;
+      opacity: 0.6;
+    }
+  }
+
   width: 100%;
   height: 160px;
   background: var(--admin-bg-tertiary);

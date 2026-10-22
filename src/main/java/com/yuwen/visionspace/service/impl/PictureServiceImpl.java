@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.service.impl;
 
+import com.yuwen.visionspace.common.SortKeyResolver;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjUtil;
@@ -14,6 +15,8 @@ import com.yuwen.visionspace.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
+import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
 import com.yuwen.visionspace.manager.upload.PictureUploadTemplate;
@@ -24,14 +27,17 @@ import com.yuwen.visionspace.model.dto.picture.*;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.model.entity.Space;
+import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
+import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.service.SpaceService;
+import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.utils.ColorSimilarUtils;
 import com.yuwen.visionspace.utils.ColorTransformUtils;
@@ -91,6 +97,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private AliYunAiApi aliYunAiApi;
 
+    @Resource
+    private SpaceUserService spaceUserService;
+
+    @Resource
+    private SpaceUserAuthManager spaceUserAuthManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -118,6 +130,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (spaceId != null) {
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+            // 业务边界复核：只有空间所有者或团队编辑者可向该空间上传
+            checkSpaceWriteAuth(loginUser, space, SpaceUserPermissionConstant.PICTURE_UPLOAD);
             // 校验额度
             if (space.getTotalCount() >= space.getMaxCount()) {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间条数不足");
@@ -135,6 +149,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (pictureId != null) {
             Picture oldPicture = this.getById(pictureId);
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+            // 重新上传会覆盖原图，业务边界必须复核归属
+            checkPictureAuth(loginUser, oldPicture);
             // 校验空间是否一致
             // 没传 spaceId，则复用原有图片的 spaceId（这样也兼容了公共图库）
             if (spaceId == null) {
@@ -348,7 +364,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
         }
         // 排序
-        queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
+        SortKeyResolver.Sort sort = SortKeyResolver.resolve(SortKeyResolver.PICTURE_KEYS, sortField, sortOrder);
+        if (!sort.isEmpty()) {
+            if (sort.ascending()) {
+                queryWrapper.orderByAsc(sort.column());
+            } else {
+                queryWrapper.orderByDesc(sort.column());
+            }
+        }
         return queryWrapper;
     }
 
@@ -491,8 +514,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 判断是否存在
         Picture oldPicture = this.getById(pictureId);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 校验权限，已经改为使用注解鉴权
-//        checkPictureAuth(loginUser, oldPicture);
+        // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
+        checkPictureAuth(loginUser, oldPicture);
         // 开启事务
         transactionTemplate.execute(status -> {
             // 操作数据库
@@ -528,8 +551,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         long id = pictureEditRequest.getId();
         Picture oldPicture = this.getById(id);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 校验权限，已经改为使用注解鉴权
-//        checkPictureAuth(loginUser, oldPicture);
+        // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
+        checkPictureAuth(loginUser, oldPicture);
         // 补充审核参数
         this.fillReviewParams(picture, loginUser);
         // 操作数据库
@@ -537,21 +560,76 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
 
+    /**
+     * 空间成员权限：所有者与平台管理员放行，其余按当前数据库成员关系的角色判定。
+     *
+     * @param loginUser  当前登录用户
+     * @param space      目标空间
+     * @param permission 需要的权限码
+     */
+    private void checkSpaceWriteAuth(User loginUser, Space space, String permission) {
+        if (userService.isAdmin(loginUser)) {
+            return;
+        }
+        if (space.getUserId() != null && space.getUserId().equals(loginUser.getId())) {
+            return;
+        }
+        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        SpaceUser spaceUser = spaceUserService.lambdaQuery()
+                .eq(SpaceUser::getSpaceId, space.getId())
+                .eq(SpaceUser::getUserId, loginUser.getId())
+                .one();
+        ThrowUtils.throwIf(spaceUser == null, ErrorCode.NO_AUTH_ERROR);
+        ThrowUtils.throwIf(!spaceUserAuthManager.hasPermission(spaceUser.getSpaceRole(), permission),
+                ErrorCode.NO_AUTH_ERROR);
+    }
+
+    @Override
+    public Picture getAdminPictureView(Picture picture) {
+        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        Picture view = new Picture();
+        BeanUtil.copyProperties(picture, view);
+        // 管理列表只需要元数据，内容地址一律不返回
+        view.setUrl(null);
+        view.setThumbnailUrl(null);
+        view.setPreviewUrl(null);
+        return view;
+    }
+
     @Override
     public void checkPictureAuth(User loginUser, Picture picture) {
+        ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NO_AUTH_ERROR);
+        // 平台管理员保留违规内容处置能力（独立的管理入口由后续工单负责）
+        if (userService.isAdmin(loginUser)) {
+            return;
+        }
         Long spaceId = picture.getSpaceId();
         Long loginUserId = loginUser.getId();
         if (spaceId == null) {
-            // 公共图库，仅本人或管理员可操作
-            if (!picture.getUserId().equals(loginUserId) && !userService.isAdmin(loginUser)) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-            }
-        } else {
-            // 私有空间，仅空间管理员可操作
-            if (!picture.getUserId().equals(loginUserId)) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-            }
+            // 公共图库，仅作者可修改
+            ThrowUtils.throwIf(!picture.getUserId().equals(loginUserId), ErrorCode.NO_AUTH_ERROR);
+            return;
         }
+        Space space = spaceService.getById(spaceId);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+        if (space.getUserId() != null && space.getUserId().equals(loginUserId)) {
+            return;
+        }
+        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
+            // 私有空间，仅空间所有者可修改
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        // 团队空间，角色来自数据库成员关系：viewer 只读，editor 及以上可修改
+        SpaceUser spaceUser = spaceUserService.lambdaQuery()
+                .eq(SpaceUser::getSpaceId, spaceId)
+                .eq(SpaceUser::getUserId, loginUserId)
+                .one();
+        ThrowUtils.throwIf(spaceUser == null, ErrorCode.NO_AUTH_ERROR);
+        ThrowUtils.throwIf(!spaceUserAuthManager.hasPermission(
+                        spaceUser.getSpaceRole(), SpaceUserPermissionConstant.PICTURE_EDIT),
+                ErrorCode.NO_AUTH_ERROR);
     }
 
     @Override
@@ -562,9 +640,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 2. 校验空间权限
         Space space = spaceService.getById(spaceId);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (!space.getUserId().equals(loginUser.getId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
-        }
+        checkSpaceWriteAuth(loginUser, space, SpaceUserPermissionConstant.PICTURE_VIEW);
         // 3. 查询该空间下的所有图片（必须要有主色调）
         List<Picture> pictureList = this.lambdaQuery()
                 .eq(Picture::getSpaceId, spaceId)
@@ -629,9 +705,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 2. 校验空间权限
         Space space = spaceService.getById(spaceId);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (!space.getUserId().equals(loginUser.getId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
-        }
+        checkSpaceWriteAuth(loginUser, space, SpaceUserPermissionConstant.PICTURE_EDIT);
         // 3. 查询指定图片（仅选择需要的字段）
         List<Picture> pictureList = this.lambdaQuery()
                 .select(Picture::getId, Picture::getSpaceId)
@@ -664,8 +738,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = Optional.ofNullable(this.getById(pictureId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图片不存在"));
-        // 校验权限，已经改为使用注解鉴权
-//        checkPictureAuth(loginUser, picture);
+        // 业务边界最终复核：扩图会读取原图并产生外部任务
+        checkPictureAuth(loginUser, picture);
         // 创建扩图任务
         CreateOutPaintingTaskRequest createOutPaintingTaskRequest = new CreateOutPaintingTaskRequest();
         CreateOutPaintingTaskRequest.Input input = new CreateOutPaintingTaskRequest.Input();

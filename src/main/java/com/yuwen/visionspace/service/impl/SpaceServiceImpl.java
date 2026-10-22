@@ -6,6 +6,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.yuwen.visionspace.common.SortKeyResolver;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
@@ -199,6 +200,28 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     }
 
     @Override
+    public Page<Space> pageAccessible(Page<Space> page, QueryWrapper<Space> queryWrapper, User loginUser) {
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
+        if (userService.isAdmin(loginUser)) {
+            return this.page(page, queryWrapper);
+        }
+        // 本人创建的空间 + 已加入的团队空间
+        List<Long> joinedSpaceIds = spaceUserService.lambdaQuery()
+                .eq(SpaceUser::getUserId, loginUser.getId())
+                .list()
+                .stream()
+                .map(SpaceUser::getSpaceId)
+                .toList();
+        queryWrapper.and(wrapper -> {
+            wrapper.eq("userId", loginUser.getId());
+            if (!joinedSpaceIds.isEmpty()) {
+                wrapper.or().in("id", joinedSpaceIds);
+            }
+        });
+        return this.page(page, queryWrapper);
+    }
+
+    @Override
     public QueryWrapper<Space> getQueryWrapper(SpaceQueryRequest spaceQueryRequest) {
         QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
         if (spaceQueryRequest == null) {
@@ -219,7 +242,14 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
         // 排序
-        queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
+        SortKeyResolver.Sort sort = SortKeyResolver.resolve(SortKeyResolver.SPACE_KEYS, sortField, sortOrder);
+        if (!sort.isEmpty()) {
+            if (sort.ascending()) {
+                queryWrapper.orderByAsc(sort.column());
+            } else {
+                queryWrapper.orderByDesc(sort.column());
+            }
+        }
         return queryWrapper;
     }
 

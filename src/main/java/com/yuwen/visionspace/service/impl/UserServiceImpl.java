@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.service.impl;
 
+import com.yuwen.visionspace.common.SortKeyResolver;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
@@ -236,7 +237,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         queryWrapper.like(StrUtil.isNotBlank(userAccount), "userAccount", userAccount);
         queryWrapper.like(StrUtil.isNotBlank(userName), "userName", userName);
         queryWrapper.like(StrUtil.isNotBlank(userProfile), "userProfile", userProfile);
-        queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
+        SortKeyResolver.Sort sort = SortKeyResolver.resolve(SortKeyResolver.USER_KEYS, sortField, sortOrder);
+        if (!sort.isEmpty()) {
+            if (sort.ascending()) {
+                queryWrapper.orderByAsc(sort.column());
+            } else {
+                queryWrapper.orderByDesc(sort.column());
+            }
+        }
         return queryWrapper;
     }
 
@@ -346,7 +354,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         User updateUser = new User();
         updateUser.setId(user.getId());
         updateUser.setVipExpireTime(expireTime); // 设置过期时间
-        updateUser.setVipCode(usedVipCode);     // 记录使用的兑换码
+        // 兑换码只作为核销凭据留在兑换码记录中，不再写入用户行，避免回读明文码
         updateUser.setUserRole(VIP_ROLE);       // 修改用户角色
 
         // 执行更新

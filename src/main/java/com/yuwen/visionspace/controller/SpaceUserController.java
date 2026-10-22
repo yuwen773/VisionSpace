@@ -49,7 +49,8 @@ public class SpaceUserController {
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
     public BaseResponse<Long> addSpaceUser(@RequestBody SpaceUserAddRequest spaceUserAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(spaceUserAddRequest == null, ErrorCode.PARAMS_ERROR);
-        long id = spaceUserService.addSpaceUser(spaceUserAddRequest);
+        User loginUser = userService.getLoginUser(request);
+        long id = spaceUserService.addSpaceUser(spaceUserAddRequest, loginUser);
         return ResultUtils.success(id);
     }
 
@@ -67,6 +68,8 @@ public class SpaceUserController {
         // 判断是否存在
         SpaceUser oldSpaceUser = spaceUserService.getById(id);
         ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR);
+        // 业务边界复核：以成员记录所属空间判定管理资格
+        spaceUserService.checkManageAuth(userService.getLoginUser(request), oldSpaceUser.getSpaceId());
         // 操作数据库
         boolean result = spaceUserService.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -78,12 +81,14 @@ public class SpaceUserController {
      */
     @PostMapping("/get")
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
-    public BaseResponse<SpaceUser> getSpaceUser(@RequestBody SpaceUserQueryRequest spaceUserQueryRequest) {
+    public BaseResponse<SpaceUser> getSpaceUser(@RequestBody SpaceUserQueryRequest spaceUserQueryRequest,
+                                                HttpServletRequest request) {
         // 参数校验
         ThrowUtils.throwIf(spaceUserQueryRequest == null, ErrorCode.PARAMS_ERROR);
         Long spaceId = spaceUserQueryRequest.getSpaceId();
         Long userId = spaceUserQueryRequest.getUserId();
         ThrowUtils.throwIf(ObjectUtil.hasEmpty(spaceId, userId), ErrorCode.PARAMS_ERROR);
+        spaceUserService.checkManageAuth(userService.getLoginUser(request), spaceId);
         // 查询数据库
         SpaceUser spaceUser = spaceUserService.getOne(spaceUserService.getQueryWrapper(spaceUserQueryRequest));
         ThrowUtils.throwIf(spaceUser == null, ErrorCode.NOT_FOUND_ERROR);
@@ -98,6 +103,9 @@ public class SpaceUserController {
     public BaseResponse<List<SpaceUserVO>> listSpaceUser(@RequestBody SpaceUserQueryRequest spaceUserQueryRequest,
                                                          HttpServletRequest request) {
         ThrowUtils.throwIf(spaceUserQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        // 成员列表只对有权管理成员的主体开放，且必须指定空间
+        ThrowUtils.throwIf(spaceUserQueryRequest.getSpaceId() == null, ErrorCode.PARAMS_ERROR);
+        spaceUserService.checkManageAuth(userService.getLoginUser(request), spaceUserQueryRequest.getSpaceId());
         List<SpaceUser> spaceUserList = spaceUserService.list(
                 spaceUserService.getQueryWrapper(spaceUserQueryRequest)
         );
@@ -123,6 +131,8 @@ public class SpaceUserController {
         long id = spaceUserEditRequest.getId();
         SpaceUser oldSpaceUser = spaceUserService.getById(id);
         ThrowUtils.throwIf(oldSpaceUser == null, ErrorCode.NOT_FOUND_ERROR);
+        // 业务边界复核：以成员记录所属空间判定管理资格
+        spaceUserService.checkManageAuth(userService.getLoginUser(request), oldSpaceUser.getSpaceId());
         // 操作数据库
         boolean result = spaceUserService.updateById(spaceUser);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);

@@ -53,9 +53,13 @@ public class FeedbackController {
      * 根据ID获取反馈详情
      */
     @GetMapping("/get/{id}")
-    public BaseResponse<FeedbackVO> getFeedbackById(@PathVariable("id") Long id) {
+    public BaseResponse<FeedbackVO> getFeedbackById(@PathVariable("id") Long id, HttpServletRequest httpRequest) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpRequest);
         FeedbackVO vo = feedbackService.getFeedbackById(id);
+        // 反馈含正文、截图与处理备注，仅提交者本人或管理员可读
+        ThrowUtils.throwIf(!userService.isAdmin(loginUser) && !loginUser.getId().equals(vo.getUserId()),
+                ErrorCode.NO_AUTH_ERROR);
         return ResultUtils.success(vo);
     }
 

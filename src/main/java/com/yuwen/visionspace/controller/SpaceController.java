@@ -123,11 +123,14 @@ public class SpaceController {
     @GetMapping("/get/vo")
     public BaseResponse<SpaceVO> getSpaceVOById(@RequestParam("id") long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
         // 查询数据库
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        // 私有空间仅所有者与管理员可读；团队空间仅成员可读
+        ThrowUtils.throwIf(spaceUserAuthManager.getPermissionList(space, loginUser).isEmpty(),
+                ErrorCode.NO_AUTH_ERROR);
         SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
-        User loginUser = userService.getLoginUser(request);
         List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
         spaceVO.setPermissionList(permissionList);
         // 获取封装类
@@ -158,9 +161,17 @@ public class SpaceController {
         long size = spaceQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        // 查询数据库
-        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
-                spaceService.getQueryWrapper(spaceQueryRequest));
+        User loginUser = userService.getLoginUser(request);
+        // 管理员可跨用户查询；其他用户只能查看自己创建或已加入的空间。
+        // 可见范围统一由 pageAccessible 追加条件，这里不再改写 userId，
+        // 否则会与团队空间的 id 条件互相抵消，导致成员看不到自己加入的团队空间。
+        if (!userService.isAdmin(loginUser)) {
+            ThrowUtils.throwIf(spaceQueryRequest.getUserId() != null
+                            && !spaceQueryRequest.getUserId().equals(loginUser.getId()),
+                    ErrorCode.NO_AUTH_ERROR);
+        }
+        Page<Space> spacePage = spaceService.pageAccessible(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest), loginUser);
         // 获取封装类
         return ResultUtils.success(spaceService.getSpaceVOPage(spacePage, request));
     }

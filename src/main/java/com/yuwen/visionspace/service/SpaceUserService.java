@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserAddRequest;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserQueryRequest;
 import com.yuwen.visionspace.model.entity.SpaceUser;
+import com.yuwen.visionspace.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.SpaceUserVO;
 
@@ -20,10 +21,21 @@ public interface SpaceUserService extends IService<SpaceUser> {
     /**
      * 创建空间成员
      *
-     * @param spaceUserAddRequest
-     * @return
+     * @param spaceUserAddRequest 成员信息
+     * @param operator            当前登录用户，用于复核成员管理权限
+     * @return 新成员记录 id
      */
-    long addSpaceUser(SpaceUserAddRequest spaceUserAddRequest);
+    long addSpaceUser(SpaceUserAddRequest spaceUserAddRequest, User operator);
+
+    /**
+     * 校验成员管理权限。
+     *
+     * <p>仅空间所有者或该空间的团队管理员可管理成员；拒绝时抛业务异常。
+     *
+     * @param operator 当前登录用户
+     * @param spaceId  目标空间 id
+     */
+    void checkManageAuth(User operator, Long spaceId);
 
     /**
      * 校验空间成员

@@ -54,6 +54,13 @@ public interface SpaceService extends IService<Space> {
     Page<SpaceVO> getSpaceVOPage(Page<Space> spacePage, HttpServletRequest request);
 
     /**
+     * 按可见范围分页查询。
+     *
+     * <p>管理员不受限；其他用户只能看到自己创建的空间与已加入的团队空间。
+     */
+    Page<Space> pageAccessible(Page<Space> page, QueryWrapper<Space> queryWrapper, User loginUser);
+
+    /**
      * 获取查询对象
      *
      * @param spaceQueryRequest

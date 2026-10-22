@@ -62,6 +62,19 @@ public class SpaceUserAuthManager {
 
 
     /**
+     * 判断某个空间角色是否具备指定权限。
+     *
+     * <p>服务层做业务边界复核时统一走这里，避免各处重复解析角色配置。
+     *
+     * @param spaceUserRole 空间角色，可为空
+     * @param permission    权限码
+     * @return 是否具备该权限
+     */
+    public boolean hasPermission(String spaceUserRole, String permission) {
+        return StrUtil.isNotBlank(permission) && getPermissionsByRole(spaceUserRole).contains(permission);
+    }
+
+    /**
      * 获取权限列表
      *
      * @param space

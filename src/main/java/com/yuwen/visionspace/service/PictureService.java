@@ -123,6 +123,17 @@ public interface PictureService extends IService<Picture> {
     void checkPictureAuth(User loginUser, Picture picture);
 
     /**
+     * 平台管理用的图片视图：保留审核与排查所需元数据，但不含内容地址。
+     *
+     * <p>原图、缩略图与预览地址一律置空，避免管理列表成为私人内容的读取旁路。
+     * 返回类型仍是 {@link Picture}，既有的响应封装与前端字段保持不变。
+     *
+     * @param picture 图片实体
+     * @return 脱去内容地址的副本
+     */
+    Picture getAdminPictureView(Picture picture);
+
+    /**
      * 根据颜色搜索图片
      *
      * @param spaceId
