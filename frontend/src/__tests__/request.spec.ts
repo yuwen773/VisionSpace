@@ -6,8 +6,11 @@ describe('shared request instance', () => {
   it('preserves credentials, JSON binding and the response for business errors', async () => {
     const adapter: AxiosAdapter = async (config) => {
       expect(config.withCredentials).toBe(true)
-      expect(config.baseURL).toBe((import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''))
-      expect(config.url).toBe('/api/picture/delete')
+      expect(config.baseURL).toBe(
+        `${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api`,
+      )
+      // 手写客户端的 /api 前缀去重后不会变成 /api/api/...
+      expect(config.url).toBe('/picture/delete')
       expect(config.data).toBe('{"id":"87001"}')
       expect(config).not.toHaveProperty('requestType')
       return {

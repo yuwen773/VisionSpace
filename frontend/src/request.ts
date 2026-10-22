@@ -1,14 +1,25 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { warn } from 'vue'
-import { API_BASE_URL, attachCsrf } from '@/apiOrigin'
+import { API_BASE_URL, API_ROOT, attachCsrf } from '@/apiOrigin'
 
 export { API_BASE_URL }
 
 /**
- * 后端源站地址。REST、上传、SSE 与 WebSocket 共用 {@link API_BASE_URL}，
+ * 后端入口。REST、上传、SSE 与 WebSocket 共用 {@link API_BASE_URL}，
  * 生产默认走同源 `/api`，切换部署入口只需要改反向代理或该环境变量。
+ *
+ * <p>这里带上 `/api` 是因为生成器产出的客户端写的是 `/user/login`（不含前缀），
+ * 而手写客户端写的是 `/api/mcp-server`（含前缀）。两种写法都要能用：
+ * base 统一到 `/api`，请求路径上的重复前缀在拦截器里去掉。
+ * 若 base 不含 `/api`，生成的客户端会请求到站点根路径，被 SPA 回落成 index.html。
  */
-const baseURL = API_BASE_URL
+const baseURL = API_ROOT
+
+/** 去掉请求路径里已经写过的 `/api` 前缀，避免 base 叠加后变成 `/api/api/...` */
+function normalizeApiPath(url: string): string {
+  if (url === '/api') return ''
+  return url.startsWith('/api/') ? url.slice('/api'.length) : url
+}
 
 //创建axios实例
 const myAxios = axios.create({
@@ -20,6 +31,10 @@ const myAxios = axios.create({
 // 添加请求拦截器
 myAxios.interceptors.request.use(
   function (config) {
+    // 统一路径前缀：生成的客户端写 /user/login，手写客户端写 /api/mcp-server
+    if (config.url) {
+      config.url = normalizeApiPath(config.url)
+    }
     // 状态修改请求带上双提交 CSRF 令牌
     return attachCsrf(config)
   },
