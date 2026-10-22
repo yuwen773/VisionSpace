@@ -265,14 +265,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         // 1. 撤销空间认证：删除令牌与账号映射，旧 Cookie 里的令牌立即失效
+        // 撤销失败必须让调用方看到，不能吞掉异常后返回「已注销」：
+        // 那样会话被清掉、令牌却还活着，用户以为退出了而空间鉴权仍然通过。
         if (spaceLoggedIn) {
-            try {
-                StpKit.SPACE.logout(SaLogoutParameter.create()
-                        .setMode(SaLogoutMode.LOGOUT)
-                        .setRange(SaLogoutRange.ACCOUNT));
-            } catch (Exception e) {
-                log.warn("space token revocation failed", e);
-            }
+            StpKit.SPACE.logout(SaLogoutParameter.create()
+                    .setMode(SaLogoutMode.LOGOUT)
+                    .setRange(SaLogoutRange.ACCOUNT));
         }
         // 2. 失效整个 HTTP 会话，只移除单个属性会让旧 Session 继续可用
         if (session != null) {
