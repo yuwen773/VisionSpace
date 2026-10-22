@@ -9,7 +9,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import com.yuwen.visionspace.acceptance.IsolatedSpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 消息中有 42 条落在并列组里）。旧实现按 {@code createdTime DESC} 排序却用
  * {@code id < beforeId} 翻页，并列组被分页边界切开时就会跳页或重复。
  */
-@SpringBootTest
+@IsolatedSpringBootTest
 class ChatHistoryCursorIntegrationTest {
 
     private static final int TIE_GROUP_SIZE = 3;

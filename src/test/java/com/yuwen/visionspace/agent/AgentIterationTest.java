@@ -8,7 +8,7 @@ import com.yuwen.visionspace.agent.model.QualityResult;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.boot.test.context.SpringBootTest;
+import com.yuwen.visionspace.acceptance.IsolatedSpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 import jakarta.annotation.Resource;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 反射识别为 @Tool」——{@code ImageAgent} 通过 {@code methodTools(...)} 拿到的正是
  * 这个 bean，装配一旦断掉，Agent 会在运行期静默失去质量评估能力。
  */
-@SpringBootTest
+@IsolatedSpringBootTest
 @TestPropertySource(properties = {
     "spring.ai.dashscope.api-key=test-key"
 })
