@@ -1,4 +1,6 @@
 ### Custom ###
+.zread/
+软件著作权申请资料/
 application-local.yml
 application-prod.yml
 /docs/*
