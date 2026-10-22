@@ -14,6 +14,20 @@ export interface ToolCallArg {
   args: Record<string, any>
 }
 
+/**
+ * 流式入口的业务错误（未登录、会话不属于当前用户、参数不合法）。
+ * 与网络异常分开，页面据此给出可操作的提示。
+ */
+export class AgentStreamError extends Error {
+  constructor(
+    message: string,
+    readonly code?: number,
+  ) {
+    super(message)
+    this.name = 'AgentStreamError'
+  }
+}
+
 export interface StreamMessage {
   type: string
   content: string
@@ -96,7 +110,12 @@ export function useAgentStream() {
     }
     const uploadedUrls = uploaded.map(item => item.url)
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    // 同时接受 JSON：归属或登录校验失败时后端返回的是普通 JSON 错误，
+    // 只声明 text/event-stream 会把它变成无法读取的 406。
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      accept: 'text/event-stream, application/json',
+    }
     const body = JSON.stringify({
       message,
       imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
@@ -113,8 +132,19 @@ export function useAgentStream() {
         openWhenHidden: true,
 
         async onopen(response) {
-          if (response.ok) return
-          throw new Error('Failed to open connection')
+          if (!response.ok) {
+            throw new AgentStreamError('发送失败，请重试', response.status)
+          }
+          // 归属或登录校验在建立流之前完成，拒绝时后端返回的是普通 JSON 错误。
+          // 把它当成空流会让用户以为消息发出去了，这里必须显式失败。
+          const contentType = response.headers.get('content-type') || ''
+          if (!contentType.includes('text/event-stream')) {
+            const payload = await response.json().catch(() => null)
+            throw new AgentStreamError(
+              payload?.message || '无法访问该会话，请新建对话后重试',
+              payload?.code,
+            )
+          }
         },
 
         onmessage(event) {

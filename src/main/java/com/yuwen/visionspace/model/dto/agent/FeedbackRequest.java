@@ -19,10 +19,7 @@ public class FeedbackRequest implements Serializable {
      */
     private String threadId;
 
-    /**
-     * 用户ID
-     */
-    private String userId;
+    // 身份只取服务端登录态：请求体里的 userId 不再参与归属或偏好判定。
 
     /**
      * 是否满意

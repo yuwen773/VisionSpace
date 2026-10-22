@@ -23,10 +23,8 @@ public class AgentChatRequest implements Serializable {
      */
     private String threadId;
 
-    /**
-     * 用户ID (可选，用于长期偏好学习)
-     */
-    private String userId;
+    // 身份只取服务端登录态：请求体里的 userId 不再参与归属或偏好判定，
+    // 字段已移除，旧客户端多传会被忽略。
 
     /**
      * 用户上传的图片 URL 列表（后端拼接为 <image-analysis> 标签）

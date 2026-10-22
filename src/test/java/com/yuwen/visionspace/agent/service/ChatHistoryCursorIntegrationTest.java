@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -163,6 +164,82 @@ class ChatHistoryCursorIntegrationTest {
     }
 
     /**
+     * 跨用户写入：归属条件在 SQL 里，别人写入不产生任何行，也不改会话摘要。
+     * <p>
+     * Mockito 那层看不见这条 SQL 的 WHERE，只有真实数据库能证明「零消息插入」。
+     */
+    @Test
+    void writesFromAnotherUserProduceNoRows() {
+        Long owner = 910_000_000L + (long) (Math.random() * 100_000);
+        Long stranger = owner + 1;
+        insertSession(owner, sessionId, new Date(1_700_000_000_000L));
+
+        // 直接调用目标对象：@Async 代理会让写入变成异步，断言会在写入前跑完。
+        // 这里验证的是 SQL 的归属条件，与线程调度无关。
+        ChatHistoryService target = targetService();
+        int before = messageCount();
+        target.saveAssistantMessage(sessionId, stranger, "forged reply", "text");
+        // 跨用户调用 saveUserMessage 会先做归属核对并抛出，属于预期的拒绝
+        assertThrows(RuntimeException.class,
+                () -> target.saveUserMessage(sessionId, stranger, "forged message"));
+        target.saveSummary(sessionId, stranger, "forged summary", 1);
+
+        assertEquals(before, messageCount(), "stranger writes must insert no messages");
+        assertEquals(null, jdbcTemplate.queryForObject(
+                "SELECT summaryContent FROM agent_session WHERE sessionId = ?", String.class, sessionId),
+                "stranger must not overwrite the summary");
+        assertEquals(owner, jdbcTemplate.queryForObject(
+                "SELECT userId FROM agent_session WHERE sessionId = ?", Long.class, sessionId),
+                "ownership must not change");
+    }
+
+    /**
+     * 首次创建的原子性：并发用同一 threadId 绑定两个用户，只保留一个所有者，
+     * 并且落库的消息全部属于这个所有者。
+     */
+    @Test
+    void concurrentFirstCreationBindsOneOwner() throws Exception {
+        Long first = 920_000_000L + (long) (Math.random() * 100_000);
+        Long second = first + 1;
+
+        ChatHistoryService target = targetService();
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+            for (Long userId : List.of(first, second)) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    try {
+                        target.saveUserMessage(sessionId, userId, "hello from " + userId);
+                    } catch (RuntimeException ignored) {
+                        // 归属核对失败是允许的结果；关键是数据库里不能出现第二个所有者
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var future : futures) {
+                future.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        List<Long> owners = jdbcTemplate.queryForList(
+                "SELECT DISTINCT userId FROM agent_session WHERE sessionId = ?", Long.class, sessionId);
+        assertEquals(1, owners.size(), "exactly one owner must be bound: " + owners);
+        Long owner = owners.get(0);
+        assertEquals(owner, jdbcTemplate.queryForObject(
+                "SELECT userId FROM agent_session WHERE sessionId = ?", Long.class, sessionId));
+        // 归属未成立的一方即使先跑了应用层逻辑，也不能留下消息
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM agent_message WHERE sessionId = ? AND content LIKE ?",
+                Integer.class, sessionId, "%" + (owner.equals(first) ? second : first) + "%"),
+                "rejected writer must leave no message");
+    }
+
+    /**
      * 会话列表同样用 (updatedTime, id) 复合游标：id 大但 updatedTime 旧的会话不得被跳过。
      * <p>
      * 旧实现 {@code id < beforeId} 配 {@code ORDER BY updatedTime DESC}，
@@ -217,6 +294,18 @@ class ChatHistoryCursorIntegrationTest {
 
     private List<String> contentsOf(List<MessageVO> messages) {
         return messages.stream().map(MessageVO::getContent).toList();
+    }
+
+    /**
+     * 去掉 @Async 代理，让写入在调用线程内完成，便于断言「零副作用」。
+     */
+    private ChatHistoryService targetService() {
+        return org.springframework.test.util.AopTestUtils.getTargetObject(chatHistoryService);
+    }
+
+    private int messageCount() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM agent_message WHERE sessionId = ?", Integer.class, sessionId);
     }
 
     private void insertMessage(String content, Date createdTime) {

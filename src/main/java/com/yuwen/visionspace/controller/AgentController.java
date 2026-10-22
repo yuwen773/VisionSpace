@@ -1,7 +1,6 @@
 package com.yuwen.visionspace.controller;
 
 import com.alibaba.cloud.ai.graph.NodeOutput;
-import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,21 +8,24 @@ import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.service.AgentImageUploadService;
+import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
+import com.yuwen.visionspace.exception.BusinessException;
+import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.ChatHistoryVO;
 import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.SessionVO;
-import cn.dev33.satoken.exception.NotLoginException;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -51,6 +53,9 @@ public class AgentController {
     private ChatHistoryService chatHistoryService;
 
     @Resource
+    private AgentSessionGuard sessionGuard;
+
+    @Resource
     private AgentConstants agentConstants;
 
     @Resource
@@ -66,25 +71,15 @@ public class AgentController {
     public BaseResponse<String> chat(@RequestBody AgentChatRequest request,
                                       HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
-        if (loginUser == null) {
-            throw new NotLoginException("未登录", null, null);
-        }
         // 附件必须属于当前用户，未登记或他人的地址在进入模型前拒绝
         agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
-        String threadId = request.getThreadId();
-        if (threadId == null || threadId.isBlank()) {
-            threadId = UUID.randomUUID().toString();
-        }
+        String threadId = resolveThreadId(request.getThreadId());
 
-        RunnableConfig config = RunnableConfig.builder()
-                .threadId(threadId)
-                .build();
+        log.info("Agent 对话请求, threadId={}, userId={}", threadId, loginUser.getId());
 
-        log.info("Agent 对话请求, threadId={}, message={}", threadId, request.getMessage());
-
-        // 使用 invokeAndGetOutput 支持中断
+        // 使用 invokeAndGetOutput 支持中断；归属在 ImageAgent 进入模型前判定
         String fullMessage = buildUserMessage(request.getMessage(), request.getImageUrls());
-        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(fullMessage, config);
+        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(fullMessage, threadId, loginUser.getId());
 
         // 检查是否返回了中断
         if (result.isPresent() && result.get() instanceof InterruptionMetadata) {
@@ -107,21 +102,16 @@ public class AgentController {
     public BaseResponse<String> feedback(@RequestBody FeedbackRequest request,
                                           HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
-        if (loginUser == null) {
-            throw new NotLoginException("未登录", null, null);
-        }
-        // 验证会话归属当前用户
-        if (!chatHistoryService.isSessionOwner(request.getThreadId(), loginUser.getId())) {
-            throw new NotLoginException("无权操作该会话", null, null);
-        }
+        String threadId = resolveThreadId(request.getThreadId());
 
         log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}, phase={}",
-                request.getThreadId(), loginUser.getId(), request.getSatisfied(),
+                threadId, loginUser.getId(), request.getSatisfied(),
                 request.getReason(), request.getCurrentPhase());
 
+        // 归属在 handleFeedback 进入模型前核对；不属于当前用户时不写偏好、不执行
         String result = imageAgent.handleFeedback(
-                request.getThreadId(),
-                String.valueOf(loginUser.getId()),
+                threadId,
+                loginUser.getId(),
                 request.getSatisfied(),
                 request.getReason(),
                 request.getAction(),
@@ -133,24 +123,34 @@ public class AgentController {
 
     /**
      * 流式对话接口
+     *
+     * <p>归属与登录校验在建立流之前完成。拒绝时直接写 JSON 错误体，而不是抛给
+     * 全局异常处理器：本方法的 {@code Accept} 只有 {@code text/event-stream}，
+     * 异常处理器协商不出 JSON，会把拒绝变成 500/406，客户端读不到原因。
      */
-    @PostMapping(value = "/image/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(@RequestBody AgentChatRequest request,
-                                                     HttpServletRequest httpRequest) {
-        String threadId = request.getThreadId();
-        if (threadId == null || threadId.isBlank()) {
-            threadId = UUID.randomUUID().toString();
+    @PostMapping("/image/chat/stream")
+    public ResponseEntity<?> chatStream(@RequestBody AgentChatRequest request,
+                                        HttpServletRequest httpRequest) {
+        Long userId;
+        String threadId;
+        try {
+            // 未登录的流式请求不建立连接：userId 只来自服务端会话
+            User loginUser = userService.getLoginUser(httpRequest);
+            userId = loginUser.getId();
+            // 流式入口同样在进入模型前校验附件归属
+            agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
+            threadId = resolveThreadId(request.getThreadId());
+            // 归属判定发生在返回 Flux 之前：拒绝的请求不会建立流、不会插入消息、不会调用模型
+            sessionGuard.bindOwner(threadId, userId, request.getMessage());
+        } catch (BusinessException e) {
+            return writeJsonError(e);
         }
 
-        User loginUser = userService.getLoginUser(httpRequest);
-        Long userId = loginUser != null ? loginUser.getId() : null;
-        // 流式入口同样在进入模型前校验附件归属
-        agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
+        log.info("Agent 流式对话请求, threadId={}, userId={}, enabledMcpServers={}, disableMcpDefault={}",
+                threadId, userId, request.getEnabledMcpServers(), request.getDisableMcpDefault());
 
-        log.info("Agent 流式对话请求, threadId={}, userId={}, message={}, enabledMcpServers={}, disableMcpDefault={}",
-                threadId, userId, request.getMessage(), request.getEnabledMcpServers(), request.getDisableMcpDefault());
-
-        return imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId,
+        Flux<ServerSentEvent<String>> stream =
+                imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId,
                 request.getEnabledMcpServers(), request.getDisableMcpDefault())
                 .filter(Objects::nonNull)
                 .map(data -> ServerSentEvent.<String>builder()
@@ -170,6 +170,23 @@ public class AgentController {
                             .data("系统繁忙，请稍后重试")
                             .build());
                 });
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(stream);
+    }
+
+    /**
+     * 在 SSE 端点上写一个普通 JSON 错误体。
+     *
+     * <p>响应类型由这里显式指定，不参与内容协商；客户端按 Content-Type
+     * 判断这是拒绝而不是流。业务错误码沿用全站约定（HTTP 200 + code）。
+     */
+    private ResponseEntity<BaseResponse<?>> writeJsonError(BusinessException e) {
+        log.warn("拒绝流式对话请求, code={}, message={}", e.getCode(), e.getMessage());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ResultUtils.error(e.getCode(), e.getMessage()));
     }
 
     /**
@@ -225,13 +242,8 @@ public class AgentController {
             @RequestParam(defaultValue = "40") int limit,
             HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
-        if (loginUser == null) {
-            throw new NotLoginException("未登录", null, null);
-        }
-        // 验证会话归属当前用户
-        if (!chatHistoryService.isSessionOwner(threadId, loginUser.getId())) {
-            throw new NotLoginException("无权访问该会话", null, null);
-        }
+        // 归属不成立时拒绝；不区分「不存在」与「属于他人」
+        sessionGuard.requireOwned(threadId, loginUser.getId());
         return ResultUtils.success(chatHistoryService.loadHistory(threadId, beforeId, Math.min(limit, agentConstants.getMaxHistoryPageSize())));
     }
 
@@ -246,9 +258,17 @@ public class AgentController {
             @RequestParam(defaultValue = "20") int limit,
             HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
-        if (loginUser == null) {
-            throw new NotLoginException("未登录", null, null);
-        }
         return ResultUtils.success(chatHistoryService.getUserSessions(loginUser.getId(), beforeId, Math.min(limit, 100)));
+    }
+
+    /**
+     * 客户端未提供会话标识时生成一个；客户端提供的标识在进入任何执行前由
+     * {@link AgentSessionGuard} 校验格式与归属，这里只做格式清洗。
+     */
+    private String resolveThreadId(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+        return requested.trim();
     }
 }

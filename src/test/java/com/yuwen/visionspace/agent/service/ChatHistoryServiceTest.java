@@ -28,6 +28,9 @@ class ChatHistoryServiceTest {
     @Mock
     private AgentMessageMapper messageMapper;
 
+    @Mock
+    private AgentSessionGuard sessionGuard;
+
     @InjectMocks
     private ChatHistoryService chatHistoryService;
 

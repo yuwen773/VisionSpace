@@ -10,12 +10,14 @@ import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
 import com.yuwen.visionspace.agent.interceptor.TextMcpModelInterceptor;
 import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
 import com.yuwen.visionspace.agent.tools.ImageGeneratorTool;
@@ -89,6 +91,9 @@ public class ImageAgent {
 
     @Resource
     private ChatHistoryService chatHistoryService;
+
+    @Resource
+    private AgentSessionGuard sessionGuard;
 
     @Resource
     private BaseCheckpointSaver checkpointSaver;
@@ -222,24 +227,25 @@ public class ImageAgent {
     }
 
     /**
-     * 对话入口（带会话隔离）
+     * 同步对话入口（带会话隔离）
      *
      * @param userMessage 用户消息
      * @param imageUrls   图片URL列表
      * @param threadId    会话ID，用于隔离不同对话的上下文
+     * @param userId      服务端登录用户；会话归属只认它，不认请求体里的 userId
      */
-    public String chat(String userMessage, List<String> imageUrls, String threadId) {
-        RunnableConfig config = RunnableConfig.builder()
-                .threadId(threadId)
-                .build();
+    public String chat(String userMessage, List<String> imageUrls, String threadId, Long userId) {
+        // 归属在进入模型之前判定：绑定/核对失败直接抛出，不产生任何执行
+        sessionGuard.bindOwner(threadId, userId, userMessage);
+        RunnableConfig config = configFor(threadId, userId);
         try {
             String fullMessage = buildUserMessage(userMessage, imageUrls);
             AssistantMessage response = agent.call(fullMessage, config);
-            chatHistoryService.saveUserMessage(threadId, null, fullMessage);
-            chatHistoryService.saveAssistantMessage(threadId, response.getText(), "text");
+            chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
+            chatHistoryService.saveAssistantMessage(threadId, userId, response.getText(), "text");
             return response.getText();
         } catch (Exception e) {
-            log.error("Agent 执行失败, threadId={}", threadId, e);
+            log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return "抱歉，处理您的请求时出现了问题：" + e.getMessage();
         }
     }
@@ -257,15 +263,16 @@ public class ImageAgent {
      * @param userMessage 用户消息
      * @param imageUrls 图片URL列表
      * @param threadId 会话ID
-     * @param userId 用户ID
+     * @param userId 服务端登录用户；会话归属只认它
      * @param enabledMcpServers 启用的 MCP 服务器代码列表（可选）
      * @param disableMcpDefault 是否禁用默认 MCP
      */
     public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId,
                                    List<String> enabledMcpServers, Boolean disableMcpDefault) {
-        RunnableConfig config = RunnableConfig.builder()
-                .threadId(threadId)
-                .build();
+        // 归属已由调用方（AgentController）在建立流之前核对；这里再核对一次，
+        // 保证任何直接调用方也无法把状态写进别人的会话。
+        sessionGuard.requireOwned(threadId, userId);
+        RunnableConfig config = configFor(threadId, userId);
         String fullMessage = buildUserMessage(userMessage, imageUrls);
         chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
 
@@ -307,7 +314,7 @@ public class ImageAgent {
                                 if (assistantMessage.hasToolCalls()) {
                                     String prevReasoning = reasoningContent.toString();
                                     if (!prevReasoning.isEmpty()) {
-                                        chatHistoryService.saveReasoningMessage(threadId, prevReasoning);
+                                        chatHistoryService.saveReasoningMessage(threadId, userId, prevReasoning);
                                         reasoningContent.setLength(0);
                                     }
                                     messageDTO.setMessageType(MessageType.TOOL_REQUEST);
@@ -323,7 +330,7 @@ public class ImageAgent {
                                     String toolDesc = toolCallingList.stream()
                                             .map(tc -> tc.get("name") + ": " + tc.get("arguments"))
                                             .collect(Collectors.joining("\n"));
-                                    chatHistoryService.saveToolCallMessage(threadId, toolDesc);
+                                    chatHistoryService.saveToolCallMessage(threadId, userId, toolDesc);
                                 }
                                 // reasoning 消息：累积到当前 block（不立即存）
                                 else if (metadata.get("reasoningContent") != null
@@ -351,7 +358,7 @@ public class ImageAgent {
                                 sb.append("评估: ").append(feedback.getDescription()).append("\n");
                             }
                             messageDTO.setContent(sb.toString());
-                            chatHistoryService.saveToolConfirmMessage(threadId, sb.toString());
+                            chatHistoryService.saveToolConfirmMessage(threadId, userId, sb.toString());
                             return messageDTO;
                         }
                         return null;
@@ -359,11 +366,11 @@ public class ImageAgent {
                     .doOnComplete(() -> {
                         String fullReasoning = reasoningContent.toString();
                         if (!fullReasoning.isEmpty()) {
-                            chatHistoryService.saveReasoningMessage(threadId, fullReasoning);
+                            chatHistoryService.saveReasoningMessage(threadId, userId, fullReasoning);
                         }
                         String fullResponse = assistantContent.toString();
                         if (!fullResponse.isEmpty()) {
-                            chatHistoryService.saveAssistantMessage(threadId, fullResponse, "text");
+                            chatHistoryService.saveAssistantMessage(threadId, userId, fullResponse, "text");
                         }
                     });
 
@@ -375,16 +382,20 @@ public class ImageAgent {
 
     /**
      * 处理用户反馈（增强版）
+     *
+     * <p>反馈会触发一次模型执行，因此归属必须在进入模型之前判定：
+     * 不属于该用户的会话既不写偏好，也不执行。
      */
-    public String handleFeedback(String threadId, String userId,
+    public String handleFeedback(String threadId, Long userId,
                                  Boolean satisfied, String reason,
                                  ActionType action, AgentPhase currentPhase) {
 
+        sessionGuard.requireOwned(threadId, userId);
         int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
-            userPreferenceService.saveFeedback(userId, action, reason);
+            userPreferenceService.saveFeedback(String.valueOf(userId), action, reason);
         }
 
         // 构造增强的反馈消息
@@ -404,9 +415,7 @@ public class ImageAgent {
             );
         }
 
-        RunnableConfig config = RunnableConfig.builder()
-                .threadId(threadId)
-                .build();
+        RunnableConfig config = configFor(threadId, userId);
 
         try {
             AssistantMessage response = agent.call(feedbackMessage, config);
@@ -415,6 +424,19 @@ public class ImageAgent {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题：" + e.getMessage();
         }
+    }
+
+    /**
+     * 构造带归属信息的执行配置。
+     *
+     * <p>归属放在 metadata 里交给 Checkpoint 备份做条件写入；threadId 本身
+     * 由调用方在进入这里之前已经核对过。
+     */
+    private RunnableConfig configFor(String threadId, Long userId) {
+        return RunnableConfig.builder()
+                .threadId(threadId)
+                .addMetadata(DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY, userId)
+                .build();
     }
 
     /**
@@ -470,13 +492,21 @@ public class ImageAgent {
     }
 
     /**
-     * 支持中断的调用方法
+     * 支持中断的调用方法。
+     *
+     * <p>同步入口同样先绑定/核对归属，并在进入模型前落一条用户消息；
+     * 归属不成立时抛出业务异常，不产生任何模型或工具执行。
+     *
+     * @return 执行输出；执行期异常返回空
      */
-    public Optional<NodeOutput> invokeAndGetOutput(String message, RunnableConfig config) {
+    public Optional<NodeOutput> invokeAndGetOutput(String message, String threadId, Long userId) {
+        sessionGuard.bindOwner(threadId, userId, message);
+        RunnableConfig config = configFor(threadId, userId);
+        chatHistoryService.saveUserMessage(threadId, userId, message);
         try {
             return agent.invokeAndGetOutput(message, config);
         } catch (Exception e) {
-            log.error("Agent 执行失败", e);
+            log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return Optional.empty();
         }
     }

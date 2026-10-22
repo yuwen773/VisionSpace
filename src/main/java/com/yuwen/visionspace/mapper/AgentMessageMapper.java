@@ -34,8 +34,29 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
             @Param("beforeId") Long beforeId,
             @Param("limit") int limit);
 
+    /**
+     * 只在会话属于该用户时写入消息。
+     * <p>
+     * 归属条件写进同一条 INSERT ... SELECT，判定与写入之间没有窗口：
+     * 即使并发的首次创建把会话判给了别人，这里也不会落下任何一行。
+     *
+     * @return 1 表示已写入，0 表示会话不存在或不属于该用户（拒绝写入）
+     */
+    @Insert("INSERT INTO agent_message (sessionId, role, subType, content, createdTime) " +
+            "SELECT #{sessionId}, #{role}, #{subType}, #{content}, NOW() " +
+            "FROM agent_session " +
+            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
+    int insertOwned(@Param("sessionId") String sessionId,
+                    @Param("userId") Long userId,
+                    @Param("role") String role,
+                    @Param("subType") String subType,
+                    @Param("content") String content);
+
     @Update("UPDATE agent_message SET isSummary = 1 " +
-            "WHERE sessionId = #{sessionId} AND createdTime < #{summaryTime}")
-    int markAsSummary(@Param("sessionId") String sessionId,
-                     @Param("summaryTime") Date summaryTime);
+            "WHERE sessionId = #{sessionId} AND createdTime < #{summaryTime} " +
+            "AND EXISTS (SELECT 1 FROM agent_session s " +
+            "WHERE s.sessionId = #{sessionId} AND s.userId = #{userId} AND s.isDelete = 0)")
+    int markAsSummaryOwned(@Param("sessionId") String sessionId,
+                           @Param("userId") Long userId,
+                           @Param("summaryTime") Date summaryTime);
 }
