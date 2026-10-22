@@ -31,7 +31,7 @@
 | 30.1 REST、SSE、上传、WebSocket 走同一同源入口；无固定公网 ws 地址、无混合内容、配置变量不自相矛盾 | `apiOrigin.ts` 是唯一来源；`webSocketUrl` 由 `window.location` 推导 `wss`；`apiOrigin.spec.ts` 7 条；浏览器验收「页面发起的全部 API 请求都与页面同源」「wss 由 https 页面推导」 | 已覆盖 |
 | 30.2 Cookie、错误与重连契约一致；生产切换入口不改业务代码 | Cookie 统一 `SameSite=Strict` + Sa-Token `Secure`；入口差异只体现在 `VITE_API_BASE_URL` 与反向代理配置；浏览器验收断言 https 入口下会话 Cookie 均为 `Secure` 且下发 `VS_CSRF` | 已覆盖 |
 | 30.3 开发跨域只放行可信 Origin；状态修改有可验证的 CSRF 防护，不接受仅靠 CORS/Cookie 属性 | `CsrfProtectionFilter`（会话绑定 + 双提交 + 来源判定）；`CsrfProtectionFilter` 的 HTTP 用例：`stateChangingRequestFromUntrustedOriginIsRejectedWithoutWrites`（40300 且零写入）、`missingOrMismatchedCsrfTokenIsRejectedWithoutStateChange`、`csrfCookieIsVisibleToPageScriptsOutsideTheApiContextPath`；`RequestOriginPolicyTest` 9 条 | 已覆盖 |
-| 30.4 真实浏览器链路验证 API、SSE、WSS 与注销后拒绝；恶意来源与无效防护信息零状态修改 | `scripts/browser-acceptance.ps1` + `frontend/e2e/browser-entry.mjs` 8 步真实 Chromium：Secure Cookie、同源 API、注销后 40100、wss 握手失败、跨站 Origin 403、缺令牌 403、SSE 同源可用且缺令牌 403、http 入口只服务当前源 | 已覆盖（详见下节） |
+| 30.4 真实浏览器链路验证 API、SSE、WSS 与注销后拒绝；恶意来源与无效防护信息零状态修改 | `scripts/browser-acceptance.ps1` + `frontend/e2e/browser-entry.mjs` 9 步真实 Chromium：Secure Cookie、真实登录页走通生成的客户端、同源 API、注销后 40100、wss 握手失败、跨站 Origin 403、缺令牌 403、SSE 同源可用且缺令牌 403、http 入口只服务当前源 | 已覆盖（详见下节） |
 
 ## 数据兼容与安全回滚（07.2）
 
@@ -65,15 +65,26 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/browser-acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>' -SkipInstall
 ```
 
-`target/browser-acceptance/summary.json`：isolation、backend、browser、cleanup 全部 PASS，8 个浏览器步骤全绿（`passed: 8, failed: 0`）。
+`target/browser-acceptance/summary.json`：isolation、backend、browser、cleanup 全部 PASS，9 个浏览器步骤全绿（`passed: 9, failed: 0`）。
 
-这一轮浏览器验收抓到了三个只在真实入口下才出现的问题，均已修复并补了回归用例：
+这一轮浏览器验收抓到四个只在真实入口下才出现的问题，均已修复并补了回归用例：
 
 1. **同源写请求被框架判成跨站。** nginx 终止 TLS 后容器看到的是 `http`，Spring 比对 `Origin: https://...` 失败，直接以**空响应体 403** 拒绝，业务代码根本没执行。修复：`forward-headers-strategy: framework`（`native` 只还原协议不还原主机，仍会失败）。回归：`sameOriginRequestBehindTlsTerminatingProxyIsNotTreatedAsCrossSite`。
 2. **CSRF Cookie 挂在 `/api` 下。** 页面（`/user/login`）用 `document.cookie` 读不到，所有写请求都会缺令牌。修复：令牌 Cookie 走站点根路径 `/`。回归：`csrfCookieIsVisibleToPageScriptsOutsideTheApiContextPath`。
 3. **Sa-Token 令牌 Cookie 没有 `Secure`。** 默认配置为 `null`，HTTPS 入口下仍会明文回传。修复：`sa-token.cookie.secure/http-only/same-site`，生产强制开启，明文验收配置显式关闭。
+4. **生成的 API 客户端丢了 `/api` 前缀（main 上就存在）。** 生成器产出的是 `/user/login`（不含前缀），而手写客户端写的是 `/api/mcp-server`。`request.ts` 的 `baseURL` 原本是空串，生成客户端的请求会落到站点根路径，被 SPA 回落成 `index.html`——看起来同源、其实没到后端。修复：`baseURL = API_ROOT`，并在拦截器里去掉请求路径已写过的 `/api` 前缀。回归：`frontend/src/__tests__/request.spec.ts`（base 含 `/api`、重复前缀被去重），以及浏览器验收「真实登录页走通」这条。
+
+第 4 条值得单独说明**为什么之前的断言没抓到**：最初的记录器只收 `pathname.startsWith('/api/')` 的请求，恰恰把「漏了前缀」的缺陷请求过滤掉了；再加上前序步骤已经在共享 context 里登录过，「登录成功」这个信号无条件成立。最终改成独立 BrowserContext + 只记录同源的 `fetch`/`xhr`（axios 在浏览器里走 XHR，不是 fetch），红色运行才打印出 `GET https://127.0.0.1:<port>/user/get/login`——没有 `/api`，缺陷当场可见。
 
 另外收紧了 WebSocket：原来只在 `trusted-origins` 非空时才用白名单、否则固定 `localhost:5173`，生产同源反而被拒。改为与 REST 共用 `RequestOriginPolicy`。
+
+**`SameSite` 的实际归属（一次复核更正）。** 代码审查曾判定 `spring.session.cookie.same-site` 在 Boot 3.5.8 下不生效、应改用 `server.servlet.session.cookie.*`。实测推翻了这条：把该键移走后再跑，`SESSION=...` 仍然输出 `SameSite=Strict`——Spring Session 的 `DefaultCookieSerializer` 确实绑定这个键。因此配置保持原样，没有做无谓的搬家。浏览器验收现在直接读 `Set-Cookie` 头断言（`^(SESSION|satoken)=` 必须出现 ≥ 2 条且都带 `SameSite=Strict`），而不是读 Playwright 解析后的 `cookie.sameSite`——属性缺失时浏览器会回报默认值，那种断言会空泛通过。真实头样例：
+
+```
+SESSION=...; Max-Age=2592000; Path=/api; Secure; HttpOnly; SameSite=Strict
+VS_CSRF=...; Max-Age=7200; Path=/; Secure
+satoken=...; Max-Age=2592000; Path=/; Secure; HttpOnly; SameSite=strict
+```
 
 ## 人工关卡（未完成，不计入通过）
 
