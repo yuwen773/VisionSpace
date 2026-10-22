@@ -28,7 +28,7 @@
         <div v-else class="rank-list">
           <div
             v-for="(space, index) in dataList"
-            :key="space.spaceId"
+            :key="space.id"
             class="rank-item"
             :style="{ animationDelay: `${index * 0.05}s` }"
           >
@@ -40,7 +40,7 @@
               <div class="rank-bar">
                 <div
                   class="rank-bar-fill"
-                  :style="{ width: `${getPercent(space.totalSize)}%` }"
+                  :style="{ width: `${getPercent(space.totalSize ?? 0)}%` }"
                 ></div>
               </div>
             </div>
@@ -58,7 +58,7 @@
 import { ref, computed, watchEffect } from 'vue'
 import { message } from 'ant-design-vue'
 import { getSpaceRankAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
-import { formatSize } from '@/utils'
+import { formatSize, toId } from '@/utils'
 
 interface Props {
   queryAll?: boolean
@@ -80,9 +80,6 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await getSpaceRankAnalyzeUsingPost({
-      queryAll: props.queryAll,
-      queryPublic: props.queryPublic,
-      spaceId: props.spaceId,
       topN: 10,
     })
     if (res.data.code === 0 && res.data.data) {

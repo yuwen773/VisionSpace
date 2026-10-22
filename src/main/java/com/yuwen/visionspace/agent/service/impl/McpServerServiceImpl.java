@@ -64,6 +64,8 @@ public class McpServerServiceImpl implements McpServerService {
         entity.setGmtModified(new Date());
 
         mcpServerMapper.updateById(entity);
+        // 部署配置/名称变更后必须让缓存的工具列表失效，否则最多 5 分钟内仍返回旧工具
+        mcpManager.invalidateToolsCache(userId, detail.getMcpServerCode());
     }
 
     @Override
@@ -71,6 +73,8 @@ public class McpServerServiceImpl implements McpServerService {
         McpServer entity = getByCodeAndUser(mcpServerCode, userId);
         entity.setStatus(3); // 软删除
         mcpServerMapper.updateById(entity);
+        // 已删除的服务不应继续命中工具缓存
+        mcpManager.invalidateToolsCache(userId, mcpServerCode);
     }
 
     @Override

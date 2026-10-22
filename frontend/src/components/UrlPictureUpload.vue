@@ -63,6 +63,7 @@
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { uploadPictureByUrlUsingPost } from '@/api/pictureController.ts'
+import { toId } from '@/utils'
 
 interface Props {
   picture?: API.PictureVO
@@ -91,8 +92,9 @@ const handleUpload = async () => {
     if (props.picture?.id) {
       params.id = props.picture.id
     }
-    if (props.spaceId) {
-      params.spaceId = props.spaceId as string
+    const spaceId = toId(props.spaceId)
+    if (spaceId !== undefined) {
+      params.spaceId = spaceId
     }
 
     const res = await uploadPictureByUrlUsingPost(params)

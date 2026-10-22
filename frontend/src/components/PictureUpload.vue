@@ -34,11 +34,12 @@ import { Camera } from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
 import type { UploadProps } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
+import { toId } from '@/utils'
 
 interface Props {
-  picture: API.PictureVO
+  picture?: API.PictureVO
   onSuccess?: (newPicture: API.PictureVO) => void
-  spaceId?: string
+  spaceId?: number | string
 }
 
 const props = defineProps<Props>()
@@ -50,10 +51,11 @@ const handleUpload = async ({ file }: any) => {
   loading.value = true
   try {
     const params: API.PictureUploadRequest = props.picture ? { id: props.picture.id } : {}
-    if (props.spaceId) {
-      params.spaceId = props.spaceId
+    const spaceId = toId(props.spaceId)
+    if (spaceId !== undefined) {
+      params.spaceId = spaceId
     }
-    const res = await uploadPictureUsingPost(params, {}, file)
+    const res = await uploadPictureUsingPost({ pictureUploadRequest: params }, file)
     if (res.data.code === 0 && res.data.data) {
       message.success('🎉 图片上传成功')
       props.onSuccess?.(res.data.data)
@@ -67,12 +69,12 @@ const handleUpload = async ({ file }: any) => {
 }
 
 // 上传图片前的校验
-const beforeUpload = (file: UploadProps['fileList'][number]) => {
+const beforeUpload = (file: NonNullable<UploadProps['fileList']>[number]) => {
   const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png'
   if (!isJpgOrPng) {
     message.error('😅 不支持上传该格式文件')
   }
-  const isLt2M = file.size / 1024 / 1024 < 2
+  const isLt2M = (file.size ?? 0) / 1024 / 1024 < 2
   if (!isLt2M) {
     message.error('😅 图片大小不能超过2MB')
   }

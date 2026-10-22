@@ -7,7 +7,7 @@ import { escapeHtml } from '@/utils/jsonHighlight'
 import { DIAGRAM_LANGUAGES } from './useMarkdown'
 
 // 动态导入以减少初始包体积
-let mermaidInstance: Awaited<ReturnType<typeof import('mermaid')>> | null = null
+let mermaidInstance: (typeof import('mermaid'))['default'] | null = null
 let plantumlEncoderInstance: ((code: string) => string) | null = null
 
 /**
@@ -32,8 +32,8 @@ async function getMermaid() {
  */
 async function getPlantumlEncoder(): Promise<(code: string) => string> {
   if (!plantumlEncoderInstance) {
-    const encoder = (await import('plantuml-encoder')).default
-    plantumlEncoderInstance = encoder
+    const mod = await import('plantuml-encoder')
+    plantumlEncoderInstance = mod.default.encode
   }
   return plantumlEncoderInstance
 }
@@ -58,7 +58,7 @@ async function renderMermaid(code: string, containerId: string): Promise<string>
  */
 async function renderDrawio(code: string, containerId: string): Promise<string> {
   // 检查 mxClient 是否可用
-  if (typeof window.mxClient === 'undefined') {
+  if (!window.mxClient) {
     return `<div class="diagram-error">draw.io 渲染库未加载，请刷新页面或检查网络连接</div>`
   }
 
@@ -79,14 +79,14 @@ async function renderDrawio(code: string, containerId: string): Promise<string> 
     function initGraph() {
       try {
         // 创建图表实例
-        const graph = new window.mxGraph(container)
+        const graph = new window.mxGraph!(container)
 
         // 只读模式
         graph.setEnabled(false)
 
         // 解析 XML 并渲染
-        const codec = new window.mxCodec()
-        const doc = window.mxUtils.parseXmlString(code)
+        const codec = new window.mxCodec!()
+        const doc = window.mxUtils!.parseXmlString(code)
         codec.decode(doc.documentElement, graph.getModel())
 
         // 触发渲染

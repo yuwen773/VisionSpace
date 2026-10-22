@@ -127,7 +127,7 @@
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                 </svg>
               </span>
-              <span class="info-text">{{ formatSize(picture.picSize) }}</span>
+              <span class="info-text">{{ formatSize(picture.picSize ?? 0) }}</span>
             </div>
             <div class="info-divider"></div>
             <div class="info-bar-item">
@@ -260,7 +260,7 @@
     </div>
 
     <!-- 全屏预览模态框 -->
-    <ImagePreview v-model:open="isFullscreen" :url="picture.previewUrl || picture.url" :alt="picture.name" />
+    <ImagePreview v-model:open="isFullscreen" :url="picture.previewUrl || picture.url || ''" :alt="picture.name" />
 
     <!-- 分享弹窗 -->
     <ShareModal ref="shareModalRef" :link="shareLink" title="分享图片" />
@@ -276,12 +276,14 @@ import { downloadImage, formatSize, toHexColor } from '@/utils'
 import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import { toId } from '@/utils'
 
 interface Props {
   id: number | string
 }
 
 const props = defineProps<Props>()
+const pictureId = computed(() => toId(props.id))
 const router = useRouter()
 
 // Refs
@@ -295,7 +297,7 @@ const isFullscreen = ref(false)
 // Fetch picture detail
 const fetchDetailPicture = async () => {
   try {
-    const res = await getPictureVoByIdUsingGet({ id: props.id })
+    const res = await getPictureVoByIdUsingGet({ id: pictureId.value as number })
     if (res.data.code === 0 && res.data.data) {
       picture.value = res.data.data
     } else {
@@ -337,14 +339,14 @@ const doDownload = () => {
 const doEdit = () => {
   router.push({
     path: '/add_picture',
-    query: { id: props.id, spaceId: picture.value.spaceId },
+    query: { id: pictureId.value, spaceId: picture.value.spaceId },
   })
 }
 
 // Delete
 const doDelete = async () => {
-  const id = props.id
-  if (!id) return
+  const id = pictureId.value
+  if (id === undefined) return
 
   try {
     const res = await deletePictureUsingPost({ id })

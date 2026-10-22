@@ -340,7 +340,7 @@ import {
   refreshStorageConfigUsingPost,
   type StorageConfigVO,
   type StorageConfigAddRequest,
-} from '@/api/storageConfigController'
+} from '@/api-custom/storage'
 
 const configList = ref<StorageConfigVO[]>([])
 const modalVisible = ref(false)

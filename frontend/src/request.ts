@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { warn } from 'vue'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
@@ -33,8 +33,9 @@ myAxios.interceptors.response.use(
     }
     if (data.code === 404) {
       warn(data.message)
-      return
     }
+    // 必须始终返回 response：调用方普遍直接读 res.data.code，
+    // 返回 undefined 会在下游抛出 TypeError。
     return response
   },
   function (error) {
@@ -44,5 +45,23 @@ myAxios.interceptors.response.use(
   },
 )
 
-export default myAxios
-// request.ts module   xx         export
+/**
+ * 生成器（@umijs/openapi）约定的请求函数签名：`request<T>(url, config) => Promise<AxiosResponse<T>>`。
+ *
+ * 生成产物里还会带一个 `requestType: 'form'` 字段（umi-request 的约定），axios 不认识它，
+ * 这里在类型上放行、在运行时丢弃——文件上传的实际数据由生成代码自己组装成 FormData。
+ */
+export interface GeneratedRequestConfig extends AxiosRequestConfig {
+  requestType?: 'form' | 'json'
+}
+
+function request<T = any>(
+  url: string,
+  config?: GeneratedRequestConfig,
+): Promise<AxiosResponse<T>> {
+  const { requestType, ...axiosConfig } = config ?? {}
+  void requestType
+  return myAxios.request<T>({ url, ...axiosConfig })
+}
+
+export default request

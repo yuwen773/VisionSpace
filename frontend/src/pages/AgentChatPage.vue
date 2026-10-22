@@ -121,7 +121,7 @@ import ImagePreview from '@/components/ImagePreview.vue'
 import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import {useAgentStream} from '@/composables/useAgentStream'
-import {getHistory, getSessions, type HistoryMessage, type SessionItem} from '@/api/agentController'
+import { getHistory, getSessions, type HistoryMessage, type SessionItem } from '@/api-custom/agent'
 
 const THREAD_ID_KEY = 'agent_current_thread_id'
 const DATE_LOCALE = 'zh-CN'
@@ -262,6 +262,7 @@ const handleSend = async (text: string, files: File[] = []) => {
   pushMessage({
     type: 'user',
     content: text,
+    node: 'user',
     time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
   })
 

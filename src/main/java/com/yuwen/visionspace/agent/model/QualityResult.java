@@ -40,6 +40,14 @@ public class QualityResult implements Serializable {
     private ActionType action;
 
     /**
+     * 意图匹配判定。
+     * <p>
+     * 与 {@link #matchScore} 互补：分数是估计值，判定是结论。调用方应优先读本字段，
+     * 因为「无法判断」和「判断为不匹配」可能落在同一个分数上，但处理方式相反。
+     */
+    private MatchVerdict verdict;
+
+    /**
      * 当前迭代阶段
      */
     private AgentPhase phase;

@@ -16,6 +16,7 @@ import com.yuwen.visionspace.model.vo.FeedbackVO;
 import com.yuwen.visionspace.service.FeedbackService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -83,7 +84,7 @@ public class FeedbackController {
         return ResultUtils.success(result);
     }
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public BaseResponse<String> uploadFeedbackAttachment(@RequestParam("file") MultipartFile file,
                                                              HttpServletRequest request) {
         ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");

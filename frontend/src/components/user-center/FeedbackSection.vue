@@ -95,7 +95,7 @@
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
-import { addFeedbackUsingPost, uploadFeedbackAttachment } from '@/api/feedbackController'
+import { addFeedbackUsingPost, uploadFeedbackAttachmentUsingPost } from '@/api/feedbackController'
 
 const feedbackTypeOptions = [
   { value: 1, label: '产品建议', icon: Lightbulb },
@@ -137,8 +137,9 @@ const handleFeedbackFileChange = async (e: Event) => {
     uploadPromises.push(
       (async () => {
         try {
-          const res = await uploadFeedbackAttachment(file)
-          if (res.data.code === 0 && res.data.data) {
+          const res = await uploadFeedbackAttachmentUsingPost({}, file)
+          // 后端返回 BaseResponse<String>，data 即上传后的 URL
+          if (res.data.data) {
             feedbackForm.value.pictureUrls.push(res.data.data)
           }
         } catch (err: unknown) {

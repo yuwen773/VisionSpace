@@ -81,9 +81,9 @@
             <h1 class="space-name">{{ space.spaceName }}</h1>
             <div class="space-meta">
               <span class="space-type-badge" :class="space.spaceType === 1 ? 'team' : 'private'">
-                {{ SPACE_TYPE_MAP[space.spaceType] }}
+                {{ space.spaceType !== undefined ? SPACE_TYPE_MAP[space.spaceType] : '' }}
               </span>
-              <span class="space-intro" v-if="space.spaceDescription">{{ space.spaceDescription }}</span>
+              
             </div>
           </div>
         </div>
@@ -257,13 +257,13 @@
             @click="handlePictureClick(picture)"
           >
             <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
-              <div class="item-skeleton" v-if="!loadedImages.has(picture.id)"></div>
+              <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
               <img
                 :src="picture.thumbnailUrl || picture.url"
                 :alt="picture.name"
                 class="item-image"
-                :class="{ loaded: loadedImages.has(picture.id) }"
-                @load="onImageLoad(picture.id)"
+                :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
+                @load="picture.id && onImageLoad(picture.id)"
               />
               <div class="item-overlay">
                 <div class="overlay-content">
@@ -312,13 +312,13 @@
               @click="handlePictureClick(picture)"
             >
               <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
-                <div class="item-skeleton" v-if="!loadedImages.has(picture.id)"></div>
+                <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
                 <img
                   :src="picture.thumbnailUrl || picture.url"
                   :alt="picture.name"
                   class="item-image"
-                  :class="{ loaded: loadedImages.has(picture.id) }"
-                  @load="onImageLoad(picture.id)"
+                  :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
+                  @load="picture.id && onImageLoad(picture.id)"
                 />
                 <div class="item-overlay">
                   <div class="overlay-content">
@@ -351,9 +351,9 @@
         </div>
 
         <!-- 分页 -->
-        <div v-if="total > searchParams.pageSize" class="pagination-wrapper">
+        <div v-if="total > pageSize" class="pagination-wrapper">
           <div class="pagination">
-            <button class="page-btn" :disabled="searchParams.current <= 1" @click="prevPage">
+            <button class="page-btn" :disabled="currentPage <= 1" @click="prevPage">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M15 18l-6-6 6-6"/>
               </svg>
@@ -363,14 +363,14 @@
                 v-for="page in getVisiblePages()"
                 :key="page"
                 class="page-number"
-                :class="{ active: page === searchParams.current, ellipsis: page === '...' }"
+                :class="{ active: page === currentPage, ellipsis: page === '...' }"
                 :disabled="page === '...'"
                 @click="page !== '...' && goToPage(page)"
               >
                 {{ page }}
               </button>
             </div>
-            <button class="page-btn" :disabled="searchParams.current >= getTotalPages()" @click="nextPage">
+            <button class="page-btn" :disabled="currentPage >= getTotalPages()" @click="nextPage">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
               </svg>
@@ -399,7 +399,7 @@ import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { deletePictureUsingPost, searchPictureByColorUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { formatSize } from '@/utils'
+import { formatSize, toId } from '@/utils'
 import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
 import BatchEditPicture from '@/components/BatchEditPicture.vue'
 import ShareModal from '@/components/ShareModal.vue'
@@ -411,6 +411,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const spaceId = computed(() => toId(props.id))
 const router = useRouter()
 
 // Refs
@@ -426,7 +427,7 @@ const loading = ref(false)
 const searchText = ref('')
 const isLoaded = ref(false)
 const viewMode = ref<'grid' | 'masonry'>('grid')
-const loadedImages = ref<Set<string>>(new Set())
+const loadedImages = ref<Set<number>>(new Set())
 
 // Search params
 const searchParams = ref<API.PictureQueryRequest>({
@@ -437,7 +438,7 @@ const searchParams = ref<API.PictureQueryRequest>({
 })
 
 // Column assignment for masonry
-const columnAssignment = ref<Map<string, number>>(new Map())
+const columnAssignment = ref<Map<number, number>>(new Map())
 const columnHeights = ref<number[]>([0, 0, 0, 0])
 
 // Permission checks
@@ -465,9 +466,9 @@ const getUsagePercent = () => {
 // Fetch space detail
 const fetchDetailSpace = async () => {
   try {
-    const res = await getSpaceVoByIdUsingGet({ id: props.id })
+    const res = await getSpaceVoByIdUsingGet({ id: spaceId.value as number })
     if (res.data.code === 0) {
-      space.value = res.data.data
+      if (res.data.data) space.value = res.data.data
     } else {
       message.error('获取空间详情失败')
     }
@@ -479,8 +480,8 @@ const fetchDetailSpace = async () => {
 // Fetch pictures
 const fetchData = async () => {
   loading.value = true
-  const params = {
-    spaceId: props.id,
+  const params: API.PictureQueryRequest = {
+    spaceId: spaceId.value,
     ...searchParams.value,
   }
   try {
@@ -502,7 +503,7 @@ const fetchData = async () => {
 
 // Column distribution for masonry
 const getColumnPictures = (colIndex: number) => {
-  return dataList.value.filter(picture => columnAssignment.value.get(picture.id) === colIndex)
+  return dataList.value.filter(picture => picture.id !== undefined && columnAssignment.value.get(picture.id) === colIndex)
 }
 
 const getShortestColumn = () => {
@@ -524,6 +525,7 @@ const calculatePictureHeight = (picture: any): number => {
 const assignPicturesToColumns = (pictures: any[]) => {
   if (viewMode.value !== 'masonry') return
   pictures.forEach(picture => {
+    if (picture.id === undefined) return
     const shortestCol = getShortestColumn()
     columnAssignment.value.set(picture.id, shortestCol)
     const estimatedHeight = calculatePictureHeight(picture)
@@ -532,7 +534,7 @@ const assignPicturesToColumns = (pictures: any[]) => {
 }
 
 // Image load
-const onImageLoad = (pictureId: string) => {
+const onImageLoad = (pictureId: number) => {
   loadedImages.value.add(pictureId)
 }
 
@@ -557,7 +559,7 @@ const onColorChange = async (color: string) => {
   if (!color) return
   loading.value = true
   try {
-    const res = await searchPictureByColorUsingPost({ picColor: color, spaceId: props.id })
+    const res = await searchPictureByColorUsingPost({ picColor: color, spaceId: spaceId.value })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data
       total.value = res.data.data.length
@@ -629,12 +631,14 @@ const doDelete = async (picture: any) => {
 }
 
 // Pagination
-const getTotalPages = () => Math.ceil(total.value / searchParams.value.pageSize)
+const pageSize = computed(() => searchParams.value.pageSize ?? 24)
+const currentPage = computed(() => searchParams.value.current ?? 1)
+const getTotalPages = () => Math.ceil(total.value / pageSize.value)
 
 const getVisiblePages = () => {
   const total = getTotalPages()
-  const current = searchParams.value.current
-  const pages: (number | string)[] = []
+  const current = currentPage.value
+  const pages: (number | '...')[] = []
 
   if (total <= 7) {
     for (let i = 1; i <= total; i++) pages.push(i)
@@ -651,15 +655,15 @@ const getVisiblePages = () => {
 }
 
 const prevPage = () => {
-  if (searchParams.value.current > 1) {
-    searchParams.value.current--
+  if (currentPage.value > 1) {
+    searchParams.value.current = currentPage.value - 1
     fetchData()
   }
 }
 
 const nextPage = () => {
-  if (searchParams.value.current < getTotalPages()) {
-    searchParams.value.current++
+  if (currentPage.value < getTotalPages()) {
+    searchParams.value.current = currentPage.value + 1
     fetchData()
   }
 }

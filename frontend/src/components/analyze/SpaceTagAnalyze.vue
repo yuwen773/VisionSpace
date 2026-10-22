@@ -49,6 +49,7 @@
 import { ref, computed, watchEffect } from 'vue'
 import { message } from 'ant-design-vue'
 import { getSpaceTagAnalyzeUsingPost } from '@/api/spaceAnalyzeController.ts'
+import { toId } from '@/utils'
 
 interface Props {
   queryAll?: boolean
@@ -75,7 +76,7 @@ const fetchData = async () => {
     const res = await getSpaceTagAnalyzeUsingPost({
       queryAll: props.queryAll,
       queryPublic: props.queryPublic,
-      spaceId: props.spaceId,
+      spaceId: toId(props.spaceId),
     })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data ?? []

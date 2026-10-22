@@ -23,6 +23,7 @@ import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.manager.auth.annotation.SaSpaceCheckPermission;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.model.dto.picture.*;
+import org.springframework.http.MediaType;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.User;
@@ -78,7 +79,7 @@ public class PictureController {
     /**
      * 上传图片（可重新上传）
      */
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)
 //    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<PictureVO> uploadPicture(

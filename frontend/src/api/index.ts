@@ -2,23 +2,33 @@
 /* eslint-disable */
 // API 更新时间：
 // API 唯一标识：
-import * as agentController from './agentController'
-import * as fileController from './fileController'
-import * as mainController from './mainController'
 import * as mcpController from './mcpController'
-import * as pictureController from './pictureController'
+import * as userController from './userController'
+import * as storageConfigController from './storageConfigController'
+import * as spaceUserController from './spaceUserController'
 import * as spaceController from './spaceController'
 import * as spaceAnalyzeController from './spaceAnalyzeController'
-import * as spaceUserController from './spaceUserController'
-import * as userController from './userController'
+import * as pictureController from './pictureController'
+import * as pictureRecommend from './pictureRecommend'
+import * as pictureAction from './pictureAction'
+import * as feedbackController from './feedbackController'
+import * as agentImageUploadController from './agentImageUploadController'
+import * as agentController from './agentController'
+import * as adminStatsController from './adminStatsController'
+import * as mainController from './mainController'
 export default {
-  agentController,
-  fileController,
-  mainController,
   mcpController,
-  pictureController,
+  userController,
+  storageConfigController,
+  spaceUserController,
   spaceController,
   spaceAnalyzeController,
-  spaceUserController,
-  userController,
+  pictureController,
+  pictureRecommend,
+  pictureAction,
+  feedbackController,
+  agentImageUploadController,
+  agentController,
+  adminStatsController,
+  mainController,
 }

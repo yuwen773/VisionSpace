@@ -2,12 +2,12 @@
 /* eslint-disable */
 import request from '@/request'
 
-/** addSpace POST /api/space/add */
+/** 此处后端没有提供注释 POST /space/add */
 export async function addSpaceUsingPost(
   body: API.SpaceAddRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseLong_>('/api/space/add', {
+  return request<API.BaseResponseLong>('/space/add', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -17,12 +17,12 @@ export async function addSpaceUsingPost(
   })
 }
 
-/** deleteSpace POST /api/space/delete */
+/** 此处后端没有提供注释 POST /space/delete */
 export async function deleteSpaceUsingPost(
   body: API.DeleteRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/space/delete', {
+  return request<API.BaseResponseBoolean>('/space/delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -32,12 +32,12 @@ export async function deleteSpaceUsingPost(
   })
 }
 
-/** editSpace POST /api/space/edit */
+/** 此处后端没有提供注释 POST /space/edit */
 export async function editSpaceUsingPost(
   body: API.SpaceEditRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/space/edit', {
+  return request<API.BaseResponseBoolean>('/space/edit', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -47,13 +47,13 @@ export async function editSpaceUsingPost(
   })
 }
 
-/** getSpaceById GET /api/space/get */
+/** 此处后端没有提供注释 GET /space/get */
 export async function getSpaceByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getSpaceByIdUsingGETParams,
+  params: API.getSpaceByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseSpace_>('/api/space/get', {
+  return request<API.BaseResponseSpace>('/space/get', {
     method: 'GET',
     params: {
       ...params,
@@ -62,13 +62,13 @@ export async function getSpaceByIdUsingGet(
   })
 }
 
-/** getSpaceVOById GET /api/space/get/vo */
+/** 此处后端没有提供注释 GET /space/get/vo */
 export async function getSpaceVoByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getSpaceVOByIdUsingGETParams,
+  params: API.getSpaceVoByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseSpaceVO_>('/api/space/get/vo', {
+  return request<API.BaseResponseSpaceVO>('/space/get/vo', {
     method: 'GET',
     params: {
       ...params,
@@ -77,20 +77,20 @@ export async function getSpaceVoByIdUsingGet(
   })
 }
 
-/** listSpaceLevel GET /api/space/list/level */
+/** 此处后端没有提供注释 GET /space/list/level */
 export async function listSpaceLevelUsingGet(options?: { [key: string]: any }) {
-  return request<API.BaseResponseListSpaceLevel_>('/api/space/list/level', {
+  return request<API.BaseResponseListSpaceLevel>('/space/list/level', {
     method: 'GET',
     ...(options || {}),
   })
 }
 
-/** listSpaceByPage POST /api/space/list/page */
+/** 此处后端没有提供注释 POST /space/list/page */
 export async function listSpaceByPageUsingPost(
   body: API.SpaceQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePageSpace_>('/api/space/list/page', {
+  return request<API.BaseResponsePageSpace>('/space/list/page', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -100,12 +100,12 @@ export async function listSpaceByPageUsingPost(
   })
 }
 
-/** listSpaceVOByPage POST /api/space/list/page/vo */
+/** 此处后端没有提供注释 POST /space/list/page/vo */
 export async function listSpaceVoByPageUsingPost(
   body: API.SpaceQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePageSpaceVO_>('/api/space/list/page/vo', {
+  return request<API.BaseResponsePageSpaceVO>('/space/list/page/vo', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -115,12 +115,12 @@ export async function listSpaceVoByPageUsingPost(
   })
 }
 
-/** updateSpace POST /api/space/update */
+/** 此处后端没有提供注释 POST /space/update */
 export async function updateSpaceUsingPost(
   body: API.SpaceUpdateRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/space/update', {
+  return request<API.BaseResponseBoolean>('/space/update', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

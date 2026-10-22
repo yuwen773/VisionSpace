@@ -61,7 +61,7 @@ const pictureStats = ref<API.UserPictureStatsResponse>({
   reviewPassRate: 0
 })
 
-const recentPictures = ref<API.RecentPictureVO[]>([])
+const recentPictures = ref<API.PictureVO[]>([])
 const loading = ref(false)
 
 const loadData = async () => {
@@ -69,7 +69,7 @@ const loadData = async () => {
   try {
     const [statsRes, picturesRes] = await Promise.all([
       getUserPictureStatsUsingGet(),
-      getUserRecentPicturesUsingGet(6)
+      getUserRecentPicturesUsingGet({ count: 6 })
     ])
     if (statsRes.data.code === 0) {
       pictureStats.value = statsRes.data.data ?? pictureStats.value

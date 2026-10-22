@@ -29,6 +29,16 @@ export function lerp(a: number, b: number, t: number): number {
   return (1 - t) * a + t * b;
 }
 
+/**
+ * 把路由参数（可能是 string）转换为后端 Long 类型所需的 number。
+ * 无效输入返回 undefined，便于直接作为可选参数传递。
+ */
+export function toId(value: number | string | null | undefined): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max);
 }

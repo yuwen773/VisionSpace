@@ -2,12 +2,12 @@
 /* eslint-disable */
 import request from '@/request'
 
-/** addSpaceUser POST /api/spaceUser/add */
+/** 此处后端没有提供注释 POST /spaceUser/add */
 export async function addSpaceUserUsingPost(
   body: API.SpaceUserAddRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseLong_>('/api/spaceUser/add', {
+  return request<API.BaseResponseLong>('/spaceUser/add', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -17,12 +17,12 @@ export async function addSpaceUserUsingPost(
   })
 }
 
-/** deleteSpaceUser POST /api/spaceUser/delete */
+/** 此处后端没有提供注释 POST /spaceUser/delete */
 export async function deleteSpaceUserUsingPost(
   body: API.DeleteRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/spaceUser/delete', {
+  return request<API.BaseResponseBoolean>('/spaceUser/delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -32,12 +32,12 @@ export async function deleteSpaceUserUsingPost(
   })
 }
 
-/** editSpaceUser POST /api/spaceUser/edit */
+/** 此处后端没有提供注释 POST /spaceUser/edit */
 export async function editSpaceUserUsingPost(
   body: API.SpaceUserEditRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/spaceUser/edit', {
+  return request<API.BaseResponseBoolean>('/spaceUser/edit', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -47,12 +47,12 @@ export async function editSpaceUserUsingPost(
   })
 }
 
-/** getSpaceUser POST /api/spaceUser/get */
+/** 此处后端没有提供注释 POST /spaceUser/get */
 export async function getSpaceUserUsingPost(
   body: API.SpaceUserQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseSpaceUser_>('/api/spaceUser/get', {
+  return request<API.BaseResponseSpaceUser>('/spaceUser/get', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -62,12 +62,12 @@ export async function getSpaceUserUsingPost(
   })
 }
 
-/** listSpaceUser POST /api/spaceUser/list */
+/** 此处后端没有提供注释 POST /spaceUser/list */
 export async function listSpaceUserUsingPost(
   body: API.SpaceUserQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseListSpaceUserVO_>('/api/spaceUser/list', {
+  return request<API.BaseResponseListSpaceUserVO>('/spaceUser/list', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -77,9 +77,9 @@ export async function listSpaceUserUsingPost(
   })
 }
 
-/** listMyTeamSpace POST /api/spaceUser/list/my */
+/** 此处后端没有提供注释 POST /spaceUser/list/my */
 export async function listMyTeamSpaceUsingPost(options?: { [key: string]: any }) {
-  return request<API.BaseResponseListSpaceUserVO_>('/api/spaceUser/list/my', {
+  return request<API.BaseResponseListSpaceUserVO>('/spaceUser/list/my', {
     method: 'POST',
     ...(options || {}),
   })

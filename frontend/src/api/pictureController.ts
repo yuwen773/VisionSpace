@@ -2,12 +2,12 @@
 /* eslint-disable */
 import request from '@/request'
 
-/** deletePicture POST /api/picture/delete */
+/** 此处后端没有提供注释 POST /picture/delete */
 export async function deletePictureUsingPost(
   body: API.DeleteRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/picture/delete', {
+  return request<API.BaseResponseBoolean>('/picture/delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -17,12 +17,12 @@ export async function deletePictureUsingPost(
   })
 }
 
-/** editPicture POST /api/picture/edit */
+/** 此处后端没有提供注释 POST /picture/edit */
 export async function editPictureUsingPost(
   body: API.PictureEditRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/picture/edit', {
+  return request<API.BaseResponseBoolean>('/picture/edit', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -32,12 +32,12 @@ export async function editPictureUsingPost(
   })
 }
 
-/** editPictureByBatch POST /api/picture/edit/batch */
+/** 此处后端没有提供注释 POST /picture/edit/batch */
 export async function editPictureByBatchUsingPost(
   body: API.PictureEditByBatchRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/picture/edit/batch', {
+  return request<API.BaseResponseBoolean>('/picture/edit/batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -47,13 +47,13 @@ export async function editPictureByBatchUsingPost(
   })
 }
 
-/** getPictureById GET /api/picture/get */
+/** 此处后端没有提供注释 GET /picture/get */
 export async function getPictureByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getPictureByIdUsingGETParams,
+  params: API.getPictureByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePicture_>('/api/picture/get', {
+  return request<API.BaseResponsePicture>('/picture/get', {
     method: 'GET',
     params: {
       ...params,
@@ -62,13 +62,13 @@ export async function getPictureByIdUsingGet(
   })
 }
 
-/** getPictureVOById GET /api/picture/get/vo */
+/** 此处后端没有提供注释 GET /picture/get/vo */
 export async function getPictureVoByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getPictureVOByIdUsingGETParams,
+  params: API.getPictureVoByIdUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePictureVO_>('/api/picture/get/vo', {
+  return request<API.BaseResponsePictureVO>('/picture/get/vo', {
     method: 'GET',
     params: {
       ...params,
@@ -77,12 +77,12 @@ export async function getPictureVoByIdUsingGet(
   })
 }
 
-/** listPictureByPage POST /api/picture/list/page */
+/** 此处后端没有提供注释 POST /picture/list/page */
 export async function listPictureByPageUsingPost(
   body: API.PictureQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePagePicture_>('/api/picture/list/page', {
+  return request<API.BaseResponsePagePicture>('/picture/list/page', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,12 +92,12 @@ export async function listPictureByPageUsingPost(
   })
 }
 
-/** listPictureVOByPage POST /api/picture/list/page/vo */
+/** 此处后端没有提供注释 POST /picture/list/page/vo */
 export async function listPictureVoByPageUsingPost(
   body: API.PictureQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePagePictureVO_>('/api/picture/list/page/vo', {
+  return request<API.BaseResponsePagePictureVO>('/picture/list/page/vo', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -107,12 +107,12 @@ export async function listPictureVoByPageUsingPost(
   })
 }
 
-/** listPictureVOByPageWithCache POST /api/picture/list/page/vo/cache */
+/** 此处后端没有提供注释 POST /picture/list/page/vo/cache */
 export async function listPictureVoByPageWithCacheUsingPost(
   body: API.PictureQueryRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePagePictureVO_>('/api/picture/list/page/vo/cache', {
+  return request<API.BaseResponsePagePictureVO>('/picture/list/page/vo/cache', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -122,13 +122,13 @@ export async function listPictureVoByPageWithCacheUsingPost(
   })
 }
 
-/** createPictureOutPaintingTask POST /api/picture/out_painting/create_task */
+/** 此处后端没有提供注释 POST /picture/out_painting/create_task */
 export async function createPictureOutPaintingTaskUsingPost(
   body: API.CreatePictureOutPaintingTaskRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseCreateOutPaintingTaskResponse_>(
-    '/api/picture/out_painting/create_task',
+  return request<API.BaseResponseCreateOutPaintingTaskResponse>(
+    '/picture/out_painting/create_task',
     {
       method: 'POST',
       headers: {
@@ -140,30 +140,27 @@ export async function createPictureOutPaintingTaskUsingPost(
   )
 }
 
-/** getPictureOutPaintingTask GET /api/picture/out_painting/get_task */
+/** 此处后端没有提供注释 GET /picture/out_painting/get_task */
 export async function getPictureOutPaintingTaskUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getPictureOutPaintingTaskUsingGETParams,
+  params: API.getPictureOutPaintingTaskUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseGetOutPaintingTaskResponse_>(
-    '/api/picture/out_painting/get_task',
-    {
-      method: 'GET',
-      params: {
-        ...params,
-      },
-      ...(options || {}),
-    }
-  )
+  return request<API.BaseResponseGetOutPaintingTaskResponse>('/picture/out_painting/get_task', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
 }
 
-/** doPictureReview POST /api/picture/review */
+/** 此处后端没有提供注释 POST /picture/review */
 export async function doPictureReviewUsingPost(
   body: API.PictureReviewRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/picture/review', {
+  return request<API.BaseResponseBoolean>('/picture/review', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -173,12 +170,12 @@ export async function doPictureReviewUsingPost(
   })
 }
 
-/** searchPictureByColor POST /api/picture/search/color */
+/** 此处后端没有提供注释 POST /picture/search/color */
 export async function searchPictureByColorUsingPost(
   body: API.SearchPictureByColorRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseListPictureVO_>('/api/picture/search/color', {
+  return request<API.BaseResponseListPictureVO>('/picture/search/color', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -188,12 +185,12 @@ export async function searchPictureByColorUsingPost(
   })
 }
 
-/** searchPictureByPicture POST /api/picture/search/picture */
+/** 此处后端没有提供注释 POST /picture/search/picture */
 export async function searchPictureByPictureUsingPost(
   body: API.SearchPictureByPictureRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseListImageSearchResult_>('/api/picture/search/picture', {
+  return request<API.BaseResponseListImageSearchResult>('/picture/search/picture', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -203,20 +200,20 @@ export async function searchPictureByPictureUsingPost(
   })
 }
 
-/** listPictureTagCategory GET /api/picture/tag_category */
+/** 此处后端没有提供注释 GET /picture/tag_category */
 export async function listPictureTagCategoryUsingGet(options?: { [key: string]: any }) {
-  return request<API.BaseResponsePictureTagCategory_>('/api/picture/tag_category', {
+  return request<API.BaseResponsePictureTagCategory>('/picture/tag_category', {
     method: 'GET',
     ...(options || {}),
   })
 }
 
-/** updatePicture POST /api/picture/update */
+/** 此处后端没有提供注释 POST /picture/update */
 export async function updatePictureUsingPost(
   body: API.PictureUpdateRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>('/api/picture/update', {
+  return request<API.BaseResponseBoolean>('/picture/update', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -226,11 +223,11 @@ export async function updatePictureUsingPost(
   })
 }
 
-/** uploadPicture POST /api/picture/upload */
+/** 此处后端没有提供注释 POST /picture/upload */
 export async function uploadPictureUsingPost(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.uploadPictureUsingPOSTParams,
-  body: {},
+  body: {
+    pictureUploadRequest?: API.PictureUploadRequest
+  },
   file?: File,
   options?: { [key: string]: any }
 ) {
@@ -256,22 +253,20 @@ export async function uploadPictureUsingPost(
     }
   })
 
-  return request<API.BaseResponsePictureVO_>('/api/picture/upload', {
+  return request<API.BaseResponsePictureVO>('/picture/upload', {
     method: 'POST',
-    params: {
-      ...params,
-    },
     data: formData,
+    requestType: 'form',
     ...(options || {}),
   })
 }
 
-/** uploadPictureByBatch POST /api/picture/upload/batch */
+/** 此处后端没有提供注释 POST /picture/upload/batch */
 export async function uploadPictureByBatchUsingPost(
   body: API.PictureUploadByBatchRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseInt_>('/api/picture/upload/batch', {
+  return request<API.BaseResponseInteger>('/picture/upload/batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -281,12 +276,12 @@ export async function uploadPictureByBatchUsingPost(
   })
 }
 
-/** uploadPictureByUrl POST /api/picture/upload/url */
+/** 此处后端没有提供注释 POST /picture/upload/url */
 export async function uploadPictureByUrlUsingPost(
   body: API.PictureUploadRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponsePictureVO_>('/api/picture/upload/url', {
+  return request<API.BaseResponsePictureVO>('/picture/upload/url', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

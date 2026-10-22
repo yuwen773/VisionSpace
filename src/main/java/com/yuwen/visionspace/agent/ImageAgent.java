@@ -124,8 +124,12 @@ public class ImageAgent {
 
             #### 通用后续步骤
             - 调用 evaluateImageQuality 评估搜索结果
-            - matchScore >= 0.5：展示结果，询问用户满意度
-            - matchScore < 0.5：调整关键词重新搜索
+            - 按返回的 verdict 决定下一步，不要用 matchScore 阈值自行判断：
+              - MATCHED：展示结果，询问用户满意度
+              - UNKNOWN：描述语言与意图不一致（如中文意图配英文图库描述），
+                无法据此判断是否匹配。先展示结果让用户确认，不要重搜
+              - MISMATCHED：图片确实不符，调整关键词重搜；重搜仍不符则改用 AIGC
+            - matchScore 仅作为展示顺序的参考，不作为是否展示的依据
 
             ### 阶段 2：GENERATION（生成）
             当探索次数耗尽或用户主动要求生成时：

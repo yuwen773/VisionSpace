@@ -205,6 +205,7 @@ import {
   editSpaceUserUsingPost,
   listSpaceUserUsingPost,
 } from '@/api/spaceUserController.ts'
+import { toId } from '@/utils'
 
 // 权限映射
 const PERMISSION_MAP: Record<string, string> = {
@@ -295,7 +296,7 @@ const fetchData = async () => {
   if (!props.spaceId) return
   loading.value = true
   try {
-    const res = await listSpaceUserUsingPost({ spaceId: props.spaceId })
+    const res = await listSpaceUserUsingPost({ spaceId: toId(props.spaceId) })
     if (res.data.code === 0) {
       dataList.value = res.data.data ?? []
     } else {
@@ -321,7 +322,7 @@ const handleSubmit = async () => {
   try {
     const res = await addSpaceUserUsingPost({
       ...formData,
-      spaceId: spaceId,
+      spaceId: toId(spaceId),
     })
     if (res.data.code === 0) {
       message.success('成员添加成功')

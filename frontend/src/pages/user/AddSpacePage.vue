@@ -178,7 +178,7 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                         </svg>
-                        {{ formatSize(level.maxSize) }}
+                        {{ formatSize(level.maxSize ?? 0) }}
                       </span>
                       <span class="stat">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -235,6 +235,7 @@ import {
   SPACE_TYPE_ENUM,
 } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
+import { toId } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -243,7 +244,10 @@ const loading = ref<boolean>(false)
 const space = ref<API.SpaceVO>()
 const spaceLevelList = ref<API.SpaceLevel[]>([])
 
-const spaceForm = reactive<API.SpaceAddRequest | API.SpaceEditRequest>({})
+// 新增走 SpaceAddRequest，编辑走 SpaceEditRequest；表单字段取两者并集，
+// 提交时再按模式分别发送。
+type SpaceForm = API.SpaceAddRequest & { id?: number }
+const spaceForm = reactive<SpaceForm>({})
 
 const titleWords = ['创建', '你的', '空间']
 
@@ -276,7 +280,7 @@ const getOldSpace = async () => {
   const id = route.query?.id
   if (id) {
     try {
-      const res = await getSpaceVoByIdUsingGet({ id })
+      const res = await getSpaceVoByIdUsingGet({ id: toId(id as string) as number })
       if (res.data.code === 0 && res.data.data) {
         const data = res.data.data
         space.value = data
@@ -307,7 +311,8 @@ const spaceType = computed(() => {
   return SPACE_TYPE_ENUM.PRIVATE
 })
 
-const selectLevel = (level: number) => {
+const selectLevel = (level?: number) => {
+  if (level === undefined) return
   spaceForm.spaceLevel = level
 }
 

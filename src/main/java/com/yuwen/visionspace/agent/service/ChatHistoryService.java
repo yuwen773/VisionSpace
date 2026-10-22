@@ -10,10 +10,6 @@ import com.yuwen.visionspace.model.entity.AgentMessage;
 import com.yuwen.visionspace.model.entity.AgentSession;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
@@ -120,34 +116,20 @@ public class ChatHistoryService {
     // ==================== 查询加载 ====================
 
     /**
-     * 加载最近的对话消息（用于 Agent 恢复上下文）
-     */
-    public List<Message> loadRecentMessages(String sessionId, int limit) {
-        List<AgentMessage> entities =
-                messageMapper.selectBySessionIdOrderByTimeASC(sessionId, limit);
-
-        return entities.stream()
-                .filter(e -> "USER".equals(e.getRole())
-                        || ("ASSISTANT".equals(e.getRole()) && "text".equals(e.getSubType())))
-                .map(this::toSpringAIMessage)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * 分页加载聊天历史
+     * 分页加载聊天历史。
+     * <p>
+     * 每次取「比游标更早的最近 limit 条」（SQL 层倒序），再翻转为正序返回，
+     * 保证 {@code messages} 始终按时间从旧到新排列，同时 {@code hasMore}/{@code nextCursor}
+     * 在各页之间语义一致：nextCursor 是本页最旧一条消息的 id，下一页从它继续往前取。
      */
     public ChatHistoryVO loadHistory(String sessionId, Long beforeId, int limit) {
-        List<AgentMessage> entities;
-        if (beforeId == null) {
-            // 首次加载：正序（最老的消息在前）
-            entities = messageMapper.selectBySessionIdOrderByTimeASC(sessionId, limit);
-        } else {
-            // 向上滚动加载更多：倒序分页
-            entities = messageMapper.selectByCursor(sessionId, beforeId, limit);
-        }
+        // 倒序取最近的一页，再翻转成正序用于展示（reversed() 是视图，不复制）
+        List<AgentMessage> entities =
+                messageMapper.selectByCursor(sessionId, beforeId, limit).reversed();
 
         boolean hasMore = entities.size() == limit;
-        Long nextCursor = hasMore ? entities.get(entities.size() - 1).getId() : null;
+        // 翻转后首元素即本页最旧的消息
+        Long nextCursor = hasMore ? entities.get(0).getId() : null;
 
         List<MessageVO> vos = entities.stream()
                 .map(this::toMessageVO)
@@ -222,15 +204,6 @@ public class ChatHistoryService {
         message.setContent(content);
         message.setCreatedTime(new Date());
         return message;
-    }
-
-    private Message toSpringAIMessage(AgentMessage entity) {
-        return switch (entity.getRole()) {
-            case "USER" -> new UserMessage(entity.getContent());
-            case "ASSISTANT" -> new AssistantMessage(entity.getContent());
-            case "SYSTEM" -> new SystemMessage(entity.getContent());
-            default -> new AssistantMessage(entity.getContent());
-        };
     }
 
     private MessageVO toMessageVO(AgentMessage entity) {

@@ -1,46 +1,56 @@
 /**
- * Type declarations for mxGraph (loaded via script tag)
+ * Type declarations for mxGraph (loaded via CDN script tag, see index.html)
  */
 
-declare namespace window {
-  const mxClient: {
-    run: (callback: () => void) => void
-    VERSION: string
-    IS_IE: boolean
-    IS_NS: boolean
-    IS_OP: boolean
-    IS_FF: boolean
-    IS_SF: boolean
-    IS_CHROME: boolean
-    IS_OT: boolean
-  }
+interface MxGraphInstance {
+  setEnabled(enabled: boolean): void
+  setCellsEditable(editable: boolean): void
+  getModel(): MxGraphModel
+  refresh(): void
+}
 
-  const mxGraph: {
-    new (container: HTMLElement): mxGraphInstance
-  }
+interface MxGraphModel {
+  // model methods
+  [key: string]: unknown
+}
 
-  interface mxGraphInstance {
-    setEnabled(enabled: boolean): void
-    setCellsEditable(editable: boolean): void
-    getModel(): mxGraphModel
-    refresh(): void
-  }
+interface MxCodecInstance {
+  decode(doc: Node | Document | XMLDocument, model: MxGraphModel): void
+}
 
-  interface mxGraphModel {
-    // model methods
-  }
+interface MxClient {
+  run: (callback: () => void) => void
+  VERSION: string
+  IS_IE: boolean
+  IS_NS: boolean
+  IS_OP: boolean
+  IS_FF: boolean
+  IS_SF: boolean
+  IS_CHROME: boolean
+  IS_OT: boolean
+}
 
-  const mxCodec: {
-    new (): mxCodecInstance
-    decode(doc: Document | XMLDocument, model: mxGraphModel): void
-  }
+interface MxGraphConstructor {
+  new (container: HTMLElement): MxGraphInstance
+}
 
-  interface mxCodecInstance {
-    decode(doc: Document | XMLDocument, model: mxGraphModel): void
-  }
+interface MxCodecConstructor {
+  new (): MxCodecInstance
+  decode(doc: Node | Document | XMLDocument, model: MxGraphModel): void
+}
 
-  const mxUtils: {
-    parseXmlString(xml: string): XMLDocument
-    getOuterHtml(node: Node): string
+interface MxUtils {
+  parseXmlString(xml: string): XMLDocument
+  getOuterHtml(node: Node): string
+}
+
+declare global {
+  interface Window {
+    mxClient?: MxClient
+    mxGraph?: MxGraphConstructor
+    mxCodec?: MxCodecConstructor
+    mxUtils?: MxUtils
   }
 }
+
+export {}

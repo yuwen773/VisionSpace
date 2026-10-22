@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { listMcpServers, createMcpServer, updateMcpServer, deleteMcpServer } from '@/api/mcpController'
+import { listMcpServers, createMcpServer, updateMcpServer, deleteMcpServer } from '@/api-custom/mcp'
 import McpServerForm from './McpServerForm.vue'
 import type { McpServerVO, McpServerFormData } from '@/types/mcp'
 import { getServerTypeLabel } from '@/types/mcp'
