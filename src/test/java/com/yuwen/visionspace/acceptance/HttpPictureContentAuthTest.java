@@ -436,7 +436,8 @@ class HttpPictureContentAuthTest {
         var response = client.send(HttpRequest.newBuilder(uri(path))
                         .timeout(Duration.ofSeconds(10))
                         .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                        .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),
+                        .header(CsrfToken.HEADER, CsrfToken.of(client))
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),
                 HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode(), response.body());
         return json.readTree(response.body());
@@ -454,6 +455,7 @@ class HttpPictureContentAuthTest {
     private JsonNode post(HttpClient client, String path, Map<String, ?> body) throws Exception {
         return json.readTree(send(client, HttpRequest.newBuilder(uri(path))
                 .header("Content-Type", "application/json")
+                .header(CsrfToken.HEADER, CsrfToken.of(client))
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build()).body());
     }
 

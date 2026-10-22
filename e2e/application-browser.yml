@@ -1,0 +1,75 @@
+# 浏览器验收专用配置。
+#
+# 只用于 scripts/browser-acceptance.ps1 启动的隔离实例：数据库、Redis 与端口
+# 全部由该脚本通过命令行参数注入，不读取 application-local.yml 或 .env。
+# 这里保留与验收后端一致的外部依赖替身值，避免启动时访问真实服务。
+server:
+  address: 127.0.0.1
+  # 同生产：验收入口由本地 nginx 形状的代理终止 TLS 后转发 http
+  forward-headers-strategy: framework
+  servlet:
+    context-path: /api
+    session:
+      cookie:
+        same-site: strict
+
+# 浏览器验收入口是 https（自签证书），与生产一致
+sa-token:
+  cookie:
+    secure: true
+
+spring:
+  application:
+    name: visionspace-browser-acceptance
+  session:
+    store-type: redis
+    timeout: 300
+    redis:
+      namespace: browser:session
+  servlet:
+    multipart:
+      max-file-size: 10MB
+  ai:
+    openai:
+      api-key: acceptance-dummy
+      base-url: http://127.0.0.1:9
+      chat:
+        base-url: http://127.0.0.1:9
+        options:
+          model: acceptance-model
+    dashscope:
+      api-key: acceptance-dummy
+      base-url: http://127.0.0.1:9
+    mcp:
+      client:
+        enabled: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+  global-config:
+    db-config:
+      logic-delete-field: isDelete
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+vision-space:
+  security:
+    default-password: acceptance-only
+    # 浏览器验收里每次登录都要跑一次摘要，使用低成本避免拖长用例
+    password-bcrypt-cost: 4
+  web:
+    trusted-origins: "${VS_BROWSER_TRUSTED_ORIGINS:}"
+    csrf-enabled: true
+  pexels:
+    api-key: acceptance-dummy
+  vision-recognition:
+    api-key: acceptance-dummy
+    base-url: http://127.0.0.1:9
+    model: acceptance-model
+aliYunAi:
+  apiKey: acceptance-dummy
+
+logging:
+  level:
+    root: WARN

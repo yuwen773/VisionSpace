@@ -6,7 +6,7 @@ describe('shared request instance', () => {
   it('preserves credentials, JSON binding and the response for business errors', async () => {
     const adapter: AxiosAdapter = async (config) => {
       expect(config.withCredentials).toBe(true)
-      expect(config.baseURL).toBe(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081')
+      expect(config.baseURL).toBe((import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''))
       expect(config.url).toBe('/api/picture/delete')
       expect(config.data).toBe('{"id":"87001"}')
       expect(config).not.toHaveProperty('requestType')

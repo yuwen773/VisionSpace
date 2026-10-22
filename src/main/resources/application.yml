@@ -1,17 +1,42 @@
 server:
   port: 8081
+  # 反向代理透传的入口信息必须被框架采用：否则 TLS 在 nginx 终止后，
+  # 框架看到的仍是 http，会把本站的 https 请求误判成跨站并直接拒绝。
+  # 必须用 framework（ForwardedHeaderFilter）：native 只还原协议不还原主机，
+  # 主机对不上依然判为跨站。
+  forward-headers-strategy: framework
   servlet:
     context-path: /api
     # cookie 30 天过期
     session:
       cookie:
         max-age: 2592000
+## Sa-Token 令牌 Cookie
+# Sa-Token 默认不给令牌 Cookie 加 Secure，HTTPS 入口下浏览器仍会明文回传。
+# 生产入口统一为 HTTPS，所以默认开启；只有明文 http 的隔离验收才临时关闭。
+sa-token:
+  cookie:
+    secure: ${VISION_SPACE_COOKIE_SECURE:true}
+    http-only: true
+    same-site: strict
 ## 项目自定义配置
 vision-space:
   # 安全配置
   security:
     # 创建用户时使用的初始密码。生产必须通过环境变量注入，不提供默认值。
     default-password: ${VISION_SPACE_DEFAULT_PASSWORD:}
+    # 新密码摘要的 BCrypt 成本因子；登录时发现更低成本的摘要会逐次升级
+    password-bcrypt-cost: ${VISION_SPACE_PASSWORD_COST:12}
+  # 浏览器入口：可信跨站来源与 CSRF 防护
+  web:
+    # 允许携带 Cookie 调用的跨站来源（协议 + 主机 + 端口）。同源请求不受限制。
+    trusted-origins: ${VISION_SPACE_TRUSTED_ORIGINS:http://localhost:5173}
+    # 对外入口说明，仅用于部署排障，不参与鉴权
+    public-origin: ${VISION_SPACE_PUBLIC_ORIGIN:}
+    csrf-enabled: ${VISION_SPACE_CSRF_ENABLED:true}
+    csrf-cookie-name: VS_CSRF
+    csrf-header-name: X-CSRF-Token
+    csrf-token-max-age: 7200
   # 阿里云 AI 配置
   aliyun-ai:
     base-url: "https://dashscope.aliyuncs.com/api/v1"
@@ -100,6 +125,9 @@ spring:
     store-type: redis
     # session 30 天后过期
     timeout: 2592000
+    cookie:
+      # 站点通过同源入口访问，跨站请求本来就不该携带会话
+      same-site: strict
   # 开放更大的文件上传体积
   servlet:
     multipart:

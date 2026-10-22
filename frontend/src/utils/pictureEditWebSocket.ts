@@ -1,3 +1,5 @@
+import { webSocketUrl } from '@/apiOrigin'
+
 export default class PictureEditWebSocket {
   private pictureId: number
   private socket: WebSocket | null
@@ -11,14 +13,12 @@ export default class PictureEditWebSocket {
 
   /**
    * 初始化 WebSocket 连接
+   *
+   * 地址由当前页面来源推导：https 页面得到 wss，与 REST/SSE 共用同一入口，
+   * 不再保留硬编码的公网地址，也不会在生产出现混合内容。
    */
   connect() {
-    const DEV_BASE_URL = "ws://localhost:8081";
-    // 线上地址
-    const PROD_BASE_URL = "ws://8.163.10.130";
-
-
-    const url = `${PROD_BASE_URL}/api/ws/picture/edit?pictureId=${this.pictureId}`
+    const url = webSocketUrl(`/api/ws/picture/edit?pictureId=${this.pictureId}`)
     this.socket = new WebSocket(url)
 
     // 设置携带 cookie

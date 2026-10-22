@@ -31,9 +31,23 @@ spring:
       api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
 aliYunAi:
   apiKey: ${ALI_YUN_AI_API_KEY:}
+sa-token:
+  cookie:
+    # 生产入口必须是 HTTPS：令牌 Cookie 不允许在明文链路上回传
+    secure: true
+    http-only: true
+    same-site: strict
 vision-space:
   security:
     default-password: ${VISION_SPACE_DEFAULT_PASSWORD:}
+    # 新摘要成本；存量低成本摘要会在成功登录后逐次升级
+    password-bcrypt-cost: ${VISION_SPACE_PASSWORD_COST:12}
+  web:
+    # 生产为 HTTPS 同源入口：同源请求不受该列表限制，这里只放行额外的可信来源。
+    # 需要跨站访问时显式列出（含协议），留空表示只信同源。
+    trusted-origins: ${VISION_SPACE_TRUSTED_ORIGINS:}
+    public-origin: ${VISION_SPACE_PUBLIC_ORIGIN:}
+    csrf-enabled: true
   pexels:
     api-key: ${VISION_SPACE_PEXELS_API_KEY:}
   vision-recognition:

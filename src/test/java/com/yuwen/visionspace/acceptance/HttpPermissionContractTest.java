@@ -214,6 +214,7 @@ class HttpPermissionContractTest {
         String payload = json.writeValueAsString(body);
         return send(client, HttpRequest.newBuilder(uri(path)).timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
+                .header(CsrfToken.HEADER, CsrfToken.of(client))
                 .POST(HttpRequest.BodyPublishers.ofString(payload)).build());
     }
 

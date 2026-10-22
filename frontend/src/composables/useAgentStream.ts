@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { uploadAgentImage, deleteAgentImage, type AgentImage } from '@/api-custom/agent'
+import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
 
 export interface MessageDTO {
   messageType: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'reasoning'
@@ -90,8 +91,8 @@ export function useAgentStream() {
     reset()
     abortController = new AbortController()
 
-    const baseUrl = import.meta.env.VITE_APP_API_BASE_URL || 'http://localhost:8081'
-    const url = `${baseUrl}/api/agent/image/chat/stream`
+    // 与 REST/上传共用同一个来源，生产走同源 HTTPS，不会出现混合内容
+    const url = `${API_ROOT}/agent/image/chat/stream`
 
     let assistantMsgIndex = -1
     let reasoningMsgIndex = -1
@@ -112,9 +113,11 @@ export function useAgentStream() {
 
     // 同时接受 JSON：归属或登录校验失败时后端返回的是普通 JSON 错误，
     // 只声明 text/event-stream 会把它变成无法读取的 406。
+    // 流式 POST 属于状态修改：带上双提交 CSRF 令牌。
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       accept: 'text/event-stream, application/json',
+      [CSRF_HEADER]: readCsrfToken(),
     }
     const body = JSON.stringify({
       message,

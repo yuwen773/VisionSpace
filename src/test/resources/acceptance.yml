@@ -1,8 +1,14 @@
 # Standalone test configuration. Never import application-local/prod or .env.
 server:
   address: 127.0.0.1
+  # 与生产一致：反向代理透传的 Host / 协议要还原，否则 TLS 终止后的同源请求会被判成跨站
+  forward-headers-strategy: framework
   servlet:
     context-path: /api
+# 隔离验收使用明文 http：Secure Cookie 不会被客户端回传，这里必须关闭。
+sa-token:
+  cookie:
+    secure: false
 spring:
   main:
     allow-bean-definition-overriding: true
@@ -37,8 +43,14 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 vision-space:
+  # 隔离验收同样走真实的 CSRF 与来源判定，不做放行
+  web:
+    trusted-origins: ""
+    csrf-enabled: true
   security:
     default-password: acceptance-only
+    # 测试用低成本，避免每次登录都付生产级 CPU 代价
+    password-bcrypt-cost: 4
   pexels:
     api-key: acceptance-dummy
   vision-recognition:

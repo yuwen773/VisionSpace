@@ -1,12 +1,13 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { warn } from 'vue'
+import { API_BASE_URL, attachCsrf } from '@/apiOrigin'
+
+export { API_BASE_URL }
 
 /**
- * 后端源站地址。请求实例与页面里的内容入口（/picture/content/...）共用同一个来源，
- * 避免两处各自兜底、生产环境取值不一致。
+ * 后端源站地址。REST、上传、SSE 与 WebSocket 共用 {@link API_BASE_URL}，
+ * 生产默认走同源 `/api`，切换部署入口只需要改反向代理或该环境变量。
  */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
-
 const baseURL = API_BASE_URL
 
 //创建axios实例
@@ -19,8 +20,8 @@ const myAxios = axios.create({
 // 添加请求拦截器
 myAxios.interceptors.request.use(
   function (config) {
-    // 在发送请求之前做些什么
-    return config
+    // 状态修改请求带上双提交 CSRF 令牌
+    return attachCsrf(config)
   },
   function (error) {
     // 对请求错误做些什么
@@ -46,7 +47,7 @@ myAxios.interceptors.response.use(
   },
   function (error) {
     // 超出 2xx 范围的状态码都会触发该函数。
-    // 对响应错误做些什么
+    // 对响应错误做点什么
     return Promise.reject(error)
   },
 )
