@@ -20,6 +20,6 @@ public class PictureStatsBacklogVO {
     /** 反复领取仍失败的事件数 */
     private long stuckCount;
 
-    /** 目标图片已存在性缺失却仍未处理的事件数：冲突清单的一部分 */
+    /** 目标图片已不存在却仍未处理的事件数：冲突清单的一部分 */
     private long orphanCount;
 }
