@@ -55,9 +55,9 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>'
 ```
 
-结果：九个结果分类全部 PASS，退出 0（隔离服务、后端测试与打包、前端安装/类型检查/测试/构建、资源清理）。
+结果：九个结果分类全部 PASS，退出 0（隔离服务、后端测试与打包、前端安装/类型检查/测试/构建、资源清理）。这是修完下列缺陷之后的完整重跑，最终提交 `e1fc6d0` 与之一致。
 
-- 后端 410 条测试全部通过（新增 `HttpAgentAttachmentLifecycleTest` 12 条、`AgentAttachmentMigrationTest` 2 条）。
+- 后端 411 条测试全部通过（新增 `HttpAgentAttachmentLifecycleTest` 12 条、`AgentAttachmentMigrationTest` 2 条）。
 - 前端 16 个测试文件 146 条全部通过（新增 `useAgentStream.spec.ts` 3 条）。
 
 首次运行有 4 条失败，都是实现缺陷而不是断言写错，按下述方向修掉，未放宽断言：
