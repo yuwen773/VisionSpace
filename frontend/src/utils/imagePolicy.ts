@@ -6,23 +6,23 @@
  * 是"不发起这个请求"，所以决定必须在生成标签时做出。
  *
  * 允许的来源由受控部署配置给出（VITE_CSP_IMAGE_HOSTS），不接受内容自述。
- * 这份清单同时用于生成 CSP 的 img-src，两边必须来自同一个解析结果。
+ * 这份清单同时用于生成 CSP 的 img-src，两边必须来自同一个解析结果——
+ * 因此统一走 hostList 的 origin 规范化，而不是各自比较字符串。
  */
 
-import { parseHostList } from './hostList'
+import { isOriginAllowed, isSameOriginReference, parseOriginList } from './hostList'
 
-/** 受控图片主机清单；为空表示不信任任何外部主机。 */
-function allowedHosts(): string[] {
-  return parseHostList(import.meta.env.VITE_CSP_IMAGE_HOSTS as string | undefined).map((h) =>
-    h.toLowerCase(),
-  )
+/** 受控图片源清单（origin 形式）；为空表示不信任任何外部主机。 */
+export function allowedImageOrigins(): string[] {
+  return parseOriginList(import.meta.env.VITE_CSP_IMAGE_HOSTS as string | undefined)
 }
 
 /** 站内相对路径、data 位图与 blob 属于同源/本地资源。 */
 function isLocalImage(src: string): boolean {
   if (!src) return false
-  if (src.startsWith('/') && !src.startsWith('//')) return true
-  if (src.startsWith('./') || src.startsWith('../')) return true
+  // 相对引用（`a.png`、`./a.png`、`/a.png`）由浏览器按当前文档解析，都在同源；
+  // `//host` 与 `/\host` 这类伪装由 isSameOriginReference 一并拒绝。
+  if (isSameOriginReference(src)) return true
   if (/^data:image\/(png|jpeg|jpg|gif|webp);/i.test(src)) return true
   if (src.startsWith('blob:')) return true
   return false
@@ -34,19 +34,9 @@ export function isLoadableImage(src: string): boolean {
   if (!value) return false
   if (isLocalImage(value)) return true
 
-  let url: URL
-  try {
-    url = new URL(
-      value,
-      typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
-    )
-  } catch {
-    return false
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
-
-  // 站内绝对地址同样放行
-  if (typeof window !== 'undefined' && url.origin === window.location.origin) return true
-
-  return allowedHosts().includes(url.hostname.toLowerCase())
+  // 站内绝对地址同样放行；其余必须落在受控清单里（按 origin 比较，
+  // 不能用前缀匹配——`https://example.com.evil.com` 也以站内 origin 开头）
+  const origins = allowedImageOrigins()
+  if (typeof window !== 'undefined') origins.push(window.location.origin)
+  return isOriginAllowed(value, origins)
 }

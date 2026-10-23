@@ -8,7 +8,7 @@
  * 部署脚本不带响应头时，meta 仍然生效（见 README 的部署说明）。
  */
 import type { Plugin } from 'vite'
-import { parseHostList } from './hostList'
+import { normalizeOrigin, parseOriginList } from './hostList'
 
 export type CspOptions = {
   /** 受控 PlantUML 自托管服务地址；留空则不允许任何外部图片目标 */
@@ -39,20 +39,10 @@ const EXISTING_DECOR_IMAGE_ORIGINS = [
   'https://pbs.twimg.com',
 ]
 
-function originOf(raw: string | undefined): string | null {
-  if (!raw) return null
-  try {
-    const u = new URL(raw.trim())
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-    return u.origin
-  } catch {
-    return null
-  }
-}
-
 export function buildCsp(options: CspOptions = {}): string {
-  const plantuml = originOf(options.plantumlServer)
-  const extraImages = parseHostList(options.imageHosts)
+  // 与运行期图片策略共用同一份规范化结果，避免 CSP 放行而渲染阶段不认
+  const plantuml = normalizeOrigin(options.plantumlServer)
+  const extraImages = parseOriginList(options.imageHosts)
 
   const imgSrc = ["'self'", 'data:', 'blob:', ...EXISTING_DECOR_IMAGE_ORIGINS, ...extraImages]
   if (plantuml) imgSrc.push(plantuml)

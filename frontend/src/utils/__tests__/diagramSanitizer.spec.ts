@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeDiagramSvg, resolvePlantUmlUrl, isSafeLinkHref } from '@/utils/diagramSanitizer'
+import {
+  sanitizeDiagramSvg,
+  resolvePlantUmlUrl,
+  isSafeLinkHref,
+  isExternalHref,
+} from '@/utils/diagramSanitizer'
 
 /**
  * 图表产物清理：LLM 输出的 SVG 是不可信输入。
@@ -37,6 +42,89 @@ describe('sanitizeDiagramSvg', () => {
     expect(clean).toContain('<rect')
   })
 
+  it('正常的 style 属性原样保留（不能把内联样式清空）', () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<rect style="fill:red;stroke:blue" width="4" height="4"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(svg)
+
+    // style 属性是声明列表，用样式表解析器处理会整段丢掉
+    expect(clean).toContain('fill:red')
+    expect(clean).toContain('stroke:blue')
+  })
+
+  it('SVG 表现属性上的 url() 同样会取资源，必须一并移除', () => {
+    // fill/filter/mask/clip-path/marker-* 的 url() 在 Chrome 里会真的去取
+    // 外部 SVG 文档；只看 <style> 与 style= 会整片漏掉。
+    const dirty =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<rect width="4" height="4" ' +
+      'fill="url(https://evil.example/paint.svg#p)" ' +
+      'filter="url(https://evil.example/f.svg#f)" ' +
+      'mask="url(https://evil.example/m.svg#m)" ' +
+      'clip-path="url(https://evil.example/c.svg#c)" ' +
+      'marker-start="url(https://evil.example/mk.svg#a)"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(dirty)
+
+    expect(clean).not.toContain('evil.example')
+    // 图形本身还在，只是不再引用外部资源
+    expect(clean).toContain('<rect')
+  })
+
+  it('表现属性里的 CSS 转义 url() 不能绕过', () => {
+    // `u\72l(` 会被浏览器解析成 url()，按字面匹配看不见
+    const dirty =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<rect width="4" height="4" filter="u\\72l(https://evil.example/f.svg#f)"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(dirty)
+
+    expect(clean).not.toContain('evil.example')
+  })
+
+  it('表现属性里的站内引用照常保留', () => {
+    const legit =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<rect width="4" height="4" fill="url(#grad)" filter="url(#blur)"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(legit)
+
+    expect(clean).toContain('url(#grad)')
+    expect(clean).toContain('url(#blur)')
+  })
+
+  it('反斜杠伪装的本地路径不能通过（浏览器把 \\ 当 /）', () => {
+    // `\\evil.example/a.png` 在 URL 解析器里等价于 `//evil.example/a.png`；
+    // 表现属性里的值先经 CSS 转义解码，`\\` 才是一个字面反斜杠，
+    // 所以要写 4 个：`url(\\\\evil…)` 解码后是 `url(/\\evil…)`。
+    const dirty =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<image href="/\\evil.example/a.png"/>' +
+      '<image href="\\\\evil.example/b.png"/>' +
+      '<rect width="4" height="4" fill="url(\\\\\\\\evil.example/c.svg#p)"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(dirty)
+
+    expect(clean).not.toContain('evil.example')
+    expect(clean).toContain('<rect')
+  })
+
+  it('用空白伪装的协议相对地址不能通过（URL 解析器会删掉 tab/LF）', () => {
+    // URL 规范要求解析前删除 ASCII tab/LF/CR：`/\t/host` 归一后就是 `//host`
+    const dirty =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<image href="/\t/evil.example/a.png"/>' +
+      '<image href="/\n/evil.example/b.png"/>' +
+      '<rect width="4" height="4" fill="url(/\t/evil.example/c.svg#p)"/>' +
+      '</svg>'
+    const clean = sanitizeDiagramSvg(dirty)
+
+    expect(clean).not.toContain('evil.example')
+    expect(clean).toContain('<rect')
+  })
+
   it('移除远程样式与 CSS 中的 url() / @import', () => {
     const dirty =
       '<svg xmlns="http://www.w3.org/2000/svg">' +
@@ -58,6 +146,16 @@ describe('sanitizeDiagramSvg', () => {
 
     expect(clean).toContain('src="https://uml.internal.example/svg/abc"')
     expect(clean).toContain('plantuml-diagram')
+  })
+
+  it('受控源清单对 SVG 里的 image 同样生效（不能只认 img 标签）', () => {
+    // draw.io 的 shape=image 产出的是 SVG <image>，不是 HTML <img>；
+    // 受控清单若只作用于后者，配置里信任的图床在图表里就不可用
+    const clean = sanitizeDiagramSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://cdn.internal.example/a.png"/></svg>',
+      { imageOrigins: ['https://cdn.internal.example'] },
+    )
+    expect(clean).toContain('https://cdn.internal.example/a.png')
   })
 
   it('未声明为受控源的 https 图片一律摘掉 src', () => {
@@ -142,6 +240,16 @@ describe('isSafeLinkHref', () => {
     expect(isSafeLinkHref('http://example.com/a')).toBe(true)
     expect(isSafeLinkHref('/picture/1')).toBe(true)
     expect(isSafeLinkHref('#anchor')).toBe(true)
+  })
+
+  it('协议相对地址是站外链接，必须补 rel（isExternalHref 的另一半）', () => {
+    // `//evil.example/a` 指向站外，只是没写协议；
+    // 若不认它是外链，就会以同标签、无 rel 的形式离开站点
+    expect(isExternalHref('//evil.example/a')).toBe(true)
+    expect(isExternalHref('/\t/evil.example/a')).toBe(true)
+    expect(isExternalHref('https://example.com/a')).toBe(true)
+    expect(isExternalHref('/picture/1')).toBe(false)
+    expect(isExternalHref('#anchor')).toBe(false)
   })
 
   it('拒绝脚本与内联文档协议', () => {

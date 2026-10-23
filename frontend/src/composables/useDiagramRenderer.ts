@@ -17,6 +17,7 @@ import {
 } from '@/utils/diagramSanitizer'
 import { DIAGRAM_LANGUAGES } from './useMarkdown'
 import {
+  controlledImageOrigins,
   renderDrawioBlock,
   renderMermaidBlock,
   renderPlantumlBlock,
@@ -82,8 +83,9 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
     deps.plantumlServer ?? (import.meta.env.VITE_PLANTUML_SERVER as string | undefined)
 
   const renderers: Record<DiagramLang, (code: string, containerId: string) => Promise<string>> = {
-    mermaid: (code, id) => renderMermaidBlock(code, id, { load: deps.mermaid?.load }),
-    drawio: (code) => renderDrawioBlock(code, { load: deps.drawio?.load }),
+    mermaid: (code, id) =>
+      renderMermaidBlock(code, id, { load: deps.mermaid?.load, plantumlServer }),
+    drawio: (code) => renderDrawioBlock(code, { load: deps.drawio?.load, plantumlServer }),
     plantuml: (code) => renderPlantumlBlock(code, plantumlServer),
   }
 
@@ -127,9 +129,10 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
       }
 
       // 渲染产物再走一次清理，防止渲染器自身拼出危险内容。
-      // PlantUML 的预览图指向受控服务，是唯一被允许的外部图片源。
+      // 受控图片源与 Markdown 图片策略共用同一份配置，避免"同一张图
+      // 在 Markdown 里能加载、在图表里被摘掉"的不一致。
       rendered = sanitizeDiagramSvg(rendered, {
-        imageOrigins: lang.toLowerCase() === 'plantuml' ? [plantumlServer ?? ''] : [],
+        imageOrigins: controlledImageOrigins(plantumlServer),
       })
 
       const wrapper = document.createElement('div')

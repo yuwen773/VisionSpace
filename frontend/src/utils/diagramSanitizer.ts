@@ -9,6 +9,13 @@
 
 import createDOMPurify from 'dompurify'
 import plantumlEncoder from 'plantuml-encoder'
+import { hasExternalCssUrl, sanitizeCssText, sanitizeInlineStyle } from './cssSafety'
+import {
+  isOriginAllowed,
+  isProtocolRelative,
+  normalizeOrigin,
+  normalizeUrlForPolicy,
+} from './hostList'
 
 type PurifyInstance = ReturnType<typeof createDOMPurify>
 
@@ -49,26 +56,18 @@ export type SanitizeOptions = {
   imageOrigins?: string[]
 }
 
-function originOf(value: string): string | null {
-  try {
-    const u = new URL(value)
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-    return u.origin
-  } catch {
-    return null
-  }
-}
-
 /** 图片地址是否允许：本地引用，或落在受控源清单里。 */
 function isAllowedImageSrc(src: string, imageOrigins: string[]): boolean {
-  const v = src.trim()
+  // 先按 URL 解析器的规则归一（删 tab/LF/CR、`\` 当 `/`），
+  // 否则 `/\t/evil.example/a.png` 会被当成站内路径放行
+  const v = normalizeUrlForPolicy(src).trim()
   if (!v) return false
   // `//host/x` 是协议相对地址，实际会发往外部主机，不能当成本地路径
-  if (v.startsWith('//')) return false
+  if (isProtocolRelative(v)) return false
   if (IMG_SRC_SCHEME.test(v)) return true
   if (!IMG_SRC_ABSOLUTE.test(v)) return false
-  const origin = originOf(v)
-  return !!origin && imageOrigins.includes(origin)
+  // 与 CSP、Markdown 图片策略共用同一份 origin 规范化，避免三处语义漂移
+  return isOriginAllowed(v, imageOrigins)
 }
 
 /**
@@ -76,7 +75,7 @@ function isAllowedImageSrc(src: string, imageOrigins: string[]): boolean {
  * 空值、锚点、相对路径和受限协议视为本地；其它一律拒绝。
  */
 function isLocalResource(value: string): boolean {
-  const v = value.trim()
+  const v = normalizeUrlForPolicy(value).trim()
   if (!v) return true
   if (v.startsWith('#')) return true
   const lower = v.toLowerCase()
@@ -85,17 +84,39 @@ function isLocalResource(value: string): boolean {
     return !lower.startsWith('data:image/svg')
   }
   if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return false // 带协议的绝对地址
-  if (v.startsWith('//')) return false // 协议相对地址
+  if (isProtocolRelative(v)) return false // 协议相对地址（含伪装写法）
   return true
 }
 
-/** CSS 中任何远程 url() 与 @import 都会造成外发。 */
-function stripRemoteCss(css: string): string {
-  return css
-    .replace(/@import[^;]*;?/gi, '')
-    .replace(/url\(\s*(['"]?)([^)'"]*)\1\s*\)/gi, (whole, _q, target: string) =>
-      isLocalResource(target) ? whole : 'none',
-    )
+/**
+ * 表现属性（presentation attribute）里同样可以写 `url()`。
+ *
+ * `fill="url(https://evil.example/p.svg#p)"`、`filter`、`mask`、`clip-path`、
+ * `marker-*`、`cursor`、`stroke` 在浏览器里都会**真的去取**那个资源，
+ * 与 `<style>` / `style=` 走的是同一套加载机制。只清理样式文本会整片漏掉。
+ *
+ * 属性值就是一段 CSS 值，所以复用同一份解析（含转义解码），
+ * 不在清理器里另写一套正则——两套实现迟早会漂移。
+ */
+function stripRemoteUrlAttr(value: string): string | null {
+  return hasExternalCssUrl(value) ? null : value
+}
+
+/**
+ * CSS 中任何远程 url() 与 @import 都会造成外发。
+ * 交给 CSSOM 解析后判定，不用字面正则——`u\72l(...)` 这类转义写法
+ * 会被浏览器解析成 url()，正则看不见，见 cssSafety。
+ *
+ * `<style>` 内容是样式表（有选择器），`style=` 属性是声明列表，
+ * 两者的语法不同，必须走各自的解析入口：拿样式表解析器处理声明列表
+ * 会把正常的内联样式整段丢掉。
+ */
+function stripRemoteStylesheet(css: string): string {
+  return sanitizeCssText(css).css
+}
+
+function stripRemoteInlineStyle(css: string): string {
+  return sanitizeInlineStyle(css).css
 }
 
 /** 兜底：属性里残留的危险协议（DOMPurify 已挡大部分，这里防漏网）。 */
@@ -125,7 +146,7 @@ export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): 
 
   const purifier = getPurify()
   const imageOrigins = (options.imageOrigins ?? [])
-    .map(originOf)
+    .map(normalizeOrigin)
     .filter((o): o is string => o !== null)
 
   // 先剔除 img 上的非法 src，再交给 DOMPurify 做结构清理
@@ -160,9 +181,13 @@ export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): 
       const value = el.getAttribute(attr)
       if (value === null) continue
 
-      // img 的 src 走受控主机清单；其它资源属性只允许本地引用，
-      // 避免 SVG 内部把内容发到任意主机。
-      const isImageSrc = attr === 'src' && el.tagName.toLowerCase() === 'img'
+      // 图片地址走受控主机清单——注意 SVG 的 <image href> 也是图片，
+      // draw.io 的 shape=image 产出的就是它；只认 HTML <img src> 的话，
+      // 配置里信任的图床在图表里就不可用。
+      const tag = el.tagName.toLowerCase()
+      const isImageSrc =
+        (attr === 'src' && tag === 'img') ||
+        ((attr === 'href' || attr === 'xlink:href') && tag === 'image')
       const allowed = isImageSrc ? isAllowedImageSrc(value, imageOrigins) : isLocalResource(value)
       if (!allowed) el.removeAttribute(attr)
     }
@@ -175,13 +200,21 @@ export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): 
     }
 
     if (el.tagName.toLowerCase() === 'style') {
-      el.textContent = stripRemoteCss(el.textContent || '')
+      el.textContent = stripRemoteStylesheet(el.textContent || '')
     }
 
     const style = el.getAttribute('style')
     if (style) {
-      const stripped = stripRemoteCss(style)
+      const stripped = stripRemoteInlineStyle(style)
       if (stripped !== style) el.setAttribute('style', stripped)
+    }
+
+    // 表现属性（fill/filter/mask/clip-path/marker-* 等）的值也是 CSS 值，
+    // 其中的 url() 浏览器同样会去取。整条属性摘掉，而不是只删 url()：
+    // 半截值（`fill="url(#a)"` 变成 `fill=""`）在别的属性上会变成新问题。
+    for (const attr of Array.from(el.attributes)) {
+      if (attr.name === 'style' || RESOURCE_ATTRS.includes(attr.name)) continue
+      if (stripRemoteUrlAttr(attr.value) === null) el.removeAttribute(attr.name)
     }
   }
 
@@ -191,9 +224,15 @@ export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): 
 /** 站外链接统一补的 rel 值：不传 Referer、不给 opener、不传递权重。 */
 export const EXTERNAL_LINK_REL = 'noopener noreferrer nofollow'
 
-/** 是否为站外 http(s) 链接（需要新标签打开并补 rel）。 */
+/**
+ * 是否为站外链接（需要新标签打开并补 rel）。
+ *
+ * 协议相对地址（`//host/a`）同样指向站外，只是没有写协议——
+ * 漏掉它会让链接以同标签、无 rel 的形式离开站点。
+ */
 export function isExternalHref(href: string): boolean {
-  return /^\s*https?:/i.test(href)
+  const v = (href ?? '').trim()
+  return /^https?:/i.test(v) || isProtocolRelative(v)
 }
 
 /**
