@@ -62,6 +62,66 @@ export async function feedbackUsingPost(
   })
 }
 
+/** 此处后端没有提供注释 GET /agent/recovery/${param0} */
+export async function getRecoveryStateUsingGet(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getRecoveryStateUsingGetParams,
+  options?: { [key: string]: any }
+) {
+  const { threadId: param0, ...queryParams } = params
+  return request<API.BaseResponseRecoveryStateVO>(`/agent/recovery/${param0}`, {
+    method: 'GET',
+    params: { ...queryParams },
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 POST /agent/recovery/${param0}/resume */
+export async function resumeUsingPost(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.resumeUsingPostParams,
+  options?: { [key: string]: any }
+) {
+  const { threadId: param0, ...queryParams } = params
+  return request<API.BaseResponseString>(`/agent/recovery/${param0}/resume`, {
+    method: 'POST',
+    params: {
+      ...queryParams,
+    },
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 POST /agent/recovery/action/confirm */
+export async function confirmActionUsingPost(
+  body: API.ActionReviewRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseRecoveryStateVO>('/agent/recovery/action/confirm', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 POST /agent/recovery/action/dismiss */
+export async function dismissActionUsingPost(
+  body: API.ActionReviewRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseRecoveryStateVO>('/agent/recovery/action/dismiss', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /agent/sessions */
 export async function getSessionsUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

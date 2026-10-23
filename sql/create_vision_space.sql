@@ -322,3 +322,54 @@ CREATE TABLE `picture_file` (
   INDEX `idx_platform_key`(`platform`, `objectKey`(191)) USING BTREE,
   INDEX `idx_url`(`url`(191)) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '图片资源记录';
+
+-- ----------------------------
+-- Table structure for agent_run_state (#41)
+-- ----------------------------
+CREATE TABLE `agent_run_state` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `threadId` varchar(64) NOT NULL COMMENT '会话 id',
+  `userId` bigint(20) NOT NULL COMMENT '会话归属用户（读取与恢复的唯一依据）',
+  `stateVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '状态版本，单调递增；写入按它做 CAS',
+  `runEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '执行世代：每次执行开始时递增，迟到旧载荷据此被拒',
+  `stateFormat` varchar(32) NOT NULL COMMENT '状态格式版本，例如 v2-full',
+  `checkpointId` varchar(128) NULL DEFAULT NULL COMMENT '完整恢复点 id',
+  `nodeId` varchar(128) NULL DEFAULT NULL COMMENT '已完成的节点',
+  `nextNodeId` varchar(128) NULL DEFAULT NULL COMMENT '下一步应执行的节点',
+  `statePayload` mediumblob NULL COMMENT '完整状态（gzip 后的序列化数据），不是仅消息',
+  `runStatus` varchar(32) NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/AWAITING_CONFIRMATION/COMPLETED/FAILED/PAUSED_UNRECOVERABLE',
+  `pendingConfirmation` text NULL COMMENT '待人工确认信息（已脱敏）',
+  `mcpServerCodes` text NULL COMMENT '本次执行使用的 MCP 服务 code（JSON 数组，只存 code，不存凭据/地址）',
+  `resumeLease` varchar(64) NULL DEFAULT NULL COMMENT '当前续跑请求的租约凭据，防止重复续跑',
+  `resumeLeaseUntil` datetime NULL DEFAULT NULL COMMENT '续跑租约到期时间；仅用于回收崩溃遗留的租约',
+  `legacyArchiveOnly` tinyint(4) NOT NULL DEFAULT 0 COMMENT '1=仅有旧轻量归档，可查看但不可续跑',
+  `backupError` varchar(255) NULL DEFAULT NULL COMMENT '最近一次备份失败原因（不含正文/秘密）',
+  `backupAttempts` int(11) NOT NULL DEFAULT 0 COMMENT '备份尝试次数',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_thread`(`threadId`) USING BTREE,
+  INDEX `idx_user_status`(`userId`, `runStatus`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 完整执行状态';
+
+-- ----------------------------
+-- Table structure for agent_action_record (#41)
+-- ----------------------------
+CREATE TABLE `agent_action_record` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `threadId` varchar(64) NOT NULL COMMENT '会话 id',
+  `userId` bigint(20) NOT NULL COMMENT '会话归属用户',
+  `actionId` varchar(128) NOT NULL COMMENT '可核对的动作标识（threadId + toolCallId 派生）',
+  `toolName` varchar(128) NOT NULL COMMENT '工具名',
+  `argumentsDigest` varchar(128) NULL DEFAULT NULL COMMENT '参数摘要（sha-256），不保存正文',
+  `status` varchar(32) NOT NULL COMMENT 'EXECUTING/SUCCEEDED/FAILED/UNKNOWN_NEEDS_REVIEW/DISMISSED',
+  `idempotency` varchar(16) NOT NULL DEFAULT 'NOT_PROVEN' COMMENT 'PROVEN 才允许结果未知时重试',
+  `claimToken` varchar(64) NULL DEFAULT NULL COMMENT '本次认领凭据，只有持有者能推进状态',
+  `attempt` int(11) NOT NULL DEFAULT 0 COMMENT '已尝试次数',
+  `resultSummary` varchar(255) NULL DEFAULT NULL COMMENT '结果摘要（截断，不含正文）',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_thread_action`(`threadId`, `actionId`) USING BTREE,
+  INDEX `idx_thread_status`(`threadId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 外部动作台账';

@@ -1,4 +1,10 @@
 declare namespace API {
+  type ActionReviewRequest = {
+    threadId?: string
+    actionId?: string
+    note?: string
+  }
+
   type AdminDashboardStatsVO = {
     userCount?: number
     pictureCount?: number
@@ -240,6 +246,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseRecoveryStateVO = {
+    code?: number
+    data?: RecoveryStateVO
+    message?: string
+  }
+
   type BaseResponseSpace = {
     code?: number
     data?: Space
@@ -415,6 +427,10 @@ declare namespace API {
     page?: number
     size?: number
     context?: string
+  }
+
+  type getRecoveryStateUsingGetParams = {
+    threadId: string
   }
 
   type getSessionsUsingGetParams = {
@@ -799,6 +815,35 @@ declare namespace API {
     picColor?: string
     tags?: string[]
     thumbnailEndpoint?: string
+  }
+
+  type RecoveryActionVO = {
+    actionId?: string
+    toolName?: string
+    status?: string
+    attempt?: number
+    resultSummary?: string
+    updateTime?: string
+  }
+
+  type RecoveryStateVO = {
+    threadId?: string
+    runStatus?: string
+    resumable?: boolean
+    reason?: string
+    stateVersion?: number
+    legacyArchiveOnly?: boolean
+    backupError?: string
+    backupAttempts?: number
+    pendingConfirmation?: string
+    pendingReviewCount?: number
+    activeExecution?: boolean
+    actions?: RecoveryActionVO[]
+  }
+
+  type resumeUsingPostParams = {
+    threadId: string
+    expectedVersion?: number
   }
 
   type SearchPictureByColorRequest = {

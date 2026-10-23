@@ -4,7 +4,14 @@ import { uploadAgentImage, deleteAgentImage, type AgentImage } from '@/api-custo
 import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
 
 export interface MessageDTO {
-  messageType: 'user' | 'assistant' | 'tool-request' | 'tool-response' | 'mcp-confirm' | 'reasoning'
+  messageType:
+    | 'user'
+    | 'assistant'
+    | 'tool-request'
+    | 'tool-response'
+    | 'mcp-confirm'
+    | 'reasoning'
+    | 'action-unknown'
   content?: string
   toolCalls?: any[]
   toolName?: string
@@ -30,6 +37,7 @@ export class AgentStreamError extends Error {
 }
 
 export interface StreamMessage {
+  /** 'action-unknown' 表示外部结果未知，需要用户核对后才能继续 */
   type: string
   content: string
   node: string
@@ -203,6 +211,20 @@ export function useAgentStream() {
                 reasoningMsgIndex = -1
                 streamContent = ''
                 pushMessage({ type: 'mcp-confirm', content: msgDto.content || '', node: 'agent' })
+                break
+
+              // 外部结果未知：与明确失败分开。这里不当作错误重试，
+              // 用户需要先核对动作是否真的发生。
+              case 'action-unknown':
+                assistantMsgIndex = -1
+                reasoningMsgIndex = -1
+                streamContent = ''
+                pushMessage({
+                  type: 'action-unknown',
+                  content: msgDto.content || '',
+                  node: 'agent',
+                  toolName: msgDto.toolName,
+                })
                 break
 
               case 'tool-response': {

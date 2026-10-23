@@ -247,7 +247,10 @@ public class MCPManager {
             // 异常信息可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
             log.error("MCP call failed: serverCode={}, tool={}", entity.getMcpServerCode(),
                     request.getToolName(), e);
+            // 客户端异常 ≠ 服务明确失败：请求可能已送达并产生了外部副作用，
+            // 只是本地没拿到结果。必须保留「结果未知」语义，不能与业务失败混同。
             response.setIsError(true);
+            response.setOutcomeUnknown(true);
             McpServerCallToolResponse.TextContent text = new McpServerCallToolResponse.TextContent();
             text.setType("text");
             text.setText("MCP 工具调用失败，请稍后重试或检查服务配置");

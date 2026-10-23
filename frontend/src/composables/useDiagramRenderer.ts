@@ -1,242 +1,148 @@
 /**
  * 图表渲染 Composable
- * 支持 Mermaid、draw.io XML、PlantUML 三种图表格式的渲染
+ * 支持 Mermaid、draw.io XML、PlantUML 三种图表格式的渲染。
+ *
+ * 安全边界：
+ * - 渲染产物一律先清理再进入 innerHTML（见 diagramRenderers / diagramSanitizer）
+ * - 图表 tab 切换使用组件内事件委托，不注册全局 document 监听，避免泄漏
+ * - PlantUML 只指向受控自托管服务，未配置时展示源码
  */
 
 import { escapeHtml } from '@/utils/jsonHighlight'
+import {
+  EXTERNAL_LINK_REL,
+  isExternalHref,
+  isSafeLinkHref,
+  sanitizeDiagramSvg,
+} from '@/utils/diagramSanitizer'
 import { DIAGRAM_LANGUAGES } from './useMarkdown'
+import {
+  controlledImageOrigins,
+  renderDrawioBlock,
+  renderMermaidBlock,
+  renderPlantumlBlock,
+  type DrawioLoader,
+  type MermaidLoader,
+} from './diagramRenderers'
 
-// 动态导入以减少初始包体积
-let mermaidInstance: (typeof import('mermaid'))['default'] | null = null
-let plantumlEncoderInstance: ((code: string) => string) | null = null
-
-/**
- * 初始化 Mermaid
- */
-async function getMermaid() {
-  if (!mermaidInstance) {
-    const mermaid = (await import('mermaid')).default
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-      fontFamily: 'var(--font-body, inherit)',
-    })
-    mermaidInstance = mermaid
-  }
-  return mermaidInstance
+export type DiagramRendererDeps = {
+  mermaid?: { load?: MermaidLoader }
+  drawio?: { load?: DrawioLoader }
+  /** 受控 PlantUML 自托管服务地址；空值表示未配置 */
+  plantumlServer?: string
 }
 
-/**
- * 获取 PlantUML Encoder
- */
-async function getPlantumlEncoder(): Promise<(code: string) => string> {
-  if (!plantumlEncoderInstance) {
-    const mod = await import('plantuml-encoder')
-    plantumlEncoderInstance = mod.default.encode
-  }
-  return plantumlEncoderInstance
+type DiagramLang = 'mermaid' | 'drawio' | 'plantuml'
+
+function isDiagramLang(lang: string | undefined): lang is DiagramLang {
+  return !!lang && DIAGRAM_LANGUAGES.includes(lang.toLowerCase())
 }
 
-/**
- * 渲染 Mermaid 图表
- */
-async function renderMermaid(code: string, containerId: string): Promise<string> {
-  try {
-    const mermaid = await getMermaid()
-    const { svg } = await mermaid.render(containerId, code.trim())
-    return svg
-  } catch (e) {
-    console.error('Mermaid render error:', e)
-    return `<div class="diagram-error">Mermaid 渲染失败: ${e instanceof Error ? e.message : '未知错误'}</div>`
-  }
-}
-
-/**
- * 渲染 draw.io 图表
- * 使用 mxGraph 从 window.mxClient 获取
- */
-async function renderDrawio(code: string, containerId: string): Promise<string> {
-  // 检查 mxClient 是否可用
-  if (!window.mxClient) {
-    return `<div class="diagram-error">draw.io 渲染库未加载，请刷新页面或检查网络连接</div>`
-  }
-
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.id = containerId
-    container.style.width = '100%'
-    container.style.minHeight = '200px'
-    container.style.backgroundColor = '#ffffff'
-
-    // mxClient.init 需要 DOM 就绪
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      initGraph()
-    } else {
-      window.addEventListener('load', initGraph)
+/** 清理 Markdown 产物里的链接，危险协议与站外链接的处理与渲染期保持同一套规则。 */
+export function sanitizeLinks(root: ParentNode): void {
+  for (const anchor of Array.from(root.querySelectorAll('a[href]'))) {
+    const href = anchor.getAttribute('href') ?? ''
+    if (!isSafeLinkHref(href)) {
+      anchor.removeAttribute('href')
+      anchor.setAttribute('data-blocked-href', '')
+    } else if (isExternalHref(href)) {
+      anchor.setAttribute('rel', EXTERNAL_LINK_REL)
+      anchor.setAttribute('target', '_blank')
     }
-
-    function initGraph() {
-      try {
-        // 创建图表实例
-        const graph = new window.mxGraph!(container)
-
-        // 只读模式
-        graph.setEnabled(false)
-
-        // 解析 XML 并渲染
-        const codec = new window.mxCodec!()
-        const doc = window.mxUtils!.parseXmlString(code)
-        codec.decode(doc.documentElement, graph.getModel())
-
-        // 触发渲染
-        graph.refresh()
-
-        resolve(container.innerHTML)
-      } catch (e) {
-        console.error('mxGraph render error:', e)
-        resolve(`<div class="diagram-error">draw.io 渲染失败: ${e instanceof Error ? e.message : '未知错误'}</div>`)
-      }
-    }
-  })
-}
-
-/**
- * 渲染 PlantUML 图表（通过 plantuml.com 在线服务）
- */
-async function renderPlantuml(code: string): Promise<string> {
-  try {
-    const encoder = await getPlantumlEncoder()
-    const encoded = encoder(code.trim())
-    const url = `https://www.plantuml.com/plantuml/svg/${encoded}`
-    return `<img src="${url}" class="plantuml-diagram" alt="PlantUML Diagram" loading="lazy" />`
-  } catch (e) {
-    console.error('PlantUML render error:', e)
-    return `<div class="diagram-error">PlantUML 渲染失败: ${e instanceof Error ? e.message : '未知错误'}</div>`
   }
 }
 
-/**
- * 图表 tab 切换处理函数（事件委托）
- */
-function handleDiagramTabClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  const tabButton = target.closest('.diagram-tab') as HTMLElement | null
-  if (!tabButton) return
+function buildDiagramMarkup(lang: DiagramLang, rendered: string, code: string): string {
+  return (
+    `<div class="diagram-tabs">` +
+    `<div class="diagram-tabs-left">` +
+    `<button type="button" class="diagram-tab active" data-tab="preview">预览</button>` +
+    `<button type="button" class="diagram-tab" data-tab="code">代码</button>` +
+    `</div>` +
+    `<button type="button" class="copy-btn" data-code>复制</button>` +
+    `</div>` +
+    `<div class="diagram-content" data-lang="${lang}">` +
+    `<div class="diagram-preview">${rendered}</div>` +
+    `<div class="diagram-code"><pre class="code-block"><code>${escapeHtml(code)}</code></pre></div>` +
+    `</div>`
+  )
+}
 
-  const wrapper = tabButton.closest('.diagram-wrapper') as HTMLElement | null
-  if (!wrapper) return
+/** 渲染失败或降级时，让代码面板成为默认可见的那个。 */
+function preferCodePanel(wrapper: HTMLElement): void {
+  const previewPanel = wrapper.querySelector<HTMLElement>('.diagram-preview')
+  const codePanel = wrapper.querySelector<HTMLElement>('.diagram-code')
+  if (previewPanel) previewPanel.style.display = 'none'
+  if (codePanel) codePanel.style.display = 'block'
+  wrapper.querySelector('.diagram-tab[data-tab="preview"]')?.classList.remove('active')
+  wrapper.querySelector('.diagram-tab[data-tab="code"]')?.classList.add('active')
+}
 
-  const tabName = tabButton.dataset.tab as 'preview' | 'code'
-  const previewPanel = wrapper.querySelector('.diagram-preview') as HTMLElement | null
-  const codePanel = wrapper.querySelector('.diagram-code') as HTMLElement | null
-  const previewTab = wrapper.querySelector('.diagram-tab[data-tab="preview"]') as HTMLElement | null
-  const codeTab = wrapper.querySelector('.diagram-tab[data-tab="code"]') as HTMLElement | null
+export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
+  const plantumlServer =
+    deps.plantumlServer ?? (import.meta.env.VITE_PLANTUML_SERVER as string | undefined)
 
-  if (tabName === 'preview') {
-    previewPanel?.style.setProperty('display', 'block')
-    codePanel?.style.setProperty('display', 'none')
-    previewTab?.classList.add('active')
-    codeTab?.classList.remove('active')
-  } else {
-    previewPanel?.style.setProperty('display', 'none')
-    codePanel?.style.setProperty('display', 'block')
-    previewTab?.classList.remove('active')
-    codeTab?.classList.add('active')
+  const renderers: Record<DiagramLang, (code: string, containerId: string) => Promise<string>> = {
+    mermaid: (code, id) =>
+      renderMermaidBlock(code, id, { load: deps.mermaid?.load, plantumlServer }),
+    drawio: (code) => renderDrawioBlock(code, { load: deps.drawio?.load, plantumlServer }),
+    plantuml: (code) => renderPlantumlBlock(code, plantumlServer),
   }
-}
 
-// 标记是否已经绑定过事件
-let isEventListenerBound = false
+  const renderOne = (lang: DiagramLang, code: string, containerId: string) =>
+    renderers[lang](code, containerId)
 
-/**
- * 绑定图表 tab 切换事件（仅绑定一次）
- */
-function bindDiagramEvents() {
-  if (isEventListenerBound) return
-  isEventListenerBound = true
-  document.addEventListener('click', handleDiagramTabClick)
-}
-
-/**
- * 解析并渲染所有图表代码块
- * @param htmlContent Markdown 渲染后的 HTML 内容
- * @returns 图表渲染后的 HTML 内容
- */
-export function useDiagramRenderer() {
+  /**
+   * 解析并渲染所有图表代码块。
+   * @param htmlContent Markdown 渲染后的 HTML 内容
+   * @returns 图表渲染后的 HTML 内容
+   */
   const renderDiagrams = async (htmlContent: string): Promise<string> => {
     if (!htmlContent) return htmlContent
-
-    // 绑定 tab 切换事件
-    bindDiagramEvents()
 
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = htmlContent
 
-    // 查找所有图表代码块
-    const codeBlocks = tempDiv.querySelectorAll<HTMLElement>('pre.code-block[data-lang]')
+    // 先收敛链接，再处理图表
+    sanitizeLinks(tempDiv)
+
+    const codeBlocks = Array.from(
+      tempDiv.querySelectorAll<HTMLElement>('pre.code-block[data-lang]'),
+    )
 
     for (const pre of codeBlocks) {
-      const lang = pre.dataset.lang?.toLowerCase()
-      if (!lang || !DIAGRAM_LANGUAGES.includes(lang)) {
-        continue
-      }
+      const lang = pre.dataset.lang
+      if (!isDiagramLang(lang)) continue
 
       const codeElement = pre.querySelector('code')
       if (!codeElement) continue
 
       const code = codeElement.textContent || ''
-      const containerId = `diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const containerId = `diagram-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
       let rendered = ''
-
       try {
-        if (lang === 'mermaid') {
-          rendered = await renderMermaid(code, containerId)
-        } else if (lang === 'drawio') {
-          rendered = await renderDrawio(code, containerId)
-        } else if (lang === 'plantuml') {
-          rendered = await renderPlantuml(code)
-        }
+        rendered = await renderOne(lang.toLowerCase() as DiagramLang, code, containerId)
       } catch (e) {
         console.error(`Diagram render error (${lang}):`, e)
-        rendered = `<div class="diagram-error">${lang} 渲染失败</div>`
+        rendered = `<div class="diagram-error">${escapeHtml(lang)} 渲染失败</div>`
       }
 
-      // 构建带 tab 切换的双展示结构
-      const tabsHtml = `
-        <div class="diagram-tabs">
-          <div class="diagram-tabs-left">
-            <button class="diagram-tab active" data-tab="preview">预览</button>
-            <button class="diagram-tab" data-tab="code">代码</button>
-          </div>
-          <button class="copy-btn" data-code>复制</button>
-        </div>
-        <div class="diagram-content" data-lang="${lang}">
-          <div class="diagram-preview">${rendered}</div>
-          <div class="diagram-code"><pre class="code-block"><code>${escapeHtml(code)}</code></pre></div>
-        </div>
-      `
+      // 渲染产物再走一次清理，防止渲染器自身拼出危险内容。
+      // 受控图片源与 Markdown 图片策略共用同一份配置，避免"同一张图
+      // 在 Markdown 里能加载、在图表里被摘掉"的不一致。
+      rendered = sanitizeDiagramSvg(rendered, {
+        imageOrigins: controlledImageOrigins(plantumlServer),
+      })
 
-      // 替换代码块为渲染结果
       const wrapper = document.createElement('div')
-      wrapper.className = `diagram-wrapper diagram-${lang}`
-      wrapper.innerHTML = tabsHtml
+      wrapper.className = `diagram-wrapper diagram-${lang.toLowerCase()}`
+      // 局部构建 DOM：不把未清理的字符串直接交给 innerHTML
+      wrapper.innerHTML = buildDiagramMarkup(lang.toLowerCase() as DiagramLang, rendered, code)
 
-      // 检查是否渲染成功（包含 svg 或 img）
-      const previewDiv = wrapper.querySelector('.diagram-preview')
-      const hasRendered = previewDiv?.querySelector('svg, img')
+      const hasRendered = wrapper.querySelector('.diagram-preview svg, .diagram-preview img')
       if (!hasRendered) {
-        // 渲染失败，隐藏预览面板
-        const previewPanel = wrapper.querySelector('.diagram-preview') as HTMLElement
-        if (previewPanel) previewPanel.style.display = 'none'
-        // 切换到代码面板
-        const codePanel = wrapper.querySelector('.diagram-code') as HTMLElement
-        if (codePanel) codePanel.style.display = 'block'
-        const previewTab = wrapper.querySelector('.diagram-tab[data-tab="preview"]') as HTMLElement
-        const codeTab = wrapper.querySelector('.diagram-tab[data-tab="code"]') as HTMLElement
-        if (previewTab) previewTab.classList.remove('active')
-        if (codeTab) codeTab.classList.add('active')
+        preferCodePanel(wrapper)
       }
 
       pre.replaceWith(wrapper)
@@ -245,15 +151,8 @@ export function useDiagramRenderer() {
     return tempDiv.innerHTML
   }
 
-  const unbindDiagramEvents = () => {
-    if (isEventListenerBound) {
-      document.removeEventListener('click', handleDiagramTabClick)
-      isEventListenerBound = false
-    }
-  }
-
-  return {
-    renderDiagrams,
-    unbindDiagramEvents,
-  }
+  return { renderDiagrams }
 }
+
+// 交互（预览/代码切换、复制）在 utils/diagramEvents 中，
+// 由宿主组件用事件委托绑定，不注册全局监听。

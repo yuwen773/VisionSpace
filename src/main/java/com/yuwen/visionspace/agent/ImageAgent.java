@@ -8,9 +8,20 @@ import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
+import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import com.yuwen.visionspace.agent.config.AgentToolExceptionPolicy;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
+import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
+import com.yuwen.visionspace.agent.recovery.PendingReviewException;
+import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
+import com.yuwen.visionspace.agent.recovery.ResumeToolUnavailableException;
+import com.yuwen.visionspace.agent.recovery.RunStatus;
+import com.yuwen.visionspace.exception.BusinessException;
+import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.model.entity.AgentRunState;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
@@ -25,6 +36,7 @@ import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
+import com.yuwen.visionspace.utils.JsonUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.MessageType;
@@ -42,6 +54,7 @@ import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -96,10 +109,22 @@ public class ImageAgent {
     private AgentSessionGuard sessionGuard;
 
     @Resource
+    private AgentRunStateStore runStateStore;
+
+    @Resource
     private BaseCheckpointSaver checkpointSaver;
 
     @Resource
     private TextMcpModelInterceptor textMcpModelInterceptor;
+
+    @Resource
+    private com.yuwen.visionspace.agent.recovery.AgentActionInterceptor actionInterceptor;
+
+    @Resource
+    private AgentRecoveryService recoveryService;
+
+    @Resource
+    private ResumeToolEnvironment resumeToolEnvironment;
 
     private ReactAgent agent;
 
@@ -222,6 +247,10 @@ public class ImageAgent {
                         summarizationHook,
                         ModelCallLimitHook.builder().runLimit(15).build()
                 ))
+                // 动作台账：已确认完成不重放，结果未知进入待核对
+                .interceptors(List.of(actionInterceptor))
+                // 生成失败必须以异常到达台账，不能被框架折成一条普通文本
+                .toolExecutionExceptionProcessor(AgentToolExceptionPolicy.processor())
                 .saver(checkpointSaver)
                 .build();
     }
@@ -237,13 +266,23 @@ public class ImageAgent {
     public String chat(String userMessage, List<String> imageUrls, String threadId, Long userId) {
         // 归属在进入模型之前判定：绑定/核对失败直接抛出，不产生任何执行
         sessionGuard.bindOwner(threadId, userId, userMessage);
-        RunnableConfig config = configFor(threadId, userId);
+        // 有结果未知的动作时，任何入口都不得继续跑
+        recoveryService.requireNoPendingReview(threadId, userId);
+        // 内置入口不使用 MCP：环境随执行配置声明为「空环境」，与检查点同版本落库
+        RunnableConfig config = configFor(threadId, userId, List.of());
         try {
             String fullMessage = buildUserMessage(userMessage, imageUrls);
             AssistantMessage response = agent.call(fullMessage, config);
             chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
             chatHistoryService.saveAssistantMessage(threadId, userId, response.getText(), "text");
             return response.getText();
+        } catch (PendingReviewException e) {
+            // 结果未知不能被折成一句「稍后重试」：那会让用户以为可以直接再来一次，
+            // 而实际必须先核对。暂停状态也要落库，界面才能给出核对入口。
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             // 异常原文可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
@@ -273,7 +312,13 @@ public class ImageAgent {
         // 归属已由调用方（AgentController）在建立流之前核对；这里再核对一次，
         // 保证任何直接调用方也无法把状态写进别人的会话。
         sessionGuard.requireOwned(threadId, userId);
-        RunnableConfig config = configFor(threadId, userId);
+
+        // 本次执行开始前收敛上次遗留的「执行中」动作：可证明幂等的退回可重试，
+        // 其余进入待核对，避免把它们当成「没发生」而重放
+        recoveryService.reconcileBeforeRun(threadId, userId);
+        // 收敛之后仍有待核对动作：本次执行必须停在原地
+        recoveryService.requireNoPendingReview(threadId, userId);
+
         String fullMessage = buildUserMessage(userMessage, imageUrls);
         chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
 
@@ -281,12 +326,16 @@ public class ImageAgent {
         AgentChatRequest chatRequest = new AgentChatRequest();
         chatRequest.setEnabledMcpServers(enabledMcpServers);
         chatRequest.setDisableMcpDefault(disableMcpDefault);
-        ToolCallback[] mcpCallbacks = textMcpModelInterceptor.resolveMcpCallbacks(chatRequest, userId);
+        TextMcpModelInterceptor.McpResolution mcp =
+                textMcpModelInterceptor.resolve(chatRequest, userId);
+
+        // 执行配置在 MCP 解析之后构建：本次实际用到的服务 code 与执行世代一起
+        // 声明进配置，由检查点写入路径与载荷同版本落库。提前直写会在首个新
+        // 检查点之前改坏既有恢复点的环境。
+        RunnableConfig config = configFor(threadId, userId, mcp.serverCodes());
 
         // 选择 Agent：无 MCP 用内置 agent，有 MCP 创建 combined agent
-        ReactAgent activeAgent = (mcpCallbacks == null || mcpCallbacks.length == 0)
-                ? agent
-                : buildMcpAgent(mcpCallbacks);
+        ReactAgent activeAgent = mcp.isEmpty() ? agent : buildMcpAgent(mcp.callbacks());
 
         try {
             Flux<NodeOutput> stream = activeAgent.stream(fullMessage, config);
@@ -360,9 +409,23 @@ public class ImageAgent {
                             }
                             messageDTO.setContent(sb.toString());
                             chatHistoryService.saveToolConfirmMessage(threadId, userId, sb.toString());
+                            // 人工确认信息随完整状态一起落库：重启后仍能区分
+                            // 「停在待确认」与「已经确认过」
+                            persistAwaitingConfirmation(threadId, userId, interruptionMetadata);
                             return messageDTO;
                         }
                         return null;
+                    })
+                    // 结果未知与明确失败分开呈现：前者不能直接重试，必须核对
+                    .onErrorResume(PendingReviewException.class, error -> {
+                        MessageDTO messageDTO = new MessageDTO();
+                        messageDTO.setMessageType(MessageType.ACTION_UNKNOWN);
+                        messageDTO.setToolName(error.getToolName());
+                        messageDTO.setContent("工具 " + error.getToolName()
+                                + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
+                        runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                                pauseForReview(error.getToolName()));
+                        return Flux.just(messageDTO);
                     })
                     .doOnComplete(() -> {
                         String fullReasoning = reasoningContent.toString();
@@ -392,6 +455,8 @@ public class ImageAgent {
                                  ActionType action, AgentPhase currentPhase) {
 
         sessionGuard.requireOwned(threadId, userId);
+        // 反馈会触发一次模型执行，同样不能绕过待核对暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
         int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
@@ -416,15 +481,152 @@ public class ImageAgent {
             );
         }
 
-        RunnableConfig config = configFor(threadId, userId);
+        // 反馈入口同样只用内置工具：显式声明空环境，随检查点同版本落库
+        RunnableConfig config = configFor(threadId, userId, List.of());
 
         try {
             AssistantMessage response = agent.call(feedbackMessage, config);
             return response.getText();
+        } catch (PendingReviewException e) {
+            // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题，请稍后重试";
         }
+    }
+
+    /**
+     * 从完整执行状态续跑。
+     *
+     * <p>只有 {@link AgentRecoveryService} 判定可续跑时才会走到这里；本方法再
+     * 核对一次归属与状态，保证任何直接调用方也无法用消息历史伪造恢复点。
+     *
+     * <p>失败时区分三种结果，不混成一句「失败」：
+     * <ul>
+     *   <li>结果未知且不能安全重试：暂停并返回待核对提示；</li>
+     *   <li>可安全重试：记录失败，保持可重试；</li>
+     *   <li>已确认完成：不重放。</li>
+     * </ul>
+     */
+    public String resume(String threadId, Long userId) {
+        sessionGuard.requireOwned(threadId, userId);
+        AgentRunState state = runStateStore.loadResumable(threadId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.OPERATION_ERROR,
+                        "该会话没有可安全续跑的执行状态，已暂停自动执行"));
+
+        // 与其它入口同一道闸门：续跑也不能绕过待核对暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
+
+        Optional<Checkpoint> checkpoint = runStateStore.toCheckpoint(state);
+        if (checkpoint.isEmpty()) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    state.getPendingConfirmation());
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "执行状态无法还原，已暂停自动执行");
+        }
+
+        // 世代来自认领后的状态行：claimForResume 在认领时已把它推进到本续跑的世代
+        RunnableConfig config = runStateStore.resumeConfig(threadId, userId, state,
+                DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY,
+                DualCheckpointSaver.RUN_EPOCH_METADATA_KEY);
+
+        // 恢复上一次的工具环境：按持久化的 code 用当前用户重新回读并授权。
+        // 一律用内置 agent 会让 MCP 工具凭空消失；沿用旧回调又会让已撤销的权限复活，
+        // 因此既不能省略，也不能照搬。
+        ReactAgent resumeAgent = rebuildResumeAgent(threadId, userId, state);
+
+        // MySQL 里的完整状态是 Redis 丢失检查点时的唯一依据：续跑前把它写回
+        // 框架的存储，否则「有完整状态但 Redis 没了」依然续不上。
+        try {
+            checkpointSaver.put(config, checkpoint.get());
+        } catch (Exception e) {
+            log.error("续跑前回填检查点失败, threadId={}, userId={}", threadId, userId);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "执行状态无法写回，已暂停自动执行");
+        }
+
+        try {
+            // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
+            AssistantMessage response = resumeAgent.call("", config);
+            runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
+            return response.getText();
+        } catch (PendingReviewException e) {
+            // 结果未知：暂停并等待核对，与「明确失败」区分
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+        } catch (Exception e) {
+            // 明确失败：可安全重试。不能把失败包装成一条成功的助手回复，
+            // 否则界面会把它显示成正常回答。
+            log.error("Agent 续跑失败, threadId={}, userId={}", threadId, userId);
+            runStateStore.updateStatus(threadId, userId, RunStatus.FAILED, null);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "继续执行失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 按上次执行用到的 MCP 服务重建 Agent。
+     *
+     * <p>恢复点里只留了服务 code，这里用<b>当前用户</b>重新回读归属与启用状态：
+     * <ul>
+     *   <li>没有记录过 MCP → 用内置 agent（与首次执行一致）；</li>
+     *   <li>记录过且全部仍可用 → 重建对应的 MCP agent；</li>
+     *   <li>任一服务已停用、已撤销或已删除 → 拒绝续跑。缺少工具继续执行会让模型
+     *       改用别的方式完成同一件事，等于绕过了用户的撤销决定。</li>
+     * </ul>
+     */
+    private ReactAgent rebuildResumeAgent(String threadId, Long userId, AgentRunState state) {
+        // 没有记录 ≠ 没有用 MCP：无法确认上次的工具环境时不能猜，
+        // 否则会在少了工具的情况下继续跑，模型改用别的方式完成同一件事
+        Optional<List<String>> recorded = runStateStore.recordedMcpServerCodes(state);
+        if (recorded.isEmpty()) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    "无法确认上次执行使用的工具环境，请重新发起请求");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "无法确认上次执行使用的工具环境，已暂停，请重新发起请求");
+        }
+        try {
+            ResumeToolEnvironment.Environment environment =
+                    resumeToolEnvironment.resolve(recorded.get(), userId);
+            return environment.usesMcp() ? buildMcpAgent(environment.callbacks()) : agent;
+        } catch (ResumeToolUnavailableException e) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    "MCP 服务已停用或撤销，需重新选择后再继续");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
+        }
+    }
+
+    /**
+     * 结果未知时写进 {@code pendingConfirmation} 的固定文案。
+     *
+     * <p>流式、反馈、续跑三个入口都要把同一次暂停记成同一种状态；文案分散写三遍
+     * 迟早会漂移，界面就分不清「等待核对」和别的暂停原因了。
+     */
+    private String pauseForReview(String toolName) {
+        return "外部动作结果未知，等待核对：" + toolName;
+    }
+
+    /**
+     * 把「停在人工确认点」这件事持久化。
+     *
+     * <p>只保存工具名：确认信息要能被下一次执行读到，让界面区分「停在待确认」
+     * 与「已经确认过」；但描述里通常带着生成参数或提示词，属于私人正文，
+     * 不写进状态列。
+     */
+    private void persistAwaitingConfirmation(String threadId, Long userId,
+                                             InterruptionMetadata interruption) {
+        String summary = interruption.toolFeedbacks().stream()
+                .map(InterruptionMetadata.ToolFeedback::getName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.joining("\n"));
+        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION, summary);
     }
 
     /**
@@ -433,10 +635,19 @@ public class ImageAgent {
      * <p>归属放在 metadata 里交给 Checkpoint 备份做条件写入；threadId 本身
      * 由调用方在进入这里之前已经核对过。
      */
-    private RunnableConfig configFor(String threadId, Long userId) {
+    private RunnableConfig configFor(String threadId, Long userId, List<String> mcpServerCodes) {
+        // 世代在本执行开始时签发：它是跨实例的所有权凭据，本执行的检查点
+        // 只能以它写入；上一轮执行的迟到载荷从此写不进共享状态。
+        long epoch = runStateStore.beginExecution(threadId, userId);
+        // 工具环境与检查点在同一份配置里声明：DualCheckpointSaver 会把它们与
+        // 载荷、版本放进同一条 UPDATE，环境与恢复点永远同版本配对。
+        // 「没有 MCP」必须显式记成 []，NULL 只留给「没有声明」的续跑。
         return RunnableConfig.builder()
                 .threadId(threadId)
                 .addMetadata(DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY, userId)
+                .addMetadata(DualCheckpointSaver.RUN_EPOCH_METADATA_KEY, epoch)
+                .addMetadata(DualCheckpointSaver.MCP_SERVER_CODES_METADATA_KEY,
+                        JsonUtils.toJson(mcpServerCodes == null ? List.of() : mcpServerCodes))
                 .build();
     }
 
@@ -473,6 +684,10 @@ public class ImageAgent {
                         summarizationHook,
                         ModelCallLimitHook.builder().runLimit(15).build()
                 ))
+                // MCP 工具同样经过台账：外部动作不因来源不同而失去核对能力
+                .interceptors(List.of(actionInterceptor))
+                // 与内置 agent 同一条策略，续跑重建时也不会退回「失败即成功」
+                .toolExecutionExceptionProcessor(AgentToolExceptionPolicy.processor())
                 .saver(checkpointSaver)
                 .build();
     }
@@ -502,10 +717,19 @@ public class ImageAgent {
      */
     public Optional<NodeOutput> invokeAndGetOutput(String message, String threadId, Long userId) {
         sessionGuard.bindOwner(threadId, userId, message);
-        RunnableConfig config = configFor(threadId, userId);
+        // 普通对话入口同样受待核对暂停约束：否则用户再发一条消息就能绕过暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
+        RunnableConfig config = configFor(threadId, userId, List.of());
         chatHistoryService.saveUserMessage(threadId, userId, message);
         try {
             return agent.invokeAndGetOutput(message, config);
+        } catch (PendingReviewException e) {
+            // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
+            // 与其它入口的暂停语义不一致
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return Optional.empty();

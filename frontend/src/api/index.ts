@@ -12,8 +12,8 @@ import * as pictureController from './pictureController'
 import * as pictureRecommend from './pictureRecommend'
 import * as pictureAction from './pictureAction'
 import * as feedbackController from './feedbackController'
-import * as agentImageUploadController from './agentImageUploadController'
 import * as agentController from './agentController'
+import * as agentImageUploadController from './agentImageUploadController'
 import * as adminStatsController from './adminStatsController'
 import * as pictureContentController from './pictureContentController'
 import * as mainController from './mainController'
@@ -28,8 +28,8 @@ export default {
   pictureRecommend,
   pictureAction,
   feedbackController,
-  agentImageUploadController,
   agentController,
+  agentImageUploadController,
   adminStatsController,
   pictureContentController,
   mainController,

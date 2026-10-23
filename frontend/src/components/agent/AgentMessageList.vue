@@ -105,6 +105,7 @@
           <ToolRequestMessage v-else-if="msg.type === 'tool-request'" :toolName="msg.toolName || '工具'" :toolCalls="msg.toolCalls" :content="msg.content" />
           <ToolResponseMessage v-else-if="msg.type === 'tool-response'" :toolName="msg.toolName || ''" :content="msg.content" />
           <ToolConfirmMessage v-else-if="msg.type === 'mcp-confirm' || msg.type === 'interrupt'" :message="msg.content" @confirm="emit('confirm')" @cancel="emit('cancel')" />
+          <ActionUnknownMessage v-else-if="msg.type === 'action-unknown'" :content="msg.content" :toolName="msg.toolName" />
         </div>
       </template>
 
@@ -148,6 +149,7 @@ import ReasoningMessage from './message/ReasoningMessage.vue'
 import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
+import ActionUnknownMessage from './message/ActionUnknownMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 
