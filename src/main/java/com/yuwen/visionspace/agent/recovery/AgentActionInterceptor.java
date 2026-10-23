@@ -36,8 +36,7 @@ public class AgentActionInterceptor extends ToolInterceptor {
      * <p>搜索、分析、评估都是只读调用；生成类工具会产生新的外部资源，不能证明幂等，
      * 因此默认不在这个集合里——结果未知时一律进入待核对。
      */
-    static final Set<String> IDEMPOTENT_TOOLS = Set.of(
-            "searchContentImages",
+    static final Set<String> IDEMPOTENT_TOOLS = Set.of(            "searchContentImages",
             "searchSimilarImages",
             "searchIllustrations",
             "analyzeImageFeatures",
@@ -176,7 +175,8 @@ public class AgentActionInterceptor extends ToolInterceptor {
         return ToolCallResponse.error(toolCallId, toolName, idempotentMessage);
     }
 
-    static boolean isIdempotent(String toolName) {
+    /** 异常策略（config 包）也要按同一份幂等集合判定重抛与否，保持公开 */
+    public static boolean isIdempotent(String toolName) {
         return toolName != null && IDEMPOTENT_TOOLS.contains(toolName);
     }
 

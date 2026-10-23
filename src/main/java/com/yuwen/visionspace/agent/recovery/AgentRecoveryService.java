@@ -40,6 +40,14 @@ public class AgentRecoveryService {
      */
     private static final Duration STALE_ACTION_GRACE = Duration.ofMinutes(10);
 
+    /**
+     * RUNNING 状态的失活判定阈值：状态行超过这个时长没有任何推进，且没有
+     * 有效租约，就认为执行进程已消失（硬崩溃不会经过 catch 改写状态，
+     * 持久行会永远停在 RUNNING）。阈值与 {@link #STALE_ACTION_GRACE} 一致：
+     * 检查点保存节奏远快于它，正常运行不会被误判为失活。
+     */
+    private static final Duration RUN_LIVENESS_THRESHOLD = Duration.ofMinutes(10);
+
     private final AgentSessionGuard sessionGuard;
     private final AgentRunStateStore runStateStore;
     private final AgentActionLedger actionLedger;
@@ -80,6 +88,9 @@ public class AgentRecoveryService {
         vo.setBackupError(state.getBackupError());
         vo.setBackupAttempts(state.getBackupAttempts());
         vo.setPendingConfirmation(state.getPendingConfirmation());
+        // RUNNING 必须区分「仍有执行在推进」与「进程失活遗留」：硬崩溃不经过
+        // catch，持久行会停在 RUNNING。前者不打扰用户，后者必须给出恢复入口。
+        vo.setActiveExecution(isActivelyExecuting(state));
 
         boolean resumable = runStateStore.isResumable(state) && vo.getPendingReviewCount() == 0;
         vo.setResumable(resumable);
@@ -87,6 +98,29 @@ public class AgentRecoveryService {
             vo.setReason(reasonFor(state, vo.getPendingReviewCount()));
         }
         return vo;
+    }
+
+    /**
+     * 判断 RUNNING 状态是否仍有活跃执行。
+     *
+     * <p>两个信号，任一成立即视为活跃：
+     * <ul>
+     *   <li>有效租约未过期——有执行方正在跑（续跑认领会持有租约）；</li>
+     *   <li>状态行近期有推进——检查点/状态写入会刷新 updateTime。</li>
+     * </ul>
+     * 非 RUNNING 状态没有「活跃」概念，一律返回 false。
+     */
+    private boolean isActivelyExecuting(AgentRunState state) {
+        if (!RunStatus.RUNNING.equals(state.getRunStatus())) {
+            return false;
+        }
+        Instant now = Instant.now();
+        if (state.getResumeLeaseUntil() != null
+                && state.getResumeLeaseUntil().toInstant().isAfter(now)) {
+            return true;
+        }
+        return state.getUpdateTime() != null
+                && state.getUpdateTime().toInstant().isAfter(now.minus(RUN_LIVENESS_THRESHOLD));
     }
 
     /**

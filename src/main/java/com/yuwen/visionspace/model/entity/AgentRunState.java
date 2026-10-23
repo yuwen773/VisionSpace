@@ -32,6 +32,9 @@ public class AgentRunState implements Serializable {
     /** 状态版本，单调递增 */
     private Long stateVersion;
 
+    /** 执行世代：每次执行开始时递增；写入必须匹配当前世代，迟到旧载荷据此被拒 */
+    private Long runEpoch;
+
     /** 状态格式版本，例如 v2-full */
     private String stateFormat;
 

@@ -46,7 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>覆盖：恢复入口沿用会话归属（他人与平台管理员都不能续跑）；
  * 只有旧轻量归档时明确不可恢复；待核对动作阻止续跑；过期版本与重复恢复请求
  * 被拒绝；重复核对与过期核对不生效；双写者按版本 CAS 只有一个生效；
- * 备份失败可见可重试；释放会话后载荷与计数被清理。
+ * 备份失败可见可重试；释放会话后载荷与计数被清理；
+ * 执行世代拒绝迟到旧载荷覆盖新进度（含真实 MySQL 时序交错）；
+ * RUNNING 失活判定区分活跃执行与硬崩溃遗留；工具环境与检查点同版本原子落库。
  *
  * <p>「已确认完成不重放」的执行边界由 {@code AgentActionInterceptorTest} 用受控
  * 工具替身证明（验收环境没有真实模型，Agent 循环跑不到工具节点），本类只证明
@@ -484,6 +486,199 @@ class HttpAgentRecoveryTest {
         assertEquals(501L, jdbc.queryForObject(
                 "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
         assertEquals("after_takeover", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
+    // ---- 执行世代：迟到旧载荷不能借重试覆盖新进度 ----
+
+    /**
+     * 评审 F1 的探针场景：新执行已提交 v2，旧执行的迟到载荷被版本 CAS 拒绝后
+     * 重新编号重试成 v3，最终恢复点倒退。世代约束下，旧载荷无论编号多高都写不进。
+     */
+    @Test
+    void staleEpochWriteCannotOverwriteAfterTakeover() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "start_node");
+
+        // 执行 A 接管并推进一个检查点
+        long epochA = runStateStore.beginExecution(threadId, ownerId);
+        assertTrue(epochA > 0, "an existing row must hand out a bumped epoch");
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 2L,
+                epochA, null, checkpoint("a1_node"), "RUNNING", null));
+
+        // 执行 B 开始：世代更替，A 从此失去写入资格
+        long epochB = runStateStore.beginExecution(threadId, ownerId);
+        assertTrue(epochB > epochA, "each execution start must bump the epoch");
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
+                epochB, null, checkpoint("b1_node"), "RUNNING", null));
+
+        // A 的迟到载荷：版本更高也必须被拒，且不允许对齐重试
+        StateSaveResult late = runStateStore.saveFullState(threadId, ownerId, 4L,
+                epochA, null, checkpoint("a2_node"), "RUNNING", null);
+        assertEquals(StateSaveResult.LOST_OWNERSHIP, late,
+                "a superseded execution must not renumber its stale payload over newer progress");
+
+        // 最终恢复点仍是执行 B 的内容：版本与载荷一起核对，不只看版本递增
+        assertEquals(3L, jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+        assertEquals("b1_node", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
+    @Test
+    void takingOverExecutionKeepsPersistingWithItsOwnEpoch() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "start_node");
+
+        long epochA = runStateStore.beginExecution(threadId, ownerId);
+        runStateStore.saveFullState(threadId, ownerId, 2L,
+                epochA, null, checkpoint("a1_node"), "RUNNING", null);
+
+        // 较晚开始的执行合法接管：推进自己的检查点是正常能力，不能被误伤
+        long epochB = runStateStore.beginExecution(threadId, ownerId);
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
+                epochB, null, checkpoint("b2_node"), "RUNNING", null));
+        assertEquals("b2_node", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+
+        // 并发时序交错：两个执行同时发起写入，世代不一致的只会输掉归属，不是故障
+        assertEquals(StateSaveResult.LOST_OWNERSHIP, runStateStore.saveFullState(threadId,
+                ownerId, 4L, epochA, null, checkpoint("a3_node"), "RUNNING", null));
+    }
+
+    // ---- RUNNING 失活判定：硬崩溃遗留状态必须露出恢复入口 ----
+
+    @Test
+    void freshRunningStateReportsActiveExecution() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 5L, "tool_node");
+
+        try (var owner = client()) {
+            login(owner, ownerId);
+            var state = get(owner, "/agent/recovery/" + threadId);
+            assertEquals(0, state.path("code").asInt(), state.toString());
+            assertTrue(state.path("data").path("activeExecution").asBoolean(),
+                    "a just-started run must be reported as active: " + state);
+            assertTrue(state.path("data").path("resumable").asBoolean());
+        }
+    }
+
+    @Test
+    void staleRunningStateExposesTheResumeEntryAfterAHardCrash() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 5L, "tool_node");
+        // 模拟进程失活：硬崩溃不经过 catch，行永远停在 RUNNING 且不再推进。
+        // 夹具用固定远古时间戳，避免 MySQL 与 JVM 的时区差影响判定
+        jdbc.update("UPDATE agent_run_state SET updateTime = '2020-01-01 00:00:00' "
+                + "WHERE threadId = ?", threadId);
+
+        try (var owner = client()) {
+            login(owner, ownerId);
+            var state = get(owner, "/agent/recovery/" + threadId);
+            assertFalse(state.path("data").path("activeExecution").asBoolean(),
+                    "an orphaned RUNNING row must not be reported as active: " + state);
+            assertTrue(state.path("data").path("resumable").asBoolean(),
+                    "an orphaned run with a full checkpoint must offer resume: " + state);
+            assertEquals("RUNNING", state.path("data").path("runStatus").asText());
+        }
+    }
+
+    @Test
+    void unexpiredLeaseKeepsTheRunActiveEvenWithoutRecentUpdates() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 5L, "tool_node");
+        jdbc.update("UPDATE agent_run_state SET resumeLease = 'lease-tok', "
+                + "resumeLeaseUntil = '2099-01-01 00:00:00', "
+                + "updateTime = '2020-01-01 00:00:00' WHERE threadId = ?", threadId);
+
+        try (var owner = client()) {
+            login(owner, ownerId);
+            var state = get(owner, "/agent/recovery/" + threadId);
+            assertTrue(state.path("data").path("activeExecution").asBoolean(),
+                    "a valid lease proves another execution is still running: " + state);
+        }
+    }
+
+    // ---- 工具环境与检查点同版本原子落库 ----
+
+    @Test
+    void checkpointWriteCarriesItsExecutionEnvironment() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "start_node");
+        long epoch = runStateStore.beginExecution(threadId, ownerId);
+
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 2L,
+                epoch, "[\"remote-a\"]", checkpoint("tool_node"), "RUNNING", null));
+
+        // 环境与载荷在同一条 UPDATE 里：同一版本、同一次写入
+        assertEquals(2L, jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+        assertEquals("[\"remote-a\"]", jdbc.queryForObject(
+                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+        assertEquals("tool_node", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
+    @Test
+    void newRequestBeforeItsFirstCheckpointLeavesTheOldEnvironmentIntact() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "mcp_node");
+        jdbc.update("UPDATE agent_run_state SET mcpServerCodes = '[\"legacy-a\"]' "
+                + "WHERE threadId = ?", threadId);
+
+        // 新请求（内置工具）开始：只声明世代与环境，尚未提交任何新检查点就崩溃。
+        // 旧实现会在这里提前直写 []，留下「旧载荷 + 内置环境」的错配。
+        long epoch = runStateStore.beginExecution(threadId, ownerId);
+        assertTrue(epoch > 0);
+
+        // 崩溃后：既有恢复点连同它的环境必须原样保留
+        assertEquals(1L, jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+        assertEquals("[\"legacy-a\"]", jdbc.queryForObject(
+                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+        assertEquals("mcp_node", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
+    @Test
+    void resumeExecutionKeepsTheRecordedEnvironmentPairedWithThePayload() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "mcp_node");
+        jdbc.update("UPDATE agent_run_state SET mcpServerCodes = '[\"legacy-a\"]' "
+                + "WHERE threadId = ?", threadId);
+        long epoch = runStateStore.beginExecution(threadId, ownerId);
+
+        // 续跑不声明新环境（null）：载荷推进到新版本，环境保持与恢复点配对
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 2L,
+                epoch, null, checkpoint("resumed_node"), "RUNNING", null));
+
+        assertEquals("[\"legacy-a\"]", jdbc.queryForObject(
+                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+        assertEquals("resumed_node", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
+    @Test
+    void interleavedExecutionsKeepEnvironmentAndPayloadPaired() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 1L, "start_node");
+
+        // 执行 A（MCP-A）先写入带环境的检查点
+        long epochA = runStateStore.beginExecution(threadId, ownerId);
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 2L,
+                epochA, "[\"remote-a\"]", checkpoint("a_node"), "RUNNING", null));
+
+        // 执行 B（内置）接管：A 的迟到写入（连环境一起）必须整体被拒
+        long epochB = runStateStore.beginExecution(threadId, ownerId);
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
+                epochB, "[]", checkpoint("b_node"), "RUNNING", null));
+        assertEquals(StateSaveResult.LOST_OWNERSHIP, runStateStore.saveFullState(threadId,
+                ownerId, 4L, epochA, "[\"remote-a\"]", checkpoint("a_late_node"), "RUNNING", null));
+
+        // 最终状态必须是 B 的配对：内置载荷 + 显式空环境，而不是 A 的环境
+        assertEquals("[]", jdbc.queryForObject(
+                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+        assertEquals("b_node", jdbc.queryForObject(
                 "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
     }
 

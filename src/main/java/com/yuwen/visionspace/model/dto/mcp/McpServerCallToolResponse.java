@@ -23,6 +23,13 @@ public class McpServerCallToolResponse implements Serializable {
     private Boolean isError;
 
     /**
+     * 结果是否未知（传输超时、连接中断、响应丢失）：请求可能已送达外部，
+     * 本地没有拿到结果。与「服务明确报告的业务失败」必须分开，
+     * 前者按结果未知处理，后者才是明确失败。
+     */
+    private Boolean outcomeUnknown;
+
+    /**
      * 内容列表
      */
     private List<Content> content;

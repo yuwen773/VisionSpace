@@ -11,9 +11,11 @@
 | 概念 | 存储 | 契约 |
 | --- | --- | --- |
 | 完整执行状态 | `agent_run_state`（唯一键 `threadId`） | `stateVersion` 单调递增，写入 `WHERE stateVersion < ?`；迟到的旧备份影响 0 行 |
+| 执行世代 | `runEpoch` | 每次执行开始（`beginExecution` / 续跑认领）原子递增；完整状态写入须匹配当前世代，被取代执行的迟到载荷无论版本多高都写不进（`LOST_OWNERSHIP`，不对齐重试） |
+| 工具环境 | `mcpServerCodes` | 与载荷、版本在同一条 UPDATE 原子落库（执行配置声明，`[]` 表示内置环境）；新请求首个检查点前不改既有配对；续跑不带新环境时列原样保留 |
 | 状态格式 | `stateFormat` | `v2-full` 可续跑；`v1-lightweight`（仅消息）与未知格式**不可续跑** |
 | 恢复点 | `checkpointId` / `nodeId` / `nextNodeId` | 缺 `nextNodeId` 时 `toCheckpoint` 返回空，不把「有消息」当「能续跑」 |
-| 运行状态 | `runStatus` | `RUNNING` / `AWAITING_CONFIRMATION` / `COMPLETED` / `FAILED` / `PAUSED_UNRECOVERABLE` |
+| 运行状态 | `runStatus` | `RUNNING` / `AWAITING_CONFIRMATION` / `COMPLETED` / `FAILED` / `PAUSED_UNRECOVERABLE`；`RUNNING` 另报 `activeExecution`（租约有效或 10 分钟内有推进），失活遗留的 RUNNING 露出恢复入口 |
 | 人工确认信息 | `pendingConfirmation` | 只存工具名与脱敏描述；随完整状态一起持久化 |
 | 备份失败 | `backupError` / `backupAttempts` | 可见、可重试；下次成功写入即清零 |
 | 外部动作 | `agent_action_record`（唯一键 `(threadId, actionId)`） | 状态机见下；执行互斥靠原子认领 + `claimToken`，不靠等待时间 |
@@ -187,6 +189,45 @@ MySQL 8.0.26 上实测：旧表 → 加列 → 重跑无错 → 回滚 → 重�
    缺 `checkpointId` 或 `nodeId` 时会抛 NPE 被吞成「无法还原」。现显式判空，
    并补了针对性用例。
 
+## 第二轮复审修复（2026-10-23，`a55cac1` 复审五项）
+
+复审报告指出四项 Spec 问题与一项 Standards 问题，本轮逐项修复；每项先补能在旧实现上失败的回归，再修实现。
+
+### F1 [P1] 旧检查点重新编号后覆盖新状态
+
+- 根因：`saveWithVersionAlignment` 在 SUPERSEDED 后读取共享版本、给同一旧载荷发更高版本重试，无法区分「合法接管」与「迟到旧载荷」。
+- 修复：引入**执行世代** `agent_run_state.runEpoch`（fencing token）。每个执行入口经 `AgentRunStateStore.beginExecution` 原子递增世代并放进 `RunnableConfig` metadata；续跑由 `claimForResume` 同语句递增。`updateIfNewer` 增加世代条件；0 行时读回世代，不匹配判为新结果 `LOST_OWNERSHIP`——**不对齐重试**；世代匹配下的版本落后才保留一次对齐重试（合法接管能力不变）。不带世代的旧调用方退回纯版本 CAS。
+- 回归：`DualCheckpointSaverTest`（LOST_OWNERSHIP 不重试、世代+环境从配置透传、缺世代退回版本语义）、`AgentRunStateStoreTest`（世代不匹配/匹配两种 0 行的区分、`beginExecution` 递增/无行/竞争放弃）、`HttpAgentRecoveryTest`（真实 MySQL 时序：接管后迟到载荷 `LOST_OWNERSHIP` 且**最终恢复点内容**仍是新执行的；合法接管持续推进；并发交错）。
+
+### F2 [P1] 通用非幂等 MCP 超时仍记为成功
+
+- 根因：MCPManager 把客户端异常折成 isError 文本响应，`McpToolCallback` 只提取文本，错误语义在适配层丢失，台账记 `SUCCEEDED`，模型继续执行。
+- 修复：结果语义分层保留——MCPManager 捕获异常时置新字段 `outcomeUnknown`（传输超时/响应丢失 ≠ 服务明确报错）；`McpToolCallback` 把结果未知包成 `ToolExecutionException`（cause 为新类型 `McpToolOutcomeUnknownException`）抛出，把服务明确报错包成普通 `McpToolBusinessException` 抛出；`AgentToolExceptionPolicy` 改为按**工具幂等性**（`ToolExecutionException.getToolDefinition().name()` 查 `AgentActionInterceptor` 的可证明幂等集合）判定：非幂等的结果未知原样重抛 → 台账 `UNKNOWN_NEEDS_REVIEW` + `PendingReviewException` 暂停本轮；幂等只读工具与既有 `ImageGenerationException` 语义不变。明确业务失败以普通异常抛出，被框架折成 error 响应 → 台账 `FAILED`（可安全重试）。
+- 回归：新增 `McpToolChainFailureTest`（真实 ReactAgent → 真实 McpToolCallback → 受控 MCPManager 替身 → 真实拦截器/台账）：外部写入后超时 ⇒ 外部调用 1 次、模型调用停在 1 次（不再给下一轮）、台账待核对；业务失败 ⇒ 台账 `FAILED` 且模型可见错误继续作答；人工核对入口（confirm → 后续认领 `ALREADY_SUCCEEDED`；dismiss → `DISMISSED`）；幂等工具结果未知不中断执行。既有图片生成异常传播与原子认领回归保持原样通过。
+
+### F3 [P2] 硬崩溃遗留 RUNNING 时恢复入口隐藏
+
+- 根因：检查点统一写 RUNNING，硬崩溃不经过 catch 改 FAILED；`RecoveryBanner` 对 `RUNNING && resumable` 直接隐藏。
+- 修复：`AgentRecoveryService.describe` 计算 `activeExecution`（租约未过期 **或** `updateTime` 距今 10 分钟内 ⇒ 仍有活跃执行；阈值与动作收敛宽限一致）；前端 `RecoveryBanner` 对 RUNNING 只在 `activeExecution` 时隐藏，失活遗留显示「上次执行可能已中断」并给出继续执行按钮。正常执行、待核对、不可恢复、完成的行为不变。
+- 回归：`HttpAgentRecoveryTest`（新状态 active、固定远古时间戳模拟失活后可恢复、有效租约保持 active）；`agentRecovery.spec.ts`（活跃 RUNNING 隐藏、失活 RUNNING 露出横幅与续跑按钮、租约优先于更新时间的语义）。
+
+### F4 [P2] MCP 环境与对应检查点不是原子版本
+
+- 根因：`recordMcpServerCodes` 在新请求开始时独立 UPDATE `mcpServerCodes`，早于首个新检查点；此间崩溃留下「旧载荷 + 新环境」的错配。
+- 修复：删除提前直写与 `pendingMcpCodes` 缓冲。工具环境改由本次执行的 `RunnableConfig` 声明（`DualCheckpointSaver.MCP_SERVER_CODES_METADATA_KEY`），`DualCheckpointSaver` 把它与载荷、版本放进**同一条 UPDATE**（`COALESCE` 保留未声明时的旧值）。环境记录失败不再可能静默拼上另一轮的环境——它们本来就是同一次写入；新请求首个检查点前崩溃时既有配对原样保留；续跑不带新环境，沿用与恢复点配对的记录。
+- 回归：`AgentRunStateStoreTest`（环境随检查点同语句落库、null 环境不动旧值）、`HttpAgentRecoveryTest`（首个检查点前崩溃旧配对原样、续跑推进载荷但环境不变、两个执行交错时最终是「载荷 + 匹配环境」的配对）、`DualCheckpointSaverTest`（配置中的环境透传到持久写入）。
+
+### F5 [P3] 恢复接口生成客户端未同步
+
+- 从当前后端契约重新生成：起隔离后端（临时原生 MySQL/Redis + `vs_openapi` 库，替身 AI key，**未调用任何付费服务**），`npm run openapi2ts`。产物：`agentController.ts` 新增 `getRecoveryStateUsingGet` / `resumeUsingPost` / `confirmActionUsingPost` / `dismissActionUsingPost`；`typings.d.ts` 新增 `RecoveryStateVO`（含 `activeExecution`）、`ActionReviewRequest` 等类型；顺带修正了生成器对 SSE 端点的响应类型（`ServerSentEventString[]` → `Record<string, any>`）并补齐了后端已存在但此前未生成的 `pictureContentController.ts`。手写 `api-custom/agent.ts` 补 `activeExecution` 字段。type-check / vitest / build 全过。
+
+### 第二轮验收结果（本次实际执行）
+
+- `scripts/acceptance.ps1`（原生 MySQL 8.0.26 + Redis 3.2.100，临时实例，datadir/nonce 身份核对，清理 PASS）：9 个 gate 全 PASS。
+- 后端 **396/396**（基线 375，净增 21：`McpToolChainFailureTest` 4、`HttpAgentRecoveryTest` +9、`AgentRunStateStoreTest` +5、`DualCheckpointSaverTest` +3）。
+- 前端 **38/38**（基线 36，净增 2 个 `RecoveryBanner` 失活场景断言）；type-check 与 build PASS。
+- 隔离层以上的验证分级：单进程多线程（台账认领、版本/世代并发）= 单 JVM 多连接打真实 MySQL；**双 JVM 未做**；受控模型/MCP（脚本化 ChatModel、受控 MCPManager/McpServerAccess 替身 + 真实 ReactAgent 适配链）；真实外部 MCP / 付费模型 / 浏览器 E2E / 生产验收未执行。
+
 ## 未验证与阻断项
 
 1. **双实例竞争是单机双连接验证的。** `concurrentWritersFromTwoInstancesProduceOneWinner`、
@@ -221,7 +262,24 @@ MySQL 8.0.26 上实测：旧表 → 加列 → 重跑无错 → 回滚 → 重�
 10. **迁移脚本未在真实库执行。** 新增列的迁移与回滚只在一次性 MySQL 8.0.26
    实例上验证（旧表 → 加列 → 重跑 → 回滚 → 重跑，动作证据保留）；
    生产迁移与回滚仍未执行（本会话不授权）。
-11. **`ImageGeneratorTool` 之外的工具异常仍走框架默认处理。** 只有
-   `ImageGenerationException` 被原样重抛；其他工具（搜索、评估）抛异常时仍会被
-   折成错误文本，由拦截器按 `isError` 记 `FAILED`。这些工具不可证明幂等，
-   但它们的失败是本地/只读错误，不产生外部副作用，因此维持现状。
+11. **工具异常语义按「明确失败 vs 结果未知」与幂等性分层，边界如下。**
+   结果未知（传输超时/响应丢失）的非幂等工具一律重抛进待核对；幂等只读工具
+   与其他明确失败走框架默认（错误文本/error 响应）。两个已知精度损失：
+   幂等只读工具「结果未知」被转成文本后台账记 `SUCCEEDED`（只读无副作用，
+   重试靠新 toolCallId，无重放风险，仅审计口径不精确）；MCP 业务失败与
+   传输失败的区分依赖 MCPManager 的 `outcomeUnknown` 标记，协议层无法证明
+   「服务端收到请求但没执行」的中间态。
+12. **执行世代的两个理论窗口。** ①首个执行的执行开始时状态行还不存在，
+   `beginExecution` 返回 0，若两个「首次执行」在同一毫秒内并发开始，
+   两者都持有世代 0，靠版本 CAS 仲裁（与修复前同级，且首个执行通常没有
+   可竞争的既有恢复点）；②世代推进持续竞争 5 次失败的执行放弃持久化资格
+   （返回 -1），只留 warn 日志，恢复点会缺失但不写错归属。
+13. **RUNNING 失活阈值（10 分钟）是经验值。** 纯模型阶段超过 10 分钟且
+   期间没有任何检查点/状态写入时，活跃运行会被误报为失活，界面给出
+   续跑入口；误点续跑由世代 + 续跑认领兜底（旧执行后续写入被世代拒绝），
+   不会写坏状态，但可能出现一段重复劳动。租约刷新只在续跑认领时发生，
+   普通对话/流式执行不持租约，靠 `updateTime` 推进判定活性。
+14. **openapi2ts 的生成来源是本分支后端**（`git diff` 基线：agent 恢复四端点、
+   `RecoveryStateVO.activeExecution`、`ActionReviewRequest`、SSE 类型修正、
+   `pictureContentController.ts` 补齐）。生成时后端跑在临时隔离库上，
+   未调用任何付费服务；未验证生成客户端在真实部署契约（application-prod）下的差异。

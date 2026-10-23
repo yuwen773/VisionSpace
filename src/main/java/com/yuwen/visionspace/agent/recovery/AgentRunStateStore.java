@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 /**
@@ -41,14 +40,6 @@ public class AgentRunStateStore {
     private final AgentRunStateMapper runStateMapper;
     private final StateSerializer stateSerializer;
     private final GzipUtils gzipUtils;
-
-    /**
-     * 状态行还没创建时先记住本轮的 MCP 环境，等第一个检查点建行后补写。
-     *
-     * <p>没有这个缓冲，第一次执行（行还不存在）的 MCP 记录会静默丢失，
-     * 续跑时就变成「无法确认上次的工具环境」而只能拒绝。
-     */
-    private final Map<String, String> pendingMcpCodes = new ConcurrentHashMap<>();
 
     public AgentRunStateStore(AgentRunStateMapper runStateMapper,
                               StateSerializer stateSerializer,
@@ -125,10 +116,34 @@ public class AgentRunStateStore {
      * <p>{@code stateVersion} 必须由调用方按共享持久状态给出（见
      * {@link #currentVersion}）；写入是 CAS，旧版本影响 0 行。
      *
-     * <p>返回三态而不是布尔：只有「版本被更新状态取代」可以安静跳过，
-     * 真正的写入失败必须留痕，不能让有效进度被静默丢弃。
+     * <p><b>不带执行世代与工具环境的入口只留给旧调用方与测试种子。</b>生产执行
+     * 必须走带 {@code runEpoch} 与 {@code mcpServerCodes} 的重载：世代拒绝被取代
+     * 执行的迟到写入，环境与载荷在同一条 UPDATE 里保持同版本配对。
+     *
+     * <p>返回三态加一而不是布尔：只有「版本被更新状态取代」可以安静跳过并对齐重试，
+     * 「世代更替」连重试都不允许，真正的写入失败必须留痕。
      */
     public StateSaveResult saveFullState(String threadId, Long userId, long stateVersion,
+                                         Checkpoint checkpoint, String runStatus,
+                                         String pendingConfirmation) {
+        return saveFullState(threadId, userId, stateVersion, null, null,
+                checkpoint, runStatus, pendingConfirmation);
+    }
+
+    /**
+     * 带执行世代与工具环境的完整状态写入。
+     *
+     * <p>{@code runEpoch} 必须来自 {@link #beginExecution}（或续跑认领）返回的世代；
+     * 写入条件是「版本更新 <b>且</b> 世代仍是当前执行」，两个条件任一不满足都影响
+     * 0 行，但含义不同：版本不够新可以对齐重试，世代更替说明本执行已被取代，
+     * 迟到的载荷绝不允许借重试覆盖新进度。
+     *
+     * <p>{@code mcpServerCodes} 与载荷、版本在同一条 UPDATE 里落库：null 表示本次
+     * 执行没有声明环境（续跑沿用已记录的环境），列保持不变。环境记录失败或缺失
+     * 都不会把另一轮执行的环境拼到本载荷上——它们本来就是同一次写入。
+     */
+    public StateSaveResult saveFullState(String threadId, Long userId, long stateVersion,
+                                         Long runEpoch, String mcpServerCodes,
                                          Checkpoint checkpoint, String runStatus,
                                          String pendingConfirmation) {
         if (threadId == null || userId == null || checkpoint == null) {
@@ -137,24 +152,39 @@ public class AgentRunStateStore {
         try {
             // 首次执行时状态行还不存在，下面的 UPDATE 会静默影响 0 行。
             // 先按 (threadId) 唯一键建行；已存在时是空操作，不会改写归属。
+            // 建行时世代默认 0：首个执行在 beginExecution 里读不到行，同样以 0 开始。
             runStateMapper.insertIfAbsent(threadId, userId, AgentStateFormat.V2_FULL.code(),
                     RunStatus.RUNNING);
             byte[] payload = gzipUtils.compress(encodeState(checkpoint.getState()));
             int updated = runStateMapper.updateIfNewer(threadId, userId, stateVersion,
                     AgentStateFormat.V2_FULL.code(), checkpoint.getId(), checkpoint.getNodeId(),
-                    checkpoint.getNextNodeId(), payload, runStatus, pendingConfirmation);
+                    checkpoint.getNextNodeId(), payload, runStatus, pendingConfirmation,
+                    runEpoch, mcpServerCodes);
             if (updated == 1) {
-                flushPendingMcpCodes(threadId, userId);
                 return StateSaveResult.SAVED;
             }
-            // 0 行有两种原因，必须分清：版本已被别的写入推进，还是根本写不进去。
+            // 0 行有三种原因，必须分清：版本被推进、世代已更替，还是根本写不进去。
             // 读不到版本时无法判断是不是被取代，一律按「写不进去」留痕，
             // 否则一次读失败就会被当成「被更新版本取代」，进度静默消失。
             Long stored = readVersion(threadId, userId);
-            if (stored != null && stored >= stateVersion) {
-                log.info("执行状态被更新版本取代, threadId={}, offered={}, stored={}",
-                        threadId, stateVersion, stored);
-                return StateSaveResult.SUPERSEDED;
+            if (stored != null) {
+                // 世代对不上本身就是所有权更替的证据，与版本新旧无关：
+                // 版本条件没挡住的 0 行只可能是世代条件挡的。
+                // 此时重试毫无意义——重试的仍是旧执行的载荷，重新编号只会把
+                // 「迟到」伪装成「最新」，必须原样拒绝且不允许重试。
+                if (runEpoch != null) {
+                    Long storedEpoch = readRunEpoch(threadId, userId);
+                    if (storedEpoch != null && storedEpoch != runEpoch) {
+                        log.info("执行世代已更替，拒绝旧执行的迟到写入, threadId={}, offeredEpoch={}, storedEpoch={}",
+                                threadId, runEpoch, storedEpoch);
+                        return StateSaveResult.LOST_OWNERSHIP;
+                    }
+                }
+                if (stored >= stateVersion) {
+                    log.info("执行状态被更新版本取代, threadId={}, offered={}, stored={}",
+                            threadId, stateVersion, stored);
+                    return StateSaveResult.SUPERSEDED;
+                }
             }
             log.warn("执行状态未写入且版本未推进，按备份失败处理, threadId={}, version={}",
                     threadId, stateVersion);
@@ -184,55 +214,42 @@ public class AgentRunStateStore {
     }
 
     /**
-     * 记录本次执行用到的 MCP 服务 code。
+     * 开始一次新执行：原子推进执行世代并返回它。
      *
-     * <p>只存 code：续跑时按 code 用当前用户重新授权并重建 Agent。凭据、地址和
-     * 回调对象一律不落库，撤销或停用之后旧 Checkpoint 也续不上。
+     * <p>世代是跨实例有效的所有权凭据：返回值必须放进本次执行的
+     * {@code RunnableConfig} metadata，{@code DualCheckpointSaver} 写完整状态时
+     * 按它匹配。上一个执行（另一实例上的续跑、或用户刷新前的旧流）从此刻起
+     * 失去写入资格——它迟到的检查点不再能借「对齐重试」覆盖新进度。
      *
-     * <p><b>「没有 MCP」要写成 {@code []}，不能写成 NULL。</b>NULL 保留给
-     * 「根本没记录过」（旧版本写的状态、或记录失败）：续跑时这两种情况必须
-     * 分开处理——前者可以用内置工具继续，后者无法确认上次用了哪些工具，
-     * 只能拒绝续跑，否则会在少了工具的情况下继续跑，等于绕过用户的撤销决定。
+     * <p>状态行还不存在时返回 0：首次建行（第一个检查点）的世代默认就是 0，
+     * 两者自然匹配。CAS 竞争失败时重读重试；极端竞争下放弃并返回 -1
+     * （永不匹配任何世代，宁可不写恢复点也不写错归属）。
      */
-    public void recordMcpServerCodes(String threadId, Long userId, List<String> serverCodes) {
+    public long beginExecution(String threadId, Long userId) {
         if (threadId == null || userId == null) {
-            return;
+            return 0L;
         }
-        try {
-            String json = JsonUtils.toJson(serverCodes == null ? List.of() : serverCodes);
-            // 不在这里建行：状态行只在第一个检查点落库时创建。提前建行会让一个
-            // 还没有任何恢复点的正常执行在界面上显示成「不可恢复」，而它其实
-            // 只是刚开始跑。行不存在时影响 0 行，记录会随第一个检查点补写
-            // （见 saveFullState）。
-            int updated = runStateMapper.updateMcpServerCodes(threadId, userId, json);
-            if (updated == 0) {
-                // 状态行还没建：先记下来，第一个检查点建行后补写
-                pendingMcpCodes.put(pendingKey(threadId, userId), json);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            Long current = readRunEpoch(threadId, userId);
+            if (current == null) {
+                // 还没有状态行：首个检查点建行时的世代默认 0
+                return 0L;
             }
-        } catch (Exception e) {
-            // 记录失败不影响本次执行；但列保持 NULL，续跑时会被判成「没有记录」
-            // 而拒绝，而不是当作「没有用 MCP」继续跑
-            log.warn("记录 MCP 服务列表失败, threadId={}", threadId);
+            if (runStateMapper.bumpRunEpoch(threadId, userId, current) == 1) {
+                return current + 1;
+            }
         }
+        log.warn("执行世代推进持续冲突，本次执行放弃持久化资格, threadId={}", threadId);
+        return -1L;
     }
 
-    /** 状态行建好后补写本轮缓冲的 MCP 记录 */
-    private void flushPendingMcpCodes(String threadId, Long userId) {
-        String key = pendingKey(threadId, userId);
-        String json = pendingMcpCodes.remove(key);
-        if (json == null) {
-            return;
-        }
+    private Long readRunEpoch(String threadId, Long userId) {
         try {
-            runStateMapper.updateMcpServerCodes(threadId, userId, json);
+            return runStateMapper.selectRunEpoch(threadId, userId);
         } catch (Exception e) {
-            // 补写失败与首次记录失败同等处理：列保持 NULL，续跑时拒绝而不是猜
-            log.warn("补写 MCP 服务列表失败, threadId={}", threadId);
+            log.warn("读取执行世代失败, threadId={}", threadId);
+            return null;
         }
-    }
-
-    private String pendingKey(String threadId, Long userId) {
-        return threadId + "|" + userId;
     }
 
     /**
@@ -308,7 +325,6 @@ public class AgentRunStateStore {
 
     /** 释放会话：清理载荷与待确认信息 */
     public void clearForRelease(String threadId, Long userId) {
-        pendingMcpCodes.remove(pendingKey(threadId, userId));
         runStateMapper.clearForRelease(threadId, userId, RunStatus.COMPLETED);
     }
 
@@ -347,14 +363,19 @@ public class AgentRunStateStore {
     /**
      * 构造带恢复点的执行配置：{@code checkPointId} 让框架从该检查点续跑，
      * {@code nextNode} 保证恢复点确实指向下一步。
+     *
+     * <p>执行世代来自认领后的状态行（{@code claimForResume} 在认领时已递增）：
+     * 续跑是一次新执行，它写下的检查点必须以自己的世代为凭，旧执行从此写不进去。
+     * 续跑不声明新的工具环境——沿用已与恢复点配对的记录。
      */
     public RunnableConfig resumeConfig(String threadId, Long userId, AgentRunState state,
-                                       String ownerMetadataKey) {
+                                       String ownerMetadataKey, String epochMetadataKey) {
         return RunnableConfig.builder()
                 .threadId(threadId)
                 .checkPointId(state.getCheckpointId())
                 .nextNode(state.getNextNodeId())
                 .addMetadata(ownerMetadataKey, userId)
+                .addMetadata(epochMetadataKey, state.getRunEpoch() == null ? 0L : state.getRunEpoch())
                 .build();
     }
 

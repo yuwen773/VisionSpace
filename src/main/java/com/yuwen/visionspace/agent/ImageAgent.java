@@ -36,6 +36,7 @@ import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
+import com.yuwen.visionspace.utils.JsonUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.MessageType;
@@ -267,10 +268,8 @@ public class ImageAgent {
         sessionGuard.bindOwner(threadId, userId, userMessage);
         // 有结果未知的动作时，任何入口都不得继续跑
         recoveryService.requireNoPendingReview(threadId, userId);
-        // 内置入口不使用 MCP，但必须显式记成「空环境」：留 NULL 会让续跑
-        // 无法区分「没用 MCP」与「没记录」，只能一律拒绝
-        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
-        RunnableConfig config = configFor(threadId, userId);
+        // 内置入口不使用 MCP：环境随执行配置声明为「空环境」，与检查点同版本落库
+        RunnableConfig config = configFor(threadId, userId, List.of());
         try {
             String fullMessage = buildUserMessage(userMessage, imageUrls);
             AssistantMessage response = agent.call(fullMessage, config);
@@ -313,7 +312,6 @@ public class ImageAgent {
         // 归属已由调用方（AgentController）在建立流之前核对；这里再核对一次，
         // 保证任何直接调用方也无法把状态写进别人的会话。
         sessionGuard.requireOwned(threadId, userId);
-        RunnableConfig config = configFor(threadId, userId);
 
         // 本次执行开始前收敛上次遗留的「执行中」动作：可证明幂等的退回可重试，
         // 其余进入待核对，避免把它们当成「没发生」而重放
@@ -331,9 +329,10 @@ public class ImageAgent {
         TextMcpModelInterceptor.McpResolution mcp =
                 textMcpModelInterceptor.resolve(chatRequest, userId);
 
-        // 记录本次实际用到的服务 code：续跑时按它重新授权并重建 Agent，
-        // 而不是一律退回内置 agent（那样 MCP 工具会凭空消失）
-        runStateStore.recordMcpServerCodes(threadId, userId, mcp.serverCodes());
+        // 执行配置在 MCP 解析之后构建：本次实际用到的服务 code 与执行世代一起
+        // 声明进配置，由检查点写入路径与载荷同版本落库。提前直写会在首个新
+        // 检查点之前改坏既有恢复点的环境。
+        RunnableConfig config = configFor(threadId, userId, mcp.serverCodes());
 
         // 选择 Agent：无 MCP 用内置 agent，有 MCP 创建 combined agent
         ReactAgent activeAgent = mcp.isEmpty() ? agent : buildMcpAgent(mcp.callbacks());
@@ -482,9 +481,8 @@ public class ImageAgent {
             );
         }
 
-        // 反馈入口同样只用内置工具，显式记录空环境以便续跑能确认工具环境
-        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
-        RunnableConfig config = configFor(threadId, userId);
+        // 反馈入口同样只用内置工具：显式声明空环境，随检查点同版本落库
+        RunnableConfig config = configFor(threadId, userId, List.of());
 
         try {
             AssistantMessage response = agent.call(feedbackMessage, config);
@@ -531,8 +529,10 @@ public class ImageAgent {
                     "执行状态无法还原，已暂停自动执行");
         }
 
+        // 世代来自认领后的状态行：claimForResume 在认领时已把它推进到本续跑的世代
         RunnableConfig config = runStateStore.resumeConfig(threadId, userId, state,
-                DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY);
+                DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY,
+                DualCheckpointSaver.RUN_EPOCH_METADATA_KEY);
 
         // 恢复上一次的工具环境：按持久化的 code 用当前用户重新回读并授权。
         // 一律用内置 agent 会让 MCP 工具凭空消失；沿用旧回调又会让已撤销的权限复活，
@@ -635,10 +635,19 @@ public class ImageAgent {
      * <p>归属放在 metadata 里交给 Checkpoint 备份做条件写入；threadId 本身
      * 由调用方在进入这里之前已经核对过。
      */
-    private RunnableConfig configFor(String threadId, Long userId) {
+    private RunnableConfig configFor(String threadId, Long userId, List<String> mcpServerCodes) {
+        // 世代在本执行开始时签发：它是跨实例的所有权凭据，本执行的检查点
+        // 只能以它写入；上一轮执行的迟到载荷从此写不进共享状态。
+        long epoch = runStateStore.beginExecution(threadId, userId);
+        // 工具环境与检查点在同一份配置里声明：DualCheckpointSaver 会把它们与
+        // 载荷、版本放进同一条 UPDATE，环境与恢复点永远同版本配对。
+        // 「没有 MCP」必须显式记成 []，NULL 只留给「没有声明」的续跑。
         return RunnableConfig.builder()
                 .threadId(threadId)
                 .addMetadata(DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY, userId)
+                .addMetadata(DualCheckpointSaver.RUN_EPOCH_METADATA_KEY, epoch)
+                .addMetadata(DualCheckpointSaver.MCP_SERVER_CODES_METADATA_KEY,
+                        JsonUtils.toJson(mcpServerCodes == null ? List.of() : mcpServerCodes))
                 .build();
     }
 
@@ -710,8 +719,7 @@ public class ImageAgent {
         sessionGuard.bindOwner(threadId, userId, message);
         // 普通对话入口同样受待核对暂停约束：否则用户再发一条消息就能绕过暂停
         recoveryService.requireNoPendingReview(threadId, userId);
-        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
-        RunnableConfig config = configFor(threadId, userId);
+        RunnableConfig config = configFor(threadId, userId, List.of());
         chatHistoryService.saveUserMessage(threadId, userId, message);
         try {
             return agent.invokeAndGetOutput(message, config);

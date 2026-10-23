@@ -75,7 +75,7 @@ class DualCheckpointSaverTest {
 
         when(redissonClient.getBucket(anyString())).thenReturn(bucket);
         when(redisSaver.put(any(), any())).thenAnswer(inv -> inv.getArgument(0));
-        when(runStateStore.saveFullState(anyString(), anyLong(), anyLong(), any(), any(), any()))
+        when(runStateStore.saveFullState(anyString(), any(), anyLong(), any(), any(), any(), any(), any()))
                 .thenReturn(StateSaveResult.SAVED);
         when(sessionMapper.updateCheckpointData(anyString(), anyLong(), any())).thenReturn(1);
     }
@@ -99,7 +99,7 @@ class DualCheckpointSaverTest {
 
         ArgumentCaptor<Long> versions = ArgumentCaptor.forClass(Long.class);
         verify(runStateStore, times(2))
-                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), eq(RunStatus.RUNNING), any());
+                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any(), eq(RunStatus.RUNNING), any());
         List<Long> captured = versions.getAllValues();
         assertTrue(captured.get(1) > captured.get(0),
                 "versions must increase so a late older backup cannot win the CAS: " + captured);
@@ -114,7 +114,7 @@ class DualCheckpointSaverTest {
 
         ArgumentCaptor<Long> version = ArgumentCaptor.forClass(Long.class);
         verify(runStateStore).saveFullState(eq(THREAD), eq(OWNER), version.capture(), any(),
-                eq(RunStatus.RUNNING), any());
+                any(), any(), eq(RunStatus.RUNNING), any());
         assertTrue(version.getValue() > 500L,
                 "a taking-over instance must offer a version above the stored one, got "
                         + version.getValue());
@@ -123,7 +123,7 @@ class DualCheckpointSaverTest {
     @Test
     void supersededWriteIsRetriedAgainstTheNewerStoredVersion() throws Exception {
         // 第一次写入被判为过期（别的实例抢先推进），第二次必须按新版本重试并成功
-        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any()))
+        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), any(), any()))
                 .thenReturn(StateSaveResult.SUPERSEDED, StateSaveResult.SAVED);
         when(runStateStore.currentVersion(THREAD, OWNER)).thenReturn(10L, 11L);
 
@@ -131,7 +131,7 @@ class DualCheckpointSaverTest {
 
         ArgumentCaptor<Long> versions = ArgumentCaptor.forClass(Long.class);
         verify(runStateStore, times(2))
-                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any());
+                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any(), any(), any());
         List<Long> captured = versions.getAllValues();
         assertTrue(captured.get(1) > captured.get(0),
                 "the retry must use a version above the one that lost: " + captured);
@@ -139,13 +139,13 @@ class DualCheckpointSaverTest {
 
     @Test
     void genuineWriteFailureIsNotRetriedForever() throws Exception {
-        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any()))
+        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), any(), any()))
                 .thenReturn(StateSaveResult.FAILED);
 
         saver.put(config(), checkpoint());
 
         verify(runStateStore, times(1))
-                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any());
+                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -160,7 +160,7 @@ class DualCheckpointSaverTest {
 
         ArgumentCaptor<Long> versions = ArgumentCaptor.forClass(Long.class);
         verify(runStateStore, times(2))
-                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any());
+                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any(), any(), any());
         assertTrue(versions.getAllValues().get(1) > 300L,
                 "a released session must not restart version numbering below the stored state: "
                         + versions.getAllValues());
@@ -172,13 +172,13 @@ class DualCheckpointSaverTest {
 
         saver.put(noOwner, checkpoint());
 
-        verify(runStateStore, never()).saveFullState(anyString(), any(), anyLong(), any(), any(), any());
+        verify(runStateStore, never()).saveFullState(anyString(), any(), anyLong(), any(), any(), any(), any(), any());
         verify(sessionMapper, never()).updateCheckpointData(anyString(), any(), any());
     }
 
     @Test
     void backupFailureDoesNotBreakTheExecution() throws Exception {
-        when(runStateStore.saveFullState(anyString(), anyLong(), anyLong(), any(), any(), any()))
+        when(runStateStore.saveFullState(anyString(), any(), anyLong(), any(), any(), any(), any(), any()))
                 .thenReturn(StateSaveResult.FAILED);
 
         RunnableConfig result = null;
@@ -190,7 +190,7 @@ class DualCheckpointSaverTest {
         assertEquals(THREAD, result.threadId().orElse(null));
         // 完整状态写入返回 false 不抛异常，主流程照常推进
         verify(runStateStore, times(3))
-                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), eq(RunStatus.RUNNING), any());
+                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), eq(RunStatus.RUNNING), any());
         verify(sessionMapper).updateCheckpointData(eq(THREAD), eq(OWNER), any());
     }
 
@@ -236,6 +236,47 @@ class DualCheckpointSaverTest {
         when(sessionMapper.selectBySessionId(THREAD)).thenReturn(session);
 
         assertTrue(saver.loadLegacyArchiveMessages(THREAD).isEmpty());
+    }
+
+    @Test
+    void lostOwnershipIsNotRetriedSoStalePayloadCannotOverwriteNewerState() throws Exception {
+        // 评审 F1 的探针场景：旧执行的检查点被拒后借「对齐重试」重新编号，
+        // 覆盖了新执行的状态。世代更替（LOST_OWNERSHIP）绝不能触发重试。
+        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), any(), any()))
+                .thenReturn(StateSaveResult.LOST_OWNERSHIP);
+
+        saver.put(configWithEpoch(), checkpoint());
+
+        verify(runStateStore, times(1))
+                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void epochAndDeclaredEnvironmentReachTheDurableWriteFromTheConfig() throws Exception {
+        saver.put(configWithEpoch(), checkpoint());
+
+        verify(runStateStore).saveFullState(eq(THREAD), eq(OWNER), anyLong(), eq(7L),
+                eq("[\"remote-a\"]"), any(), eq(RunStatus.RUNNING), any());
+    }
+
+    @Test
+    void configWithoutEpochStillSavesWithVersionOnlySemantics() throws Exception {
+        // 旧调用方/测试种子没有世代：退回纯版本 CAS，不因缺 metadata 丢恢复点
+        saver.put(config(), checkpoint());
+
+        verify(runStateStore).saveFullState(eq(THREAD), eq(OWNER), anyLong(),
+                (Long) org.mockito.ArgumentMatchers.isNull(),
+                (String) org.mockito.ArgumentMatchers.isNull(),
+                any(), eq(RunStatus.RUNNING), any());
+    }
+
+    private RunnableConfig configWithEpoch() {
+        return RunnableConfig.builder()
+                .threadId(THREAD)
+                .addMetadata(DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY, OWNER)
+                .addMetadata(DualCheckpointSaver.RUN_EPOCH_METADATA_KEY, 7L)
+                .addMetadata(DualCheckpointSaver.MCP_SERVER_CODES_METADATA_KEY, "[\"remote-a\"]")
+                .build();
     }
 
     private byte[] compress(LightweightCheckpoint lw) {

@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -52,8 +53,8 @@ class AgentRunStateStoreTest {
     @Test
     void saveFullStateUsesVersionCasSoLateOldBackupIsIgnored() {
         // 旧备份晚到：CAS 影响 0 行，库里的版本比它新
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(0);
         when(mapper.selectVersion("t1", OWNER)).thenReturn(20L);
 
         StateSaveResult result = store.saveFullState("t1", OWNER, 5L, checkpoint(),
@@ -62,15 +63,15 @@ class AgentRunStateStoreTest {
         assertEquals(StateSaveResult.SUPERSEDED, result,
                 "older version must not overwrite newer state, and must be reported as superseded");
         verify(mapper).updateIfNewer(eq("t1"), eq(OWNER), eq(5L), anyString(), any(), any(),
-                any(), any(), eq(RunStatus.RUNNING), any());
+                any(), any(), eq(RunStatus.RUNNING), any(), any(), any());
         // 被更新版本取代不是故障：不该写 backupError
         verify(mapper, never()).recordBackupFailure(anyString(), any(), anyString());
     }
 
     @Test
     void saveFullStateReportsSuccessWhenVersionIsNewer() {
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any())).thenReturn(1);
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(1);
 
         assertEquals(StateSaveResult.SAVED,
                 store.saveFullState("t1", OWNER, 9L, checkpoint(), RunStatus.RUNNING, null));
@@ -79,8 +80,8 @@ class AgentRunStateStoreTest {
     @Test
     void unwritableRowIsReportedAsFailureNotAsSuperseded() {
         // 影响 0 行但库里版本并没有推进：这是真的写不进去，不能当成「旧备份」放过
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(0);
         when(mapper.selectVersion("t1", OWNER)).thenReturn(2L);
 
         assertEquals(StateSaveResult.FAILED,
@@ -90,8 +91,8 @@ class AgentRunStateStoreTest {
 
     @Test
     void backupFailureIsRecordedSoItIsVisibleAndRetryable() {
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any()))
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("disk full"));
 
         assertEquals(StateSaveResult.FAILED,
@@ -101,14 +102,16 @@ class AgentRunStateStoreTest {
     }
 
     @Test
-    void mcpServerCodesArePersistedAsCodesOnlyWithoutCreatingTheRowEarly() {
-        store.recordMcpServerCodes("t1", OWNER, List.of("remote-a", "remote-b"));
+    void mcpServerCodesRideTheSameUpdateAsTheCheckpointPayload() {
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(1);
 
-        // 不在这里建行：状态行只由第一个检查点创建，提前建行会让刚开始的执行
-        // 显示成「不可恢复」
-        verify(mapper, never()).insertIfAbsent(eq("t1"), eq(OWNER), anyString(), anyString());
+        store.saveFullState("t1", OWNER, 1L, 0L, "[\"remote-a\",\"remote-b\"]",
+                checkpoint(), RunStatus.RUNNING, null);
+
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(mapper).updateMcpServerCodes(eq("t1"), eq(OWNER), captor.capture());
+        verify(mapper).updateIfNewer(eq("t1"), eq(OWNER), eq(1L), anyString(), any(), any(),
+                any(), any(), eq(RunStatus.RUNNING), any(), any(), captor.capture());
         assertEquals("[\"remote-a\",\"remote-b\"]", captor.getValue(),
                 "only server codes are persisted: " + captor.getValue());
         assertFalse(captor.getValue().contains("apiKey"),
@@ -116,31 +119,92 @@ class AgentRunStateStoreTest {
     }
 
     @Test
-    void mcpCodesRecordedBeforeTheRowExistsAreFlushedWithTheFirstCheckpoint() {
-        // 第一次执行：状态行还不存在，记录先缓冲
-        when(mapper.updateMcpServerCodes(eq("t1"), eq(OWNER), anyString())).thenReturn(0);
-        store.recordMcpServerCodes("t1", OWNER, List.of("remote-a"));
+    void environmentAndPayloadAreWrittenInOneStatementSoTheyStayTheSameVersion() {
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(1);
 
-        // 第一个检查点建行成功后补写，否则续跑会以为「没有记录」
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any())).thenReturn(1);
-        when(mapper.updateMcpServerCodes(eq("t1"), eq(OWNER), eq("[\"remote-a\"]"))).thenReturn(1);
+        // 环境不单独直写：没有可用的检查点写入，就没有任何环境变更落库——
+        // 新请求在首个检查点前崩溃时，既有恢复点的环境原封不动
+        store.saveFullState("t1", OWNER, 1L, 0L, "[\"remote-a\"]",
+                checkpoint(), RunStatus.RUNNING, null);
 
-        store.saveFullState("t1", OWNER, 1L, checkpoint(), RunStatus.RUNNING, null);
-
-        verify(mapper, times(2)).updateMcpServerCodes("t1", OWNER, "[\"remote-a\"]");
+        verify(mapper).updateIfNewer(eq("t1"), eq(OWNER), eq(1L), anyString(), any(), any(),
+                any(), any(), eq(RunStatus.RUNNING), any(), any(), eq("[\"remote-a\"]"));
     }
 
     @Test
-    void emptyMcpServerCodesAreRecordedAsAnEmptyListNotAsMissing() {
-        store.recordMcpServerCodes("t1", OWNER, List.of());
+    void absentEnvironmentLeavesTheRecordedCodesUntouched() {
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(1);
 
-        var captor = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(mapper).updateMcpServerCodes(eq("t1"), eq(OWNER), captor.capture());
-        // 「记录了但没有用 MCP」必须能与「根本没有记录」区分：前者可以安全续跑，
-        // 后者无法确认上次的工具环境，只能拒绝
-        assertEquals("[]", captor.getValue(),
-                "a run without MCP must be recorded, not left as an unknown environment");
+        // 续跑不声明新环境：null 必须原样传给 SQL（COALESCE 保旧值），
+        // 否则恢复点会配上一条空环境
+        store.saveFullState("t1", OWNER, 1L, 0L, null,
+                checkpoint(), RunStatus.RUNNING, null);
+
+        verify(mapper).updateIfNewer(eq("t1"), eq(OWNER), eq(1L), anyString(), any(), any(),
+                any(), any(), eq(RunStatus.RUNNING), any(), any(), (String) isNull());
+    }
+
+    @Test
+    void epochMismatchIsReportedAsLostOwnershipAndNotRetried() {
+        // 世代已更替：库里的世代不是本执行的，0 行必须判成 LOST_OWNERSHIP——
+        // 重试同一个旧载荷毫无意义，绝不允许借对齐重试覆盖新进度
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(0);
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(20L);
+        when(mapper.selectRunEpoch("t1", OWNER)).thenReturn(7L);
+
+        StateSaveResult result = store.saveFullState("t1", OWNER, 21L, 3L, null,
+                checkpoint(), RunStatus.RUNNING, null);
+
+        assertEquals(StateSaveResult.LOST_OWNERSHIP, result,
+                "a stale execution must not be allowed to retry over newer progress");
+        verify(mapper, times(1)).updateIfNewer(anyString(), any(), anyLong(), anyString(),
+                any(), any(), any(), any(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    void epochMatchingVersionStaleIsStillSupersededSoAlignmentRetryStaysPossible() {
+        // 世代匹配、版本落后：合法的同执行并发写入，仍按「被取代」报告，
+        // 让调用方可以对齐重试
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(0);
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(20L);
+        when(mapper.selectRunEpoch("t1", OWNER)).thenReturn(3L);
+
+        assertEquals(StateSaveResult.SUPERSEDED,
+                store.saveFullState("t1", OWNER, 5L, 3L, null,
+                        checkpoint(), RunStatus.RUNNING, null));
+    }
+
+    @Test
+    void beginExecutionBumpsTheEpochAtomicallyAndReturnsIt() {
+        when(mapper.selectRunEpoch("t1", OWNER)).thenReturn(4L);
+        when(mapper.bumpRunEpoch("t1", OWNER, 4L)).thenReturn(1);
+
+        assertEquals(5L, store.beginExecution("t1", OWNER),
+                "the execution must own the epoch it will write with");
+    }
+
+    @Test
+    void beginExecutionWithoutARowStartsAtEpochZero() {
+        // 首次执行：还没有状态行，insertIfAbsent 建行时世代默认 0，两者自然匹配
+        when(mapper.selectRunEpoch("t1", OWNER)).thenReturn(null);
+
+        assertEquals(0L, store.beginExecution("t1", OWNER));
+    }
+
+    @Test
+    void beginExecutionRetriesWhenTheEpochRacesThenGivesUpWithAnUnwritableEpoch() {
+        when(mapper.selectRunEpoch("t1", OWNER)).thenReturn(4L);
+        when(mapper.bumpRunEpoch("t1", OWNER, 4L)).thenReturn(0);
+
+        long epoch = store.beginExecution("t1", OWNER);
+
+        assertTrue(epoch < 0,
+                "a lost epoch race must return an unwritable epoch, not guess ownership");
+        verify(mapper, times(5)).bumpRunEpoch("t1", OWNER, 4L);
     }
 
     @Test
@@ -184,8 +248,8 @@ class AgentRunStateStoreTest {
     void unwritableRowWithUnreadableVersionIsAFailureNotASupersede() {
         // 写入影响 0 行，且版本读不到：无法证明「被更新版本取代」，
         // 只能按真正的写入失败处理，否则这一版进度会静默消失
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any())).thenReturn(0);
         when(mapper.selectVersion("t1", OWNER)).thenThrow(new IllegalStateException("db down"));
 
         StateSaveResult result = store.saveFullState("t1", OWNER, 5L,
@@ -298,13 +362,13 @@ class AgentRunStateStoreTest {
         assertEquals(StateSaveResult.FAILED,
                 store.saveFullState("t1", null, 1L, checkpoint(), RunStatus.RUNNING, null));
         verify(mapper, never()).updateIfNewer(anyString(), any(), anyLong(), anyString(), any(),
-                any(), any(), any(), anyString(), any());
+                any(), any(), any(), anyString(), any(), any(), any());
     }
 
     @Test
     void failureReasonDoesNotCarryRawContent() {
-        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
-                any(), any(), anyString(), any()))
+        when(mapper.updateIfNewer(anyString(), any(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("secret-body-内容".repeat(40)));
 
         store.saveFullState("t1", OWNER, 1L, checkpoint(), RunStatus.RUNNING, null);

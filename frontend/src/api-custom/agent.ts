@@ -140,6 +140,8 @@ export interface RecoveryState {
   backupAttempts: number | null
   pendingConfirmation: string | null
   pendingReviewCount: number
+  /** RUNNING 状态下是否仍有活跃执行在推进；false 表示进程失活遗留，可安全恢复 */
+  activeExecution: boolean
   actions: RecoveryAction[]
 }
 

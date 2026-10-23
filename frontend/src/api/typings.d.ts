@@ -1,4 +1,10 @@
 declare namespace API {
+  type ActionReviewRequest = {
+    threadId?: string
+    actionId?: string
+    note?: string
+  }
+
   type AdminDashboardStatsVO = {
     userCount?: number
     pictureCount?: number
@@ -18,9 +24,21 @@ declare namespace API {
     disableMcpDefault?: boolean
   }
 
+  type AgentImageVO = {
+    resourceId?: number
+    url?: string
+    size?: number
+  }
+
   type BaseResponseAdminDashboardStatsVO = {
     code?: number
     data?: AdminDashboardStatsVO
+    message?: string
+  }
+
+  type BaseResponseAgentImageVO = {
+    code?: number
+    data?: AgentImageVO
     message?: string
   }
 
@@ -216,6 +234,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseRecoveryStateVO = {
+    code?: number
+    data?: RecoveryStateVO
+    message?: string
+  }
+
   type BaseResponseSpace = {
     code?: number
     data?: Space
@@ -240,27 +264,9 @@ declare namespace API {
     message?: string
   }
 
-  type AgentImageVO = {
-    resourceId?: number
-    url?: string
-    size?: number
-  }
-
-  type BaseResponseAgentImageVO = {
-    code?: number
-    data?: AgentImageVO
-    message?: string
-  }
-
   type BaseResponseString = {
     code?: number
     data?: string
-    message?: string
-  }
-
-  type BaseResponseUser = {
-    code?: number
-    data?: User
     message?: string
   }
 
@@ -410,6 +416,10 @@ declare namespace API {
     size?: number
   }
 
+  type getRecoveryStateUsingGetParams = {
+    threadId: string
+  }
+
   type getSessionsUsingGetParams = {
     beforeId?: number
     limit?: number
@@ -448,8 +458,8 @@ declare namespace API {
 
   type IPageMcpServerDetail = {
     size?: number
-    records?: McpServerDetail[]
     current?: number
+    records?: McpServerDetail[]
     total?: number
     pages?: number
   }
@@ -477,7 +487,6 @@ declare namespace API {
   }
 
   type McpCapabilities = {
-    /** 当前部署是否禁用 STDIO */
     stdioDisabled?: boolean
   }
 
@@ -510,6 +519,11 @@ declare namespace API {
   type OrderItem = {
     column?: string
     asc?: boolean
+  }
+
+  type originalUsingGetParams = {
+    pictureId: number
+    download?: boolean
   }
 
   type PageFeedbackVO = {
@@ -749,6 +763,10 @@ declare namespace API {
     clickCount?: number
   }
 
+  type previewUsingGetParams = {
+    pictureId: number
+  }
+
   type RecommendPageVO = {
     records?: RecommendPictureVO[]
     total?: number
@@ -763,6 +781,36 @@ declare namespace API {
     picScale?: number
     picColor?: string
     tags?: string[]
+    thumbnailEndpoint?: string
+  }
+
+  type RecoveryActionVO = {
+    actionId?: string
+    toolName?: string
+    status?: string
+    attempt?: number
+    resultSummary?: string
+    updateTime?: string
+  }
+
+  type RecoveryStateVO = {
+    threadId?: string
+    runStatus?: string
+    resumable?: boolean
+    reason?: string
+    stateVersion?: number
+    legacyArchiveOnly?: boolean
+    backupError?: string
+    backupAttempts?: number
+    pendingConfirmation?: string
+    pendingReviewCount?: number
+    activeExecution?: boolean
+    actions?: RecoveryActionVO[]
+  }
+
+  type resumeUsingPostParams = {
+    threadId: string
+    expectedVersion?: number
   }
 
   type SearchPictureByColorRequest = {
@@ -773,8 +821,6 @@ declare namespace API {
   type SearchPictureByPictureRequest = {
     pictureId?: number
   }
-
-  type ServerSentEventString = Record<string, any>
 
   type SessionVO = {
     sessionId?: string
@@ -1015,8 +1061,10 @@ declare namespace API {
     endpoint?: string
     region?: string
     bucket?: string
-    accessKey?: string
-    secretKey?: string
+    accessKeyMasked?: string
+    secretKeyMasked?: string
+    hasAccessKey?: boolean
+    hasSecretKey?: boolean
     domain?: string
     basePath?: string
     isActive?: number
@@ -1033,21 +1081,8 @@ declare namespace API {
     failed?: number
   }
 
-  type User = {
-    id?: number
-    userAccount?: string
-    userPassword?: string
-    userName?: string
-    userAvatar?: string
-    userProfile?: string
-    userRole?: string
-    vipExpireTime?: string
-    vipCode?: string
-    vipNumber?: number
-    editTime?: string
-    createTime?: string
-    updateTime?: string
-    isDelete?: number
+  type thumbnailUsingGetParams = {
+    pictureId: number
   }
 
   type UserAddRequest = {
@@ -1144,7 +1179,6 @@ declare namespace API {
   type BaseResponseSpaceUser_ = BaseResponseSpaceUser
   type BaseResponseSpaceVO_ = BaseResponseSpaceVO
   type BaseResponseString_ = BaseResponseString
-  type BaseResponseUser_ = BaseResponseUser
   type BaseResponseUserPictureStatsResponse_ = BaseResponseUserPictureStatsResponse
   type BaseResponseUserVO_ = BaseResponseUserVO
   type PageFeedbackVO_ = PageFeedbackVO

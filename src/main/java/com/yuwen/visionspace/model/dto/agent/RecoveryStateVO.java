@@ -44,6 +44,9 @@ public class RecoveryStateVO implements Serializable {
     /** 待核对动作数 */
     private int pendingReviewCount;
 
+    /** RUNNING 状态下是否仍有活跃执行在推进；false 表示进程失活遗留，可安全恢复 */
+    private boolean activeExecution;
+
     /** 动作台账 */
     private List<RecoveryActionVO> actions;
 }

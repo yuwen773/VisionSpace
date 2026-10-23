@@ -35,6 +35,7 @@ const state = (overrides: Partial<RecoveryState> = {}): RecoveryState =>
     stateVersion: 7,
     legacyArchiveOnly: false,
     pendingReviewCount: 1,
+    activeExecution: false,
     actions: [
       {
         actionId: 'a-1',
@@ -70,11 +71,56 @@ describe('RecoveryBanner', () => {
   it('stays out of the way while a run is still healthy', () => {
     const wrapper = mount(RecoveryBanner, {
       props: {
-        state: state({ resumable: true, pendingReviewCount: 0, actions: [], runStatus: 'RUNNING' }),
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'RUNNING',
+          activeExecution: true,
+        }),
       },
     })
 
-    // 可续跑且没有待核对：正常推进中，不显示提示
+    // 可续跑、没有待核对、且仍有活跃执行在推进：正常推进中，不显示提示
+    expect(wrapper.find('.recovery-banner').exists()).toBe(false)
+  })
+
+  it('offers resume when a RUNNING run was orphaned by a hard crash', () => {
+    // 硬崩溃不会经过 catch 改写状态：持久行停在 RUNNING。服务端按租约与
+    // 更新时间判定执行已失活，横幅必须给出续跑入口，而不是永远隐藏。
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'RUNNING',
+          activeExecution: false,
+        }),
+      },
+    })
+
+    expect(wrapper.find('.recovery-banner').exists()).toBe(true)
+    expect(wrapper.text()).toContain('上次执行可能已中断')
+    const resume = wrapper.find('.primary-btn')
+    expect(resume.exists()).toBe(true)
+    expect(resume.text()).toContain('继续执行')
+  })
+
+  it('still hides the banner while a run is active even without recent checkpoints', () => {
+    // 有效租约（另一实例正在续跑）优先于更新时间：不能把活跃运行误判为失活
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'RUNNING',
+          activeExecution: true,
+        }),
+      },
+    })
+
     expect(wrapper.find('.recovery-banner').exists()).toBe(false)
   })
 

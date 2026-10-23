@@ -315,6 +315,7 @@ CREATE TABLE `agent_run_state` (
   `threadId` varchar(64) NOT NULL COMMENT '会话 id',
   `userId` bigint(20) NOT NULL COMMENT '会话归属用户（读取与恢复的唯一依据）',
   `stateVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '状态版本，单调递增；写入按它做 CAS',
+  `runEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '执行世代：每次执行开始时递增，迟到旧载荷据此被拒',
   `stateFormat` varchar(32) NOT NULL COMMENT '状态格式版本，例如 v2-full',
   `checkpointId` varchar(128) NULL DEFAULT NULL COMMENT '完整恢复点 id',
   `nodeId` varchar(128) NULL DEFAULT NULL COMMENT '已完成的节点',

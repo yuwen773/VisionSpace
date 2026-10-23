@@ -72,8 +72,10 @@ const emit = defineEmits<{
 // 横幅只在「用户需要做点什么」时出现：
 //   - 有结果未知的动作 → 必须核对；
 //   - 停在人工确认 → 必须确认；
-//   - 已中断但可续跑（PAUSED_UNRECOVERABLE / FAILED 等）→ 必须给续跑入口。
-// 只有「正在正常运行」才隐藏，避免每轮对话都打扰用户。
+//   - 已中断但可续跑（PAUSED_UNRECOVERABLE / FAILED 等）→ 必须给续跑入口；
+//   - RUNNING 但服务端判定执行已失活（进程硬崩溃不会经过 catch 改状态，
+//     持久行停在 RUNNING）→ 同样必须给续跑入口。
+// 只有「仍有活跃执行在推进」才隐藏，避免每轮对话都打扰用户。
 // 关键点：resumable 不能直接隐藏横幅——中断后能续跑的状态恰恰是最需要
 // 「继续执行」按钮的时候；已完成则不给任何重放入口。
 const visible = computed(() => {
@@ -82,8 +84,8 @@ const visible = computed(() => {
   if (state.runStatus === 'COMPLETED') return false
   if (state.pendingReviewCount > 0) return true
   if (state.runStatus === 'AWAITING_CONFIRMATION') return true
-  // 正常运行中（含刚建立、还没有状态推进）不打扰
-  if (state.runStatus === 'RUNNING' && state.resumable) return false
+  // 活跃执行中（含刚建立、还没有状态推进）不打扰；失活遗留的 RUNNING 必须露出
+  if (state.runStatus === 'RUNNING') return !state.activeExecution
   // 其余：中断、失败、不可恢复、可续跑——都需要用户看到并决定
   return true
 })
@@ -98,6 +100,10 @@ const title = computed(() => {
   if (!props.state) return ''
   if (props.state.pendingReviewCount > 0) return '有外部动作结果未知，需要核对'
   if (props.state.runStatus === 'AWAITING_CONFIRMATION') return '等待你确认下一步'
+  if (props.state.runStatus === 'RUNNING' && props.state.resumable) {
+    // 失活遗留的 RUNNING：进程多半已硬崩溃，明确说明而不是假装还在跑
+    return '上次执行可能已中断'
+  }
   if (props.state.resumable) return '可以从上次中断处继续'
   if (props.state.legacyArchiveOnly) return '只有历史消息，无法继续执行'
   return '当前无法自动继续'
@@ -105,6 +111,9 @@ const title = computed(() => {
 
 const fallbackReason = computed(() => {
   if (!props.state) return ''
+  if (props.state.runStatus === 'RUNNING' && props.state.resumable) {
+    return '执行进程已有一段时间没有推进，可以从上次保存的状态继续'
+  }
   return props.state.runStatus === 'COMPLETED' ? '' : '会话已暂停，历史消息仍可查看'
 })
 

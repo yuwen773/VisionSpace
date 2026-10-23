@@ -79,7 +79,7 @@ class ImageAgentResumeToolEnvironmentTest {
         when(runStateStore.toCheckpoint(state)).thenReturn(Optional.of(
                 Checkpoint.builder().id("cp").nodeId("model").nextNodeId("tool_node")
                         .state(Map.of()).build()));
-        when(runStateStore.resumeConfig(eq(THREAD), eq(OWNER), eq(state), anyString()))
+        when(runStateStore.resumeConfig(eq(THREAD), eq(OWNER), eq(state), anyString(), anyString()))
                 .thenReturn(RunnableConfig.builder().threadId(THREAD).build());
     }
 
