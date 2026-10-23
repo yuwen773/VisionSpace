@@ -55,10 +55,11 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>'
 ```
 
-结果：九个结果分类全部 PASS，退出 0（隔离服务、后端测试与打包、前端安装/类型检查/测试/构建、资源清理）。这是修完下列缺陷之后的完整重跑，最终提交 `e1fc6d0` 与之一致。
+结果：九个结果分类全部 PASS，退出 0（隔离服务、后端测试与打包、前端安装/类型检查/测试/构建、资源清理）。这是修完下列缺陷之后的完整重跑。
 
-- 后端 411 条测试全部通过（新增 `HttpAgentAttachmentLifecycleTest` 12 条、`AgentAttachmentMigrationTest` 2 条）。
-- 前端 16 个测试文件 146 条全部通过（新增 `useAgentStream.spec.ts` 3 条）。
+- 合并 main（#38 合入）之后重跑：提交 `0965fc0`，九个分类全部 PASS。
+- 后端 466 条测试全部通过（其中本工单新增 `HttpAgentAttachmentLifecycleTest` 12 条、`AgentAttachmentMigrationTest` 2 条）。
+- 前端 18 个测试文件 157 条全部通过（其中本工单新增 `useAgentStream.spec.ts` 3 条）。
 
 首次运行有 4 条失败，都是实现缺陷而不是断言写错，按下述方向修掉，未放宽断言：
 
@@ -66,6 +67,8 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
 2. **附件内容的缓存头重复。** `Cache-Control` 同时由 `CacheControl` 构造器和 `header(...)` 各写了一次，响应里出现两个值。改为只写 `no-store`。
 3. **存量回填的字符集冲突。** `picture_file.url`（`utf8mb4_unicode_ci`）与 `agent_message.content`（`utf8mb4_general_ci`）比较时报 "Illegal mix of collations"。改为二进制比较。
 4. **迁移脚本的作用域替换漏了字符串字面量。** 存储过程按表名字符串定位待改的表，只替换反引号形式会让 ALTER 打到真实的 `picture_file`。测试改为同时替换两种形式。
+
+合并 main（#38 合入 `picture_action_event_dedupe`）时冲突三处：`scripts/acceptance.ps1` 与 `scripts/browser-acceptance.ps1` 的建表数守卫（12 → 15 → 17）与 `frontend/src/api/typings.d.ts` 的分页类型属性顺序（两侧字段相同，只是顺序不同）。建表数按合并后的 `sql/create_vision_space.sql` 实际统计取 17。
 
 ## 人工关卡（未完成，不计入通过）
 
