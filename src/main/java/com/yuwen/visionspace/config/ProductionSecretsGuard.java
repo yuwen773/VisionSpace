@@ -59,9 +59,7 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
     }
 
     static boolean isProduction(List<String> activeProfiles) {
-        return activeProfiles.stream()
-                .map(profile -> profile.toLowerCase(Locale.ROOT))
-                .anyMatch(profile -> profile.equals("prod") || profile.equals("production"));
+        return ProductionProfiles.isProduction(activeProfiles);
     }
 
     /**

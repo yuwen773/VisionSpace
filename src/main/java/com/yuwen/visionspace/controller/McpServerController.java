@@ -7,11 +7,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import com.yuwen.visionspace.agent.mcp.McpCapabilityGuard;
 import com.yuwen.visionspace.agent.service.McpServerService;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.model.dto.mcp.McpCapabilities;
 import com.yuwen.visionspace.model.dto.mcp.McpServerDetail;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.service.UserService;
@@ -36,6 +38,9 @@ public class McpServerController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private McpCapabilityGuard capabilityGuard;
 
     @PostMapping
     public BaseResponse<String> createMcpServer(@RequestBody McpServerDetail detail, HttpServletRequest request) {
@@ -68,6 +73,19 @@ public class McpServerController {
         Long userId = getLoginUserId(request);
         McpServerDetail detail = mcpServerService.getMcp(mcpServerCode, userId, needTools);
         return ResultUtils.success(detail);
+    }
+
+    /**
+     * 当前部署允许的 MCP 能力。
+     *
+     * <p>UI 用这份判定决定是否提供 STDIO 选项，与服务端拒绝规则同源，
+     * 避免界面宣称一个实际会被拒绝的能力可用。
+     */
+    @GetMapping("/capabilities")
+    public BaseResponse<McpCapabilities> capabilities(HttpServletRequest request) {
+        // 与本控制器其余入口一致：只有登录用户需要知道当前部署允许什么能力
+        getLoginUserId(request);
+        return ResultUtils.success(new McpCapabilities(capabilityGuard.stdioDisabled()));
     }
 
     @GetMapping

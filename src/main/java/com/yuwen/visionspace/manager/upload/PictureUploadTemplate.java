@@ -58,6 +58,9 @@ public abstract class PictureUploadTemplate {
             FileInfo fileInfo = pictureStorageService.putPictureObject(file, uploadPathPrefix, uploadFilename);
             // 5. 封装返回结果
             return buildResult(originalFilename, file, fileInfo);
+        } catch (BusinessException e) {
+            // 业务拒绝（地址不安全、超量、类型不符）原样上抛，不能被包装成系统错误
+            throw e;
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");

@@ -35,6 +35,28 @@ vision-space:
     csrf-cookie-name: VS_CSRF
     csrf-header-name: X-CSRF-Token
     csrf-token-max-age: 7200
+  # 用户输入出站请求（URL 图片下载、远程 MCP 目标）
+  outbound:
+    # 回环、私网、链路本地、云元数据等地址一律内置拒绝，没有对应的放宽开关。
+    # 协议白名单：只支持 http/https，其他协议一律拒绝。
+    allowed-schemes:
+      - http
+      - https
+    # 运维声明的受控内部依赖：完整主机名精确匹配，允许解析到内部地址。
+    # 只从部署配置写入，用户请求无法影响；留空表示没有任何内部例外。
+    trusted-hosts: ${VISION_SPACE_OUTBOUND_TRUSTED_HOSTS:}
+    # 受控依赖允许连接的端口：不限制端口会让可信主机名借道连到该主机上的其他服务
+    trusted-ports:
+      - 443
+      - 8443
+    # 仅受控验收环境可打开，用于连接本机替身。生产 profile 下恒为 false：
+    # 误配这个环境变量不会把整台机器的本地服务暴露给用户 URL。
+    allow-loopback: ${VISION_SPACE_OUTBOUND_ALLOW_LOOPBACK:false}
+    max-redirects: 3
+    max-download-bytes: 2097152
+    total-timeout-seconds: 10
+    connect-timeout-seconds: 5
+    read-timeout-seconds: 5
   # 阿里云 AI 配置
   aliyun-ai:
     base-url: "https://dashscope.aliyuncs.com/api/v1"

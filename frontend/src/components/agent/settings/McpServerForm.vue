@@ -42,10 +42,13 @@
 
       <a-form-item label="服务类型" name="type">
         <a-select v-model:value="formData.type" placeholder="请选择服务类型">
-          <a-select-option value="stdio">STDIO</a-select-option>
+          <a-select-option v-if="!stdioDisabled" value="stdio">STDIO</a-select-option>
           <a-select-option value="http">HTTP</a-select-option>
           <a-select-option value="sse">SSE</a-select-option>
         </a-select>
+        <span v-if="stdioDisabled" class="timeout-hint">
+          当前部署不支持 STDIO（会在服务端启动本地进程），请使用 HTTP/SSE 远程服务
+        </span>
       </a-form-item>
 
       <!-- STDIO 类型配置 -->
@@ -125,6 +128,8 @@ interface Props {
   server?: McpServerVO
   mode: 'create' | 'edit'
   initMode?: 'form' | 'json'
+  /** 当前部署是否禁用 STDIO，由服务端能力接口给出，避免界面宣称被禁能力可用 */
+  stdioDisabled?: boolean
 }
 
 interface Emits {
@@ -133,7 +138,8 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initMode: 'form'
+  initMode: 'form',
+  stdioDisabled: false
 })
 const emit = defineEmits<Emits>()
 
@@ -149,7 +155,8 @@ const isEdit = computed(() => props.mode === 'edit')
 const defaultFormData: McpServerFormData = {
   name: '',
   description: '',
-  type: 'stdio',
+  // 禁用 STDIO 的部署默认落到 SSE，避免创建时先填一份会被拒绝的配置
+  type: props.stdioDisabled ? 'sse' : 'stdio',
   enabled: true,
   command: '',
   argsText: '',
@@ -169,18 +176,28 @@ const formRules = {
   url: [{ required: true, message: '请输入 URL', trigger: 'blur' }]
 }
 
-// JSON 模式默认模板
-const defaultJsonTemplate = {
-  mcpServers: {
-    "my-server": {
-      name: "my-mcp-server",
-      type: "stdio",
-      command: "npx",
-      args: ["-y", "@example/mcp-server"],
-      env: {}
+// JSON 模式默认模板：STDIO 被禁用时给出远程模板，不展示无法使用的示例
+const defaultJsonTemplate = props.stdioDisabled
+  ? {
+      mcpServers: {
+        'my-server': {
+          name: 'my-mcp-server',
+          type: 'sse',
+          url: 'https://your-mcp-server/sse'
+        }
+      }
     }
-  }
-}
+  : {
+      mcpServers: {
+        'my-server': {
+          name: 'my-mcp-server',
+          type: 'stdio',
+          command: 'npx',
+          args: ['-y', '@example/mcp-server'],
+          env: {}
+        }
+      }
+    }
 
 // 监听配置模式切换
 watch(configMode, (newMode) => {

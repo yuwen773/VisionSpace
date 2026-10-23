@@ -246,7 +246,8 @@ public class ImageAgent {
             return response.getText();
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
-            return "抱歉，处理您的请求时出现了问题：" + e.getMessage();
+            // 异常原文可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
+            return "抱歉，处理您的请求时出现了问题，请稍后重试";
         }
     }
 
@@ -422,7 +423,7 @@ public class ImageAgent {
             return response.getText();
         } catch (Exception e) {
             log.error("处理反馈失败, threadId={}", threadId, e);
-            return "抱歉，处理反馈时出现问题：" + e.getMessage();
+            return "抱歉，处理反馈时出现问题，请稍后重试";
         }
     }
 

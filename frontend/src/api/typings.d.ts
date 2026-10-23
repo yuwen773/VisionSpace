@@ -144,6 +144,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseMcpCapabilities = {
+    code?: number
+    data?: McpCapabilities
+    message?: string
+  }
+
   type BaseResponseMcpServerDetail = {
     code?: number
     data?: McpServerDetail
@@ -468,6 +474,11 @@ declare namespace API {
     editTime?: string
     createTime?: string
     updateTime?: string
+  }
+
+  type McpCapabilities = {
+    /** 当前部署是否禁用 STDIO */
+    stdioDisabled?: boolean
   }
 
   type McpServerDetail = {
