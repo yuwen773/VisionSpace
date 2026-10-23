@@ -120,7 +120,7 @@ import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
-import {useAgentStream} from '@/composables/useAgentStream'
+import { AgentStreamError, useAgentStream } from '@/composables/useAgentStream'
 import { getHistory, getSessions, type HistoryMessage, type SessionItem } from '@/api-custom/agent'
 
 const THREAD_ID_KEY = 'agent_current_thread_id'
@@ -180,6 +180,18 @@ const loadHistoryMessages = async (sessionId: string) => {
   historyLoading.value = true
   try {
     const res = await getHistory(sessionId, { limit: 100 })
+    // 共享 request 实例对业务错误也返回 response（不 reject），所以先看 code
+    const code = res.data?.code
+    if (code === 40100 || code === 40101) {
+      // 本地缓存的会话已失效或不再属于当前账号：清掉它并回到新对话，
+      // 否则每次进页面都会重复失败
+      saveThreadId('')
+      currentThreadId.value = ''
+      threadId.value = generateThreadId()
+      messages.value = []
+      message.warning('该会话不可用，已为你新建对话')
+      return
+    }
     const data = res.data?.data || []
     if (!data?.messages) {
       return
@@ -271,7 +283,8 @@ const handleSend = async (text: string, files: File[] = []) => {
     saveThreadId(threadId.value)
     currentThreadId.value = threadId.value
   } catch (error) {
-    message.error('发送失败，请重试')
+    // 业务拒绝（未登录、会话不属于当前用户）给出后端文案，其余按网络失败处理
+    message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
   }
 }
 

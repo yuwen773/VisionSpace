@@ -12,7 +12,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -26,12 +25,15 @@ public class ChatHistoryService {
 
     private final AgentSessionMapper sessionMapper;
     private final AgentMessageMapper messageMapper;
+    private final AgentSessionGuard sessionGuard;
     private AgentConstants agentConstants;
 
     @Autowired
-    public ChatHistoryService(AgentSessionMapper sessionMapper, AgentMessageMapper messageMapper) {
+    public ChatHistoryService(AgentSessionMapper sessionMapper, AgentMessageMapper messageMapper,
+                              AgentSessionGuard sessionGuard) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
+        this.sessionGuard = sessionGuard;
     }
 
     @Resource
@@ -41,76 +43,72 @@ public class ChatHistoryService {
 
     // ==================== 异步写入 ====================
 
+    // 写入一律带 userId：归属条件写进 SQL，不在应用层「先查后写」。
+    // 被拒绝时只记日志、不抛异常——这些方法跑在异步线程里，异常不会回到请求方，
+    // 而且拒绝的语义是「没有副作用」，不是「请求失败」。
+
     /**
-     * 异步保存用户消息
+     * 异步保存用户消息。会话不存在时按当前用户原子创建。
      */
     @Async("agentAsyncExecutor")
     public void saveUserMessage(String sessionId, Long userId, String content) {
-        ensureSessionExists(sessionId, userId, content);
-        AgentMessage message = buildMessage(sessionId, "USER", null, content);
-        messageMapper.insert(message);
-        sessionMapper.updateMessageCount(sessionId, truncate(content));
+        sessionGuard.bindOwner(sessionId, userId, content);
+        insertOwned(sessionId, userId, "USER", null, content);
+        sessionMapper.updateMessageCount(sessionId, userId, truncate(content));
     }
 
     /**
      * 异步保存助手消息
      */
     @Async("agentAsyncExecutor")
-    public void saveAssistantMessage(String sessionId, String content, String subType) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", subType, content);
-        messageMapper.insert(message);
-        sessionMapper.updateMessageCount(sessionId, truncate(content));
+    public void saveAssistantMessage(String sessionId, Long userId, String content, String subType) {
+        if (insertOwned(sessionId, userId, "ASSISTANT", subType, content)) {
+            sessionMapper.updateMessageCount(sessionId, userId, truncate(content));
+        }
     }
 
     /**
      * 保存 reasoning 消息
      */
     @Async("agentAsyncExecutor")
-    public void saveReasoningMessage(String sessionId, String content) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "reasoning", content);
-        messageMapper.insert(message);
+    public void saveReasoningMessage(String sessionId, Long userId, String content) {
+        insertOwned(sessionId, userId, "ASSISTANT", "reasoning", content);
     }
 
     /**
      * 保存工具调用请求
      */
     @Async("agentAsyncExecutor")
-    public void saveToolCallMessage(String sessionId, String content) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "tool-call", content);
-        messageMapper.insert(message);
+    public void saveToolCallMessage(String sessionId, Long userId, String content) {
+        insertOwned(sessionId, userId, "ASSISTANT", "tool-call", content);
     }
 
     /**
      * 保存工具返回结果
      */
     @Async("agentAsyncExecutor")
-    public void saveToolResultMessage(String sessionId, String content) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "tool-result", content);
-        messageMapper.insert(message);
+    public void saveToolResultMessage(String sessionId, Long userId, String content) {
+        insertOwned(sessionId, userId, "ASSISTANT", "tool-result", content);
     }
 
     /**
      * 保存工具确认消息
      */
     @Async("agentAsyncExecutor")
-    public void saveToolConfirmMessage(String sessionId, String content) {
-        AgentMessage message = buildMessage(sessionId, "ASSISTANT", "mcp-confirm", content);
-        messageMapper.insert(message);
+    public void saveToolConfirmMessage(String sessionId, Long userId, String content) {
+        insertOwned(sessionId, userId, "ASSISTANT", "mcp-confirm", content);
     }
 
     /**
-     * 异步保存摘要
+     * 异步保存摘要。会话必须属于该用户，否则整段写入跳过。
      */
     @Async("agentAsyncExecutor")
-    public void saveSummary(String sessionId, String summaryContent, Integer tokenCountBefore) {
-        AgentSession session = sessionMapper.selectBySessionId(sessionId);
-        if (session != null) {
-            session.setSummaryContent(summaryContent);
-            session.setSummaryAt(new Date());
-            session.setLastMessage(truncate(summaryContent));
-            sessionMapper.updateById(session);
+    public void saveSummary(String sessionId, Long userId, String summaryContent, Integer tokenCountBefore) {
+        if (sessionMapper.updateSummaryOwned(sessionId, userId, summaryContent, truncate(summaryContent)) == 0) {
+            log.warn("拒绝写入他人会话的摘要, sessionId={}, userId={}", sessionId, userId);
+            return;
         }
-        messageMapper.markAsSummary(sessionId, new Date());
+        messageMapper.markAsSummaryOwned(sessionId, userId, new Date());
     }
 
     // ==================== 查询加载 ====================
@@ -164,28 +162,15 @@ public class ChatHistoryService {
     }
 
     /**
-     * 确保 Session 记录存在，不存在则自动创建（幂等）
+     * 带归属的消息写入。会话不属于该用户时 SQL 不产生任何行。
      */
-    private void ensureSessionExists(String sessionId, Long userId, String firstMessage) {
-        AgentSession existing = sessionMapper.selectBySessionId(sessionId);
-        if (existing != null) {
-            return;
+    private boolean insertOwned(String sessionId, Long userId, String role, String subType, String content) {
+        int inserted = messageMapper.insertOwned(sessionId, userId, role, subType, content);
+        if (inserted == 0) {
+            log.warn("拒绝写入他人会话的消息, sessionId={}, userId={}, role={}", sessionId, userId, role);
+            return false;
         }
-        try {
-            AgentSession session = new AgentSession();
-            session.setSessionId(sessionId);
-            session.setUserId(userId);
-            session.setTitle(truncate(firstMessage));
-            session.setStatus(1);
-            session.setMessageCount(0);
-            session.setLastMessage("");
-            session.setCreatedTime(new Date());
-            session.setUpdatedTime(new Date());
-            sessionMapper.insert(session);
-            log.info("自动创建 AgentSession, sessionId={}, userId={}", sessionId, userId);
-        } catch (DuplicateKeyException e) {
-            log.debug("Session 已存在（并发创建）, sessionId={}", sessionId);
-        }
+        return true;
     }
 
     private String truncate(String content) {
@@ -193,17 +178,6 @@ public class ChatHistoryService {
         int maxLength = agentConstants.getHistoryTruncateLength();
         int reserveLength = agentConstants.getHistoryTruncateReserve();
         return content.length() > maxLength ? content.substring(0, reserveLength) + "..." : content;
-    }
-
-    private AgentMessage buildMessage(String sessionId, String role,
-                                       String subType, String content) {
-        AgentMessage message = new AgentMessage();
-        message.setSessionId(sessionId);
-        message.setRole(role);
-        message.setSubType(subType);
-        message.setContent(content);
-        message.setCreatedTime(new Date());
-        return message;
     }
 
     private MessageVO toMessageVO(AgentMessage entity) {

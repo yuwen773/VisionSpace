@@ -7,6 +7,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.messages.AgentCommand;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.UpdatePolicy;
 import com.yuwen.visionspace.agent.config.AgentConstants;
+import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -66,8 +67,16 @@ public class SummarizationHook extends MessagesModelHook {
             // 生成摘要
             String summary = generateSummary(messagesToSummarize);
 
-            // 保存摘要到数据库
-            chatHistoryService.saveSummary(threadId, summary, messagesToSummarize.size());
+            // 保存摘要到数据库（只在该会话属于本次执行者时写入）
+            Long ownerUserId = config.metadata(DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY)
+                    .map(value -> value instanceof Number number ? number.longValue()
+                            : Long.valueOf(String.valueOf(value)))
+                    .orElse(null);
+            if (ownerUserId == null) {
+                log.warn("缺少会话归属信息，跳过摘要落库, threadId={}", threadId);
+            } else {
+                chatHistoryService.saveSummary(threadId, ownerUserId, summary, messagesToSummarize.size());
+            }
 
             // 构建新的消息列表
             List<Message> summarizedMessages = buildSummarizedMessages(

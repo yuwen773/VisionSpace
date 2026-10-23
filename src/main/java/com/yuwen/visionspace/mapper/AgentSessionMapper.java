@@ -11,6 +11,21 @@ public interface AgentSessionMapper extends BaseMapper<AgentSession> {
     AgentSession selectBySessionId(@Param("sessionId") String sessionId);
 
     /**
+     * 首次创建会话时原子绑定所属用户。
+     * <p>
+     * 唯一索引在 {@code sessionId} 上，{@code ON DUPLICATE KEY UPDATE sessionId = sessionId}
+     * 对已存在的行是空操作：既不会改写已有会话的归属，也不会把逻辑删除的行复活。
+     * 调用方必须随后回读并核对 userId，不能把「插入成功」当作归属成立的证据。
+     */
+    @Insert("INSERT INTO agent_session (sessionId, userId, title, status, messageCount, lastMessage, " +
+            "createdTime, updatedTime, isDelete) " +
+            "VALUES (#{sessionId}, #{userId}, #{title}, 1, 0, '', NOW(), NOW(), 0) " +
+            "ON DUPLICATE KEY UPDATE sessionId = sessionId")
+    int insertIfAbsent(@Param("sessionId") String sessionId,
+                       @Param("userId") Long userId,
+                       @Param("title") String title);
+
+    /**
      * 按游标取用户的会话列表（最近活跃在前）。
      * <p>
      * 排序键与游标键必须同源，否则 {@code id < beforeId} 会与 updatedTime 排序打架：
@@ -33,12 +48,22 @@ public interface AgentSessionMapper extends BaseMapper<AgentSession> {
 
     @Update("UPDATE agent_session SET messageCount = messageCount + 1, " +
             "lastMessage = #{lastMessage}, updatedTime = NOW() " +
-            "WHERE sessionId = #{sessionId}")
+            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
     int updateMessageCount(@Param("sessionId") String sessionId,
+                          @Param("userId") Long userId,
                           @Param("lastMessage") String lastMessage);
 
     @Update("UPDATE agent_session SET checkpointData = #{checkpointData} " +
-            "WHERE sessionId = #{sessionId}")
+            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
     int updateCheckpointData(@Param("sessionId") String sessionId,
+                            @Param("userId") Long userId,
                             @Param("checkpointData") byte[] checkpointData);
+
+    @Update("UPDATE agent_session SET summaryContent = #{summaryContent}, summaryAt = NOW(), " +
+            "lastMessage = #{lastMessage} " +
+            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
+    int updateSummaryOwned(@Param("sessionId") String sessionId,
+                           @Param("userId") Long userId,
+                           @Param("summaryContent") String summaryContent,
+                           @Param("lastMessage") String lastMessage);
 }

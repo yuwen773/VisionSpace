@@ -13,7 +13,6 @@ declare namespace API {
   type AgentChatRequest = {
     message?: string
     threadId?: string
-    userId?: string
     imageUrls?: string[]
     enabledMcpServers?: string[]
     disableMcpDefault?: boolean
@@ -326,7 +325,6 @@ declare namespace API {
 
   type FeedbackRequest = {
     threadId?: string
-    userId?: string
     satisfied?: boolean
     reason?: string
     action?: 'RETURN' | 'REGENERATE' | 'RESEARCH'

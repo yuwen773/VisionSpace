@@ -37,6 +37,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DualCheckpointSaver implements BaseCheckpointSaver {
 
+    /** 会话归属由调用方放进 RunnableConfig 的 metadata，备份写入按它做条件更新 */
+    public static final String OWNER_USER_ID_METADATA_KEY = "visionspace.ownerUserId";
+
     private final RedisSaver redisSaver;
     private final AgentSessionMapper sessionMapper;
     private final GzipUtils gzipUtils;
@@ -84,7 +87,8 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
         setCheckpointTtl(threadId);
 
         // 3. 异步轻量备份到 MySQL（直接提交到线程池，绕过 Spring 代理问题）
-        asyncExecutor.execute(() -> doBackupLightweight(threadId, checkpoint));
+        Long ownerUserId = ownerUserId(config);
+        asyncExecutor.execute(() -> doBackupLightweight(threadId, ownerUserId, checkpoint));
 
         return result;
     }
@@ -140,8 +144,15 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
 
     /**
      * 异步备份（由 asyncExecutor 线程池执行）
+     *
+     * <p>归属未知时不写库：没有 owner 就无法证明这次执行属于该会话，
+     * 宁可不备份，也不能把状态写进别人的会话。
      */
-    private void doBackupLightweight(String threadId, Checkpoint checkpoint) {
+    private void doBackupLightweight(String threadId, Long ownerUserId, Checkpoint checkpoint) {
+        if (ownerUserId == null) {
+            log.warn("Checkpoint 缺少归属信息，跳过 MySQL 备份, threadId={}", threadId);
+            return;
+        }
         // 每 N 步才备份一次，减少 MySQL 写入压力
         int step = stepCounters.computeIfAbsent(threadId, k -> new AtomicInteger(0)).incrementAndGet();
         if (step % BACKUP_EVERY_N_STEPS != 0) {
@@ -153,11 +164,25 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
             String json = objectMapper.writeValueAsString(lw);
             byte[] compressed = gzipUtils.compress(json);
 
-            sessionMapper.updateCheckpointData(threadId, compressed);
+            int updated = sessionMapper.updateCheckpointData(threadId, ownerUserId, compressed);
+            if (updated == 0) {
+                log.warn("拒绝写入他人会话的 Checkpoint, threadId={}, userId={}", threadId, ownerUserId);
+                return;
+            }
             log.debug("轻量备份成功, threadId={}", threadId);
         } catch (Exception e) {
             log.warn("备份 Checkpoint 到 MySQL 失败（不影响主流程）, threadId={}", threadId, e);
         }
+    }
+
+    /**
+     * 从 RunnableConfig 读取调用方声明的会话归属。
+     */
+    private Long ownerUserId(RunnableConfig config) {
+        return config.metadata(OWNER_USER_ID_METADATA_KEY)
+                .map(value -> value instanceof Number number ? number.longValue()
+                        : Long.valueOf(String.valueOf(value)))
+                .orElse(null);
     }
 
     /**
