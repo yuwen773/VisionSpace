@@ -37,38 +37,52 @@ public class ImageGeneratorTool {
     public List<ImageResource> generateImages(
             @ToolParam(description = "图片生成描述，需尽量详细，包含主题、风格、色调、用途等。例如：'一个简约现代的科技公司 Logo，蓝色主色调，几何图形风格' 或 '一个温馨的咖啡厅插画，暖色调，扁平风格'") String description,
             @ToolParam(description = "图片类别，可选值：LOGO（品牌标识）、ILLUSTRATION（插画装饰）、CONTENT（内容配图）、ARCHITECTURE（架构图）等类型，根据用户需求选择") String category) {
-        List<ImageResource> imageList = new ArrayList<>();
+        ImageCategoryEnum categoryEnum = ImageCategoryEnum.getEnumByValue(category);
+        if (categoryEnum == null) {
+            categoryEnum = ImageCategoryEnum.CONTENT;
+        }
+
+        String prompt = buildPrompt(description, categoryEnum);
+
+        ImageSynthesisParam param = ImageSynthesisParam.builder()
+                .apiKey(dashScopeApiKey)
+                .model(imageModel)
+                .prompt(prompt)
+                .size(resolveSize(categoryEnum))
+                .n(1)
+                .build();
+
+        // 生成是外部付费调用，异常必须让调用方看见。
+        // 旧实现把异常吞掉后返回空列表，上层据此把「超时/失败」记成「成功」，
+        // 于是同一个提示词会被当成已完成而永远拿不到图。
+        ImageSynthesisResult result;
         try {
-            ImageCategoryEnum categoryEnum = ImageCategoryEnum.getEnumByValue(category);
-            if (categoryEnum == null) {
-                categoryEnum = ImageCategoryEnum.CONTENT;
-            }
-
-            String prompt = buildPrompt(description, categoryEnum);
-
-            ImageSynthesisParam param = ImageSynthesisParam.builder()
-                    .apiKey(dashScopeApiKey)
-                    .model(imageModel)
-                    .prompt(prompt)
-                    .size(resolveSize(categoryEnum))
-                    .n(1)
-                    .build();
-            ImageSynthesisResult result = imageSynthesis.call(param);
-            if (result != null && result.getOutput() != null && result.getOutput().getResults() != null) {
-                List<Map<String, String>> results = result.getOutput().getResults();
-                for (Map<String, String> imageResult : results) {
-                    String imageUrl = imageResult.get("url");
-                    if (StrUtil.isNotBlank(imageUrl)) {
-                        imageList.add(ImageResource.builder()
-                                .category(categoryEnum)
-                                .description(description)
-                                .url(imageUrl)
-                                .build());
-                    }
-                }
-            }
+            result = imageSynthesis.call(param);
         } catch (Exception e) {
             log.error("AI 生成图片失败: {}", e.getMessage(), e);
+            // 带上异常类型而不是原文：原文可能含请求地址或回显的凭据
+            throw new ImageGenerationException(
+                    "图片生成调用失败（" + e.getClass().getSimpleName() + "）", e);
+        }
+
+        List<ImageResource> imageList = new ArrayList<>();
+        if (result != null && result.getOutput() != null && result.getOutput().getResults() != null) {
+            for (Map<String, String> imageResult : result.getOutput().getResults()) {
+                String imageUrl = imageResult.get("url");
+                if (StrUtil.isNotBlank(imageUrl)) {
+                    imageList.add(ImageResource.builder()
+                            .category(categoryEnum)
+                            .description(description)
+                            .url(imageUrl)
+                            .build());
+                }
+            }
+        }
+
+        if (imageList.isEmpty()) {
+            // 调用返回了但没有可用结果：不能当成「生成成功但没图」，
+            // 上层需要知道这是一次没有得到产物的失败
+            throw new ImageGenerationException("图片生成未返回可用结果");
         }
         return imageList;
     }

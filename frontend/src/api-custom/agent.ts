@@ -112,3 +112,84 @@ export async function getSessions(params?: { beforeId?: number; limit?: number }
     params,
   })
 }
+
+// ============ 执行恢复 ============
+
+export interface RecoveryAction {
+  actionId: string
+  toolName: string
+  /** EXECUTING / SUCCEEDED / FAILED / UNKNOWN_NEEDS_REVIEW */
+  status: string
+  attempt: number
+  resultSummary: string | null
+  updateTime: string
+}
+
+/**
+ * 会话恢复状态。`resumable` 为 false 时 `reason` 给出明确原因，
+ * 界面据此区分「可继续」「等待确认」「结果未知待核对」「不可恢复」。
+ */
+export interface RecoveryState {
+  threadId: string
+  runStatus: string
+  resumable: boolean
+  reason: string | null
+  stateVersion: number | null
+  legacyArchiveOnly: boolean
+  backupError: string | null
+  backupAttempts: number | null
+  pendingConfirmation: string | null
+  pendingReviewCount: number
+  /** RUNNING 状态下是否仍有活跃执行在推进；false 表示进程失活遗留，可安全恢复 */
+  activeExecution: boolean
+  actions: RecoveryAction[]
+}
+
+/**
+ * 查询会话恢复状态
+ * GET /api/agent/recovery/{threadId}
+ */
+export async function getRecoveryState(threadId: string) {
+  return request<ApiResponse<RecoveryState>>(`/api/agent/recovery/${threadId}`, { method: 'GET' })
+}
+
+/**
+ * 续跑会话。带上 stateVersion 可让过期请求被服务端拒绝。
+ * POST /api/agent/recovery/{threadId}/resume
+ */
+export async function resumeSession(threadId: string, expectedVersion?: number | null) {
+  return request<ApiResponse<string>>(`/api/agent/recovery/${threadId}/resume`, {
+    method: 'POST',
+    params: expectedVersion == null ? undefined : { expectedVersion },
+  })
+}
+
+/**
+ * 人工核对：确认外部动作已经发生
+ * POST /api/agent/recovery/action/confirm
+ */
+export async function confirmAction(
+  threadId: string,
+  actionId: string,
+  note?: string,
+) {
+  return request<ApiResponse<RecoveryState>>('/api/agent/recovery/action/confirm', {
+    method: 'POST',
+    data: { threadId, actionId, note },
+  })
+}
+
+/**
+ * 人工核对：确认外部动作没有发生
+ * POST /api/agent/recovery/action/dismiss
+ */
+export async function dismissAction(
+  threadId: string,
+  actionId: string,
+  note?: string,
+) {
+  return request<ApiResponse<RecoveryState>>('/api/agent/recovery/action/dismiss', {
+    method: 'POST',
+    data: { threadId, actionId, note },
+  })
+}

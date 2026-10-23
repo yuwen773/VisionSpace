@@ -61,6 +61,15 @@
           <span v-if="totalResourceCount > 0" class="resource-badge">{{ totalResourceCount }}</span>
         </button>
 
+        <!-- 恢复状态：区分「可继续」「等待确认」「结果未知待核对」「不可恢复」 -->
+        <RecoveryBanner
+          :state="recoveryState"
+          :busy="recoveryBusy"
+          @resume="handleResume"
+          @refresh="loadRecoveryState"
+          @review="handleReviewAction"
+        />
+
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="messages"
@@ -119,9 +128,20 @@ import AgentTodoList from '@/components/agent/AgentTodoList.vue'
 import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
+import RecoveryBanner from '@/components/agent/RecoveryBanner.vue'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import { AgentStreamError, useAgentStream } from '@/composables/useAgentStream'
-import { getHistory, getSessions, type HistoryMessage, type SessionItem } from '@/api-custom/agent'
+import {
+  confirmAction,
+  dismissAction,
+  getHistory,
+  getRecoveryState,
+  getSessions,
+  resumeSession,
+  type HistoryMessage,
+  type RecoveryState,
+  type SessionItem,
+} from '@/api-custom/agent'
 
 const THREAD_ID_KEY = 'agent_current_thread_id'
 const DATE_LOCALE = 'zh-CN'
@@ -229,14 +249,84 @@ const loadHistoryMessages = async (sessionId: string) => {
   }
 }
 
+// 恢复状态
+const recoveryState = ref<RecoveryState | null>(null)
+const recoveryBusy = ref(false)
+
+const loadRecoveryState = async () => {
+  const id = currentThreadId.value || threadId.value
+  if (!id) {
+    recoveryState.value = null
+    return
+  }
+  try {
+    const res = await getRecoveryState(id)
+    recoveryState.value = res.data?.code === 0 ? (res.data.data ?? null) : null
+  } catch {
+    // 状态查询失败不阻塞聊天；用户仍可正常发消息
+    recoveryState.value = null
+  }
+}
+
+const handleResume = async (version: number | null) => {
+  const id = currentThreadId.value || threadId.value
+  if (!id || recoveryBusy.value) return
+  recoveryBusy.value = true
+  try {
+    const res = await resumeSession(id, version)
+    const code = res.data?.code
+    if (code !== 0) {
+      message.warning(res.data?.message || '无法继续执行，请刷新状态后重试')
+      return
+    }
+    if (res.data?.data) {
+      pushMessage({
+        type: 'assistant',
+        content: res.data.data,
+        node: 'agent',
+        time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
+      })
+    }
+  } catch {
+    message.error('继续执行失败，请重试')
+  } finally {
+    recoveryBusy.value = false
+    await loadRecoveryState()
+  }
+}
+
+const handleReviewAction = async (actionId: string, decision: 'confirm' | 'dismiss') => {
+  const id = currentThreadId.value || threadId.value
+  if (!id || recoveryBusy.value) return
+  recoveryBusy.value = true
+  try {
+    const res =
+      decision === 'confirm'
+        ? await confirmAction(id, actionId)
+        : await dismissAction(id, actionId)
+    if (res.data?.code !== 0) {
+      message.warning(res.data?.message || '核对失败，请刷新后重试')
+      return
+    }
+    recoveryState.value = res.data.data ?? null
+  } catch {
+    message.error('核对失败，请重试')
+  } finally {
+    recoveryBusy.value = false
+  }
+}
+
 onMounted(async () => {
   const savedThreadId = loadThreadId()
+  currentThreadId.value = savedThreadId
+  threadId.value = savedThreadId
   await Promise.all([
     loadSessions(),
     savedThreadId ? loadHistoryMessages(savedThreadId) : Promise.resolve(),
   ])
-  currentThreadId.value = savedThreadId
-  threadId.value = savedThreadId
+  if (savedThreadId) {
+    await loadRecoveryState()
+  }
 })
 
 // Todo steps
@@ -285,6 +375,9 @@ const handleSend = async (text: string, files: File[] = []) => {
   } catch (error) {
     // 业务拒绝（未登录、会话不属于当前用户）给出后端文案，其余按网络失败处理
     message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
+  } finally {
+    // 执行可能停在待确认或待核对，刷新一次状态让提示与实际一致
+    await loadRecoveryState()
   }
 }
 
@@ -295,6 +388,7 @@ const handleNewChat = () => {
   resetStream()
   showTodoList.value = false
   resourcePanelVisible.value = false
+  recoveryState.value = null
 }
 
 const handleSelectHistory = async (id: string) => {
@@ -303,6 +397,7 @@ const handleSelectHistory = async (id: string) => {
   saveThreadId(id)
   resetStream()
   await loadHistoryMessages(id)
+  await loadRecoveryState()
 }
 
 const toggleResourcePanel = (data?: ResourceData) => {
