@@ -58,7 +58,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
 结果：九个结果分类全部 PASS，退出 0（隔离服务、后端测试与打包、前端安装/类型检查/测试/构建、资源清理）。这是修完下列缺陷之后的完整重跑。
 
 - 合并 main（#38 合入）之后重跑：提交 `0965fc0`，九个分类全部 PASS。
-- 后端 466 条测试全部通过（其中本工单新增 `HttpAgentAttachmentLifecycleTest` 12 条、`AgentAttachmentMigrationTest` 2 条）。
+- 后端 466 条测试全部通过（其中本工单新增 `HttpAgentAttachmentLifecycleTest` 13 条、`AgentAttachmentMigrationTest` 2 条）。
 - 前端 18 个测试文件 157 条全部通过（其中本工单新增 `useAgentStream.spec.ts` 3 条）。
 
 首次运行有 4 条失败，都是实现缺陷而不是断言写错，按下述方向修掉，未放宽断言：
