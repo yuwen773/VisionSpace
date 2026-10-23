@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
  *   <li>总数真实：来自实际可翻到的数量，不是写死的常量；越界页只返回空记录，
  *       不把非空集合的总数抹成 0；</li>
  *   <li>分页上下文稳定：同一上下文里的候选顺序固定，翻页不重复、不遗漏；</li>
+ *   <li>上下文失效时明确结束：候选被刷新或到期后，旧上下文不会被悄悄绑定到新的
+ *       排序上，响应会给出新的候选与 contextValid=false，客户端从新的一份重新开始；</li>
  *   <li>不按分页键缓存全量结果：候选列表按「类型 + 上下文」缓存一份，翻页只切片。</li>
  * </ul>
  */
@@ -95,7 +97,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         PageSlice slice = resolvePage(type, page, size, context);
         // 越界页只有空记录，总数仍然是真实数量
         List<RecommendPictureVO> records = loadRecords(slice.pictureIds());
-        return new RecommendPageVO(records, slice.total(), slice.context());
+        return new RecommendPageVO(records, slice.total(), slice.context(), slice.contextValid());
     }
 
     @Override
@@ -111,11 +113,19 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
         if (isDatabasePaged(type)) {
             List<Long> ids = databasePagedIds(type, safePage, safeSize);
-            return new PageSlice(ids, countRecommendPictures(type), context);
+            return new PageSlice(ids, countRecommendPictures(type), context, true);
         }
-        RecommendCandidateList candidates = candidateList(type, context);
-        return new PageSlice(slice(candidates.getPictureIds(), safePage, safeSize),
-                candidates.getTotal(), candidates.getContext());
+        CandidateResolution resolution = candidateList(type, context);
+        RecommendCandidateList candidates = resolution.candidates();
+        if (resolution.contextValid()) {
+            return new PageSlice(slice(candidates.getPictureIds(), safePage, safeSize),
+                    candidates.getTotal(), candidates.getContext(), true);
+        }
+        // 上下文已经失效：这份候选被刷新或到期，原来的页码不再对应任何候选。
+        // 明确结束这份上下文，把当前快照的第一页交回去，客户端从新的一份结果重新开始，
+        // 而不是把旧上下文悄悄绑定到新的排序上。
+        return new PageSlice(slice(candidates.getPictureIds(), 1, safeSize),
+                candidates.getTotal(), candidates.getContext(), false);
     }
 
     /**
@@ -156,24 +166,42 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     }
 
     /**
-     * 有界候选列表：按「类型 + 分页上下文」缓存一份，翻页只做内存切片。
+     * 有界候选列表：热门共用一份默认槽位的候选，随机按上下文分槽。
+     *
+     * <p>上下文与候选快照绑定：候选的顺序依赖统计快照，重建之后顺序可能变化，
+     * 因此客户端带来的上下文必须与当前快照一致。不一致说明这份上下文已经失效
+     * （候选被刷新或到期），此时明确结束上下文，而不是把旧上下文悄悄绑定到
+     * 新的排序上让客户端从旧页码继续。
      *
      * <p>缓存分槽规则：候选顺序依赖上下文的类型（随机）按上下文分槽，
-     * 顺序与上下文无关的类型（热门）固定用默认槽位。这样翻页时带着上一页
-     * 返回的上下文回来，命中的正是当初存下的那份候选，不会每页重算。
+     * 顺序与上下文无关的类型（热门）固定用默认槽位，候选份数因此保持有界。
      */
-    private RecommendCandidateList candidateList(String type, String context) {
-        String resolvedContext = (context == null || context.isBlank())
-                ? UUID.randomUUID().toString()
-                : context.trim();
-        String slot = orderDependsOnContext(type) ? resolvedContext : null;
+    private CandidateResolution candidateList(String type, String context) {
+        String requested = (context == null || context.isBlank()) ? null : context.trim();
+        boolean contextBound = orderDependsOnContext(type);
+        // 随机的槽位就是种子上下文；热门固定用默认槽位
+        String slot = contextBound ? (requested != null ? requested : newContextId()) : null;
         RecommendCandidateList cached = cacheManager.getCandidateList(type, slot);
         if (cached != null) {
-            return cached;
+            // 随机：缓存键就是上下文，命中即同一份顺序；
+            // 热门：命中的快照必须与客户端带来的上下文一致，否则这份上下文已经失效
+            boolean valid = contextBound || requested == null || requested.equals(cached.getContext());
+            return new CandidateResolution(cached, valid);
         }
-        RecommendCandidateList built = buildCandidateList(type, resolvedContext);
+        // 未命中：随机的顺序由种子决定，按同一种子重建仍是同一份；
+        // 热门的顺序依赖统计快照，重建就是新的一份快照，旧上下文到此结束。
+        String identity = contextBound ? slot : newContextId();
+        RecommendCandidateList built = buildCandidateList(type, identity);
         cacheManager.setCandidateList(type, slot, built);
-        return built;
+        boolean valid = contextBound || requested == null || requested.equals(built.getContext());
+        return new CandidateResolution(built, valid);
+    }
+
+    /**
+     * 新的上下文标识：热门快照的身份由服务端给出，不接受客户端指定。
+     */
+    private String newContextId() {
+        return UUID.randomUUID().toString();
     }
 
     /**
@@ -224,13 +252,20 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
 
     /**
      * 从有序候选里切出当前页。
+     *
+     * <p>偏移用 long 计算：页码是外部输入，可以很大，int 乘法会溢出成负数，
+     * 把越界页变成一次越界访问而不是一个空结果。
      */
     private List<Long> slice(List<Long> ids, int page, int size) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
-        int from = Math.min(ids.size(), (page - 1) * size);
-        int to = Math.min(ids.size(), from + size);
+        long offset = (long) (page - 1) * (long) size;
+        if (offset < 0 || offset >= ids.size()) {
+            return Collections.emptyList();
+        }
+        int from = (int) offset;
+        int to = (int) Math.min((long) ids.size(), offset + size);
         if (from >= to) {
             return Collections.emptyList();
         }
@@ -300,10 +335,20 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     /**
      * 一页的切片结果。
      *
-     * @param pictureIds 当前页的图片 id
-     * @param total      真实总数
-     * @param context    实际使用的分页上下文
+     * @param pictureIds   当前页的图片 id
+     * @param total        真实总数
+     * @param context      实际使用的分页上下文
+     * @param contextValid 客户端带来的上下文是否仍然对应当前这份候选
      */
-    private record PageSlice(List<Long> pictureIds, long total, String context) {
+    private record PageSlice(List<Long> pictureIds, long total, String context, boolean contextValid) {
+    }
+
+    /**
+     * 候选列表与上下文是否仍然有效的判定结果。
+     *
+     * @param candidates   当前这份候选
+     * @param contextValid 客户端带来的上下文是否仍然对应这份候选
+     */
+    private record CandidateResolution(RecommendCandidateList candidates, boolean contextValid) {
     }
 }

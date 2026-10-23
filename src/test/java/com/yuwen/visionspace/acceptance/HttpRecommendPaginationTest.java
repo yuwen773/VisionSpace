@@ -18,11 +18,14 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -271,6 +274,94 @@ class HttpRecommendPaginationTest {
         var random = recommend("random", 1, 5, null);
         assertEquals(0, random.path("data").path("records").size(), random.toString());
         assertEquals(0, random.path("data").path("total").asInt(), random.toString());
+    }
+
+    /**
+     * 候选被刷新之后，旧上下文必须被明确结束，而不是被绑定到新的排序上。
+     *
+     * <p>否则客户端会拿旧页码继续往后翻，同一份结果里既有重复也有遗漏。
+     */
+    @Test
+    void aContextIsEndedWhenTheCandidatesAreRefreshed() throws Exception {
+        var first = recommend("hot", 1, 5, null);
+        String context = first.path("data").path("context").asText();
+        assertFalse(context.isBlank(), "the response must carry the paging context");
+
+        // 统计变化让热门排序换了一份，再刷新缓存
+        jdbc.update("UPDATE picture_stats SET impressionCount = impressionCount + 100000 "
+                + "WHERE pictureId = ?", FIRST_PICTURE + 1);
+        recommendService.refreshRecommendCache();
+
+        var second = recommend("hot", 2, 5, context);
+        assertEquals(0, second.path("code").asInt(), second.toString());
+        assertFalse(second.path("data").path("contextValid").asBoolean(true),
+                "a context that no longer matches the candidates must be ended explicitly: " + second);
+        assertNotEquals(context, second.path("data").path("context").asText(),
+                "the ended context must not be reused for the new ordering: " + second);
+        assertEquals(PUBLIC_PICTURE_COUNT, second.path("data").path("total").asInt(), second.toString());
+        // 明确结束之后给的是新候选的第一页，客户端从新的一份结果重新开始
+        assertEquals(5, second.path("data").path("records").size(), second.toString());
+
+        // 新的一份结果里翻页仍然不重复、不遗漏
+        String restarted = second.path("data").path("context").asText();
+        List<Long> ids = new ArrayList<>();
+        for (var response : List.of(second, recommend("hot", 2, 5, restarted))) {
+            for (JsonNode record : response.path("data").path("records")) {
+                ids.add(record.path("id").asLong());
+            }
+        }
+        assertEquals(10, ids.size());
+        assertEquals(10, new HashSet<>(ids).size(), "the restarted result must not repeat pictures: " + ids);
+
+        // 候选仍然只有一份：按上下文分槽会让缓存份数随客户端增长
+        Set<String> candidateKeys = new HashSet<>();
+        for (String key : redis.keys("recommend:hot:*")) {
+            if (!key.endsWith(":total")) {
+                candidateKeys.add(key);
+            }
+        }
+        assertEquals(1, candidateKeys.size(),
+                "the candidate list must stay bounded to one per type: " + candidateKeys);
+    }
+
+    /**
+     * 候选缓存到期之后，旧上下文同样必须被明确结束。
+     */
+    @Test
+    void aContextIsEndedWhenTheCachedCandidatesExpire() throws Exception {
+        var first = recommend("hot", 1, 5, null);
+        String context = first.path("data").path("context").asText();
+
+        // 模拟缓存到期：候选列表不在缓存里了
+        redis.delete("recommend:hot:list");
+
+        var second = recommend("hot", 2, 5, context);
+        assertEquals(0, second.path("code").asInt(), second.toString());
+        assertFalse(second.path("data").path("contextValid").asBoolean(true),
+                "a context whose candidates expired must be ended explicitly: " + second);
+        assertNotEquals(context, second.path("data").path("context").asText(), second.toString());
+    }
+
+    /**
+     * 越界到极大的页码时返回空记录与真实总数，而不是服务器错误或退回第一页。
+     */
+    @Test
+    void aHugePageNumberReturnsAnEmptyPageWithTheRealTotal() throws Exception {
+        Map<String, Integer> totals = new LinkedHashMap<>();
+        totals.put("hot", PUBLIC_PICTURE_COUNT);
+        totals.put("random", PUBLIC_PICTURE_COUNT);
+        totals.put("latest", PUBLIC_PICTURE_COUNT);
+        totals.put("quality", LARGE_PICTURE_COUNT);
+
+        for (Map.Entry<String, Integer> entry : totals.entrySet()) {
+            var page = recommend(entry.getKey(), Integer.MAX_VALUE, 100, null);
+            assertEquals(0, page.path("code").asInt(),
+                    entry.getKey() + " must not fail on a huge page: " + page);
+            assertEquals(0, page.path("data").path("records").size(),
+                    entry.getKey() + " must return an empty page: " + page);
+            assertEquals(entry.getValue(), page.path("data").path("total").asInt(),
+                    entry.getKey() + " must keep the real total: " + page);
+        }
     }
 
     // ---- http helpers ----

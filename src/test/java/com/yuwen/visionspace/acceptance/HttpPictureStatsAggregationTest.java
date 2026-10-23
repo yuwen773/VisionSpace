@@ -2,12 +2,15 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuwen.visionspace.mapper.PictureStatsMapper;
+import com.yuwen.visionspace.model.dto.PictureActionStatsDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @IsolatedSpringBootTest
 class HttpPictureStatsAggregationTest {
 
+    private static final String PASSWORD = "acceptance-password";
+
     private static final long PICTURE = 88_701L;
     private static final long OTHER_PICTURE = 88_702L;
     private static final long MISSING_PICTURE = 88_703L;
@@ -47,6 +52,10 @@ class HttpPictureStatsAggregationTest {
     /** 统计主键与图片 ID 故意不同，且与另一张图的统计主键交叉 */
     private static final long STATS_ID = 9_701L;
     private static final long OTHER_STATS_ID = 9_702L;
+
+    private static final int IMPRESSION = 0;
+    private static final int CLICK = 1;
+    private static final int VIEW = 2;
 
     @LocalServerPort
     private int port;
@@ -56,6 +65,9 @@ class HttpPictureStatsAggregationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private PictureStatsMapper statsMapper;
 
     @Autowired
     private com.yuwen.visionspace.service.PictureStatsAggregateService aggregateService;
@@ -255,6 +267,104 @@ class HttpPictureStatsAggregationTest {
         assertEquals(1L, detail.path("data").path("viewCount").asLong(), detail.toString());
     }
 
+    /**
+     * 新统计行第一次落库时，点击率就必须按这批事件算出来。
+     *
+     * <p>只靠「下一次 upsert 纠正」会让只收到过一批事件的图片长期显示 0。
+     */
+    @Test
+    void theFirstAggregationWritesTheClickThroughRateOfANewStatsRow() {
+        for (int i = 0; i < 10; i++) {
+            insertEvent(PICTURE, IMPRESSION, 1, "ctr-impression-" + i);
+        }
+        for (int i = 0; i < 2; i++) {
+            insertEvent(PICTURE, CLICK, 1, "ctr-click-" + i);
+        }
+
+        aggregateService.aggregateActionStats();
+
+        assertEquals(10L, impressionCount(PICTURE));
+        assertEquals(2L, clickCount(PICTURE));
+        assertEquals(0, ctr(PICTURE).compareTo(new BigDecimal("0.2")),
+                "a new stats row must carry the click through rate of its own batch: " + ctr(PICTURE));
+    }
+
+    /**
+     * 没有曝光时点击率为 0：不能因为除法把空值算成别的数。
+     */
+    @Test
+    void aStatsRowWithoutImpressionsKeepsTheClickThroughRateAtZero() {
+        insertEvent(PICTURE, VIEW, 1, "no-impression-view");
+
+        aggregateService.aggregateActionStats();
+
+        assertEquals(0L, impressionCount(PICTURE));
+        assertEquals(0, ctr(PICTURE).compareTo(BigDecimal.ZERO),
+                "a row without impressions must keep the click through rate at zero: " + ctr(PICTURE));
+    }
+
+    /**
+     * 空计数按 0 参与计算：真实 Mapper 上新增行与更新行用同一套语义。
+     */
+    @Test
+    void nullCountsAreTreatedAsZeroByTheMapper() {
+        PictureActionStatsDTO delta = new PictureActionStatsDTO();
+        delta.setPictureId(PICTURE);
+        delta.setImpressionCount(null);
+        delta.setClickCount(null);
+        delta.setViewCount(null);
+
+        statsMapper.upsertIncrement(delta);
+
+        assertEquals(0L, impressionCount(PICTURE));
+        assertEquals(0L, clickCount(PICTURE));
+        assertEquals(0L, viewCount(PICTURE));
+        assertEquals(0, ctr(PICTURE).compareTo(BigDecimal.ZERO),
+                "null counts must be treated as zero: " + ctr(PICTURE));
+    }
+
+    /**
+     * 已计入统计的事件，其载荷被保留期清理之后，重放仍然不能二次入账。
+     *
+     * <p>清理任务只删事件载荷，去重依据单独存放：载荷删掉不等于「这个事件没发生过」。
+     */
+    @Test
+    void replayingAnEventAfterItsPayloadWasCleanedUpDoesNotCountItTwice() throws Exception {
+        long accountUser = registerUser("cleanup_replay_" + System.nanoTime());
+        String eventId = "cleanup-replay-event";
+
+        try (var client = client()) {
+            login(client, accountUser);
+            var accepted = post(client, "/picture/action/report", Map.of(
+                    "pictureId", PICTURE, "actionType", VIEW, "source", 1, "eventId", eventId));
+            assertEquals(0, accepted.path("code").asInt(), accepted.toString());
+        }
+        aggregateService.aggregateActionStats();
+        assertEquals(1L, viewCount(PICTURE), "the reported event must reach the final statistics");
+
+        // 载荷过了保留期，被清理任务删掉
+        jdbc.update("UPDATE user_picture_action SET createdTime = DATE_SUB(NOW(), INTERVAL 30 DAY) "
+                + "WHERE pictureId = ?", PICTURE);
+        aggregateService.aggregateActionStats();
+        assertEquals(0, payloadCount(PICTURE), "the payload must be cleaned up");
+        assertEquals(1, dedupeEvidenceCount(eventId),
+                "the dedupe evidence must survive the payload cleanup");
+
+        // 同一个事件重放：不能再变成一条待处理事件
+        try (var client = client()) {
+            login(client, accountUser);
+            var replayed = post(client, "/picture/action/report", Map.of(
+                    "pictureId", PICTURE, "actionType", VIEW, "source", 1, "eventId", eventId));
+            assertEquals(0, replayed.path("code").asInt(), replayed.toString());
+        }
+        assertEquals(0, payloadCount(PICTURE), "a replayed event must not become a new pending event");
+
+        aggregateService.aggregateActionStats();
+        assertEquals(1L, viewCount(PICTURE), "a replayed event must not be counted a second time");
+        assertEquals(1, dedupeEvidenceCount(eventId),
+                "the dedupe evidence must not grow when the same event is replayed");
+    }
+
     // ---- fixtures ----
 
     private void seedPicture(long id, String name) {
@@ -302,6 +412,59 @@ class HttpPictureStatsAggregationTest {
                 "SELECT COALESCE((SELECT viewCount FROM picture_stats WHERE pictureId = ?), 0)",
                 Long.class, pictureId);
         return value == null ? 0L : value;
+    }
+
+    private long impressionCount(long pictureId) {
+        Long value = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT impressionCount FROM picture_stats WHERE pictureId = ?), 0)",
+                Long.class, pictureId);
+        return value == null ? 0L : value;
+    }
+
+    private long clickCount(long pictureId) {
+        Long value = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT clickCount FROM picture_stats WHERE pictureId = ?), 0)",
+                Long.class, pictureId);
+        return value == null ? 0L : value;
+    }
+
+    private BigDecimal ctr(long pictureId) {
+        BigDecimal value = jdbc.queryForObject(
+                "SELECT ctr FROM picture_stats WHERE pictureId = ?", BigDecimal.class, pictureId);
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    /**
+     * 事件载荷的行数：清理之后应当归零。
+     */
+    private int payloadCount(long pictureId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, pictureId);
+    }
+
+    /**
+     * 幂等台账里某个事件的条数：载荷被清理之后仍然要是 1。
+     */
+    private int dedupeEvidenceCount(String eventId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM picture_action_event_dedupe WHERE eventId LIKE ?",
+                Integer.class, "%:" + eventId);
+    }
+
+    private long registerUser(String account) throws Exception {
+        try (var client = client()) {
+            var response = post(client, "/user/register", Map.of(
+                    "userAccount", account, "userPassword", PASSWORD, "checkPassword", PASSWORD));
+            assertEquals(0, response.path("code").asInt(), response.toString());
+            return response.path("data").asLong();
+        }
+    }
+
+    private void login(HttpClient client, long userId) throws Exception {
+        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        var response = post(client, "/user/login", Map.of(
+                "userAccount", account, "userPassword", PASSWORD));
+        assertEquals(0, response.path("code").asInt(), response.toString());
     }
 
     private int processedCount(long pictureId) {

@@ -2,13 +2,18 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
+import com.yuwen.visionspace.model.entity.Picture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.yuwen.visionspace.service.PictureActionService;
+import com.yuwen.visionspace.service.PictureRecommendService;
+import com.yuwen.visionspace.service.PictureStatsAggregateService;
 
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -22,6 +27,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * 公开行为上报（原 20.x），全部经真实 HTTP 与真实表。
@@ -61,6 +68,19 @@ class HttpPictureActionReportingTest {
 
     @Autowired
     private PictureActionService pictureActionService;
+
+    @Autowired
+    private PictureStatsAggregateService aggregateService;
+
+    @Autowired
+    private PictureRecommendService recommendService;
+
+    /**
+     * 图片内容的统一可见性入口。真实实现里隔离规则落在这里，
+     * 用例替换这一层来验证公开行为上报确实走同一条规则。
+     */
+    @MockitoSpyBean
+    private PictureContentAuthManager pictureContentAuthManager;
 
     private long ownerId;
 
@@ -215,7 +235,77 @@ class HttpPictureActionReportingTest {
         assertTrue(after > before, "rate limited traffic must be observable: " + before + " -> " + after);
     }
 
+    /**
+     * 目标被集中可见性入口判定为不可见时，上报必须被明确拒绝，且零副作用。
+     *
+     * <p>隔离本身的状态与恢复由 #36 提供；这里让集中入口对该目标给出不可见的
+     * 判定，等价于隔离生效后的可见性结果，证明公开行为上报走的是同一条
+     * 可见性规则，而不是在服务里另写的一套并行判断。
+     */
+    @Test
+    void anInvisibleTargetIsRejectedWithoutSideEffects() throws Exception {
+        // 隔离前：目标可见，上报被受理
+        try (var anonymous = client()) {
+            assertAccepted(report(anonymous, PUBLIC_PICTURE, IMPRESSION, "evt-before-isolation"));
+        }
+        assertEquals(1, eventCount(PUBLIC_PICTURE), "a visible target must be accepted");
+
+        // 隔离后：集中入口判定目标不可见，上报被明确拒绝
+        hideFromPublic(PUBLIC_PICTURE, true);
+        try (var anonymous = client()) {
+            assertRejected(report(anonymous, PUBLIC_PICTURE, IMPRESSION, "evt-isolated"), 40101);
+        }
+        assertEquals(1, eventCount(PUBLIC_PICTURE), "an invisible target must not leave events behind");
+        assertEquals(0L, statsCount(PUBLIC_PICTURE), "an invisible target must not accumulate statistics");
+
+        // 缓存状态变化不影响判定：拒绝来自集中入口，不是来自某一份缓存
+        recommendService.refreshRecommendCache();
+        try (var anonymous = client()) {
+            assertRejected(report(anonymous, PUBLIC_PICTURE, IMPRESSION, "evt-isolated-again"), 40101);
+        }
+        assertEquals(1, eventCount(PUBLIC_PICTURE), "an invisible target must not leave events behind");
+
+        // 恢复后：目标重新可见，上报重新被受理
+        hideFromPublic(PUBLIC_PICTURE, false);
+        try (var anonymous = client()) {
+            assertAccepted(report(anonymous, PUBLIC_PICTURE, IMPRESSION, "evt-after-restore"));
+        }
+        assertEquals(2, eventCount(PUBLIC_PICTURE), "a restored target must be accepted again");
+
+        aggregateService.aggregateActionStats();
+        assertEquals(2L, statsCount(PUBLIC_PICTURE),
+                "only the accepted events may reach the statistics");
+    }
+
     // ---- fixtures ----
+
+    /**
+     * 让集中可见性入口对某个目标给出「不可见」的判定。
+     *
+     * <p>真实实现（#36 的隔离）会在同一个入口里按隔离状态拒绝；这里替换这一层，
+     * 上报路径本身一行不改。
+     */
+    private void hideFromPublic(long pictureId, boolean hidden) {
+        doAnswer(invocation -> {
+            Picture picture = invocation.getArgument(0);
+            if (hidden && picture != null && pictureId == picture.getId()) {
+                return false;
+            }
+            return invocation.callRealMethod();
+        }).when(pictureContentAuthManager).canReadContent(any(), any());
+    }
+
+    private int eventCount(long pictureId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, pictureId);
+    }
+
+    private long statsCount(long pictureId) {
+        Long value = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT impressionCount FROM picture_stats WHERE pictureId = ?), 0)",
+                Long.class, pictureId);
+        return value == null ? 0L : value;
+    }
 
     private void seedPicture(long id, Long spaceId, int reviewStatus, String name) {
         jdbc.update("""

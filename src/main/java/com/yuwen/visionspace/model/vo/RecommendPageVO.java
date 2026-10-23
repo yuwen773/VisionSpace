@@ -33,7 +33,16 @@ public class RecommendPageVO implements Serializable {
      */
     private String context;
 
-    public RecommendPageVO(List<RecommendPictureVO> records, Long total) {
-        this(records, total, null);
+    /**
+     * 客户端带来的分页上下文是否仍然有效。
+     *
+     * <p>为 false 时表示这份上下文已经结束（候选被刷新或到期，原来的页码不再
+     * 对应任何候选），响应里的记录是当前候选的第一页，客户端应从新的一份结果
+     * 重新开始，而不是继续按旧页码往后翻。
+     */
+    private Boolean contextValid;
+
+    public RecommendPageVO(List<RecommendPictureVO> records, Long total, String context) {
+        this(records, total, context, Boolean.TRUE);
     }
 }

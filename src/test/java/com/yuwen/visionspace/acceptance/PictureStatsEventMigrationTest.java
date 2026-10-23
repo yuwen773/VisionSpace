@@ -27,6 +27,8 @@ class PictureStatsEventMigrationTest {
 
     private static final String TABLE = "user_picture_action";
     private static final String SCRATCH = "user_picture_action_migration_check";
+    private static final String DEDUPE_TABLE = "picture_action_event_dedupe";
+    private static final String DEDUPE_SCRATCH = "picture_action_event_dedupe_migration_check";
 
     private static final Path FORWARD = Path.of("sql/migrations/2026-10-23-stats-action-event.sql");
     private static final Path ROLLBACK = Path.of("sql/migrations/2026-10-23-stats-action-event-rollback.sql");
@@ -37,7 +39,7 @@ class PictureStatsEventMigrationTest {
 
     @Test
     void forwardMigrationAddsTheEventAndClaimStateWithoutLosingLegacyRows() throws Exception {
-        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+        dropScratch();
         try {
             createLegacyTable();
             jdbc.update("""
@@ -86,13 +88,50 @@ class PictureStatsEventMigrationTest {
                     VALUES (504, 77, 88801, 2, 1, 0, 'evt-1', NOW(), 0)
                     """.formatted(SCRATCH)), "the same event key must not be stored twice");
         } finally {
-            jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+            dropScratch();
+        }
+    }
+
+    /**
+     * 幂等台账随前向迁移建立：去重依据与事件载荷的保留期分开。
+     */
+    @Test
+    void forwardMigrationCreatesTheDedupeLedgerAndBackfillsExistingEventKeys() throws Exception {
+        dropScratch();
+        try {
+            createLegacyTable();
+            run(FORWARD);
+
+            List<String> ledgerColumns = jdbc.queryForList(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                    String.class, DEDUPE_SCRATCH);
+            assertTrue(ledgerColumns.containsAll(List.of("eventId", "createdTime")),
+                    "the dedupe ledger must keep the documented columns: " + ledgerColumns);
+
+            // 一条带事件键的事件：台账里必须有它，重复回填也不会多出一条
+            jdbc.update("""
+                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime, isProcessed)
+                    VALUES (801, 77, 88801, 2, 1, 0, 'evt-legacy', NOW(), 0)
+                    """.formatted(SCRATCH));
+
+            runBackfill();
+            runBackfill();
+
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "` WHERE eventId = 'evt-legacy'", Integer.class),
+                    "an existing event key must be backfilled into the dedupe ledger");
+            assertThrows(Exception.class, () -> jdbc.update(
+                    "INSERT INTO `" + DEDUPE_SCRATCH + "` (eventId, createdTime) VALUES ('evt-legacy', NOW())"),
+                    "the same event key must not be stored twice in the ledger");
+        } finally {
+            dropScratch();
         }
     }
 
     @Test
     void rollbackRemovesTheNewStateAndDoesNotRecountAlreadyCountedEvents() throws Exception {
-        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+        dropScratch();
         try {
             createLegacyTable();
             run(FORWARD);
@@ -126,13 +165,42 @@ class PictureStatsEventMigrationTest {
                     "SELECT isProcessed FROM `" + SCRATCH + "` WHERE id = 602", Integer.class),
                     "an event that was never counted must stay pending");
         } finally {
-            jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+            dropScratch();
+        }
+    }
+
+    /**
+     * 回滚不删除幂等台账：已经受理过的事件靠它挡住重放，删掉就等于让它们重新入账。
+     */
+    @Test
+    void rollbackKeepsTheDedupeLedger() throws Exception {
+        dropScratch();
+        try {
+            createLegacyTable();
+            run(FORWARD);
+            jdbc.update("""
+                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime,
+                                       isProcessed, isAccumulated)
+                    VALUES (901, 77, 88801, 2, 1, 0, 'evt-keep', NOW(), 1, 1)
+                    """.formatted(SCRATCH));
+            runBackfill();
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "`", Integer.class),
+                    "the accepted event must be in the dedupe ledger before the rollback");
+
+            run(ROLLBACK);
+
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "`", Integer.class),
+                    "the rollback must keep the dedupe evidence of already accepted events");
+        } finally {
+            dropScratch();
         }
     }
 
     @Test
     void maintenanceListIsExecutableAndOnlyReads() throws Exception {
-        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+        dropScratch();
         try {
             createLegacyTable();
             run(FORWARD);
@@ -145,8 +213,13 @@ class PictureStatsEventMigrationTest {
             assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM `" + SCRATCH + "` WHERE id = 701", Integer.class));
         } finally {
-            jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+            dropScratch();
         }
+    }
+
+    private void dropScratch() {
+        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
+        jdbc.execute("DROP TABLE IF EXISTS `" + DEDUPE_SCRATCH + "`");
     }
 
     private void createLegacyTable() {
@@ -161,14 +234,34 @@ class PictureStatsEventMigrationTest {
                   `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP,
                   `isProcessed` tinyint(4) NOT NULL DEFAULT 0,
                   PRIMARY KEY (`id`) USING BTREE
-                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4
+                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci
                 """.formatted(SCRATCH));
     }
 
     private void run(Path script) throws IOException {
         for (String statement : statements(Files.readString(script, StandardCharsets.UTF_8))) {
-            jdbc.execute(statement.replace("`" + TABLE + "`", "`" + SCRATCH + "`"));
+            jdbc.execute(rewrite(statement));
         }
+    }
+
+    /**
+     * 只执行幂等台账的回填语句：验证它能把已有事件键补进台账，且重复执行不会多写。
+     */
+    private void runBackfill() throws IOException {
+        int executed = 0;
+        for (String statement : statements(Files.readString(FORWARD, StandardCharsets.UTF_8))) {
+            if (statement.contains("INSERT IGNORE INTO `" + DEDUPE_TABLE + "`")) {
+                jdbc.execute(rewrite(statement));
+                executed++;
+            }
+        }
+        assertEquals(1, executed, "the forward migration must contain the ledger backfill");
+    }
+
+    private String rewrite(String statement) {
+        return statement
+                .replace("`" + TABLE + "`", "`" + SCRATCH + "`")
+                .replace("`" + DEDUPE_TABLE + "`", "`" + DEDUPE_SCRATCH + "`");
     }
 
     /**

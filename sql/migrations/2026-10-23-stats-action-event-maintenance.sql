@@ -54,3 +54,14 @@ SELECT 'D-pending-normal' AS conflictType,
 FROM `user_picture_action` a
 JOIN `picture` p ON p.id = a.pictureId AND p.isDelete = 0
 WHERE a.isProcessed = 0 AND a.attemptCount < 3;
+
+-- E. 只剩幂等台账、载荷已被保留期清理掉的事件。
+--    这些事件已经入账，靠台账挡住重放：台账不能被清理，否则同一个事件重放会
+--    重新变成一条待处理事件并二次入账。需要核对数量时看这里，不允许改写。
+SELECT 'E-dedupe-evidence-only' AS conflictType,
+       COUNT(*) AS eventCount,
+       MIN(d.createdTime) AS firstEventTime,
+       MAX(d.createdTime) AS lastEventTime
+FROM `picture_action_event_dedupe` d
+LEFT JOIN `user_picture_action` a ON a.eventId = d.eventId
+WHERE a.id IS NULL;

@@ -3,7 +3,9 @@ package com.yuwen.visionspace.service.impl;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
 import com.yuwen.visionspace.manager.cache.PictureActionRateLimiter;
+import com.yuwen.visionspace.mapper.PictureActionEventDedupeMapper;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.mapper.UserPictureActionMapper;
 import com.yuwen.visionspace.model.dto.picture.PictureActionReportCommand;
@@ -11,7 +13,6 @@ import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.UserPictureAction;
 import com.yuwen.visionspace.model.enums.ActionSourceEnum;
 import com.yuwen.visionspace.model.enums.ActionTypeEnum;
-import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.vo.PictureActionReportMetricsVO;
 import com.yuwen.visionspace.service.PictureActionService;
 import com.yuwen.visionspace.utils.HashUtils;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.util.EnumSet;
@@ -31,11 +33,13 @@ import java.util.regex.Pattern;
  *
  * <p>公开入口的边界：
  * <ul>
- *   <li>目标必须是公开图库里已审核通过、且未删除的图片；私有、未审核、
- *       不存在的目标一律拒绝；</li>
+ *   <li>目标必须当前对公开访客可见：公开图库里已审核通过、且没有被隔离的图片；
+ *       私有、未审核、不存在与已隔离的目标一律拒绝。可性一律由集中入口
+ *       {@link PictureContentAuthManager} 判定，这里不另写一套并行规则；</li>
  *   <li>匿名只允许曝光、点击、浏览；点赞、收藏等账户动作要求登录；</li>
  *   <li>客户端声明的用户 id 一律拒绝，身份只以服务端解析结果为准；</li>
- *   <li>事件幂等键保证同一事件重放不会重复入账；</li>
+ *   <li>事件幂等键保证同一事件重放不会重复入账：幂等依据写在单独的台账里，
+ *       事件载荷按保留期清理之后，重放仍然被挡住；</li>
  *   <li>上报只写事件明细，不修改任何账户状态。</li>
  * </ul>
  *
@@ -56,7 +60,13 @@ public class PictureActionServiceImpl implements PictureActionService {
     private UserPictureActionMapper actionMapper;
 
     @Resource
+    private PictureActionEventDedupeMapper dedupeMapper;
+
+    @Resource
     private PictureMapper pictureMapper;
+
+    @Resource
+    private PictureContentAuthManager pictureContentAuthManager;
 
     @Resource
     private PictureActionRateLimiter rateLimiter;
@@ -72,6 +82,7 @@ public class PictureActionServiceImpl implements PictureActionService {
      * @return true 表示新事件已入库；false 表示幂等键命中的重复事件
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean reportAction(PictureActionReportCommand command) {
         try {
             return doReportAction(command);
@@ -109,9 +120,18 @@ public class PictureActionServiceImpl implements PictureActionService {
 
         Picture picture = pictureMapper.selectById(command.getPictureId());
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
-        ThrowUtils.throwIf(!isPublicApproved(picture), ErrorCode.NO_AUTH_ERROR, "无权对该图片上报行为");
+        ThrowUtils.throwIf(!isPubliclyVisible(picture), ErrorCode.NO_AUTH_ERROR, "无权对该图片上报行为");
 
         String eventId = resolveEventId(command, actionType, source);
+        // 先登记幂等台账再写事件载荷：台账是可靠去重依据，
+        // 载荷按保留期清理之后，同一个事件重放仍然被挡住，不会二次入账。
+        if (!registerEvent(eventId)) {
+            // 同一事件重放：不重复入账，按成功受理返回
+            rateLimiter.countDuplicate();
+            log.info("行为事件重复上报已忽略: pictureId={}, actionType={}, source={}",
+                    command.getPictureId(), actionType.getValue(), source.getValue());
+            return false;
+        }
         UserPictureAction action = new UserPictureAction();
         action.setUserId(anonymous ? 0L : command.getActorUserId());
         action.setPictureId(command.getPictureId());
@@ -125,7 +145,7 @@ public class PictureActionServiceImpl implements PictureActionService {
         try {
             actionMapper.insert(action);
         } catch (DuplicateKeyException e) {
-            // 同一事件重放：不重复入账，按成功受理返回
+            // 载荷上的唯一索引是最后一道防线：台账之外仍有重复时同样不入账
             rateLimiter.countDuplicate();
             log.info("行为事件重复上报已忽略: pictureId={}, actionType={}, source={}",
                     command.getPictureId(), actionType.getValue(), source.getValue());
@@ -143,13 +163,29 @@ public class PictureActionServiceImpl implements PictureActionService {
     }
 
     /**
-     * 只有公开图库里已审核通过的图片可以被上报行为。
-     * 空间图片（含私有与团队空间）与未审核图片都不在公开行为范围内。
+     * 登记一次事件受理。
+     *
+     * @param eventId 事件幂等键
+     * @return true 表示这是第一次受理；false 表示同一事件已经受理过
      */
-    private boolean isPublicApproved(Picture picture) {
-        return picture.getSpaceId() == null
-                && picture.getReviewStatus() != null
-                && picture.getReviewStatus() == PictureReviewStatusEnum.PASS.getValue();
+    private boolean registerEvent(String eventId) {
+        try {
+            dedupeMapper.insertEvidence(eventId);
+            return true;
+        } catch (DuplicateKeyException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 目标必须当前对公开访客可见。
+     *
+     * <p>可见性一律由集中入口判定：公开图库里已审核通过的图片对匿名访客可见，
+     * 未审核图片、空间图片与被隔离的资源都不可见。这里不再另写一套并行规则，
+     * 隔离这类规则落在统一入口上时，公开行为上报随之一起生效。
+     */
+    private boolean isPubliclyVisible(Picture picture) {
+        return pictureContentAuthManager.canReadContent(picture, null);
     }
 
     /**

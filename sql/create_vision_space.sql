@@ -272,6 +272,14 @@ CREATE TABLE `user_picture_action`  (
   INDEX `idx_claim`(`isProcessed`, `isAccumulated`, `claimExpireAt`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 909 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
+-- 行为事件幂等台账：可靠去重依据，与事件载荷的保留期分开
+DROP TABLE IF EXISTS `picture_action_event_dedupe`;
+CREATE TABLE `picture_action_event_dedupe`  (
+  `eventId` varchar(128) NOT NULL COMMENT '事件幂等键: 载荷清理后仍然挡住同一事件的重放',
+  `createdTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次受理该事件的时间',
+  PRIMARY KEY (`eventId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 
