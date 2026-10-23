@@ -277,6 +277,8 @@ import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import { toId } from '@/utils'
+import { usePictureAction } from '@/composables/usePictureAction'
+import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 
 interface Props {
   id: number | string
@@ -285,6 +287,7 @@ interface Props {
 const props = defineProps<Props>()
 const pictureId = computed(() => toId(props.id))
 const router = useRouter()
+const { report: reportAction } = usePictureAction()
 
 // Refs
 const imageStage = ref<HTMLElement>()
@@ -300,6 +303,10 @@ const fetchDetailPicture = async () => {
     const res = await getPictureVoByIdUsingGet({ id: pictureId.value as number })
     if (res.data.code === 0 && res.data.data) {
       picture.value = res.data.data
+      // 详情页浏览：与曝光、点击一样进入同一套事件通道
+      if (pictureId.value !== undefined) {
+        await reportAction(pictureId.value, ActionTypeEnum.VIEW, ActionSourceEnum.DETAIL)
+      }
     } else {
       message.error('获取图片详情失败')
     }

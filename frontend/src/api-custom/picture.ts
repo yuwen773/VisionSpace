@@ -34,12 +34,21 @@ export interface PictureActionRequest {
   pictureId: number
   actionType: number
   source: number
+  /**
+   * 事件幂等键：一次逻辑事件一个键，重放同一个事件不会被重复入账。
+   */
+  eventId?: string
 }
 
 export interface PictureRecommendRequest {
   type?: 'hot' | 'latest' | 'quality' | 'random'
   page?: number
   size?: number
+  /**
+   * 分页上下文：同一个上下文里的分页结果不重复、不遗漏。
+   * 首次请求不传，服务端会在响应里给出，翻页时带上即可。
+   */
+  context?: string
 }
 
 /**
@@ -60,12 +69,16 @@ export async function reportPictureAction(
 /**
  * 获取推荐图片列表
  * GET /api/picture/recommend/list
+ *
+ * 返回体直接用生成器给出的契约（API.BaseResponseRecommendPageVO）：
+ * 后端把 Long 序列化成十进制字符串，total 在契约里就是 string，
+ * 解析规则见 useRecommendPaging 的 parseRecommendTotal。
  */
 export async function getRecommendListUsingGet(
   params: PictureRecommendRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseListPictureVO_>('/api/picture/recommend/list', {
+  return request<API.BaseResponseRecommendPageVO>('/api/picture/recommend/list', {
     method: 'GET',
     params: { ...params },
     ...(options || {}),

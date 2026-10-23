@@ -28,15 +28,18 @@ public class PictureRecommendController {
      * @param type 推荐类型: hot(热门), latest(最新), quality(优质), random(随机)
      * @param page 页码 (默认1)
      * @param size 每页数量 (默认10, 最大100)
+     * @param context 分页上下文：同一个上下文里的分页结果不重复、不遗漏；
+     *                不传时由服务端给出，客户端翻页时带上返回值即可
      */
     @GetMapping("/list")
     public BaseResponse<RecommendPageVO> getRecommendList(
             @RequestParam(name = "type", defaultValue = "hot") String type,
             @RequestParam(name = "page", defaultValue = "1") int page,
-            @RequestParam(name = "size", defaultValue = "10") int size) {
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "context", required = false) String context) {
 
         size = Math.min(size, 100);
-        RecommendPageVO pageVO = pictureRecommendService.getRecommendPictures(type, page, size);
+        RecommendPageVO pageVO = pictureRecommendService.getRecommendPictures(type, page, size, context);
         return ResultUtils.success(pageVO);
     }
 

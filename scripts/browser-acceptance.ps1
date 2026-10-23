@@ -119,8 +119,10 @@ try {
     }
     $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    # 表数与 scripts/acceptance.ps1 保持一致：#41 后为 14，#35 后为 16。
-    if ($tables.Count -ne 16) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+    # 表数量变化必须人工复核：#38 新增幂等台账 picture_action_event_dedupe，
+    # #41 新增 agent_run_state / agent_action_record，
+    # #35 新增 agent_session_attachment / agent_legacy_attachment，表数由 12 变为 17。
+    if ($tables.Count -ne 17) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

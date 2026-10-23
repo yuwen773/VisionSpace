@@ -97,6 +97,12 @@ vision-space:
     manual-weight: 0.10
     time-decay-rate: 0.05
     cache-ttl-minutes: 5
+    # 候选池上限：热门与随机的候选获取与评分都以此为界
+    candidate-limit: 300
+    # 热门候选池里按互动量预选的名额占比，其余名额留给新内容
+    engagement-candidate-ratio: 0.7
+    # 优质推荐的像素门槛
+    quality-min-pixels: 2000000
     # 重排配置
     reorder:
       author-window-size: 20
@@ -107,8 +113,18 @@ vision-space:
     aggregate:
       batch-size: 500
       interval-ms: 300000
+      # 领取租约时长（秒）：租约到期后事件可被其他实例重新领取
+      lease-seconds: 60
+      # 领取次数达到该值即视为反复失败，进入失败积压
+      stuck-threshold: 3
     retention:
       days: 7
+  # 图片行为上报配置
+  picture-action:
+    # 单个客户端每分钟允许的上报次数
+    rate-limit-per-minute: 120
+    # 客户端没有提供事件幂等键时，同一客户端的相同行为在该窗口内视为同一事件
+    dedupe-window-seconds: 60
 
 
 spring:
