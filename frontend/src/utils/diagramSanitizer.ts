@@ -153,6 +153,14 @@ export function sanitizeDiagramSvg(svg: string): string {
   return root.innerHTML
 }
 
+/** 站外链接统一补的 rel 值：不传 Referer、不给 opener、不传递权重。 */
+export const EXTERNAL_LINK_REL = 'noopener noreferrer nofollow'
+
+/** 是否为站外 http(s) 链接（需要新标签打开并补 rel）。 */
+export function isExternalHref(href: string): boolean {
+  return /^\s*https?:/i.test(href)
+}
+
 /**
  * 链接协议白名单：Markdown 里的链接也要过同一套判断。
  * 只允许 http/https 与站内相对地址。

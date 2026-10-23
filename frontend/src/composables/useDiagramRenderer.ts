@@ -9,7 +9,12 @@
  */
 
 import { escapeHtml } from '@/utils/jsonHighlight'
-import { isSafeLinkHref, sanitizeDiagramSvg } from '@/utils/diagramSanitizer'
+import {
+  EXTERNAL_LINK_REL,
+  isExternalHref,
+  isSafeLinkHref,
+  sanitizeDiagramSvg,
+} from '@/utils/diagramSanitizer'
 import { DIAGRAM_LANGUAGES } from './useMarkdown'
 import {
   renderDrawioBlock,
@@ -32,15 +37,15 @@ function isDiagramLang(lang: string | undefined): lang is DiagramLang {
   return !!lang && DIAGRAM_LANGUAGES.includes(lang.toLowerCase())
 }
 
-/** 清理 Markdown 产物里的链接，危险协议直接降级为纯文本。 */
+/** 清理 Markdown 产物里的链接，危险协议与站外链接的处理与渲染期保持同一套规则。 */
 export function sanitizeLinks(root: ParentNode): void {
   for (const anchor of Array.from(root.querySelectorAll('a[href]'))) {
     const href = anchor.getAttribute('href') ?? ''
     if (!isSafeLinkHref(href)) {
       anchor.removeAttribute('href')
       anchor.setAttribute('data-blocked-href', '')
-    } else if (/^https?:/i.test(href.trim())) {
-      anchor.setAttribute('rel', 'noopener noreferrer nofollow')
+    } else if (isExternalHref(href)) {
+      anchor.setAttribute('rel', EXTERNAL_LINK_REL)
       anchor.setAttribute('target', '_blank')
     }
   }
@@ -76,19 +81,14 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
   const plantumlServer =
     deps.plantumlServer ?? (import.meta.env.VITE_PLANTUML_SERVER as string | undefined)
 
-  const renderOne = async (
-    lang: DiagramLang,
-    code: string,
-    containerId: string,
-  ): Promise<string> => {
-    if (lang === 'mermaid') {
-      return renderMermaidBlock(code, containerId, { load: deps.mermaid?.load })
-    }
-    if (lang === 'drawio') {
-      return renderDrawioBlock(code, containerId, { load: deps.drawio?.load })
-    }
-    return renderPlantumlBlock(code, plantumlServer, containerId)
+  const renderers: Record<DiagramLang, (code: string, containerId: string) => Promise<string>> = {
+    mermaid: (code, id) => renderMermaidBlock(code, id, { load: deps.mermaid?.load }),
+    drawio: (code) => renderDrawioBlock(code, { load: deps.drawio?.load }),
+    plantuml: (code) => renderPlantumlBlock(code, plantumlServer),
   }
+
+  const renderOne = (lang: DiagramLang, code: string, containerId: string) =>
+    renderers[lang](code, containerId)
 
   /**
    * 解析并渲染所有图表代码块。
@@ -131,7 +131,6 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
 
       const wrapper = document.createElement('div')
       wrapper.className = `diagram-wrapper diagram-${lang.toLowerCase()}`
-      wrapper.dataset.diagramId = containerId
       // 局部构建 DOM：不把未清理的字符串直接交给 innerHTML
       wrapper.innerHTML = buildDiagramMarkup(lang.toLowerCase() as DiagramLang, rendered, code)
 

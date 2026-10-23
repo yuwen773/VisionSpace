@@ -6,7 +6,6 @@
       </div>
       <div
         class="message-body markdown-body"
-        ref="bodyRef"
         v-html="finalContent"
         @click="onBodyClick"
       ></div>
@@ -103,9 +102,6 @@ const emit = defineEmits<{
 const { render } = useMarkdown()
 const { renderDiagrams } = useDiagramRenderer()
 const liked = ref(false)
-
-// 图表 tab 切换：监听挂在消息体上，组件卸载时随元素一起消失，无需全局清理
-const bodyRef = ref<HTMLElement | null>(null)
 
 // 图表渲染后的最终内容
 const finalContent = ref('')

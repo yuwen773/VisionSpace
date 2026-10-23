@@ -124,12 +124,19 @@ if (!facts.csp) failures.push('产物中没有 CSP')
 if (!facts.appMounted) failures.push('应用未挂载')
 if (facts.externalScriptTags?.length)
   failures.push(`外部脚本标签: ${facts.externalScriptTags.join(', ')}`)
-// 第三方字体请求属于既有依赖，单独列出但不作为本次回归的失败项；
-// 这里只关心是否存在脚本/连接类外发。
-const scriptLikeExternal = externalRequests.filter(
-  (u) => !/fonts\.(googleapis|gstatic)\.com|fonts\.googleapis\.cn/.test(u),
-)
-if (scriptLikeExternal.length) failures.push(`非字体类外发: ${scriptLikeExternal.join(', ')}`)
+// 既有依赖的允许清单：字体（只携带字体名）与首页装饰图（组件常量，不来自对话）。
+// 除此之外的任何外发都算失败——尤其是脚本、连接与对话内容里的地址。
+const KNOWN_EXISTING = [
+  /^https:\/\/fonts\.(googleapis|gstatic)\.(com|cn)\//,
+  /^https:\/\/images\.unsplash\.com\//,
+  /^https:\/\/plus\.unsplash\.com\//,
+  /^https:\/\/picsum\.photos\//,
+  /^https:\/\/fastly\.picsum\.photos\//,
+]
+const unexpectedExternal = externalRequests.filter((u) => !KNOWN_EXISTING.some((re) => re.test(u)))
+if (unexpectedExternal.length) {
+  failures.push(`既有清单之外的外发: ${unexpectedExternal.join(', ')}`)
+}
 
 if (failures.length) {
   console.log('\nRESULT: FAIL')

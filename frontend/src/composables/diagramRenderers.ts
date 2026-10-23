@@ -106,13 +106,26 @@ function errorBox(message: string): string {
   return `<div class="diagram-error">${escapeHtml(message)}</div>`
 }
 
+/**
+ * 渲染失败统一降级为可见的错误提示，不让单张图表失败拖垮整条消息。
+ * 三种图表格式共用这一层，避免各写一遍 try/catch。
+ */
+async function renderSafely(label: string, render: () => Promise<string>): Promise<string> {
+  try {
+    return await render()
+  } catch (e) {
+    console.error(`${label} render error:`, e)
+    return errorBox(`${label} 渲染失败: ${e instanceof Error ? e.message : '未知错误'}`)
+  }
+}
+
 /** 渲染 Mermaid，产物经过清理。 */
 export async function renderMermaidBlock(
   code: string,
   containerId: string,
   deps: { load?: MermaidLoader } = {},
 ): Promise<string> {
-  try {
+  return renderSafely('Mermaid', async () => {
     const load = deps.load ?? defaultMermaidLoader
     const mermaid = await load()
     const themeVariables = deps.load ? undefined : readThemeColors()
@@ -121,30 +134,20 @@ export async function renderMermaidBlock(
     )
     const { svg } = await mermaid.render(containerId, code.trim())
     return sanitizeDiagramSvg(svg)
-  } catch (e) {
-    console.error('Mermaid render error:', e)
-    return errorBox(`Mermaid 渲染失败: ${e instanceof Error ? e.message : '未知错误'}`)
-  }
+  })
 }
 
 /** 渲染 draw.io，产物经过清理。 */
 export async function renderDrawioBlock(
   code: string,
-  _containerId: string,
   deps: { load?: DrawioLoader } = {},
 ): Promise<string> {
-  try {
+  return renderSafely('draw.io', async () => {
     const load = deps.load ?? defaultDrawioLoader
     const renderer = await load()
-    if (!renderer) {
-      return errorBox('draw.io 渲染库不可用，已显示源码')
-    }
-    const html = await renderer.renderToHtml(code)
-    return sanitizeDiagramSvg(html)
-  } catch (e) {
-    console.error('draw.io render error:', e)
-    return errorBox(`draw.io 渲染失败: ${e instanceof Error ? e.message : '未知错误'}`)
-  }
+    if (!renderer) return errorBox('draw.io 渲染库不可用，已显示源码')
+    return sanitizeDiagramSvg(await renderer.renderToHtml(code))
+  })
 }
 
 /**
@@ -152,11 +155,7 @@ export async function renderDrawioBlock(
  * 地址由受控配置（VITE_PLANTUML_SERVER）决定；未配置时展示源码，
  * 不回退任何公共渲染服务，也不在客户端发起额外请求。
  */
-export async function renderPlantumlBlock(
-  code: string,
-  server?: string,
-  containerId?: string,
-): Promise<string> {
+export async function renderPlantumlBlock(code: string, server?: string): Promise<string> {
   const url = resolvePlantUmlUrl(code, server)
 
   if (!url) {
@@ -168,8 +167,5 @@ export async function renderPlantumlBlock(
     )
   }
 
-  return (
-    `<img src="${escapeHtml(url)}" class="plantuml-diagram" alt="PlantUML Diagram" ` +
-    `data-container-id="${escapeHtml(containerId ?? '')}" loading="lazy" />`
-  )
+  return `<img src="${escapeHtml(url)}" class="plantuml-diagram" alt="PlantUML Diagram" loading="lazy" />`
 }

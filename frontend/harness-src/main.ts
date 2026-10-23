@@ -27,9 +27,14 @@ void renderDiagrams(
 })
 
 // 执行标记：任何 payload 若真的执行了，会在这里留下痕迹
+type HarnessWindow = Window & {
+  __executed?: Set<string>
+  __mark?: (name: string) => void
+}
+const harnessWindow = window as HarnessWindow
 const executed = new Set<string>()
-;(window as any).__executed = executed
-;(window as any).__mark = (name: string) => executed.add(name)
+harnessWindow.__executed = executed
+harnessWindow.__mark = (name: string) => executed.add(name)
 
 const CASES: Array<{ id: string; label: string; content: string }> = [
   {

@@ -56,7 +56,7 @@ describe('图表渲染：Mermaid', () => {
 
 describe('图表渲染：draw.io', () => {
   it('渲染产物同样经过清理', async () => {
-    const out = await renderDrawioBlock('<mxGraphModel/>', 'd1', {
+    const out = await renderDrawioBlock('<mxGraphModel/>', {
       load: async () => ({
         renderToHtml: async () =>
           '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/x.png"/></svg>',
@@ -66,7 +66,7 @@ describe('图表渲染：draw.io', () => {
   })
 
   it('本地渲染库不可用时提示而不是回落远程渲染', async () => {
-    const out = await renderDrawioBlock('<mxGraphModel/>', 'd2', {
+    const out = await renderDrawioBlock('<mxGraphModel/>', {
       load: async () => null,
     })
     expect(out).toContain('diagram-error')

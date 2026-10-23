@@ -4,7 +4,8 @@
  * 类型的对象（见 javascript/dist/build.js 的 UMD 包装）。
  */
 declare module 'mxgraph' {
-  type MxFactory = (options: Record<string, unknown>) => Record<string, any>
+  /** 调用后返回 mxGraph / mxCodec / mxUtils 等类型；具体接口由调用方收窄。 */
+  type MxFactory = (options: Record<string, unknown>) => Record<string, unknown>
   const factory: MxFactory
   export default factory
 }

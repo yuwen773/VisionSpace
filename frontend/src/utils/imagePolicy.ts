@@ -6,15 +6,16 @@
  * 是"不发起这个请求"，所以决定必须在生成标签时做出。
  *
  * 允许的来源由受控部署配置给出（VITE_CSP_IMAGE_HOSTS），不接受内容自述。
+ * 这份清单同时用于生成 CSP 的 img-src，两边必须来自同一个解析结果。
  */
+
+import { parseHostList } from './hostList'
 
 /** 受控图片主机清单；为空表示不信任任何外部主机。 */
 function allowedHosts(): string[] {
-  const raw = (import.meta.env.VITE_CSP_IMAGE_HOSTS as string | undefined) ?? ''
-  return raw
-    .split(',')
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean)
+  return parseHostList(import.meta.env.VITE_CSP_IMAGE_HOSTS as string | undefined).map((h) =>
+    h.toLowerCase(),
+  )
 }
 
 /** 站内相对路径、data 位图与 blob 属于同源/本地资源。 */

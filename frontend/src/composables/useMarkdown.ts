@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import { isSafeLinkHref } from '@/utils/diagramSanitizer'
+import { EXTERNAL_LINK_REL, isExternalHref, isSafeLinkHref } from '@/utils/diagramSanitizer'
 import { isLoadableImage } from '@/utils/imagePolicy'
 
 // 图表代码块语言列表
@@ -24,15 +24,21 @@ const md: MarkdownIt = new MarkdownIt({
     // 如果有语言标识，使用 highlight.js 高亮
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return '<pre class="hljs code-block"><div class="code-header"><span class="code-lang">' +
+        return (
+          '<pre class="hljs code-block"><div class="code-header"><span class="code-lang">' +
           lang +
           '</span><button class="copy-btn" data-code>复制</button></div><code>' +
           hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
           '</code></pre>'
+        )
       } catch (__) {}
     }
     // 否则返回普通代码块
-    return '<pre class="hljs code-block"><div class="code-header"><span class="code-lang">code</span><button class="copy-btn" data-code>复制</button></div><code>' + escapeHtml(str) + '</code></pre>'
+    return (
+      '<pre class="hljs code-block"><div class="code-header"><span class="code-lang">code</span><button class="copy-btn" data-code>复制</button></div><code>' +
+      escapeHtml(str) +
+      '</code></pre>'
+    )
   },
 })
 
@@ -49,9 +55,9 @@ md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
     tokens[idx].attrSet('href', '')
     return self.renderToken(tokens, idx, options)
   }
-  if (/^https?:/i.test(href.trim())) {
+  if (isExternalHref(href)) {
     tokens[idx].attrSet('target', '_blank')
-    tokens[idx].attrSet('rel', 'noopener noreferrer nofollow')
+    tokens[idx].attrSet('rel', EXTERNAL_LINK_REL)
   }
   return self.renderToken(tokens, idx, options)
 }
