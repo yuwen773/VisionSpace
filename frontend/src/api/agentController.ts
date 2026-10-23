@@ -37,7 +37,7 @@ export async function chatStreamUsingPost(
   body: API.AgentChatRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.ServerSentEventString[]>('/agent/image/chat/stream', {
+  return request<Record<string, any>>('/agent/image/chat/stream', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

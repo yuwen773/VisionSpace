@@ -34,12 +34,21 @@ export interface PictureActionRequest {
   pictureId: number
   actionType: number
   source: number
+  /**
+   * 事件幂等键：一次逻辑事件一个键，重放同一个事件不会被重复入账。
+   */
+  eventId?: string
 }
 
 export interface PictureRecommendRequest {
   type?: 'hot' | 'latest' | 'quality' | 'random'
   page?: number
   size?: number
+  /**
+   * 分页上下文：同一个上下文里的分页结果不重复、不遗漏。
+   * 首次请求不传，服务端会在响应里给出，翻页时带上即可。
+   */
+  context?: string
 }
 
 /**

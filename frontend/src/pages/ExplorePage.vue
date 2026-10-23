@@ -212,12 +212,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api-custom/picture'
-import { reportPictureAction, ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
+import { type PictureRecommendRequest } from '@/api-custom/picture'
+import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
+import { usePictureAction } from '@/composables/usePictureAction'
+import { useRecommendPaging } from '@/composables/useRecommendPaging'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
 import { contentSrc, toId } from '@/utils'
 
 const router = useRouter()
+const { report: reportAction } = usePictureAction()
+// 分页状态：页码、总数与分页上下文都收在这里，翻页时把上下文带回服务端
+const { page, total, hasMore, reset: resetPaging, loadPage, nextPage } = useRecommendPaging()
 
 // Refs
 const heroSection = ref<HTMLElement>()
@@ -231,11 +236,7 @@ const isSearchFocused = ref(false)
 // 数据状态
 const currentType = ref<PictureRecommendRequest['type']>('hot')
 const pictureList = ref<any[]>([])
-const page = ref(1)
-const size = ref  (24)
 const loading = ref(false)
-const hasMore = ref(true)
-const total = ref(0)
 
 // 图片加载状态
 const loadedImages = ref<Set<string>>(new Set())
@@ -334,11 +335,10 @@ const assignPicturesToColumns = (newPictures: any[]) => {
  */
 const selectCategory = (cat: string) => {
   selectedCategory.value = cat
-  page.value = 1
+  resetPaging()
   pictureList.value = []
   columnAssignment.value.clear()
   columnHeights.value = new Array(columnCount.value).fill(0)
-  hasMore.value = true
   loadedImages.value.clear()
   loadPictures()
 }
@@ -347,11 +347,10 @@ const selectCategory = (cat: string) => {
  * 搜索
  */
 const doSearch = () => {
-  page.value = 1
+  resetPaging()
   pictureList.value = []
   columnAssignment.value.clear()
   columnHeights.value = new Array(columnCount.value).fill(0)
-  hasMore.value = true
   loadedImages.value.clear()
   loadPictures()
 }
@@ -364,13 +363,8 @@ const loadPictures = async () => {
   loading.value = true
 
   try {
-    const res: any = await getRecommendListUsingGet({
-      type: currentType.value,
-      page: page.value,
-      size: size.value,
-    })
-    const data = res?.data?.data?.records
-    if (data && data.length > 0) {
+    const data = await loadPage(currentType.value)
+    if (data.length > 0) {
       assignPicturesToColumns(data)
 
       if (page.value === 1) {
@@ -378,10 +372,6 @@ const loadPictures = async () => {
       } else {
         pictureList.value.push(...data)
       }
-      hasMore.value = data.length === size.value
-      total.value = res?.data?.data.total || 0
-    } else {
-      hasMore.value = false
     }
   } finally {
     loading.value = false
@@ -393,7 +383,7 @@ const loadPictures = async () => {
  */
 const loadMore = () => {
   if (loading.value || !hasMore.value) return
-  page.value++
+  nextPage()
   loadPictures()
 }
 
@@ -408,11 +398,10 @@ const backToTop = () => {
  * 刷新画廊
  */
 const refreshGallery = () => {
-  page.value = 1
+  resetPaging()
   pictureList.value = []
   columnAssignment.value.clear()
   columnHeights.value = new Array(columnCount.value).fill(0)
-  hasMore.value = true
   loadedImages.value.clear()
   backToTop()
   setTimeout(() => loadPictures(), 300)
@@ -429,38 +418,15 @@ const goToUpload = () => {
  * 点击图片
  */
 const handlePictureClick = async (picture: any) => {
-  await reportClick(picture.id)
+  await reportAction(picture.id, ActionTypeEnum.CLICK, ActionSourceEnum.HOME_RECOMMEND)
   router.push(`/picture/${picture.id}`)
-}
-
-/**
- * 上报点击
- */
-const reportClick = async (pictureId: number) => {
-  try {
-    await reportPictureAction({
-      pictureId: pictureId,
-      actionType: ActionTypeEnum.CLICK,
-      source: ActionSourceEnum.HOME_RECOMMEND
-    })
-  } catch (error) {
-    console.error('上报点击失败:', error)
-  }
 }
 
 /**
  * 上报曝光
  */
 const reportImpression = async (pictureId: number) => {
-  try {
-    await reportPictureAction({
-      pictureId: pictureId,
-      actionType: ActionTypeEnum.IMPRESSION,
-      source: ActionSourceEnum.HOME_RECOMMEND
-    })
-  } catch (error) {
-    console.error('上报曝光失败:', error)
-  }
+  await reportAction(pictureId, ActionTypeEnum.IMPRESSION, ActionSourceEnum.HOME_RECOMMEND)
 }
 
 /**

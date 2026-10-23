@@ -367,11 +367,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 1 => user1, 2 => user2
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
                 .collect(Collectors.groupingBy(User::getId));
-        // 2. 关联查询统计信息（批量查询）
+        // 2. 关联查询统计信息（按 pictureId 关联键批量查询；统计主键与图片 ID 无关）
         Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
-        List<PictureStats> statsList = pictureStatsService.listByIds(pictureIdSet);
-        Map<Long, PictureStats> pictureIdStatsMap = statsList.stream()
-                .collect(Collectors.toMap(PictureStats::getPictureId, stats -> stats));
+        Map<Long, PictureStats> pictureIdStatsMap = pictureStatsService.mapByPictureIds(pictureIdSet);
         // 3. 填充信息
         pictureVOList.forEach(pictureVO -> {
             Long userId = pictureVO.getUserId();

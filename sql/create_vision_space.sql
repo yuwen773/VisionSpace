@@ -254,14 +254,22 @@ CREATE TABLE `user_picture_action`  (
   `actionType` int(11) NOT NULL DEFAULT 0 COMMENT '行为类型: 0=impression 1=click 2=view 3=like 4=collect 5=download 6=share',
   `actionValue` int(11) NOT NULL DEFAULT 1 COMMENT '行为值',
   `source` int(11) NOT NULL DEFAULT 0 COMMENT '来源: 0=HOME_RECOMMEND 1=DETAIL 2=SEARCH 3=OTHER',
+  `eventId` varchar(128) NULL DEFAULT NULL COMMENT '事件幂等键: 唯一索引保证同一事件重放不重复入账',
   `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `isProcessed` tinyint(4) NOT NULL DEFAULT 0 COMMENT '是否已聚合: 0-未处理 1-已处理',
+  `isProcessed` tinyint(4) NOT NULL DEFAULT 0 COMMENT '是否已完成聚合: 0-未处理 1-已处理',
+  `isAccumulated` tinyint(4) NOT NULL DEFAULT 0 COMMENT '是否已计入统计: 0-未计入 1-已计入',
+  `claimToken` varchar(64) NULL DEFAULT NULL COMMENT '领取令牌: 持有本次领取租约的聚合运行',
+  `claimedAt` datetime NULL DEFAULT NULL COMMENT '领取时间',
+  `claimExpireAt` datetime NULL DEFAULT NULL COMMENT '领取租约到期时间',
+  `attemptCount` int(11) NOT NULL DEFAULT 0 COMMENT '领取尝试次数: 反复领取失败的事件据此可见',
   PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_eventId`(`eventId`) USING BTREE,
   INDEX `idx_user_time`(`userId`, `createdTime`) USING BTREE,
   INDEX `idx_picture_time`(`pictureId`, `createdTime`) USING BTREE,
   INDEX `idx_action_type`(`actionType`) USING BTREE,
   INDEX `idx_isProcessed`(`isProcessed`) USING BTREE,
-  INDEX `idx_processed_time`(`isProcessed`, `createdTime`) USING BTREE
+  INDEX `idx_processed_time`(`isProcessed`, `createdTime`) USING BTREE,
+  INDEX `idx_claim`(`isProcessed`, `isAccumulated`, `claimExpireAt`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 909 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 SET FOREIGN_KEY_CHECKS = 1;

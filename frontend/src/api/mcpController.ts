@@ -67,14 +67,6 @@ export async function getMcpServerUsingGet(
   })
 }
 
-/** 当前部署允许的 MCP 能力 GET /mcp-server/capabilities */
-export async function capabilitiesUsingGet(options?: { [key: string]: any }) {
-  return request<API.BaseResponseMcpCapabilities>('/mcp-server/capabilities', {
-    method: 'GET',
-    ...(options || {}),
-  })
-}
-
 /** 此处后端没有提供注释 DELETE /mcp-server/${param0} */
 export async function deleteMcpServerUsingDelete(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -85,6 +77,14 @@ export async function deleteMcpServerUsingDelete(
   return request<API.BaseResponseVoid>(`/mcp-server/${param0}`, {
     method: 'DELETE',
     params: { ...queryParams },
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 GET /mcp-server/capabilities */
+export async function capabilitiesUsingGet(options?: { [key: string]: any }) {
+  return request<API.BaseResponseMcpCapabilities>('/mcp-server/capabilities', {
+    method: 'GET',
     ...(options || {}),
   })
 }

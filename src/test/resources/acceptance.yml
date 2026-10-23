@@ -56,6 +56,14 @@ vision-space:
     allow-loopback: true
   pexels:
     api-key: acceptance-dummy
+  # 行为上报的限流：隔离验收里压到 50 次/分钟，便于验证超限被拒绝且可观察
+  picture-action:
+    rate-limit-per-minute: 50
+  picture-stats:
+    aggregate:
+      # 隔离验收里把后台聚合的间隔调长：聚合逻辑由用例直接驱动，
+      # 后台任务不与用例争抢同一批事件
+      interval-ms: 3600000
   vision-recognition:
     api-key: acceptance-dummy
     model: acceptance-model

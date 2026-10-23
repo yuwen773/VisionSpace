@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.PictureMapper">
+
+    <!--
+      公开推荐只包含公共图库：已审核通过、且不属于任何空间的图片。
+      候选查询都要带 LIMIT，候选池与评分都保持有界。
+    -->
+
+    <!-- 按互动量取候选：互动量是热门评分里权重最高的一项，用作候选预选 -->
+    <select id="selectEngagementCandidateIds" resultType="java.lang.Long">
+        SELECT p.id
+        FROM picture p
+        LEFT JOIN picture_stats s ON s.pictureId = p.id
+        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+        ORDER BY (COALESCE(s.viewCount, 0) + COALESCE(s.likeCount, 0) + COALESCE(s.collectCount, 0)
+                  + COALESCE(s.downloadCount, 0) + COALESCE(s.shareCount, 0)) DESC, p.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 按创建时间取候选：给热门候选池补入新内容 -->
+    <select id="selectRecentCandidateIds" resultType="java.lang.Long">
+        SELECT p.id
+        FROM picture p
+        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+        ORDER BY p.createTime DESC, p.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 按确定性随机序取候选：同一上下文内顺序稳定，翻页不重复也不遗漏 -->
+    <select id="selectRandomCandidateIds" resultType="java.lang.Long">
+        SELECT p.id
+        FROM picture p
+        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+        ORDER BY MD5(CONCAT(#{seed}, ':', p.id)) ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 公开推荐范围内的图片数（真实总数，不写死常量） -->
+    <select id="countPublicCandidates" resultType="long">
+        SELECT COUNT(*)
+        FROM picture p
+        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+    </select>
+
+    <!-- 符合质量条件的公开图片数 -->
+    <select id="countQualityCandidates" resultType="long">
+        SELECT COUNT(*)
+        FROM picture p
+        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+          AND p.picWidth IS NOT NULL AND p.picHeight IS NOT NULL
+          AND p.picWidth * p.picHeight > #{minPixels}
+    </select>
+
+</mapper>

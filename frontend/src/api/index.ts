@@ -15,6 +15,7 @@ import * as feedbackController from './feedbackController'
 import * as agentImageUploadController from './agentImageUploadController'
 import * as agentController from './agentController'
 import * as adminStatsController from './adminStatsController'
+import * as pictureContentController from './pictureContentController'
 import * as mainController from './mainController'
 export default {
   mcpController,
@@ -30,5 +31,6 @@ export default {
   agentImageUploadController,
   agentController,
   adminStatsController,
+  pictureContentController,
   mainController,
 }
