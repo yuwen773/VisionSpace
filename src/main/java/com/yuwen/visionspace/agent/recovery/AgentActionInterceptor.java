@@ -124,12 +124,16 @@ public class AgentActionInterceptor extends ToolInterceptor {
                 .orElse(null);
     }
 
-    /** 结果摘要：只留很短的前缀，避免把返回正文写进审计 */
+    /**
+     * 结果摘要：只记录「有没有结果、多大」，不记录内容本身。
+     *
+     * <p>工具返回里可能包含用户提示词、图片描述或外部服务的原始响应，
+     * 写进审计列就是泄露。核对需要的是「这个动作产出了东西」，不是产出什么。
+     */
     private String safeSummary(String result) {
         if (result == null) {
             return null;
         }
-        String singleLine = result.replaceAll("\\s+", " ").trim();
-        return singleLine.length() > 80 ? singleLine.substring(0, 80) + "..." : singleLine;
+        return "结果长度 " + result.length();
     }
 }

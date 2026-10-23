@@ -11,6 +11,8 @@ import com.yuwen.visionspace.model.entity.AgentRunState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +33,12 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class AgentRecoveryService {
+
+    /**
+     * 「执行中」动作的陈旧宽限：超过这个时长没有更新才认为是上次中断遗留。
+     * 单次工具调用远短于它，正常执行中的动作不会被误判。
+     */
+    private static final Duration STALE_ACTION_GRACE = Duration.ofMinutes(10);
 
     private final AgentSessionGuard sessionGuard;
     private final AgentRunStateStore runStateStore;
@@ -95,23 +103,31 @@ public class AgentRecoveryService {
                         "该会话没有可安全续跑的执行状态，已暂停自动执行"));
 
         // 过期或重复的恢复请求：版本已经推进，不能再用旧版本续跑
-        if (expectedVersion != null && !expectedVersion.equals(state.getStateVersion())) {
-            ThrowUtils.throwIf(true, ErrorCode.OPERATION_ERROR,
-                    "恢复请求已过期，请刷新会话状态后重试");
-        }
+        ThrowUtils.throwIf(expectedVersion != null
+                        && !expectedVersion.equals(state.getStateVersion()),
+                ErrorCode.OPERATION_ERROR, "恢复请求已过期，请刷新会话状态后重试");
 
         int pending = actionLedger.countPendingReview(threadId, userId);
         ThrowUtils.throwIf(pending > 0, ErrorCode.OPERATION_ERROR,
                 "存在结果未知的外部动作，请先核对后再继续");
+
+        // 认领这次续跑：按版本推进，并发的第二个请求在这里落败，不会执行第二次
+        boolean claimed = runStateStore.claimForResume(threadId, userId, state.getStateVersion());
+        ThrowUtils.throwIf(!claimed, ErrorCode.OPERATION_ERROR,
+                "该会话正在被另一个请求继续执行，请刷新状态后重试");
 
         return state;
     }
 
     /**
      * 收敛上次执行遗留的「执行中」动作。可证明幂等的退回可重试，其余进入待核对。
+     *
+     * <p>只处理超过 {@link #STALE_ACTION_GRACE} 没有更新的记录：正在被另一个
+     * 实例执行的动作会持续刷新更新时间，不能被这里判成中断而放行重放。
      */
     public int reconcileBeforeRun(String threadId, Long userId) {
-        return actionLedger.reconcileStaleExecuting(threadId, userId);
+        Instant staleBefore = Instant.now().minus(STALE_ACTION_GRACE);
+        return actionLedger.reconcileStaleExecuting(threadId, userId, staleBefore);
     }
 
     /**
@@ -134,10 +150,6 @@ public class AgentRecoveryService {
         ThrowUtils.throwIf(!changed, ErrorCode.OPERATION_ERROR,
                 "该动作不在待核对状态，或已被处理");
         return describe(threadId, userId);
-    }
-
-    public AgentRunStateStore store() {
-        return runStateStore;
     }
 
     private String reasonFor(AgentRunState state, int pendingReview) {

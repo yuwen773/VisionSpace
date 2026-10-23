@@ -1,16 +1,12 @@
 package com.yuwen.visionspace.agent.recovery;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.mapper.AgentRunStateMapper;
 import com.yuwen.visionspace.model.entity.AgentRunState;
 import com.yuwen.visionspace.utils.GzipUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -18,7 +14,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 /**
  * 完整执行状态的持久化与恢复。
@@ -38,28 +33,16 @@ import java.util.concurrent.Executor;
 @Component
 public class AgentRunStateStore {
 
-    /** 完整状态里除消息以外的可续跑字段 */
-    private static final String[] RUN_FIELDS = {
-            "phase", "explore_count", "generate_count", "model_call_count"
-    };
-
     private final AgentRunStateMapper runStateMapper;
     private final StateSerializer stateSerializer;
     private final GzipUtils gzipUtils;
-    private final ObjectMapper objectMapper;
-
-    @Autowired
-    @Qualifier("agentAsyncExecutor")
-    private Executor asyncExecutor;
 
     public AgentRunStateStore(AgentRunStateMapper runStateMapper,
                               StateSerializer stateSerializer,
-                              GzipUtils gzipUtils,
-                              ObjectMapper objectMapper) {
+                              GzipUtils gzipUtils) {
         this.runStateMapper = runStateMapper;
         this.stateSerializer = stateSerializer;
         this.gzipUtils = gzipUtils;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -103,6 +86,10 @@ public class AgentRunStateStore {
             return false;
         }
         try {
+            // 首次执行时状态行还不存在，下面的 UPDATE 会静默影响 0 行。
+            // 先按 (threadId) 唯一键建行；已存在时是空操作，不会改写归属。
+            runStateMapper.insertIfAbsent(threadId, userId, AgentStateFormat.V2_FULL.code(),
+                    RunStatus.RUNNING);
             byte[] payload = gzipUtils.compress(encodeState(checkpoint.getState()));
             int updated = runStateMapper.updateIfNewer(threadId, userId, stateVersion,
                     AgentStateFormat.V2_FULL.code(), checkpoint.getId(), checkpoint.getNodeId(),
@@ -142,14 +129,18 @@ public class AgentRunStateStore {
         runStateMapper.updateStatus(threadId, userId, runStatus, pendingConfirmation);
     }
 
-    /** 确保状态行存在（首次使用时创建），归属已由调用方核对 */
-    public void ensureRow(String threadId, Long userId) {
-        runStateMapper.insertIfAbsent(threadId, userId, AgentStateFormat.V2_FULL.code(), RunStatus.RUNNING);
-    }
-
-    /** 把状态标记为仅有旧轻量归档：可查看，不可续跑 */
-    public void markLegacyArchiveOnly(String threadId, Long userId) {
-        runStateMapper.markLegacyArchiveOnly(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE);
+    /**
+     * 认领一次续跑：只有当前版本仍等于调用方看到的版本时才能推进。
+     *
+     * <p>重复或并发的续跑请求带同一个版本，只有一个能成功；失败方拿到
+     * {@code false} 并被告知「请求已过期」，不会产生第二次执行。
+     */
+    public boolean claimForResume(String threadId, Long userId, long expectedVersion) {
+        if (threadId == null || userId == null) {
+            return false;
+        }
+        return runStateMapper.claimForResume(threadId, userId, expectedVersion,
+                RunStatus.RUNNING) == 1;
     }
 
     /** 释放会话：清理载荷与待确认信息 */
@@ -231,19 +222,6 @@ public class AgentRunStateStore {
         return stateSerializer.dataFromBytes(Base64.getDecoder().decode(json));
     }
 
-    /** 判断状态里是否有可续跑字段；供测试与诊断使用 */
-    static boolean hasRunFields(Map<String, Object> data) {
-        if (data == null) {
-            return false;
-        }
-        for (String field : RUN_FIELDS) {
-            if (data.containsKey(field)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * 只保留异常类型，不写异常消息。
      *
@@ -253,10 +231,5 @@ public class AgentRunStateStore {
     private String sanitizeFailure(Exception error) {
         String type = error.getClass().getSimpleName();
         return type.length() > 120 ? type.substring(0, 120) : type;
-    }
-
-    /** 供框架内部使用：把 OverAllState 还原为 Map */
-    static Map<String, Object> dataOf(OverAllState state) {
-        return state == null ? Map.of() : state.data();
     }
 }

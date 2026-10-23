@@ -11,6 +11,11 @@
       <p class="banner-title">{{ title }}</p>
       <p class="banner-reason">{{ state.reason || fallbackReason }}</p>
 
+      <!-- 待人工确认：只含工具名，不含参数或正文 -->
+      <p v-if="state.pendingConfirmation" class="banner-confirm">
+        等待确认：{{ state.pendingConfirmation }}
+      </p>
+
       <!-- 待核对动作：逐条确认，不提供「一键重试」 -->
       <ul v-if="state.actions.length > 0" class="action-list">
         <li v-for="action in state.actions" :key="action.actionId" class="action-row">
@@ -64,10 +69,12 @@ const emit = defineEmits<{
   (e: 'review', actionId: string, decision: 'confirm' | 'dismiss'): void
 }>()
 
-// 可续跑时不需要打扰用户；只有暂停、待核对或不可恢复才提示
+// 正常运行时不打扰用户；但「停在人工确认」必须让用户看到，否则
+// 状态是 resumable 的，横幅会被隐藏，待确认信息就永远不出现。
 const visible = computed(() => {
   if (!props.state) return false
   if (props.state.pendingReviewCount > 0) return true
+  if (props.state.runStatus === 'AWAITING_CONFIRMATION') return true
   if (props.state.resumable) return false
   return props.state.runStatus !== 'COMPLETED'
 })
@@ -81,6 +88,7 @@ const tone = computed(() => {
 const title = computed(() => {
   if (!props.state) return ''
   if (props.state.pendingReviewCount > 0) return '有外部动作结果未知，需要核对'
+  if (props.state.runStatus === 'AWAITING_CONFIRMATION') return '等待你确认下一步'
   if (props.state.resumable) return '可以从上次中断处继续'
   if (props.state.legacyArchiveOnly) return '只有历史消息，无法继续执行'
   return '当前无法自动继续'
@@ -158,6 +166,13 @@ const review = (action: RecoveryAction, decision: 'confirm' | 'dismiss') => {
   font-size: 12px;
   color: var(--color-text-tertiary);
   line-height: 1.5;
+}
+
+.banner-confirm {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: pre-line;
 }
 
 .action-list {

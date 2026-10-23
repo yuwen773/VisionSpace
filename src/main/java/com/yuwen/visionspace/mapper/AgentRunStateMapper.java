@@ -60,6 +60,23 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
                       @Param("pendingConfirmation") String pendingConfirmation);
 
     /**
+     * 认领一次续跑：按期望版本推进版本号并置为运行中。
+     *
+     * <p>这是「重复或并发续跑请求不能产生第二次执行」的实现点。两个请求带同一个
+     * {@code expectedVersion} 时，只有一个能命中条件；另一个影响 0 行，被拒绝。
+     * 版本推进后，旧请求自然过期，不需要额外的分布式锁。
+     *
+     * @return 1 表示本次认领成功，0 表示版本已推进（重复/过期/并发落败）
+     */
+    @Update("UPDATE agent_run_state SET stateVersion = stateVersion + 1, runStatus = #{runStatus}, " +
+            "updateTime = NOW() " +
+            "WHERE threadId = #{threadId} AND userId = #{userId} AND stateVersion = #{expectedVersion}")
+    int claimForResume(@Param("threadId") String threadId,
+                       @Param("userId") Long userId,
+                       @Param("expectedVersion") long expectedVersion,
+                       @Param("runStatus") String runStatus);
+
+    /**
      * 只更新运行状态与待确认信息，不动版本与载荷。
      */
     @Update("UPDATE agent_run_state SET runStatus = #{runStatus}, " +

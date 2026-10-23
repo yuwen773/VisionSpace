@@ -8,6 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,15 +80,18 @@ class AgentActionLedgerTest {
 
     @Test
     void staleExecutingIsReconciledAsUnknownRatherThanReplayed() {
+        Instant now = Instant.now();
         when(mapper.selectByThread(THREAD, OWNER)).thenReturn(List.of(
-                record(AgentActionRecord.STATUS_EXECUTING),
-                recordWithId(AgentActionRecord.STATUS_EXECUTING, "a-2",
-                        AgentActionRecord.IDEMPOTENCY_PROVEN),
-                record(AgentActionRecord.STATUS_SUCCEEDED)));
+                recordWithTime(AgentActionRecord.STATUS_EXECUTING, ACTION,
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, hoursAgo(2)),
+                recordWithTime(AgentActionRecord.STATUS_EXECUTING, "a-2",
+                        AgentActionRecord.IDEMPOTENCY_PROVEN, hoursAgo(2)),
+                recordWithTime(AgentActionRecord.STATUS_SUCCEEDED, "a-3",
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, hoursAgo(2))));
         when(mapper.settle(eq(THREAD), eq(OWNER), anyString(), anyString(), anyString()))
                 .thenReturn(1);
 
-        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER);
+        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER, now.minus(Duration.ofMinutes(10)));
 
         assertEquals(2, reconciled, "only stale EXECUTING actions are reconciled");
         verify(mapper).settle(THREAD, OWNER, ACTION,
@@ -94,6 +100,20 @@ class AgentActionLedgerTest {
                 AgentActionRecord.STATUS_FAILED, "上次执行中断，结果未确认");
         // 已完成的动作不参与收敛
         verify(mapper, never()).settle(eq(THREAD), eq(OWNER), eq("a-3"), anyString(), anyString());
+    }
+
+    @Test
+    void actionStillInFlightIsNotTreatedAsInterrupted() {
+        // 另一个实例正在执行：刚更新过的 EXECUTING 不能被判成遗留而放行重放
+        when(mapper.selectByThread(THREAD, OWNER)).thenReturn(List.of(
+                recordWithTime(AgentActionRecord.STATUS_EXECUTING, ACTION,
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, new Date())));
+
+        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER,
+                Instant.now().minus(Duration.ofMinutes(10)));
+
+        assertEquals(0, reconciled);
+        verify(mapper, never()).settle(eq(THREAD), eq(OWNER), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -132,6 +152,11 @@ class AgentActionLedgerTest {
     }
 
     private AgentActionRecord recordWithId(String status, String id, String idempotency) {
+        return recordWithTime(status, id, idempotency, hoursAgo(2));
+    }
+
+    private AgentActionRecord recordWithTime(String status, String id, String idempotency,
+                                             Date updateTime) {
         AgentActionRecord record = new AgentActionRecord();
         record.setThreadId(THREAD);
         record.setUserId(OWNER);
@@ -140,6 +165,11 @@ class AgentActionLedgerTest {
         record.setStatus(status);
         record.setIdempotency(idempotency);
         record.setAttempt(1);
+        record.setUpdateTime(updateTime);
         return record;
+    }
+
+    private Date hoursAgo(int hours) {
+        return new Date(System.currentTimeMillis() - hours * 3600_000L);
     }
 }

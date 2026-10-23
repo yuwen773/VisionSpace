@@ -97,6 +97,26 @@ describe('RecoveryBanner', () => {
     expect(wrapper.emitted('resume')?.[0]).toEqual([7])
   })
 
+  it('shows the awaiting-confirmation state even though it is resumable', () => {
+    // 待确认状态下 resumable 为 true，但用户必须看到「停在哪一步」
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'AWAITING_CONFIRMATION',
+          pendingConfirmation: 'generateImages',
+          reason: null,
+        }),
+      },
+    })
+
+    expect(wrapper.find('.recovery-banner').exists()).toBe(true)
+    expect(wrapper.text()).toContain('等待你确认下一步')
+    expect(wrapper.find('.banner-confirm').text()).toContain('generateImages')
+  })
+
   it('explains that a legacy archive cannot be resumed', () => {
     const wrapper = mount(RecoveryBanner, {
       props: {

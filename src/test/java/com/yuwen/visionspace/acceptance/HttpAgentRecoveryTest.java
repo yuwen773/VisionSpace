@@ -20,6 +20,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -226,6 +227,22 @@ class HttpAgentRecoveryTest {
     }
 
     @Test
+    void duplicateResumeRequestsCannotBothClaimTheSameVersion() {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 9L, "tool_node");
+
+        // 两个请求带同一个版本：只有一个能认领，另一个落败，不会执行第二次
+        boolean first = runStateStore.claimForResume(threadId, ownerId, 9L);
+        boolean second = runStateStore.claimForResume(threadId, ownerId, 9L);
+
+        assertTrue(first, "the first claim must win");
+        assertFalse(second, "a duplicate resume must lose the version race");
+        assertEquals(10L, jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId),
+                "the claim advances the version so old requests expire");
+    }
+
+    @Test
     void staleResumeVersionIsRejected() throws Exception {
         String threadId = seedSession(ownerId);
         seedRunState(threadId, ownerId, 9L, "tool_node");
@@ -371,7 +388,9 @@ class HttpAgentRecoveryTest {
     // ---- helpers ----
 
     private int runStateStoreReconcile(String threadId) {
-        return ledger.reconcileStaleExecuting(threadId, ownerId);
+        // 夹具用固定的远古时间戳，避免 MySQL 与 JVM 的时区/时钟差影响判定
+        return ledger.reconcileStaleExecuting(threadId, ownerId,
+                Instant.now().minus(Duration.ofMinutes(10)));
     }
 
     private com.alibaba.cloud.ai.graph.checkpoint.Checkpoint checkpoint(String nextNode) {
@@ -422,24 +441,41 @@ class HttpAgentRecoveryTest {
         return threadId;
     }
 
-    /** 走真实保存路径写入完整状态，避免测试自己拼载荷后与生产序列化分叉 */
+    /**
+     * 走真实保存路径写入完整状态。
+     *
+     * <p>这里<b>不预先插行</b>：状态行必须由 {@code saveFullState} 自己创建，
+     * 否则生产里第一次执行会因为「行不存在、UPDATE 影响 0 行」而静默丢失状态。
+     */
     private void seedRunState(String threadId, long userId, long version, String nextNodeId) {
-        jdbc.update("""
-                INSERT INTO agent_run_state (threadId, userId, stateVersion, stateFormat, runStatus,
-                                             legacyArchiveOnly, backupAttempts, createTime, updateTime)
-                VALUES (?, ?, 0, 'v2-full', 'RUNNING', 0, 0, NOW(), NOW())
-                """, threadId, userId);
         boolean saved = runStateStore.saveFullState(threadId, userId, version,
                 checkpoint(nextNodeId), "RUNNING", null);
-        assertTrue(saved, "fixture must persist a resumable state");
+        assertTrue(saved, "saveFullState must create the row on first use and persist the state");
     }
 
     private void seedLegacyArchiveOnly(String threadId, long userId) {
+        // 模拟历史数据：只有轻量归档，没有完整载荷与恢复点
         jdbc.update("""
                 INSERT INTO agent_run_state (threadId, userId, stateVersion, stateFormat, statePayload,
                                              runStatus, legacyArchiveOnly, backupAttempts, createTime, updateTime)
                 VALUES (?, ?, 1, 'v1-lightweight', NULL, 'PAUSED_UNRECOVERABLE', 1, 0, NOW(), NOW())
                 """, threadId, userId);
+    }
+
+    @Test
+    void firstRunCreatesTheStateRowSoStatusIsPersisted() {
+        // 生产里第一次执行必须先建行，否则所有 UPDATE 都是静默的空操作
+        String threadId = seedSession(ownerId);
+
+        assertTrue(runStateStore.saveFullState(threadId, ownerId, 1L,
+                checkpoint("tool_node"), "RUNNING", null));
+
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM agent_run_state WHERE threadId = ? AND userId = ?",
+                Integer.class, threadId, ownerId));
+        assertNotNull(jdbc.queryForObject(
+                "SELECT statePayload FROM agent_run_state WHERE threadId = ?", byte[].class, threadId),
+                "the full payload must actually be stored, not silently dropped");
     }
 
     private String seedUnknownAction(String threadId, long userId) {
@@ -455,7 +491,7 @@ class HttpAgentRecoveryTest {
         jdbc.update("""
                 INSERT INTO agent_action_record (threadId, userId, actionId, toolName, argumentsDigest,
                                                  status, idempotency, attempt, createTime, updateTime)
-                VALUES (?, ?, ?, ?, 'digest', ?, ?, 1, NOW(), NOW())
+                VALUES (?, ?, ?, ?, 'digest', ?, ?, 1, '2020-01-01 00:00:00', '2020-01-01 00:00:00')
                 """, threadId, userId, actionId, toolName, status, idempotency);
     }
 

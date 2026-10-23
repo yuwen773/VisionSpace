@@ -44,7 +44,7 @@ class AgentRunStateStoreTest {
     void setUp() {
         store = new AgentRunStateStore(mapper,
                 com.alibaba.cloud.ai.graph.StateGraph.DEFAULT_JACKSON_SERIALIZER,
-                new GzipUtils(), new ObjectMapper());
+                new GzipUtils());
     }
 
     @Test

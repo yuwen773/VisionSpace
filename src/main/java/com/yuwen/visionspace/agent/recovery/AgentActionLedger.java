@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -129,12 +131,21 @@ public class AgentActionLedger {
      * 这正是「外部完成、本地结果未提交」的故障窗口：不能把它当成没发生而重放。
      * 可证明幂等的动作退回 {@code FAILED} 走安全重试，其余进入待核对。
      *
+     * <p><b>只收敛陈旧的记录。</b>同一会话被另一个实例或并发请求正常执行时，
+     * 它的 {@code EXECUTING} 是「正在进行」，不是「上次遗留」。用更新时间的
+     * 宽限期区分两者：宽限期内的记录一律不动，否则会把正在执行的动作
+     * 判成中断，进而让另一次执行重放它。
+     *
+     * @param staleBefore 只有最后更新早于此时刻的 {@code EXECUTING} 才视为遗留
      * @return 收敛的动作数
      */
-    public int reconcileStaleExecuting(String threadId, Long userId) {
+    public int reconcileStaleExecuting(String threadId, Long userId, Instant staleBefore) {
         int reconciled = 0;
         for (AgentActionRecord record : mapper.selectByThread(threadId, userId)) {
             if (!AgentActionRecord.STATUS_EXECUTING.equals(record.getStatus())) {
+                continue;
+            }
+            if (!isStale(record, staleBefore)) {
                 continue;
             }
             boolean proven = AgentActionRecord.IDEMPOTENCY_PROVEN.equals(record.getIdempotency());
@@ -147,6 +158,12 @@ public class AgentActionLedger {
             }
         }
         return reconciled;
+    }
+
+    /** 更新时间为空时按陈旧处理：宁可让用户核对，也不当成「正在执行」而卡死 */
+    private boolean isStale(AgentActionRecord record, Instant staleBefore) {
+        Date updated = record.getUpdateTime();
+        return updated == null || !updated.toInstant().isAfter(staleBefore);
     }
 
     public List<AgentActionRecord> list(String threadId, Long userId) {

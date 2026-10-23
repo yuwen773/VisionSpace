@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -494,42 +495,52 @@ public class ImageAgent {
         RunnableConfig config = runStateStore.resumeConfig(threadId, userId, state,
                 DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY);
 
+        // MySQL 里的完整状态是 Redis 丢失检查点时的唯一依据：续跑前把它写回
+        // 框架的存储，否则「有完整状态但 Redis 没了」依然续不上。
+        try {
+            checkpointSaver.put(config, checkpoint.get());
+        } catch (Exception e) {
+            log.error("续跑前回填检查点失败, threadId={}, userId={}", threadId, userId);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "执行状态无法写回，已暂停自动执行");
+        }
+
         try {
             // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
             AssistantMessage response = agent.call("", config);
             runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
             return response.getText();
         } catch (PendingReviewException e) {
+            // 结果未知：暂停并等待核对，与「明确失败」区分
             runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
                     "外部动作结果未知，等待核对：" + e.getToolName());
-            return "该步骤的外部执行结果未知，已暂停。请核对后再继续。";
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
+            // 明确失败：可安全重试。不能把失败包装成一条成功的助手回复，
+            // 否则界面会把它显示成正常回答。
             log.error("Agent 续跑失败, threadId={}, userId={}", threadId, userId);
             runStateStore.updateStatus(threadId, userId, RunStatus.FAILED, null);
-            return "抱歉，继续执行时出现了问题，请稍后重试。";
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "继续执行失败，请稍后重试");
         }
     }
 
     /**
      * 把「停在人工确认点」这件事持久化。
      *
-     * <p>只保存工具名与已脱敏的描述：确认信息要能被下一次执行读到，
-     * 但审计里不应出现对话正文。
+     * <p>只保存工具名：确认信息要能被下一次执行读到，让界面区分「停在待确认」
+     * 与「已经确认过」；但描述里通常带着生成参数或提示词，属于私人正文，
+     * 不写进状态列。
      */
     private void persistAwaitingConfirmation(String threadId, Long userId,
                                              InterruptionMetadata interruption) {
-        StringBuilder summary = new StringBuilder();
-        for (InterruptionMetadata.ToolFeedback feedback : interruption.toolFeedbacks()) {
-            summary.append(feedback.getName());
-            if (feedback.getDescription() != null) {
-                String description = feedback.getDescription().replaceAll("\\s+", " ").trim();
-                summary.append(": ")
-                        .append(description.length() > 120 ? description.substring(0, 120) + "..." : description);
-            }
-            summary.append('\n');
-        }
-        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION,
-                summary.toString());
+        String summary = interruption.toolFeedbacks().stream()
+                .map(InterruptionMetadata.ToolFeedback::getName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.joining("\n"));
+        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION, summary);
     }
 
     /**
