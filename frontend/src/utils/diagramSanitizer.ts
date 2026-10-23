@@ -9,10 +9,16 @@
 
 import createDOMPurify from 'dompurify'
 import plantumlEncoder from 'plantuml-encoder'
-import { hasExternalCssUrl, sanitizeCssText, sanitizeInlineStyle } from './cssSafety'
+import {
+  hasExternalCssUrl,
+  INLINE_BITMAP_DATA,
+  sanitizeCssText,
+  sanitizeInlineStyle,
+} from './cssSafety'
 import {
   isOriginAllowed,
   isProtocolRelative,
+  isSameOriginReference,
   normalizeOrigin,
   normalizeUrlForPolicy,
 } from './hostList'
@@ -28,24 +34,8 @@ function getPurify(): PurifyInstance {
   return purify
 }
 
-/** 允许的协议：仅站内相对引用、锚点和用 data 内联的位图。 */
-const SAFE_RESOURCE_SCHEMES = [
-  'data:image/png',
-  'data:image/jpeg',
-  'data:image/gif',
-  'data:image/webp',
-]
-
 /** 会被浏览器当作资源去取的属性，必须逐项校验。 */
 const RESOURCE_ATTRS = ['href', 'xlink:href', 'src', 'action', 'formaction']
-
-/**
- * DOMPurify 在 SVG 配置下默认允许的 URI 属性含 href/xlink:href，不含 img 的 src。
- * 图表预览需要 src，但只接受本地引用与受控主机的绝对地址：
- * 先筛协议，再核对主机，最后才交给 DOMPurify 做结构清理。
- */
-const IMG_SRC_SCHEME = /^(\/|\.\/|\.\.\/|data:image\/(png|jpe?g|gif|webp);|blob:)/i
-const IMG_SRC_ABSOLUTE = /^https?:/i
 
 /**
  * 受控图片主机清单。默认空：只允许站内相对路径与内联位图。
@@ -56,7 +46,13 @@ export type SanitizeOptions = {
   imageOrigins?: string[]
 }
 
-/** 图片地址是否允许：本地引用，或落在受控源清单里。 */
+/**
+ * 图片地址是否允许：同源/本地引用，或落在受控源清单里。
+ *
+ * 与 Markdown 图片策略（imagePolicy.isLoadableImage）保持同一语义：
+ * 同源绝对地址两边都必须放行，否则会出现"Markdown 里同一张图能加载、
+ * 图表里的被摘掉"的漂移。
+ */
 function isAllowedImageSrc(src: string, imageOrigins: string[]): boolean {
   // 先按 URL 解析器的规则归一（删 tab/LF/CR、`\` 当 `/`），
   // 否则 `/\t/evil.example/a.png` 会被当成站内路径放行
@@ -64,25 +60,25 @@ function isAllowedImageSrc(src: string, imageOrigins: string[]): boolean {
   if (!v) return false
   // `//host/x` 是协议相对地址，实际会发往外部主机，不能当成本地路径
   if (isProtocolRelative(v)) return false
-  if (IMG_SRC_SCHEME.test(v)) return true
-  if (!IMG_SRC_ABSOLUTE.test(v)) return false
-  // 与 CSP、Markdown 图片策略共用同一份 origin 规范化，避免三处语义漂移
+  if (isSameOriginReference(v)) return true
+  if (INLINE_BITMAP_DATA.test(v) || v.toLowerCase().startsWith('blob:')) return true
+  if (!/^https?:/i.test(v)) return false
+  // 同源绝对地址与 Markdown 图片策略（isLoadableImage）同语义放行；
+  // 其余必须落在受控源清单里——共用同一份 origin 规范化，避免语义漂移
+  if (typeof window !== 'undefined' && isOriginAllowed(v, [window.location.origin])) return true
   return isOriginAllowed(v, imageOrigins)
 }
 
 /**
  * 判断资源引用是否只指向本地。
- * 空值、锚点、相对路径和受限协议视为本地；其它一律拒绝。
+ * 空值、锚点、同源相对路径与内联位图视为本地；其它一律拒绝。
  */
 function isLocalResource(value: string): boolean {
   const v = normalizeUrlForPolicy(value).trim()
   if (!v) return true
   if (v.startsWith('#')) return true
-  const lower = v.toLowerCase()
-  if (SAFE_RESOURCE_SCHEMES.some((scheme) => lower.startsWith(scheme))) {
-    // data: 只放行位图，且不允许 svg 这类可执行文档
-    return !lower.startsWith('data:image/svg')
-  }
+  if (INLINE_BITMAP_DATA.test(v)) return true // data: 只放行位图
+  if (isSameOriginReference(v)) return true
   if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return false // 带协议的绝对地址
   if (isProtocolRelative(v)) return false // 协议相对地址（含伪装写法）
   return true
@@ -181,13 +177,13 @@ export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): 
       const value = el.getAttribute(attr)
       if (value === null) continue
 
-      // 图片地址走受控主机清单——注意 SVG 的 <image href> 也是图片，
-      // draw.io 的 shape=image 产出的就是它；只认 HTML <img src> 的话，
-      // 配置里信任的图床在图表里就不可用。
+      // 图片地址走受控主机清单——注意 SVG 的 <image>（无论写成 href 还是
+      // src）与 HTML 的 <img> 都是图片；draw.io 的 shape=image 产出 <image>。
+      // 只认其中一种写法，配置里信任的图床就在图表里时好时坏。
       const tag = el.tagName.toLowerCase()
       const isImageSrc =
-        (attr === 'src' && tag === 'img') ||
-        ((attr === 'href' || attr === 'xlink:href') && tag === 'image')
+        tag === 'img' ||
+        (tag === 'image' && (attr === 'href' || attr === 'xlink:href' || attr === 'src'))
       const allowed = isImageSrc ? isAllowedImageSrc(value, imageOrigins) : isLocalResource(value)
       if (!allowed) el.removeAttribute(attr)
     }
@@ -238,6 +234,10 @@ export function isExternalHref(href: string): boolean {
 /**
  * 链接协议白名单：Markdown 里的链接也要过同一套判断。
  * 只允许 http/https 与站内相对地址。
+ *
+ * 这里自带一套控制字符清洗（`java\u0000script:` 伪装协议），而不是复用
+ * normalizeUrlForPolicy——两者针对的伪装不同：链接面要防的是"控制字符
+ * 拼出协议名"，资源面防的是"tab/反斜杠拼出协议相对地址"。
  */
 export function isSafeLinkHref(href: string): boolean {
   const raw = (href ?? '').trim()

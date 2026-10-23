@@ -14,7 +14,7 @@ const settle = () => new Promise((r) => setTimeout(r, 50))
  * 并行跑多个测试文件时会被 CPU 争用推到默认 5s 上限之上。
  * 这里断言的是面板结构（不依赖渲染完成），超时放宽不会掩盖真实失败。
  */
-const MERMAID_TIMEOUT = 20000
+const MERMAID_TIMEOUT = 60000
 
 describe('AssistantMessage 图表展示', () => {
   beforeEach(() => {

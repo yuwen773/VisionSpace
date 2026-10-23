@@ -9,7 +9,8 @@
 
 import { escapeHtml } from '@/utils/jsonHighlight'
 import { resolvePlantUmlUrl, sanitizeDiagramSvg } from '@/utils/diagramSanitizer'
-import { normalizeOrigin, normalizeUrlForPolicy, parseOriginList } from '@/utils/hostList'
+import { normalizeOrigin, normalizeUrlForPolicy } from '@/utils/hostList'
+import { allowedImageOrigins } from '@/utils/imagePolicy'
 
 type MermaidLike = {
   initialize: (options: Record<string, unknown>) => void
@@ -22,9 +23,10 @@ type MermaidLike = {
  * 由部署配置决定（`VITE_CSP_IMAGE_HOSTS` + 自托管 PlantUML），不接受内容自述。
  * 三者（Markdown 图片、CSP img-src、图表产物清理）必须用同一份清单：
  * 否则会出现"Markdown 里同一张图能加载，图表里的却被摘掉"这种不一致。
+ * 环境变量的解析只发生在 imagePolicy.allowedImageOrigins 一处。
  */
 export function controlledImageOrigins(plantumlServer?: string): string[] {
-  const fromEnv = parseOriginList(import.meta.env.VITE_CSP_IMAGE_HOSTS as string | undefined)
+  const fromEnv = allowedImageOrigins()
   const plantuml = normalizeOrigin(plantumlServer)
   return plantuml && !fromEnv.includes(plantuml) ? [...fromEnv, plantuml] : fromEnv
 }

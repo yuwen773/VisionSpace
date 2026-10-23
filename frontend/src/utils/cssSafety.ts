@@ -16,7 +16,10 @@
  *   避免 `--x: url(...)` + `var(--x)` 绕开按属性名的白名单；以及 `@import`。
  */
 
-import { isProtocolRelative, normalizeUrlForPolicy } from './hostList'
+import { isProtocolRelative, isSameOriginReference, normalizeUrlForPolicy } from './hostList'
+
+/** data: 里只放行内联位图；svg 可承载脚本，不在此列。 */
+export const INLINE_BITMAP_DATA = /^data:image\/(png|jpe?g|gif|webp);/i
 
 /** 判断一个 CSS 资源引用是否只指向本地。 */
 export function isLocalCssResource(target: string): boolean {
@@ -26,11 +29,9 @@ export function isLocalCssResource(target: string): boolean {
   if (!v) return true
   if (v.startsWith('#')) return true // 文档内引用，如 url(#gradient)
   if (isProtocolRelative(v)) return false // 协议相对地址（含伪装写法）
-  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) {
-    // 只放行内联位图；data:image/svg 可承载脚本，不在此列
-    return /^data:image\/(png|jpe?g|gif|webp);/i.test(v)
-  }
-  return true // 相对路径
+  if (isSameOriginReference(v)) return true // 相对路径，浏览器按当前文档解析
+  // 带协议的：只放行内联位图
+  return INLINE_BITMAP_DATA.test(v)
 }
 
 /**

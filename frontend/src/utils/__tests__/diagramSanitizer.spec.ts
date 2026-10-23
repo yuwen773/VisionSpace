@@ -150,12 +150,31 @@ describe('sanitizeDiagramSvg', () => {
 
   it('受控源清单对 SVG 里的 image 同样生效（不能只认 img 标签）', () => {
     // draw.io 的 shape=image 产出的是 SVG <image>，不是 HTML <img>；
-    // 受控清单若只作用于后者，配置里信任的图床在图表里就不可用
+    // 受控清单若只作用于后者，配置里信任的图床在图表里就不可用。
+    // SVG2 允许 <image> 的地址写成 href 或 src，两者必须同语义。
+    for (const attr of ['href', 'src']) {
+      const clean = sanitizeDiagramSvg(
+        `<svg xmlns="http://www.w3.org/2000/svg"><image ${attr}="https://cdn.internal.example/a.png"/></svg>`,
+        { imageOrigins: ['https://cdn.internal.example'] },
+      )
+      expect(clean, attr).toContain('https://cdn.internal.example/a.png')
+    }
+  })
+
+  it('同源绝对地址在图表里与 Markdown 里同样可用（语义不能漂移）', () => {
+    // Markdown 图片策略放行同源绝对地址；图表清理若不放行，
+    // 同一张站内图片就出现"Markdown 能加载、图表里被摘掉"的不一致
+    const sameOrigin = `${window.location.origin}/api/picture/1.png`
     const clean = sanitizeDiagramSvg(
-      '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://cdn.internal.example/a.png"/></svg>',
-      { imageOrigins: ['https://cdn.internal.example'] },
+      `<svg xmlns="http://www.w3.org/2000/svg"><image href="${sameOrigin}"/></svg>`,
     )
-    expect(clean).toContain('https://cdn.internal.example/a.png')
+    expect(clean).toContain('/api/picture/1.png')
+
+    // 反向：其它主机的绝对地址仍然被摘掉
+    const dirty = sanitizeDiagramSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/a.png"/></svg>',
+    )
+    expect(dirty).not.toContain('evil.example')
   })
 
   it('未声明为受控源的 https 图片一律摘掉 src', () => {
