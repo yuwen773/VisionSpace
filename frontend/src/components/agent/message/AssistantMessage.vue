@@ -4,15 +4,21 @@
       <div class="message-header">
         <span class="agent-name">SpaceMind</span>
       </div>
-      <div class="message-body markdown-body" v-html="finalContent"></div>
+      <div
+        class="message-body markdown-body"
+        ref="bodyRef"
+        v-html="finalContent"
+        @click="onBodyClick"
+      ></div>
 
-      <!-- 内联缩略图 -->
-      <div v-if="allImages.length > 0" class="message-images">
+      <!-- 内联缩略图：只渲染受控来源，避免把消息里的任意地址发出去 -->
+      <div v-if="loadableImages.length > 0" class="message-images">
         <img
-          v-for="(img, index) in allImages"
+          v-for="(img, index) in loadableImages"
           :key="index"
           :src="img.url"
           :alt="img.title || '图片'"
+          referrerpolicy="no-referrer"
           @click="emit('previewImage', img.url)"
         />
       </div>
@@ -71,6 +77,8 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
 import { useDiagramRenderer } from '@/composables/useDiagramRenderer'
+import { handleContentClick } from '@/utils/diagramEvents'
+import { isLoadableImage } from '@/utils/imagePolicy'
 import type { ImageResource, LinkResource, ResourceData } from '../types'
 
 interface Props {
@@ -93,26 +101,31 @@ const emit = defineEmits<{
 }>()
 
 const { render } = useMarkdown()
-const { renderDiagrams, unbindDiagramEvents } = useDiagramRenderer()
+const { renderDiagrams } = useDiagramRenderer()
 const liked = ref(false)
 
-onUnmounted(() => {
-  unbindDiagramEvents()
-})
+// 图表 tab 切换：监听挂在消息体上，组件卸载时随元素一起消失，无需全局清理
+const bodyRef = ref<HTMLElement | null>(null)
 
 // 图表渲染后的最终内容
 const finalContent = ref('')
 
+// 渲染代次：内容在渲染期间再次变化时，丢弃过期结果，避免旧结果覆盖新内容
+let renderGeneration = 0
+
 // 渲染图表
 const renderWithDiagrams = async (markdownContent: string) => {
+  const generation = ++renderGeneration
   if (!markdownContent) {
     finalContent.value = ''
     return
   }
   // 1. 先 Markdown 渲染
   const htmlContent = render(markdownContent)
-  // 2. 后处理图表代码块
-  finalContent.value = await renderDiagrams(htmlContent)
+  // 2. 后处理图表代码块（含清理与危险链接降级）
+  const rendered = await renderDiagrams(htmlContent)
+  if (generation !== renderGeneration) return
+  finalContent.value = rendered
 }
 
 // 监听 content 变化
@@ -133,6 +146,11 @@ watch(
     }
   }
 )
+
+onUnmounted(() => {
+  // 让在途渲染失效，防止卸载后再写入状态
+  renderGeneration++
+})
 
 const isImageUrl = (url: string): boolean => {
   const imageExts = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
@@ -171,6 +189,9 @@ const allImages = computed(() => {
   return result
 })
 
+// 只有受控来源的图片才会真正渲染成 <img>；其余仅作为文本资源保留在面板里
+const loadableImages = computed(() => allImages.value.filter((img) => isLoadableImage(img.url)))
+
 const imageSourceCount = computed(() => {
   const domains = new Set<string>()
   for (const img of allImages.value) {
@@ -193,6 +214,11 @@ function getExtractedLinks() {
     } catch { /* invalid url */ }
   }
   return links
+}
+
+// 图表框内的"代码/预览"切换与"复制"（按钮由 v-html 插入，需要事件委托）
+const onBodyClick = (e: MouseEvent) => {
+  handleContentClick(e)
 }
 
 const handleToggleResources = () => {
@@ -506,6 +532,22 @@ const copyContent = async () => {
   height: auto;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* PlantUML 未配置自托管服务时的源码回退 */
+.markdown-body :deep(.plantuml-source) {
+  width: 100%;
+}
+
+.markdown-body :deep(.plantuml-source-hint) {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.markdown-body :deep(.plantuml-source pre.code-block) {
+  margin: 0;
+  text-align: left;
 }
 
 /* draw.io iframe */

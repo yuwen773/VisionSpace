@@ -1,5 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import { isSafeLinkHref } from '@/utils/diagramSanitizer'
+import { isLoadableImage } from '@/utils/imagePolicy'
 
 // 图表代码块语言列表
 export const DIAGRAM_LANGUAGES = ['mermaid', 'drawio', 'plantuml']
@@ -33,6 +35,47 @@ const md: MarkdownIt = new MarkdownIt({
     return '<pre class="hljs code-block"><div class="code-header"><span class="code-lang">code</span><button class="copy-btn" data-code>复制</button></div><code>' + escapeHtml(str) + '</code></pre>'
   },
 })
+
+/**
+ * 链接与图片的统一收敛：
+ * - 危险协议（javascript:/data:text/html/…）降级为不可点击的纯文本
+ * - 外链补 noopener/noreferrer 并新标签打开
+ * - 图片不发送 Referer，避免把会话地址带给第三方主机
+ */
+md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
+  const href = tokens[idx].attrGet('href') ?? ''
+  if (!isSafeLinkHref(href)) {
+    tokens[idx].attrSet('data-blocked-href', '')
+    tokens[idx].attrSet('href', '')
+    return self.renderToken(tokens, idx, options)
+  }
+  if (/^https?:/i.test(href.trim())) {
+    tokens[idx].attrSet('target', '_blank')
+    tokens[idx].attrSet('rel', 'noopener noreferrer nofollow')
+  }
+  return self.renderToken(tokens, idx, options)
+}
+
+md.renderer.rules.image = (tokens, idx, options, _env, self) => {
+  const src = tokens[idx].attrGet('src') ?? ''
+  if (!isLoadableImage(src)) {
+    // 未受控的外部图片：不生成 img，改为可读的占位说明，
+    // 因为一旦渲染成 img，浏览器就会把地址发出去（CSP 只能事后阻止）。
+    const alt = tokens[idx].content || '图片'
+    const host = (() => {
+      try {
+        return new URL(src).hostname
+      } catch {
+        return ''
+      }
+    })()
+    tokens[idx].type = 'text'
+    tokens[idx].content = `[图片未加载：${alt}${host ? `（${host}）` : ''}]`
+    return escapeHtml(tokens[idx].content)
+  }
+  tokens[idx].attrSet('referrerpolicy', 'no-referrer')
+  return self.renderToken(tokens, idx, options)
+}
 
 export function useMarkdown() {
   const render = (content: string): string => {
