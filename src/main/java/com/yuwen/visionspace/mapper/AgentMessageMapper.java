@@ -42,15 +42,16 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
      *
      * @return 1 表示已写入，0 表示会话不存在或不属于该用户（拒绝写入）
      */
-    @Insert("INSERT INTO agent_message (sessionId, role, subType, content, createdTime) " +
-            "SELECT #{sessionId}, #{role}, #{subType}, #{content}, NOW() " +
+    @Insert("INSERT INTO agent_message (sessionId, role, subType, content, attachmentIds, createdTime) " +
+            "SELECT #{sessionId}, #{role}, #{subType}, #{content}, #{attachmentIds}, NOW() " +
             "FROM agent_session " +
             "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
     int insertOwned(@Param("sessionId") String sessionId,
                     @Param("userId") Long userId,
                     @Param("role") String role,
                     @Param("subType") String subType,
-                    @Param("content") String content);
+                    @Param("content") String content,
+                    @Param("attachmentIds") String attachmentIds);
 
     @Update("UPDATE agent_message SET isSummary = 1 " +
             "WHERE sessionId = #{sessionId} AND createdTime < #{summaryTime} " +

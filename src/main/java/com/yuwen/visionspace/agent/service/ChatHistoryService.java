@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -52,8 +53,21 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveUserMessage(String sessionId, Long userId, String content) {
+        saveUserMessage(sessionId, userId, content, null);
+    }
+
+    /**
+     * 异步保存用户消息，并登记这条消息携带的图片资源。
+     *
+     * <p>消息正文只保存用户输入的文字：图片地址不进正文，浏览器按
+     * {@code attachmentIds} 走受控入口读取。
+     *
+     * @param attachmentIds 这条消息携带的图片资源标识，可为空
+     */
+    @Async("agentAsyncExecutor")
+    public void saveUserMessage(String sessionId, Long userId, String content, List<Long> attachmentIds) {
         sessionGuard.bindOwner(sessionId, userId, content);
-        insertOwned(sessionId, userId, "USER", null, content);
+        insertOwned(sessionId, userId, "USER", null, content, joinIds(attachmentIds));
         sessionMapper.updateMessageCount(sessionId, userId, truncate(content));
     }
 
@@ -62,7 +76,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveAssistantMessage(String sessionId, Long userId, String content, String subType) {
-        if (insertOwned(sessionId, userId, "ASSISTANT", subType, content)) {
+        if (insertOwned(sessionId, userId, "ASSISTANT", subType, content, null)) {
             sessionMapper.updateMessageCount(sessionId, userId, truncate(content));
         }
     }
@@ -72,7 +86,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveReasoningMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "reasoning", content);
+        insertOwned(sessionId, userId, "ASSISTANT", "reasoning", content, null);
     }
 
     /**
@@ -80,7 +94,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveToolCallMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "tool-call", content);
+        insertOwned(sessionId, userId, "ASSISTANT", "tool-call", content, null);
     }
 
     /**
@@ -88,7 +102,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveToolResultMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "tool-result", content);
+        insertOwned(sessionId, userId, "ASSISTANT", "tool-result", content, null);
     }
 
     /**
@@ -96,7 +110,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveToolConfirmMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "mcp-confirm", content);
+        insertOwned(sessionId, userId, "ASSISTANT", "mcp-confirm", content, null);
     }
 
     /**
@@ -164,13 +178,60 @@ public class ChatHistoryService {
     /**
      * 带归属的消息写入。会话不属于该用户时 SQL 不产生任何行。
      */
-    private boolean insertOwned(String sessionId, Long userId, String role, String subType, String content) {
-        int inserted = messageMapper.insertOwned(sessionId, userId, role, subType, content);
+    private boolean insertOwned(String sessionId, Long userId, String role, String subType, String content,
+                                String attachmentIds) {
+        int inserted = messageMapper.insertOwned(sessionId, userId, role, subType, content, attachmentIds);
         if (inserted == 0) {
             log.warn("拒绝写入他人会话的消息, sessionId={}, userId={}, role={}", sessionId, userId, role);
             return false;
         }
         return true;
+    }
+
+    /**
+     * 资源标识列表拼成十进制逗号分隔的字符串。
+     */
+    private String joinIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(id);
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
+
+    /**
+     * 解析消息携带的资源标识。存的是十进制字符串，读出来仍是标识而不是地址。
+     *
+     * <p>按字符串返回：资源标识是雪花值，超出 JavaScript 的安全整数范围，
+     * 转成 number 会丢精度。
+     */
+    private List<String> parseIds(String attachmentIds) {
+        if (attachmentIds == null || attachmentIds.isBlank()) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>();
+        for (String part : attachmentIds.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                Long.valueOf(trimmed);
+                ids.add(trimmed);
+            } catch (NumberFormatException e) {
+                log.warn("消息附件标识无法解析，已跳过: value={}", trimmed);
+            }
+        }
+        return ids;
     }
 
     private String truncate(String content) {
@@ -183,6 +244,7 @@ public class ChatHistoryService {
     private MessageVO toMessageVO(AgentMessage entity) {
         MessageVO messageVO = new MessageVO();
         BeanUtils.copyProperties(entity, messageVO);
+        messageVO.setAttachmentIds(parseIds(entity.getAttachmentIds()));
         return messageVO;
     }
 

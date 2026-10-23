@@ -74,6 +74,7 @@
         <AgentMessageList
           :messages="messages"
           :loading="streaming || historyLoading"
+          :session-id="currentThreadId || threadId"
           @confirm="handleConfirm"
           @cancel="handleCancel"
           @send="handleSend"
@@ -138,6 +139,8 @@ import {
   getRecoveryState,
   getSessions,
   resumeSession,
+  uploadAgentImage,
+  type AgentImage,
   type HistoryMessage,
   type RecoveryState,
   type SessionItem,
@@ -233,6 +236,8 @@ const loadHistoryMessages = async (sessionId: string) => {
         return {
           type,
           content: m.content,
+          // 历史图片按受控入口渲染：正文里不再保留源站地址
+          attachmentIds: m.attachmentIds ?? [],
           toolName: (m.subType === 'tool-call' || m.subType === 'tool-result') ? m.content.split(':')[0] || '工具' : undefined,
           node: 'agent',
           isLoading: false,
@@ -361,15 +366,27 @@ watch(streaming, (isStreaming) => {
 const handleSend = async (text: string, files: File[] = []) => {
   if ((!text.trim() && files.length === 0) || streaming.value) return
 
+  // 先上传再发消息：上传拿到的是资源标识，绑定到会话的是标识而不是地址
+  let uploaded: AgentImage[] = []
+  if (files.length > 0) {
+    try {
+      uploaded = await Promise.all(files.map((f) => uploadAgentImage(f)))
+    } catch {
+      message.error('图片上传失败，无法发送消息')
+      return
+    }
+  }
+
   pushMessage({
     type: 'user',
     content: text,
     node: 'user',
+    attachmentIds: uploaded.map((item) => item.resourceId),
     time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
   })
 
   try {
-    await sendMessage(text, threadId.value, files.length > 0 ? files : undefined)
+    await sendMessage(text, threadId.value, uploaded)
     saveThreadId(threadId.value)
     currentThreadId.value = threadId.value
   } catch (error) {

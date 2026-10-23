@@ -28,6 +28,18 @@ public class RecordingStorageConfiguration {
 
     private static final byte[] CONTENT = "acceptance-image-bytes".getBytes(StandardCharsets.UTF_8);
 
+    /**
+     * 让对象删除失败，用于验证「删除未确认保留可重试状态」。
+     *
+     * <p>默认不失败；只有明确打开的用例才会走到失败分支，用完必须复位。
+     */
+    private static final java.util.concurrent.atomic.AtomicBoolean FAIL_DELETES =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    static void failDeletes(boolean fail) {
+        FAIL_DELETES.set(fail);
+    }
+
     @Bean
     @Primary
     PictureStorageService pictureStorageService(ExternalCallRecorder recorder) {
@@ -46,7 +58,8 @@ public class RecordingStorageConfiguration {
             @Override
             public boolean deleteObject(String platform, String objectKey) {
                 recorder.record(new ExternalCallRecorder.Call("DELETE", platform, objectKey));
-                return true;
+                // 删除失败时返回 false：调用方必须保留可重试状态
+                return !FAIL_DELETES.get();
             }
 
             @Override

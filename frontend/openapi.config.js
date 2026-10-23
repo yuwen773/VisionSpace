@@ -37,6 +37,7 @@ const TAG_RENAME = {
   'space-user-controller': 'space-user-controller',
   'storage-config-controller': 'storage-config-controller',
   'agent-image-upload-controller': 'agent-image-upload-controller',
+  'agent-attachment-controller': 'agent-attachment-controller',
 }
 
 const renameTags = (spec) => {

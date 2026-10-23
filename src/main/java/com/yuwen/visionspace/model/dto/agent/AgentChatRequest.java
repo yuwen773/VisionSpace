@@ -27,7 +27,21 @@ public class AgentChatRequest implements Serializable {
     // 字段已移除，旧客户端多传会被忽略。
 
     /**
-     * 用户上传的图片 URL 列表（后端拼接为 <image-analysis> 标签）
+     * 用户上传的图片资源标识列表。
+     *
+     * <p>绑定到会话的是资源标识而不是地址：服务端按记录解析可信地址，
+     * 客户端声明的地址不参与授权判定。重复提交同一批标识是幂等的。
+     *
+     * <p>按十进制字符串传输：资源标识是雪花值，超出 JavaScript 的安全整数范围，
+     * 客户端转成 number 会丢精度，服务端收到后按字符串解析。
+     */
+    private List<String> attachmentIds;
+
+    /**
+     * 用户上传的图片 URL 列表（后端拼接为 &lt;image-analysis&gt; 标签）。
+     *
+     * <p>旧客户端兼容字段：地址必须与本人已有资源记录精确匹配才会被接受，
+     * 未登记或属于他人的地址一律拒绝。
      */
     private List<String> imageUrls;
 

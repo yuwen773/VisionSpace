@@ -122,6 +122,20 @@ export async function dismissActionUsingPost(
   })
 }
 
+/** 此处后端没有提供注释 DELETE /agent/session/${param0} */
+export async function deleteSessionUsingDelete(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.deleteSessionUsingDeleteParams,
+  options?: { [key: string]: any }
+) {
+  const { threadId: param0, ...queryParams } = params
+  return request<API.BaseResponseInteger>(`/agent/session/${param0}`, {
+    method: 'DELETE',
+    params: { ...queryParams },
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /agent/sessions */
 export async function getSessionsUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

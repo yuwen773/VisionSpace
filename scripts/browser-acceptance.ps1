@@ -119,7 +119,8 @@ try {
     }
     $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    if ($tables.Count -ne 12) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+    # 表数与 scripts/acceptance.ps1 保持一致：#41 后为 14，#35 后为 16。
+    if ($tables.Count -ne 16) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

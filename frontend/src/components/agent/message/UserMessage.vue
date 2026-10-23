@@ -26,45 +26,42 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import { attachmentContentUrl } from '@/api-custom/agent'
 
 interface Props {
   content: string
   time?: string
   images?: string[]
+  /** 这条消息携带的图片资源标识 */
+  attachmentIds?: string[]
+  /** 当前会话标识：附件按会话与资源双重授权后读取 */
+  sessionId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   time: '',
   images: () => [],
+  attachmentIds: () => [],
+  sessionId: '',
 })
 
+// 旧消息正文里带 <image-analysis> 地址。正文只展示文字，地址不进入浏览器。
 const IMAGE_TAG_REGEX = /<image-analysis>([^<]+)<\/image-analysis>/g
 
-interface ParsedImage {
-  url: string
-}
-
-const isSafeUrl = (url: string): boolean => {
-  return /^https?:\/\//i.test(url.trim())
-}
-
-const parsedImages = computed<ParsedImage[]>(() => {
-  if (!props.content) return []
-  const urls: ParsedImage[] = []
-  const regex = new RegExp(IMAGE_TAG_REGEX.source, 'g')
-  let match
-  while ((match = regex.exec(props.content)) !== null) {
-    const url = match[1].trim()
-    if (isSafeUrl(url)) {
-      urls.push({ url })
-    }
-  }
-  return urls
+/**
+ * 附件按受控入口渲染：浏览器不接触源站地址，每次读取都按当前会话与资源
+ * 重新判定归属。
+ */
+const attachmentImages = computed(() => {
+  if (!props.sessionId) return []
+  return props.attachmentIds
+    .filter((id) => id !== undefined && id !== null && String(id).length > 0)
+    .map((id) => ({ url: attachmentContentUrl(id, props.sessionId) }))
 })
 
-const displayImages = computed(() => parsedImages.value.slice(0, 4))
-const extraCount = computed(() => Math.max(0, parsedImages.value.length - 4))
+const displayImages = computed(() => attachmentImages.value.slice(0, 4))
+const extraCount = computed(() => Math.max(0, attachmentImages.value.length - 4))
 const previewOpen = ref(false)
 const previewUrl = ref('')
 

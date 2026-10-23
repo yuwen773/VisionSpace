@@ -19,6 +19,7 @@ declare namespace API {
   type AgentChatRequest = {
     message?: string
     threadId?: string
+    attachmentIds?: string[]
     imageUrls?: string[]
     enabledMcpServers?: string[]
     disableMcpDefault?: boolean
@@ -294,6 +295,11 @@ declare namespace API {
     nextCursor?: number
   }
 
+  type contentUsingGetParams = {
+    resourceId: number
+    sessionId: string
+  }
+
   type CreateOutPaintingTaskOutput = {
     taskId?: string
     taskStatus?: string
@@ -311,12 +317,20 @@ declare namespace API {
     parameters?: Parameters
   }
 
+  type deleteAttachmentUsingPostParams = {
+    resourceId: number
+  }
+
   type deleteMcpServerUsingDeleteParams = {
     mcpServerCode: string
   }
 
   type DeleteRequest = {
     id?: number
+  }
+
+  type deleteSessionUsingDeleteParams = {
+    threadId: string
   }
 
   type FeedbackAddRequest = {
@@ -457,11 +471,11 @@ declare namespace API {
   }
 
   type IPageMcpServerDetail = {
-    size?: number
     current?: number
-    records?: McpServerDetail[]
-    total?: number
     pages?: number
+    total?: number
+    records?: McpServerDetail[]
+    size?: number
   }
 
   type listMcpServersUsingGetParams = {
@@ -512,6 +526,7 @@ declare namespace API {
     role?: string
     subType?: string
     content?: string
+    attachmentIds?: string[]
     createdTime?: string
     summary?: boolean
   }

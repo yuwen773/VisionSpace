@@ -30,6 +30,7 @@ CREATE TABLE `agent_message`  (
                                   `role` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '角色: USER/ASSISTANT/TOOL/SYSTEM',
                                   `subType` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '消息类型',
                                   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息内容',
+                                  `attachmentIds` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '消息携带的图片资源标识，十进制逗号分隔',
                                   `tokenCount` int(11) NULL DEFAULT 0 COMMENT 'Token数量',
                                   `isSummary` tinyint(4) NULL DEFAULT 0 COMMENT '0=原始 1=摘要',
                                   `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -298,6 +299,9 @@ CREATE TABLE `picture_file` (
   `url` varchar(1024) NULL DEFAULT NULL COMMENT '上传时返回的地址，仅作记录',
   `fileSize` bigint(20) NULL DEFAULT NULL COMMENT '文件字节数',
   `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=TEMP 1=ACTIVE 2=DELETED 3=SUPERSEDED',
+  `deleteState` int(11) NOT NULL DEFAULT 0 COMMENT '0=无删除任务 1=待重试 2=已确认删除',
+  `deleteRetryCount` int(11) NOT NULL DEFAULT 0 COMMENT '删除重试次数',
+  `deleteNextRetryTime` datetime NULL DEFAULT NULL COMMENT '下次重试时间',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
@@ -357,3 +361,41 @@ CREATE TABLE `agent_action_record` (
   UNIQUE INDEX `uk_thread_action`(`threadId`, `actionId`) USING BTREE,
   INDEX `idx_thread_status`(`threadId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 外部动作台账';
+
+-- ----------------------------
+-- Table structure for agent_session_attachment (#35)
+-- ----------------------------
+CREATE TABLE `agent_session_attachment` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '绑定标识',
+  `sessionId` varchar(64) NOT NULL COMMENT '会话标识',
+  `resourceId` bigint(20) NOT NULL COMMENT 'picture_file 资源标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '附件所有者用户 id',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=BOUND 已绑定 1=RELEASED 已解除',
+  `legacy` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1=由存量迁移登记',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_session_resource` (`sessionId`, `resourceId`) USING BTREE,
+  INDEX `idx_resource_status` (`resourceId`, `status`) USING BTREE,
+  INDEX `idx_session_status` (`sessionId`, `status`) USING BTREE,
+  INDEX `idx_owner_status` (`ownerUserId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 会话附件绑定';
+
+-- ----------------------------
+-- Table structure for agent_legacy_attachment (#35)
+-- ----------------------------
+CREATE TABLE `agent_legacy_attachment` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '清单标识',
+  `sessionId` varchar(64) NOT NULL COMMENT '会话标识',
+  `messageId` bigint(20) NOT NULL COMMENT '消息标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '会话所有者用户 id',
+  `urlHash` varchar(64) NOT NULL COMMENT '源站地址的 SHA2 摘要（不存原始地址）',
+  `resourceId` bigint(20) NULL DEFAULT NULL COMMENT '确认归属后的资源标识，归属不明时为空',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=待核对（阻断） 1=已确认归属 2=已确认无归属',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_message_hash` (`messageId`, `urlHash`(32)) USING BTREE,
+  INDEX `idx_status` (`status`) USING BTREE,
+  INDEX `idx_session` (`sessionId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存量会话图片清单';

@@ -193,4 +193,49 @@ public class PictureFileServiceImpl extends ServiceImpl<PictureFileMapper, Pictu
                 .mapToLong(Long::longValue)
                 .sum();
     }
+
+    @Override
+    public PictureFile lockById(Long id) {
+        if (id == null) {
+            return null;
+        }
+        return baseMapper.selectForUpdate(id);
+    }
+
+    @Override
+    public List<PictureFile> listReclaimCandidates(int retentionHours, int limit) {
+        if (retentionHours <= 0) {
+            return List.of();
+        }
+        return baseMapper.selectReclaimCandidates(retentionHours, limit);
+    }
+
+    @Override
+    public List<PictureFile> listPendingDeletes(int limit) {
+        return baseMapper.selectPendingDeletes(limit);
+    }
+
+    @Override
+    public void markDeletePending(Long id, int retryCount, long retryDelaySeconds) {
+        if (id == null) {
+            return;
+        }
+        baseMapper.markDeletePending(id, retryCount, retryDelaySeconds);
+    }
+
+    @Override
+    public void markDeleteConfirmed(Long id, int retryCount) {
+        if (id == null) {
+            return;
+        }
+        baseMapper.markDeleteConfirmed(id, retryCount);
+    }
+
+    @Override
+    public void markActive(Long id) {
+        if (id == null) {
+            return;
+        }
+        baseMapper.markActive(id);
+    }
 }
