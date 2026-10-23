@@ -2,6 +2,8 @@
 node_modules/
 dist/
 dist-ssr/
+# 图表安全验收的隔离构建产物（见 harness/）
+dist-harness/
 *.local
 
 # ========== IDE ==========

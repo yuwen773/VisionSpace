@@ -10,7 +10,7 @@
       <span v-if="collapsed" class="reasoning-preview">{{ preview }}</span>
     </button>
     <div v-show="!collapsed" class="reasoning-content">
-      <div class="markdown-body" v-html="renderedContent"></div>
+      <div class="markdown-body" v-html="renderedContent" @click="onContentClick"></div>
     </div>
   </div>
 </template>
@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
+import { handleContentClick } from '@/utils/diagramEvents'
 
 interface Props {
   content: string
@@ -28,6 +29,11 @@ const props = defineProps<Props>()
 const { render } = useMarkdown()
 const collapsed = ref(false)
 const renderedContent = computed(() => render(props.content))
+
+// 思考过程里也会出现代码块，复制按钮按同一套事件委托处理
+const onContentClick = (e: MouseEvent) => {
+  handleContentClick(e)
+}
 const preview = computed(() => props.content.slice(0, 50) + (props.content.length > 50 ? '...' : ''))
 </script>
 
