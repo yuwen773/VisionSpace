@@ -2,8 +2,10 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuwen.visionspace.agent.recovery.AgentActionClaim;
 import com.yuwen.visionspace.agent.recovery.AgentActionLedger;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
+import com.yuwen.visionspace.agent.recovery.StateSaveResult;
 import com.yuwen.visionspace.model.entity.AgentActionRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -232,14 +235,45 @@ class HttpAgentRecoveryTest {
         seedRunState(threadId, ownerId, 9L, "tool_node");
 
         // 两个请求带同一个版本：只有一个能认领，另一个落败，不会执行第二次
-        boolean first = runStateStore.claimForResume(threadId, ownerId, 9L);
-        boolean second = runStateStore.claimForResume(threadId, ownerId, 9L);
-
-        assertTrue(first, "the first claim must win");
-        assertFalse(second, "a duplicate resume must lose the version race");
+        assertTrue(runStateStore.claimForResume(threadId, ownerId, 9L).isPresent(),
+                "the first claim must win");
+        assertFalse(runStateStore.claimForResume(threadId, ownerId, 9L).isPresent(),
+                "a duplicate resume must lose the version race");
         assertEquals(10L, jdbc.queryForObject(
                 "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId),
                 "the claim advances the version so old requests expire");
+    }
+
+    /**
+     * 刷新版本也不能绕过互斥：第一个续跑还没结束时，第二个请求即便拿到新版本也必须落败。
+     *
+     * <p>这是评审 P1 的第二个缺陷：旧实现只比版本，第二个请求读一次最新版本就能再次认领。
+     */
+    @Test
+    void refreshedVersionCannotBypassARunningResume() {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 9L, "tool_node");
+
+        assertTrue(runStateStore.claimForResume(threadId, ownerId, 9L).isPresent());
+        long refreshed = jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId);
+
+        assertFalse(runStateStore.claimForResume(threadId, ownerId, refreshed).isPresent(),
+                "a second resume must not run while the first still holds the lease");
+    }
+
+    @Test
+    void releasingTheLeaseLetsTheUserResumeAgain() {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 9L, "tool_node");
+
+        String lease = runStateStore.claimForResume(threadId, ownerId, 9L).orElseThrow();
+        runStateStore.releaseResumeLease(threadId, ownerId, lease);
+
+        long current = jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId);
+        assertTrue(runStateStore.claimForResume(threadId, ownerId, current).isPresent(),
+                "after the lease is released the user must be able to resume again");
     }
 
     @Test
@@ -275,6 +309,107 @@ class HttpAgentRecoveryTest {
         }
     }
 
+    // ---- 动作认领：真实 MySQL 的原子性 ----
+
+    /**
+     * 同一动作的并发认领在真实 MySQL 上只有一个赢家。
+     *
+     * <p>这条必须打真库：{@code INSERT ... ON DUPLICATE KEY UPDATE} 的赋值顺序语义
+     * （后续表达式看到已更新的值）在内存替身里复现不出来。
+     */
+    @Test
+    void concurrentClaimsOnRealMySqlLetOnlyOneOwnerIn() throws Exception {
+        String threadId = seedSession(ownerId);
+        String actionId = "action-" + UUID.randomUUID();
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            List<Future<AgentActionClaim>> futures = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await(10, TimeUnit.SECONDS);
+                    return ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                            AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+                }));
+            }
+            start.countDown();
+
+            int acquired = 0;
+            for (Future<AgentActionClaim> future : futures) {
+                AgentActionClaim claim = future.get(30, TimeUnit.SECONDS);
+                if (claim.acquired()) {
+                    acquired++;
+                } else {
+                    assertEquals(AgentActionClaim.Outcome.IN_FLIGHT, claim.outcome(),
+                            "a losing claimant must be told the action is in flight");
+                }
+            }
+            assertEquals(1, acquired, "exactly one claimant may own the action");
+            assertEquals(AgentActionRecord.STATUS_EXECUTING, statusOf(threadId, actionId));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * 明确失败的动作可以被重新认领，并且拿到**新的** token。
+     *
+     * <p>这正是 {@code ON DUPLICATE KEY UPDATE} 赋值顺序的回归点：如果 status 先被改写，
+     * 后面的条件全部失效，claimToken 会停留在旧值，原认领者仍能落结果。
+     */
+    @Test
+    void failedActionCanBeReclaimedWithANewToken() {
+        String threadId = seedSession(ownerId);
+        String actionId = "action-" + UUID.randomUUID();
+
+        AgentActionClaim first = ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        assertTrue(first.acquired());
+        assertTrue(ledger.markFailed(first, "明确失败"));
+
+        AgentActionClaim second = ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        assertTrue(second.acquired(), "an explicitly failed action may be retried");
+        assertNotEquals(first.token(), second.token(),
+                "the retry must get its own token, otherwise the old owner could settle it");
+
+        // 旧 token 已经失效，不能再落结果
+        assertFalse(ledger.markSucceeded(first, "伪造"),
+                "the previous claim must not be able to settle the new attempt");
+        assertTrue(ledger.markSucceeded(second, "ok"));
+    }
+
+    @Test
+    void succeededActionCannotBeReclaimed() {
+        String threadId = seedSession(ownerId);
+        String actionId = "action-" + UUID.randomUUID();
+
+        AgentActionClaim claim = ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        ledger.markSucceeded(claim, "ok");
+
+        AgentActionClaim again = ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+
+        assertEquals(AgentActionClaim.Outcome.ALREADY_SUCCEEDED, again.outcome());
+        assertEquals(AgentActionRecord.STATUS_SUCCEEDED, statusOf(threadId, actionId));
+    }
+
+    @Test
+    void dismissedActionIsTerminalAndNotSilentlyReExecuted() {
+        String threadId = seedSession(ownerId);
+        String actionId = seedUnknownAction(threadId, ownerId);
+
+        assertTrue(ledger.dismissUnknown(threadId, ownerId, actionId, "确认未执行"));
+
+        AgentActionClaim again = ledger.claim(threadId, ownerId, actionId, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        assertEquals(AgentActionClaim.Outcome.DISMISSED, again.outcome(),
+                "a reviewed-as-not-executed action must not become executable again");
+        assertEquals(AgentActionRecord.STATUS_DISMISSED, statusOf(threadId, actionId));
+    }
+
     // ---- 双写者与备份失败 ----
 
     @Test
@@ -283,9 +418,10 @@ class HttpAgentRecoveryTest {
         seedRunState(threadId, ownerId, 20L, "newer_node");
 
         // 旧异步备份晚到：带更小的版本
-        boolean applied = runStateStore.saveFullState(threadId, ownerId, 7L, checkpoint("stale_node"),
-                "RUNNING", null);
-        assertFalse(applied, "an older backup must not overwrite newer state");
+        StateSaveResult applied = runStateStore.saveFullState(threadId, ownerId, 7L,
+                checkpoint("stale_node"), "RUNNING", null);
+        assertEquals(StateSaveResult.SUPERSEDED, applied,
+                "an older backup must not overwrite newer state, and must be reported as superseded");
         assertEquals("newer_node", jdbc.queryForObject(
                 "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
         assertEquals(20L, jdbc.queryForObject(
@@ -301,12 +437,12 @@ class HttpAgentRecoveryTest {
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
-            Future<Boolean> a = pool.submit(() -> {
+            Future<StateSaveResult> a = pool.submit(() -> {
                 start.await(10, TimeUnit.SECONDS);
                 return runStateStore.saveFullState(threadId, ownerId, 100L,
                         checkpoint("instance_a"), "RUNNING", null);
             });
-            Future<Boolean> b = pool.submit(() -> {
+            Future<StateSaveResult> b = pool.submit(() -> {
                 start.await(10, TimeUnit.SECONDS);
                 return runStateStore.saveFullState(threadId, ownerId, 101L,
                         checkpoint("instance_b"), "RUNNING", null);
@@ -327,6 +463,30 @@ class HttpAgentRecoveryTest {
         }
     }
 
+    /**
+     * 启动更早的实例接管会话后，版本必须从共享状态续上，而不是被 CAS 一直拒绝。
+     *
+     * <p>这是评审 P1 的回归点：旧实现用「进程启动时间 + 本地计数器」生成版本，
+     * 接管方每次写入都落在库里的版本之下，影响 0 行——进度被静默丢弃。
+     */
+    @Test
+    void takingOverInstanceWritesProgressAboveTheStoredVersion() throws Exception {
+        String threadId = seedSession(ownerId);
+        seedRunState(threadId, ownerId, 500L, "tool_node");
+
+        // 接管方不持有任何本地计数器：版本只能从共享状态推算
+        long next = runStateStore.currentVersion(threadId, ownerId) + 1;
+        StateSaveResult result = runStateStore.saveFullState(threadId, ownerId, next,
+                checkpoint("after_takeover"), "RUNNING", null);
+
+        assertEquals(StateSaveResult.SAVED, result,
+                "a taking-over instance must be able to persist progress");
+        assertEquals(501L, jdbc.queryForObject(
+                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+        assertEquals("after_takeover", jdbc.queryForObject(
+                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+    }
+
     @Test
     void backupFailureIsVisibleAndRetryClearsIt() throws Exception {
         String threadId = seedSession(ownerId);
@@ -343,8 +503,8 @@ class HttpAgentRecoveryTest {
                 "stored failure reason must not carry raw paths or content: " + failed.get("backupError"));
 
         // 重试成功一次后，错误被清掉、次数归零
-        assertTrue(runStateStore.saveFullState(threadId, ownerId, 3L, checkpoint("tool_node"),
-                "RUNNING", null));
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
+                checkpoint("tool_node"), "RUNNING", null));
         Map<String, Object> recovered = jdbc.queryForMap(
                 "SELECT backupError, backupAttempts FROM agent_run_state WHERE threadId = ?", threadId);
         assertNull(recovered.get("backupError"));
@@ -448,9 +608,10 @@ class HttpAgentRecoveryTest {
      * 否则生产里第一次执行会因为「行不存在、UPDATE 影响 0 行」而静默丢失状态。
      */
     private void seedRunState(String threadId, long userId, long version, String nextNodeId) {
-        boolean saved = runStateStore.saveFullState(threadId, userId, version,
+        StateSaveResult saved = runStateStore.saveFullState(threadId, userId, version,
                 checkpoint(nextNodeId), "RUNNING", null);
-        assertTrue(saved, "saveFullState must create the row on first use and persist the state");
+        assertEquals(StateSaveResult.SAVED, saved,
+                "saveFullState must create the row on first use and persist the state");
     }
 
     private void seedLegacyArchiveOnly(String threadId, long userId) {
@@ -467,7 +628,7 @@ class HttpAgentRecoveryTest {
         // 生产里第一次执行必须先建行，否则所有 UPDATE 都是静默的空操作
         String threadId = seedSession(ownerId);
 
-        assertTrue(runStateStore.saveFullState(threadId, ownerId, 1L,
+        assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 1L,
                 checkpoint("tool_node"), "RUNNING", null));
 
         assertEquals(1, jdbc.queryForObject(
@@ -490,8 +651,8 @@ class HttpAgentRecoveryTest {
                             String status, String idempotency) {
         jdbc.update("""
                 INSERT INTO agent_action_record (threadId, userId, actionId, toolName, argumentsDigest,
-                                                 status, idempotency, attempt, createTime, updateTime)
-                VALUES (?, ?, ?, ?, 'digest', ?, ?, 1, '2020-01-01 00:00:00', '2020-01-01 00:00:00')
+                                                 status, idempotency, claimToken, attempt, createTime, updateTime)
+                VALUES (?, ?, ?, ?, 'digest', ?, ?, 'seed-token', 1, '2020-01-01 00:00:00', '2020-01-01 00:00:00')
                 """, threadId, userId, actionId, toolName, status, idempotency);
     }
 

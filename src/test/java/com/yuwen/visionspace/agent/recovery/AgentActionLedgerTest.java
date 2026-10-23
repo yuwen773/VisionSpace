@@ -5,18 +5,24 @@ import com.yuwen.visionspace.model.entity.AgentActionRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -24,9 +30,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 动作台账的状态机：已确认完成不重放、结果未知不盲目重试、审计不含正文。
+ * 动作台账的状态机：认领互斥、已确认完成不重放、结果未知不盲目重试、审计不含正文。
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AgentActionLedgerTest {
 
     private static final Long OWNER = 7L;
@@ -44,76 +51,170 @@ class AgentActionLedgerTest {
     }
 
     @Test
-    void completedActionIsNotExecutedAgain() {
-        when(mapper.selectOne(THREAD, OWNER, ACTION))
-                .thenReturn(record(AgentActionRecord.STATUS_SUCCEEDED));
+    void firstClaimAcquiresTheActionWhenTheReadBackTokenIsOurs() {
+        // 认领结果只能靠读回的 token 判定：影响行数在 Connector/J 下不可靠
+        when(mapper.claim(eq(THREAD), eq(OWNER), eq(ACTION), anyString(), anyString(),
+                anyString(), anyString())).thenAnswer(invocation -> {
+            String token = invocation.getArgument(6);
+            when(mapper.selectForClaim(THREAD, OWNER, ACTION))
+                    .thenReturn(record(AgentActionRecord.STATUS_EXECUTING, token));
+            return 1;
+        });
 
-        assertFalse(ledger.begin(THREAD, OWNER, ACTION, "generateImages", "{}",
-                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN),
-                "confirmed-complete action must not be replayed");
+        AgentActionClaim claim = ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+
+        assertEquals(AgentActionClaim.Outcome.ACQUIRED, claim.outcome());
+        assertNotNull(claim.token(), "the winner must get a token to settle with");
     }
 
     @Test
-    void executingActionMayContinue() {
-        when(mapper.selectOne(THREAD, OWNER, ACTION))
-                .thenReturn(record(AgentActionRecord.STATUS_EXECUTING));
+    void claimLosesWhenAnotherWriterOwnsTheTokenEvenIfRowsWereAffected() {
+        // 命中但值没变时 MySQL 仍可能返回非零：token 不是我们的，就是没抢到
+        when(mapper.claim(eq(THREAD), eq(OWNER), eq(ACTION), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(2);
+        when(mapper.selectForClaim(THREAD, OWNER, ACTION))
+                .thenReturn(record(AgentActionRecord.STATUS_EXECUTING, "someone-elses-token"));
 
-        assertTrue(ledger.begin(THREAD, OWNER, ACTION, "searchContentImages", "{}",
-                AgentActionRecord.IDEMPOTENCY_PROVEN));
+        assertEquals(AgentActionClaim.Outcome.IN_FLIGHT,
+                ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN).outcome());
+    }
+
+    @Test
+    void completedActionIsReportedAsCompletedInsteadOfExecutable() {
+        when(mapper.claim(eq(THREAD), eq(OWNER), eq(ACTION), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(0);
+        when(mapper.selectForClaim(THREAD, OWNER, ACTION))
+                .thenReturn(record(AgentActionRecord.STATUS_SUCCEEDED, "old-token"));
+
+        AgentActionClaim claim = ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+
+        assertEquals(AgentActionClaim.Outcome.ALREADY_SUCCEEDED, claim.outcome(),
+                "confirmed-complete action must not be replayed");
+        assertNull(claim.token());
+    }
+
+    @Test
+    void inFlightActionIsReportedAsInFlightNotCompleted() {
+        when(mapper.claim(eq(THREAD), eq(OWNER), eq(ACTION), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(0);
+        when(mapper.selectForClaim(THREAD, OWNER, ACTION))
+                .thenReturn(record(AgentActionRecord.STATUS_EXECUTING, "other-token"));
+
+        assertEquals(AgentActionClaim.Outcome.IN_FLIGHT,
+                ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN).outcome());
+    }
+
+    @Test
+    void actionWaitingForReviewIsReportedAsNeedingReview() {
+        when(mapper.claim(eq(THREAD), eq(OWNER), eq(ACTION), anyString(), anyString(),
+                anyString(), anyString())).thenReturn(0);
+        when(mapper.selectForClaim(THREAD, OWNER, ACTION))
+                .thenReturn(record(AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW, "old-token"));
+
+        assertEquals(AgentActionClaim.Outcome.NEEDS_REVIEW,
+                ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN).outcome());
+    }
+
+    @Test
+    void ledgerFailureIsUnavailableRatherThanCompleted() {
+        when(mapper.claim(anyString(), any(), anyString(), anyString(), anyString(), anyString(),
+                anyString())).thenThrow(new IllegalStateException("db down"));
+
+        AgentActionClaim claim = ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+
+        assertEquals(AgentActionClaim.Outcome.UNAVAILABLE, claim.outcome(),
+                "a broken ledger proves nothing, so it must never look like a completion");
+    }
+
+    @Test
+    void claimWithoutAffectedRowAndWithoutRecordIsUnavailable() {
+        when(mapper.claim(anyString(), any(), anyString(), anyString(), anyString(), anyString(),
+                anyString())).thenReturn(0);
+        when(mapper.selectForClaim(THREAD, OWNER, ACTION)).thenReturn(null);
+
+        assertEquals(AgentActionClaim.Outcome.UNAVAILABLE,
+                ledger.claim(THREAD, OWNER, ACTION, "generateImages", "{}",
+                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN).outcome());
+    }
+
+    @Test
+    void settlingWithoutTheClaimTokenIsRejected() {
+        // 没有凭据：连数据库都不碰，直接拒绝
+        assertFalse(ledger.markSucceeded(null, "x"));
+        assertFalse(ledger.markSucceeded(
+                AgentActionClaim.notAcquired(AgentActionClaim.Outcome.IN_FLIGHT,
+                        THREAD, OWNER, ACTION), "x"));
+        verify(mapper, never()).settleClaimed(anyString(), any(), anyString(), anyString(),
+                anyString(), anyString());
+
+        // 凭据不对：交给数据库按 token 条件判定，影响 0 行即失败
+        when(mapper.settleClaimed(THREAD, OWNER, ACTION, "forged",
+                AgentActionRecord.STATUS_SUCCEEDED, "x")).thenReturn(0);
+        assertFalse(ledger.markSucceeded(
+                        AgentActionClaim.acquired(THREAD, OWNER, ACTION, "forged"), "x"),
+                "a token that does not match the current claim must not settle the action");
+    }
+
+    @Test
+    void settlingUsesTheIdentityCarriedByTheClaim() {
+        when(mapper.settleClaimed(THREAD, OWNER, ACTION, "token",
+                AgentActionRecord.STATUS_SUCCEEDED, "ok")).thenReturn(1);
+
+        assertTrue(ledger.markSucceeded(
+                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"), "ok"));
+
+        // 身份来自认领本身，调用方无法拿 A 的 token 去结算 B
+        verify(mapper).settleClaimed(THREAD, OWNER, ACTION, "token",
+                AgentActionRecord.STATUS_SUCCEEDED, "ok");
     }
 
     @Test
     void unknownResultWithoutProvenIdempotencyWaitsForReview() {
-        ledger.markUnknown(THREAD, OWNER, ACTION, false, "network reset");
+        when(mapper.settleClaimed(THREAD, OWNER, ACTION, "token",
+                AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW, "network reset")).thenReturn(1);
 
-        verify(mapper).settle(THREAD, OWNER, ACTION,
-                AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW, "network reset");
+        assertTrue(ledger.markUnknown(
+                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"), false, "network reset"));
     }
 
     @Test
     void unknownResultWithProvenIdempotencyFallsBackToSafeRetry() {
-        ledger.markUnknown(THREAD, OWNER, ACTION, true, "network reset");
+        when(mapper.settleClaimed(THREAD, OWNER, ACTION, "token",
+                AgentActionRecord.STATUS_FAILED, "network reset")).thenReturn(1);
 
-        verify(mapper).settle(THREAD, OWNER, ACTION,
-                AgentActionRecord.STATUS_FAILED, "network reset");
+        assertTrue(ledger.markUnknown(
+                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"), true, "network reset"));
     }
 
     @Test
-    void staleExecutingIsReconciledAsUnknownRatherThanReplayed() {
-        Instant now = Instant.now();
-        when(mapper.selectByThread(THREAD, OWNER)).thenReturn(List.of(
-                recordWithTime(AgentActionRecord.STATUS_EXECUTING, ACTION,
-                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, hoursAgo(2)),
-                recordWithTime(AgentActionRecord.STATUS_EXECUTING, "a-2",
-                        AgentActionRecord.IDEMPOTENCY_PROVEN, hoursAgo(2)),
-                recordWithTime(AgentActionRecord.STATUS_SUCCEEDED, "a-3",
-                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, hoursAgo(2))));
-        when(mapper.settle(eq(THREAD), eq(OWNER), anyString(), anyString(), anyString()))
-                .thenReturn(1);
+    void staleExecutingIsReconciledInOneStatementWithTheCutoff() {
+        Instant cutoff = Instant.now().minus(Duration.ofMinutes(10));
+        when(mapper.reconcileStaleExecuting(eq(THREAD), eq(OWNER), any(Date.class), anyString()))
+                .thenReturn(2);
 
-        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER, now.minus(Duration.ofMinutes(10)));
+        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER, cutoff);
 
-        assertEquals(2, reconciled, "only stale EXECUTING actions are reconciled");
-        verify(mapper).settle(THREAD, OWNER, ACTION,
-                AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW, "上次执行中断，结果未确认");
-        verify(mapper).settle(THREAD, OWNER, "a-2",
-                AgentActionRecord.STATUS_FAILED, "上次执行中断，结果未确认");
-        // 已完成的动作不参与收敛
-        verify(mapper, never()).settle(eq(THREAD), eq(OWNER), eq("a-3"), anyString(), anyString());
+        assertEquals(2, reconciled);
+        ArgumentCaptor<Date> cutoffCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(mapper).reconcileStaleExecuting(eq(THREAD), eq(OWNER), cutoffCaptor.capture(),
+                anyString());
+        // Date 只有毫秒精度，比较到毫秒
+        assertEquals(cutoff.toEpochMilli(), cutoffCaptor.getValue().getTime(),
+                "the caller's cutoff must reach the database, not be re-derived from local time");
     }
 
     @Test
-    void actionStillInFlightIsNotTreatedAsInterrupted() {
-        // 另一个实例正在执行：刚更新过的 EXECUTING 不能被判成遗留而放行重放
-        when(mapper.selectByThread(THREAD, OWNER)).thenReturn(List.of(
-                recordWithTime(AgentActionRecord.STATUS_EXECUTING, ACTION,
-                        AgentActionRecord.IDEMPOTENCY_NOT_PROVEN, new Date())));
-
-        int reconciled = ledger.reconcileStaleExecuting(THREAD, OWNER,
-                Instant.now().minus(Duration.ofMinutes(10)));
-
-        assertEquals(0, reconciled);
-        verify(mapper, never()).settle(eq(THREAD), eq(OWNER), anyString(), anyString(), anyString());
+    void reconcileWithoutCutoffIsRejectedInsteadOfGuessing() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ledger.reconcileStaleExecuting(THREAD, OWNER, null));
+        verify(mapper, never()).reconcileStaleExecuting(anyString(), any(), any(Date.class),
+                anyString());
     }
 
     @Test
@@ -148,28 +249,20 @@ class AgentActionLedgerTest {
     }
 
     private AgentActionRecord record(String status) {
-        return recordWithId(status, ACTION, AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        return record(status, "stored-token");
     }
 
-    private AgentActionRecord recordWithId(String status, String id, String idempotency) {
-        return recordWithTime(status, id, idempotency, hoursAgo(2));
-    }
-
-    private AgentActionRecord recordWithTime(String status, String id, String idempotency,
-                                             Date updateTime) {
+    private AgentActionRecord record(String status, String claimToken) {
         AgentActionRecord record = new AgentActionRecord();
         record.setThreadId(THREAD);
         record.setUserId(OWNER);
-        record.setActionId(id);
+        record.setActionId(ACTION);
         record.setToolName("tool");
         record.setStatus(status);
-        record.setIdempotency(idempotency);
+        record.setIdempotency(AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
+        record.setClaimToken(claimToken);
         record.setAttempt(1);
-        record.setUpdateTime(updateTime);
+        record.setUpdateTime(new Date());
         return record;
-    }
-
-    private Date hoursAgo(int hours) {
-        return new Date(System.currentTimeMillis() - hours * 3600_000L);
     }
 }

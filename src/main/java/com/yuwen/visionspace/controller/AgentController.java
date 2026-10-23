@@ -282,10 +282,15 @@ public class AgentController {
 
         // 上次执行遗留的「执行中」动作先收敛，再判断能不能续跑
         agentRecoveryService.reconcileBeforeRun(threadId, userId);
-        agentRecoveryService.requireResumable(threadId, userId, expectedVersion);
+        AgentRecoveryService.ResumeClaim claim =
+                agentRecoveryService.requireResumable(threadId, userId, expectedVersion);
 
-        String output = imageAgent.resume(threadId, userId);
-        return ResultUtils.success(output);
+        // 认领到的租约必须释放：否则用户要等到租约到期才能再次续跑
+        try {
+            return ResultUtils.success(imageAgent.resume(threadId, userId));
+        } finally {
+            agentRecoveryService.releaseResumeLease(threadId, userId, claim.leaseToken());
+        }
     }
 
     /**

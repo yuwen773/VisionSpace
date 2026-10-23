@@ -53,6 +53,22 @@ public class AgentRunState implements Serializable {
     /** 待人工确认信息（已脱敏） */
     private String pendingConfirmation;
 
+    /**
+     * 本次执行使用的 MCP 服务 code 列表（JSON 数组，只存 code）。
+     *
+     * <p>续跑时按这些 code 用当前用户重新回读并授权，重建对应的 Agent；
+     * 服务被停用、撤销或删除时续跑被拒绝，不会沿用旧 Checkpoint 继续执行。
+     *
+     * <p>只存 code：凭据、地址、回调对象一律不落库。
+     */
+    private String mcpServerCodes;
+
+    /** 当前续跑请求的租约凭据；同一时刻只允许一个续跑 */
+    private String resumeLease;
+
+    /** 续跑租约到期时间，仅用于回收崩溃遗留的租约 */
+    private Date resumeLeaseUntil;
+
     /** 1 = 仅有旧轻量归档，可查看但不可续跑 */
     private Integer legacyArchiveOnly;
 

@@ -11,10 +11,13 @@ import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import com.yuwen.visionspace.agent.config.AgentToolExceptionPolicy;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.PendingReviewException;
+import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
+import com.yuwen.visionspace.agent.recovery.ResumeToolUnavailableException;
 import com.yuwen.visionspace.agent.recovery.RunStatus;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
@@ -118,6 +121,9 @@ public class ImageAgent {
 
     @Resource
     private AgentRecoveryService recoveryService;
+
+    @Resource
+    private ResumeToolEnvironment resumeToolEnvironment;
 
     private ReactAgent agent;
 
@@ -242,6 +248,8 @@ public class ImageAgent {
                 ))
                 // 动作台账：已确认完成不重放，结果未知进入待核对
                 .interceptors(List.of(actionInterceptor))
+                // 生成失败必须以异常到达台账，不能被框架折成一条普通文本
+                .toolExecutionExceptionProcessor(AgentToolExceptionPolicy.processor())
                 .saver(checkpointSaver)
                 .build();
     }
@@ -257,6 +265,11 @@ public class ImageAgent {
     public String chat(String userMessage, List<String> imageUrls, String threadId, Long userId) {
         // 归属在进入模型之前判定：绑定/核对失败直接抛出，不产生任何执行
         sessionGuard.bindOwner(threadId, userId, userMessage);
+        // 有结果未知的动作时，任何入口都不得继续跑
+        recoveryService.requireNoPendingReview(threadId, userId);
+        // 内置入口不使用 MCP，但必须显式记成「空环境」：留 NULL 会让续跑
+        // 无法区分「没用 MCP」与「没记录」，只能一律拒绝
+        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
         RunnableConfig config = configFor(threadId, userId);
         try {
             String fullMessage = buildUserMessage(userMessage, imageUrls);
@@ -264,6 +277,13 @@ public class ImageAgent {
             chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
             chatHistoryService.saveAssistantMessage(threadId, userId, response.getText(), "text");
             return response.getText();
+        } catch (PendingReviewException e) {
+            // 结果未知不能被折成一句「稍后重试」：那会让用户以为可以直接再来一次，
+            // 而实际必须先核对。暂停状态也要落库，界面才能给出核对入口。
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             // 异常原文可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
@@ -294,6 +314,13 @@ public class ImageAgent {
         // 保证任何直接调用方也无法把状态写进别人的会话。
         sessionGuard.requireOwned(threadId, userId);
         RunnableConfig config = configFor(threadId, userId);
+
+        // 本次执行开始前收敛上次遗留的「执行中」动作：可证明幂等的退回可重试，
+        // 其余进入待核对，避免把它们当成「没发生」而重放
+        recoveryService.reconcileBeforeRun(threadId, userId);
+        // 收敛之后仍有待核对动作：本次执行必须停在原地
+        recoveryService.requireNoPendingReview(threadId, userId);
+
         String fullMessage = buildUserMessage(userMessage, imageUrls);
         chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
 
@@ -301,16 +328,15 @@ public class ImageAgent {
         AgentChatRequest chatRequest = new AgentChatRequest();
         chatRequest.setEnabledMcpServers(enabledMcpServers);
         chatRequest.setDisableMcpDefault(disableMcpDefault);
-        ToolCallback[] mcpCallbacks = textMcpModelInterceptor.resolveMcpCallbacks(chatRequest, userId);
+        TextMcpModelInterceptor.McpResolution mcp =
+                textMcpModelInterceptor.resolve(chatRequest, userId);
+
+        // 记录本次实际用到的服务 code：续跑时按它重新授权并重建 Agent，
+        // 而不是一律退回内置 agent（那样 MCP 工具会凭空消失）
+        runStateStore.recordMcpServerCodes(threadId, userId, mcp.serverCodes());
 
         // 选择 Agent：无 MCP 用内置 agent，有 MCP 创建 combined agent
-        ReactAgent activeAgent = (mcpCallbacks == null || mcpCallbacks.length == 0)
-                ? agent
-                : buildMcpAgent(mcpCallbacks);
-
-        // 本次执行开始前收敛上次遗留的「执行中」动作：可证明幂等的退回可重试，
-        // 其余进入待核对，避免把它们当成「没发生」而重放
-        recoveryService.reconcileBeforeRun(threadId, userId);
+        ReactAgent activeAgent = mcp.isEmpty() ? agent : buildMcpAgent(mcp.callbacks());
 
         try {
             Flux<NodeOutput> stream = activeAgent.stream(fullMessage, config);
@@ -399,7 +425,7 @@ public class ImageAgent {
                         messageDTO.setContent("工具 " + error.getToolName()
                                 + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
                         runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                                "外部动作结果未知，等待核对：" + error.getToolName());
+                                pauseForReview(error.getToolName()));
                         return Flux.just(messageDTO);
                     })
                     .doOnComplete(() -> {
@@ -430,6 +456,8 @@ public class ImageAgent {
                                  ActionType action, AgentPhase currentPhase) {
 
         sessionGuard.requireOwned(threadId, userId);
+        // 反馈会触发一次模型执行，同样不能绕过待核对暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
         int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
@@ -454,11 +482,19 @@ public class ImageAgent {
             );
         }
 
+        // 反馈入口同样只用内置工具，显式记录空环境以便续跑能确认工具环境
+        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
         RunnableConfig config = configFor(threadId, userId);
 
         try {
             AssistantMessage response = agent.call(feedbackMessage, config);
             return response.getText();
+        } catch (PendingReviewException e) {
+            // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题，请稍后重试";
@@ -484,6 +520,9 @@ public class ImageAgent {
                 .orElseThrow(() -> new BusinessException(ErrorCode.OPERATION_ERROR,
                         "该会话没有可安全续跑的执行状态，已暂停自动执行"));
 
+        // 与其它入口同一道闸门：续跑也不能绕过待核对暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
+
         Optional<Checkpoint> checkpoint = runStateStore.toCheckpoint(state);
         if (checkpoint.isEmpty()) {
             runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
@@ -494,6 +533,11 @@ public class ImageAgent {
 
         RunnableConfig config = runStateStore.resumeConfig(threadId, userId, state,
                 DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY);
+
+        // 恢复上一次的工具环境：按持久化的 code 用当前用户重新回读并授权。
+        // 一律用内置 agent 会让 MCP 工具凭空消失；沿用旧回调又会让已撤销的权限复活，
+        // 因此既不能省略，也不能照搬。
+        ReactAgent resumeAgent = rebuildResumeAgent(threadId, userId, state);
 
         // MySQL 里的完整状态是 Redis 丢失检查点时的唯一依据：续跑前把它写回
         // 框架的存储，否则「有完整状态但 Redis 没了」依然续不上。
@@ -507,13 +551,13 @@ public class ImageAgent {
 
         try {
             // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
-            AssistantMessage response = agent.call("", config);
+            AssistantMessage response = resumeAgent.call("", config);
             runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
             return response.getText();
         } catch (PendingReviewException e) {
             // 结果未知：暂停并等待核对，与「明确失败」区分
             runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    "外部动作结果未知，等待核对：" + e.getToolName());
+                    pauseForReview(e.getToolName()));
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
@@ -524,6 +568,48 @@ public class ImageAgent {
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "继续执行失败，请稍后重试");
         }
+    }
+
+    /**
+     * 按上次执行用到的 MCP 服务重建 Agent。
+     *
+     * <p>恢复点里只留了服务 code，这里用<b>当前用户</b>重新回读归属与启用状态：
+     * <ul>
+     *   <li>没有记录过 MCP → 用内置 agent（与首次执行一致）；</li>
+     *   <li>记录过且全部仍可用 → 重建对应的 MCP agent；</li>
+     *   <li>任一服务已停用、已撤销或已删除 → 拒绝续跑。缺少工具继续执行会让模型
+     *       改用别的方式完成同一件事，等于绕过了用户的撤销决定。</li>
+     * </ul>
+     */
+    private ReactAgent rebuildResumeAgent(String threadId, Long userId, AgentRunState state) {
+        // 没有记录 ≠ 没有用 MCP：无法确认上次的工具环境时不能猜，
+        // 否则会在少了工具的情况下继续跑，模型改用别的方式完成同一件事
+        Optional<List<String>> recorded = runStateStore.recordedMcpServerCodes(state);
+        if (recorded.isEmpty()) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    "无法确认上次执行使用的工具环境，请重新发起请求");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "无法确认上次执行使用的工具环境，已暂停，请重新发起请求");
+        }
+        try {
+            ResumeToolEnvironment.Environment environment =
+                    resumeToolEnvironment.resolve(recorded.get(), userId);
+            return environment.usesMcp() ? buildMcpAgent(environment.callbacks()) : agent;
+        } catch (ResumeToolUnavailableException e) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    "MCP 服务已停用或撤销，需重新选择后再继续");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
+        }
+    }
+
+    /**
+     * 结果未知时写进 {@code pendingConfirmation} 的固定文案。
+     *
+     * <p>流式、反馈、续跑三个入口都要把同一次暂停记成同一种状态；文案分散写三遍
+     * 迟早会漂移，界面就分不清「等待核对」和别的暂停原因了。
+     */
+    private String pauseForReview(String toolName) {
+        return "外部动作结果未知，等待核对：" + toolName;
     }
 
     /**
@@ -591,6 +677,8 @@ public class ImageAgent {
                 ))
                 // MCP 工具同样经过台账：外部动作不因来源不同而失去核对能力
                 .interceptors(List.of(actionInterceptor))
+                // 与内置 agent 同一条策略，续跑重建时也不会退回「失败即成功」
+                .toolExecutionExceptionProcessor(AgentToolExceptionPolicy.processor())
                 .saver(checkpointSaver)
                 .build();
     }
@@ -620,10 +708,20 @@ public class ImageAgent {
      */
     public Optional<NodeOutput> invokeAndGetOutput(String message, String threadId, Long userId) {
         sessionGuard.bindOwner(threadId, userId, message);
+        // 普通对话入口同样受待核对暂停约束：否则用户再发一条消息就能绕过暂停
+        recoveryService.requireNoPendingReview(threadId, userId);
+        runStateStore.recordMcpServerCodes(threadId, userId, List.of());
         RunnableConfig config = configFor(threadId, userId);
         chatHistoryService.saveUserMessage(threadId, userId, message);
         try {
             return agent.invokeAndGetOutput(message, config);
+        } catch (PendingReviewException e) {
+            // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
+            // 与其它入口的暂停语义不一致
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    pauseForReview(e.getToolName()));
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return Optional.empty();

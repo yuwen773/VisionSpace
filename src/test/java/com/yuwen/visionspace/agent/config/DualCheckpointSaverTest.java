@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.RunStatus;
+import com.yuwen.visionspace.agent.recovery.StateSaveResult;
 import com.yuwen.visionspace.mapper.AgentSessionMapper;
 import com.yuwen.visionspace.model.dto.agent.LightweightCheckpoint;
 import com.yuwen.visionspace.model.dto.agent.SimpleMessage;
@@ -75,7 +76,7 @@ class DualCheckpointSaverTest {
         when(redissonClient.getBucket(anyString())).thenReturn(bucket);
         when(redisSaver.put(any(), any())).thenAnswer(inv -> inv.getArgument(0));
         when(runStateStore.saveFullState(anyString(), anyLong(), anyLong(), any(), any(), any()))
-                .thenReturn(true);
+                .thenReturn(StateSaveResult.SAVED);
         when(sessionMapper.updateCheckpointData(anyString(), anyLong(), any())).thenReturn(1);
     }
 
@@ -105,6 +106,67 @@ class DualCheckpointSaverTest {
     }
 
     @Test
+    void olderStartedInstanceAdoptsTheStoredVersionInsteadOfBeingRejectedForever() throws Exception {
+        // 另一个实例已经把会话推到版本 500；本实例刚启动，本地计数器为 0
+        when(runStateStore.currentVersion(THREAD, OWNER)).thenReturn(500L);
+
+        saver.put(config(), checkpoint());
+
+        ArgumentCaptor<Long> version = ArgumentCaptor.forClass(Long.class);
+        verify(runStateStore).saveFullState(eq(THREAD), eq(OWNER), version.capture(), any(),
+                eq(RunStatus.RUNNING), any());
+        assertTrue(version.getValue() > 500L,
+                "a taking-over instance must offer a version above the stored one, got "
+                        + version.getValue());
+    }
+
+    @Test
+    void supersededWriteIsRetriedAgainstTheNewerStoredVersion() throws Exception {
+        // 第一次写入被判为过期（别的实例抢先推进），第二次必须按新版本重试并成功
+        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any()))
+                .thenReturn(StateSaveResult.SUPERSEDED, StateSaveResult.SAVED);
+        when(runStateStore.currentVersion(THREAD, OWNER)).thenReturn(10L, 11L);
+
+        saver.put(config(), checkpoint());
+
+        ArgumentCaptor<Long> versions = ArgumentCaptor.forClass(Long.class);
+        verify(runStateStore, times(2))
+                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any());
+        List<Long> captured = versions.getAllValues();
+        assertTrue(captured.get(1) > captured.get(0),
+                "the retry must use a version above the one that lost: " + captured);
+    }
+
+    @Test
+    void genuineWriteFailureIsNotRetriedForever() throws Exception {
+        when(runStateStore.saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any()))
+                .thenReturn(StateSaveResult.FAILED);
+
+        saver.put(config(), checkpoint());
+
+        verify(runStateStore, times(1))
+                .saveFullState(eq(THREAD), eq(OWNER), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void releaseDoesNotRegressVersionsBecauseOrderComesFromTheDatabase() throws Exception {
+        when(redisSaver.release(any())).thenReturn(anyTag());
+        when(runStateStore.currentVersion(THREAD, OWNER)).thenReturn(300L);
+
+        saver.put(config(), checkpoint());
+        saver.release(config());
+        // release 清掉了本地计数器；下一次写入仍必须高于库里已有的版本
+        saver.put(config(), checkpoint());
+
+        ArgumentCaptor<Long> versions = ArgumentCaptor.forClass(Long.class);
+        verify(runStateStore, times(2))
+                .saveFullState(eq(THREAD), eq(OWNER), versions.capture(), any(), any(), any());
+        assertTrue(versions.getAllValues().get(1) > 300L,
+                "a released session must not restart version numbering below the stored state: "
+                        + versions.getAllValues());
+    }
+
+    @Test
     void putWithoutOwnerWritesNothingThatCouldLeakIntoAnotherSession() throws Exception {
         RunnableConfig noOwner = RunnableConfig.builder().threadId(THREAD).build();
 
@@ -117,7 +179,7 @@ class DualCheckpointSaverTest {
     @Test
     void backupFailureDoesNotBreakTheExecution() throws Exception {
         when(runStateStore.saveFullState(anyString(), anyLong(), anyLong(), any(), any(), any()))
-                .thenReturn(false);
+                .thenReturn(StateSaveResult.FAILED);
 
         RunnableConfig result = null;
         // 轻量备份每 3 步一次，连写 3 次才会触发

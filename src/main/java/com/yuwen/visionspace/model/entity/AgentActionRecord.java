@@ -29,6 +29,8 @@ public class AgentActionRecord implements Serializable {
     public static final String STATUS_FAILED = "FAILED";
     /** 结果未知且不能安全重试，等待有权用户核对 */
     public static final String STATUS_UNKNOWN_NEEDS_REVIEW = "UNKNOWN_NEEDS_REVIEW";
+    /** 用户核对后确认未发生且不再执行：终态，不可被重新认领 */
+    public static final String STATUS_DISMISSED = "DISMISSED";
 
     /** 可证明幂等，允许结果未知时安全重试 */
     public static final String IDEMPOTENCY_PROVEN = "PROVEN";
@@ -54,6 +56,14 @@ public class AgentActionRecord implements Serializable {
 
     /** PROVEN / NOT_PROVEN */
     private String idempotency;
+
+    /**
+     * 本次认领的凭据。
+     *
+     * <p>只有持有当前 token 的调用方能推进状态：这样即使两个请求都判定自己「该执行」，
+     * 也不会有第二个请求把别人的结果覆盖成「已完成」。
+     */
+    private String claimToken;
 
     private Integer attempt;
 

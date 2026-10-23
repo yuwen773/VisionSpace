@@ -18,6 +18,14 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
     AgentRunState selectOwned(@Param("threadId") String threadId, @Param("userId") Long userId);
 
     /**
+     * 读取当前版本号，用于让本实例的版本顺序与共享持久状态对齐。
+     *
+     * <p>没有行时返回 null：调用方按「从 1 开始」处理。
+     */
+    @Select("SELECT stateVersion FROM agent_run_state WHERE threadId = #{threadId} AND userId = #{userId}")
+    Long selectVersion(@Param("threadId") String threadId, @Param("userId") Long userId);
+
+    /**
      * 首次创建执行状态行。已存在时是空操作，绝不改写归属。
      *
      * @return 1 表示本次创建，0 表示已存在
@@ -37,6 +45,9 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * <p>这是「旧异步备份晚到不能覆盖新版本」的实现点：迟到的备份带着旧
      * {@code stateVersion}，条件不成立，影响 0 行。
+     *
+     * <p>版本号必须由调用方按共享持久状态推算（见 {@code AgentRunStateStore#currentVersion}），
+     * 不能只用进程本地计数器：否则启动更早的实例接管会话后每次写入都会被拒绝。
      *
      * <p>归属条件同样在 SQL 里，跨用户写入影响 0 行。
      *
@@ -60,21 +71,51 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
                       @Param("pendingConfirmation") String pendingConfirmation);
 
     /**
-     * 认领一次续跑：按期望版本推进版本号并置为运行中。
+     * 认领一次续跑：推进版本号、置为运行中，并持有一份租约。
      *
-     * <p>这是「重复或并发续跑请求不能产生第二次执行」的实现点。两个请求带同一个
-     * {@code expectedVersion} 时，只有一个能命中条件；另一个影响 0 行，被拒绝。
-     * 版本推进后，旧请求自然过期，不需要额外的分布式锁。
+     * <p>只按版本号是不够的：第一个请求推进版本后，第二个请求只要刷新一下就能拿到
+     * 新版本再次认领，于是同一次续跑被执行两次。这里额外要求「没有别的请求持有
+     * 有效租约」，两条并发请求只有一个能命中。
      *
-     * @return 1 表示本次认领成功，0 表示版本已推进（重复/过期/并发落败）
+     * <p>租约到期只是让崩溃遗留的租约不再永久阻塞续跑，<b>不是</b>判断动作是否安全的
+     * 依据：动作能否重放由 {@code agent_action_record} 的认领保证。
+     *
+     * @return 1 表示本次认领成功，0 表示版本已推进或已有请求在执行
      */
     @Update("UPDATE agent_run_state SET stateVersion = stateVersion + 1, runStatus = #{runStatus}, " +
+            "resumeLease = #{leaseToken}, " +
+            "resumeLeaseUntil = DATE_ADD(NOW(), INTERVAL #{leaseSeconds} SECOND), " +
             "updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId} AND stateVersion = #{expectedVersion}")
+            "WHERE threadId = #{threadId} AND userId = #{userId} " +
+            "AND stateVersion = #{expectedVersion} " +
+            "AND (resumeLease IS NULL OR resumeLeaseUntil IS NULL OR resumeLeaseUntil <= NOW())")
     int claimForResume(@Param("threadId") String threadId,
                        @Param("userId") Long userId,
                        @Param("expectedVersion") long expectedVersion,
-                       @Param("runStatus") String runStatus);
+                       @Param("runStatus") String runStatus,
+                       @Param("leaseToken") String leaseToken,
+                       @Param("leaseSeconds") int leaseSeconds);
+
+    /**
+     * 释放续跑租约。只释放自己持有的那一份，不会解掉别人的。
+     */
+    @Update("UPDATE agent_run_state SET resumeLease = NULL, resumeLeaseUntil = NULL, updateTime = NOW() " +
+            "WHERE threadId = #{threadId} AND userId = #{userId} AND resumeLease = #{leaseToken}")
+    int releaseResumeLease(@Param("threadId") String threadId,
+                           @Param("userId") Long userId,
+                           @Param("leaseToken") String leaseToken);
+
+    /**
+     * 记录本次执行使用的 MCP 服务 code（JSON 数组）。
+     *
+     * <p>只存 code，不存凭据、地址或回调对象；续跑时按它用当前用户重新授权。
+     * 没有状态行时影响 0 行——此时也没有可续跑的恢复点，无需记录。
+     */
+    @Update("UPDATE agent_run_state SET mcpServerCodes = #{mcpServerCodes}, updateTime = NOW() " +
+            "WHERE threadId = #{threadId} AND userId = #{userId}")
+    int updateMcpServerCodes(@Param("threadId") String threadId,
+                             @Param("userId") Long userId,
+                             @Param("mcpServerCodes") String mcpServerCodes);
 
     /**
      * 只更新运行状态与待确认信息，不动版本与载荷。

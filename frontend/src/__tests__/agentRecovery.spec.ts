@@ -86,6 +86,62 @@ describe('RecoveryBanner', () => {
     expect(wrapper.find('.recovery-banner').exists()).toBe(false)
   })
 
+  it('keeps the resume entry after the user has reviewed the actions', () => {
+    // 核对完之后 pendingReviewCount 归零、状态仍可续跑：
+    // 这正是最需要「继续执行」的时候，横幅不能消失
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'PAUSED_UNRECOVERABLE',
+          reason: null,
+        }),
+      },
+    })
+
+    expect(wrapper.find('.recovery-banner').exists()).toBe(true)
+    const resume = wrapper.find('.primary-btn')
+    expect(resume.exists()).toBe(true)
+    expect(resume.text()).toContain('继续执行')
+  })
+
+  it('offers resume for a failed but resumable run', () => {
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: true,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'FAILED',
+          reason: '继续执行失败，请稍后重试',
+        }),
+      },
+    })
+
+    expect(wrapper.find('.primary-btn').exists()).toBe(true)
+    expect(wrapper.text()).toContain('可以从上次中断处继续')
+  })
+
+  it('shows a paused state without offering resume when it is not resumable', () => {
+    const wrapper = mount(RecoveryBanner, {
+      props: {
+        state: state({
+          resumable: false,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'PAUSED_UNRECOVERABLE',
+          reason: '执行状态缺少恢复点，已暂停自动执行',
+        }),
+      },
+    })
+
+    expect(wrapper.find('.recovery-banner').exists()).toBe(true)
+    expect(wrapper.find('.primary-btn').exists()).toBe(false)
+    expect(wrapper.text()).toContain('当前无法自动继续')
+  })
+
   it('shows the stale-version guard by passing the current version on resume', async () => {
     const wrapper = mount(RecoveryBanner, {
       props: { state: state({ resumable: true, pendingReviewCount: 1, actions: [] }) },

@@ -95,7 +95,7 @@ public class AgentRecoveryService {
      * <p>不在这里直接执行，是因为执行要交给 {@code ImageAgent}；
      * 这里只做「能不能恢复」的判定，避免恢复入口和模型入口各自判断。
      */
-    public AgentRunState requireResumable(String threadId, Long userId, Long expectedVersion) {
+    public ResumeClaim requireResumable(String threadId, Long userId, Long expectedVersion) {
         sessionGuard.requireOwned(threadId, userId);
 
         AgentRunState state = runStateStore.loadResumable(threadId, userId)
@@ -107,16 +107,43 @@ public class AgentRecoveryService {
                         && !expectedVersion.equals(state.getStateVersion()),
                 ErrorCode.OPERATION_ERROR, "恢复请求已过期，请刷新会话状态后重试");
 
+        // 与其它入口同一道闸门，不在这里重复一遍判断逻辑
+        requireNoPendingReview(threadId, userId);
+
+        // 认领这次续跑：版本 + 租约，两个条件都满足才执行，并发的第二个请求在这里落败
+        String leaseToken = runStateStore.claimForResume(threadId, userId, state.getStateVersion())
+                .orElseThrow(() -> new BusinessException(ErrorCode.OPERATION_ERROR,
+                        "该会话正在被另一个请求继续执行，请刷新状态后重试"));
+
+        return new ResumeClaim(state, leaseToken);
+    }
+
+    /**
+     * 一次成功的续跑认领：状态快照 + 本次租约凭据。
+     *
+     * <p>租约必须在执行结束后释放，否则用户要等到租约到期才能再次续跑。
+     */
+    public record ResumeClaim(AgentRunState state, String leaseToken) {
+    }
+
+    /**
+     * 所有执行入口共用的暂停闸门：存在结果未知的动作时，任何入口都不得继续跑。
+     *
+     * <p>普通对话、流式对话、用户反馈、续跑都必须走这里。只在续跑入口判断是不够的：
+     * 用户完全可以再发一条消息让模型重新调用同一个工具，绕开暂停。
+     */
+    public void requireNoPendingReview(String threadId, Long userId) {
+        if (threadId == null || userId == null) {
+            return;
+        }
         int pending = actionLedger.countPendingReview(threadId, userId);
         ThrowUtils.throwIf(pending > 0, ErrorCode.OPERATION_ERROR,
                 "存在结果未知的外部动作，请先核对后再继续");
+    }
 
-        // 认领这次续跑：按版本推进，并发的第二个请求在这里落败，不会执行第二次
-        boolean claimed = runStateStore.claimForResume(threadId, userId, state.getStateVersion());
-        ThrowUtils.throwIf(!claimed, ErrorCode.OPERATION_ERROR,
-                "该会话正在被另一个请求继续执行，请刷新状态后重试");
-
-        return state;
+    /** 释放续跑租约：执行结束后调用，失败也不影响本次结果 */
+    public void releaseResumeLease(String threadId, Long userId, String leaseToken) {
+        runStateStore.releaseResumeLease(threadId, userId, leaseToken);
     }
 
     /**

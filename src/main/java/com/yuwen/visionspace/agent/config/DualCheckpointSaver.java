@@ -7,6 +7,7 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.RunStatus;
+import com.yuwen.visionspace.agent.recovery.StateSaveResult;
 import com.yuwen.visionspace.mapper.AgentSessionMapper;
 import com.yuwen.visionspace.model.dto.agent.LightweightCheckpoint;
 import com.yuwen.visionspace.model.dto.agent.SimpleMessage;
@@ -50,9 +51,6 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
     private final ObjectMapper objectMapper;
     private final RedissonClient redissonClient;
 
-    /** 本实例启动时间，参与版本号初值，避免两个实例从同一个很小的数字开始交错 */
-    private final long versionSeed = System.currentTimeMillis();
-
     @Autowired
     @Qualifier("agentAsyncExecutor")
     private Executor asyncExecutor;
@@ -61,19 +59,24 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
     private static final int BACKUP_EVERY_N_STEPS = 3;
     /** 按 threadId 分别的步骤计数器，支持多会话并发；释放会话时清理 */
     private final ConcurrentHashMap<String, AtomicInteger> stepCounters = new ConcurrentHashMap<>();
-    /** 按 threadId 分别的状态版本号，保证同一实例内的版本严格递增 */
+    /** 按 threadId 分别的状态版本号，只作为本地加速，真正的顺序由数据库决定 */
     private final ConcurrentHashMap<String, AtomicLong> versionCounters = new ConcurrentHashMap<>();
 
     /**
      * 取下一个状态版本。
      *
-     * <p>跨实例的先后由数据库 CAS 兜底：版本不够新的写入影响 0 行。
-     * 这里用启动时间参与初值，让两个实例各自生成的版本不会长期交错。
+     * <p><b>版本顺序必须与共享持久状态一致。</b>只用进程本地计数器时，一个启动更早的
+     * 实例接管另一个实例的会话后，本地计数一直小于库里的版本，写入会被 CAS 全部拒绝，
+     * 而执行照常继续——有效进度被静默丢弃。
+     *
+     * <p>因此每次都以库里读到的 {@code storedVersion} 为下界：本地计数器只用来在
+     * 同一毫秒内快速递增，永远不允许落后于持久状态。
      */
-    private long nextVersion(String threadId) {
-        long seed = versionSeed;
-        return versionCounters.computeIfAbsent(threadId, key -> new AtomicLong(seed))
-                .incrementAndGet();
+    private long nextVersion(String threadId, Long ownerUserId) {
+        long stored = runStateStore.currentVersion(threadId, ownerUserId);
+        AtomicLong counter = versionCounters.computeIfAbsent(threadId, key -> new AtomicLong(stored));
+        // updateAndGet 保证结果一定大于 stored：本地计数器只会领先，不会落后
+        return counter.updateAndGet(current -> Math.max(current, stored) + 1);
     }
 
     // ==================== 必须实现的 4 个方法 ====================
@@ -115,19 +118,37 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
         // 3. 完整状态：同步、版本化写入。恢复点必须可靠，不能等异步任务，
         //    否则「进程在 put 之后崩溃」就没有可续跑的完整状态。
         if (ownerUserId != null) {
-            long version = nextVersion(threadId);
-            boolean saved = runStateStore.saveFullState(threadId, ownerUserId, version, checkpoint,
-                    RunStatus.RUNNING, null);
-            if (!saved) {
-                log.debug("完整状态未写入（版本较旧或归属不符）, threadId={}, version={}",
-                        threadId, version);
-            }
+            saveWithVersionAlignment(threadId, ownerUserId, checkpoint);
         }
 
         // 4. 异步轻量备份到 MySQL（历史展示用，直接提交到线程池，绕过 Spring 代理问题）
         asyncExecutor.execute(() -> doBackupLightweight(threadId, ownerUserId, checkpoint));
 
         return result;
+    }
+
+    /**
+     * 写入完整状态，并在版本被别的实例抢先时对齐重试一次。
+     *
+     * <p>「被更新版本取代」与「备份失败」必须分开处理：前者说明本实例的版本号
+     * 落后于共享持久状态（跨实例接管后必然发生），对齐后重试就能把有效进度写进去；
+     * 后者才是真的写不进去，交给 {@link AgentRunStateStore} 记录 backupError。
+     */
+    private void saveWithVersionAlignment(String threadId, Long ownerUserId, Checkpoint checkpoint) {
+        StateSaveResult result = runStateStore.saveFullState(threadId, ownerUserId,
+                nextVersion(threadId, ownerUserId), checkpoint, RunStatus.RUNNING, null);
+        if (result == StateSaveResult.SUPERSEDED) {
+            // 对齐到共享版本后重试一次：不重试就等于静默丢掉这一步的进度
+            result = runStateStore.saveFullState(threadId, ownerUserId,
+                    nextVersion(threadId, ownerUserId), checkpoint, RunStatus.RUNNING, null);
+        }
+        if (result == StateSaveResult.FAILED) {
+            // 真写不进去不能只留 debug：备份失败已经记进 backupError，这里同步告警
+            log.warn("完整状态写入失败，已记录备份失败, threadId={}", threadId);
+        } else if (result == StateSaveResult.SUPERSEDED) {
+            // 对齐后仍被取代：说明这一版本来得更旧，进度确实被更新的一版覆盖
+            log.info("完整状态被更新版本取代，未覆盖较新的进度, threadId={}", threadId);
+        }
     }
 
     @Override
@@ -140,6 +161,9 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
      *
      * <p>除了框架侧的释放，还要清掉本会话的进程内运行计数与持久化状态载荷：
      * 否则每开一个新会话就永久留下一个计数器，长期运行会无界增长。
+     *
+     * <p>清掉本地版本计数器不会让版本回退：{@link #nextVersion} 每次都以数据库里的
+     * 版本为下界，重新播种时直接对齐持久状态。
      */
     @Override
     public BaseCheckpointSaver.Tag release(RunnableConfig config) throws Exception {

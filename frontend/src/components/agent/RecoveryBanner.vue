@@ -69,14 +69,23 @@ const emit = defineEmits<{
   (e: 'review', actionId: string, decision: 'confirm' | 'dismiss'): void
 }>()
 
-// 正常运行时不打扰用户；但「停在人工确认」必须让用户看到，否则
-// 状态是 resumable 的，横幅会被隐藏，待确认信息就永远不出现。
+// 横幅只在「用户需要做点什么」时出现：
+//   - 有结果未知的动作 → 必须核对；
+//   - 停在人工确认 → 必须确认；
+//   - 已中断但可续跑（PAUSED_UNRECOVERABLE / FAILED 等）→ 必须给续跑入口。
+// 只有「正在正常运行」才隐藏，避免每轮对话都打扰用户。
+// 关键点：resumable 不能直接隐藏横幅——中断后能续跑的状态恰恰是最需要
+// 「继续执行」按钮的时候；已完成则不给任何重放入口。
 const visible = computed(() => {
-  if (!props.state) return false
-  if (props.state.pendingReviewCount > 0) return true
-  if (props.state.runStatus === 'AWAITING_CONFIRMATION') return true
-  if (props.state.resumable) return false
-  return props.state.runStatus !== 'COMPLETED'
+  const state = props.state
+  if (!state) return false
+  if (state.runStatus === 'COMPLETED') return false
+  if (state.pendingReviewCount > 0) return true
+  if (state.runStatus === 'AWAITING_CONFIRMATION') return true
+  // 正常运行中（含刚建立、还没有状态推进）不打扰
+  if (state.runStatus === 'RUNNING' && state.resumable) return false
+  // 其余：中断、失败、不可恢复、可续跑——都需要用户看到并决定
+  return true
 })
 
 const tone = computed(() => {
@@ -104,6 +113,7 @@ const STATUS_LABELS: Record<string, string> = {
   SUCCEEDED: '已完成',
   FAILED: '明确失败',
   UNKNOWN_NEEDS_REVIEW: '结果未知',
+  DISMISSED: '已核对未执行',
 }
 
 const statusLabel = (status: string) => STATUS_LABELS[status] || status

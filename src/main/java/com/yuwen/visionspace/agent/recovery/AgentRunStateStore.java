@@ -6,14 +6,19 @@ import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.yuwen.visionspace.mapper.AgentRunStateMapper;
 import com.yuwen.visionspace.model.entity.AgentRunState;
 import com.yuwen.visionspace.utils.GzipUtils;
+import com.yuwen.visionspace.utils.JsonUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 /**
  * 完整执行状态的持久化与恢复。
@@ -36,6 +41,14 @@ public class AgentRunStateStore {
     private final AgentRunStateMapper runStateMapper;
     private final StateSerializer stateSerializer;
     private final GzipUtils gzipUtils;
+
+    /**
+     * 状态行还没创建时先记住本轮的 MCP 环境，等第一个检查点建行后补写。
+     *
+     * <p>没有这个缓冲，第一次执行（行还不存在）的 MCP 记录会静默丢失，
+     * 续跑时就变成「无法确认上次的工具环境」而只能拒绝。
+     */
+    private final Map<String, String> pendingMcpCodes = new ConcurrentHashMap<>();
 
     public AgentRunStateStore(AgentRunStateMapper runStateMapper,
                               StateSerializer stateSerializer,
@@ -73,17 +86,53 @@ public class AgentRunStateStore {
     }
 
     /**
+     * 读取共享持久状态里的当前版本号。
+     *
+     * <p>版本顺序必须以它为准：只靠进程本地计数器时，一个启动更早的实例接管
+     * 另一个实例的会话后，本地计数一直小于库里的版本，写入被 CAS 全部拒绝，
+     * 而执行却继续跑——进度被静默丢弃。
+     *
+     * @return 当前版本；没有状态行时返回 0
+     */
+    public long currentVersion(String threadId, Long userId) {
+        Long version = readVersion(threadId, userId);
+        return version == null ? 0L : version;
+    }
+
+    /**
+     * 读版本号，区分「没有行」（0）与「读不到」（null）。
+     *
+     * <p>两者不能混为一谈：读失败时把版本当成 0，就可能把一个落后的版本号
+     * 当成「被更新版本取代」而安静跳过，有效进度被静默丢弃。调用方必须
+     * 在 {@code null} 时按「写不进去」处理，而不是按「被取代」处理。
+     */
+    private Long readVersion(String threadId, Long userId) {
+        if (threadId == null || userId == null) {
+            return 0L;
+        }
+        try {
+            Long version = runStateMapper.selectVersion(threadId, userId);
+            return version == null ? 0L : version;
+        } catch (Exception e) {
+            log.warn("读取执行状态版本失败, threadId={}", threadId);
+            return null;
+        }
+    }
+
+    /**
      * 把 Checkpoint 保存为完整状态。
      *
-     * <p>{@code stateVersion} 必须由调用方按单调顺序给出；写入是 CAS，旧版本影响 0 行。
+     * <p>{@code stateVersion} 必须由调用方按共享持久状态给出（见
+     * {@link #currentVersion}）；写入是 CAS，旧版本影响 0 行。
      *
-     * @return true 表示本次写入生效
+     * <p>返回三态而不是布尔：只有「版本被更新状态取代」可以安静跳过，
+     * 真正的写入失败必须留痕，不能让有效进度被静默丢弃。
      */
-    public boolean saveFullState(String threadId, Long userId, long stateVersion,
-                                 Checkpoint checkpoint, String runStatus,
-                                 String pendingConfirmation) {
+    public StateSaveResult saveFullState(String threadId, Long userId, long stateVersion,
+                                         Checkpoint checkpoint, String runStatus,
+                                         String pendingConfirmation) {
         if (threadId == null || userId == null || checkpoint == null) {
-            return false;
+            return StateSaveResult.FAILED;
         }
         try {
             // 首次执行时状态行还不存在，下面的 UPDATE 会静默影响 0 行。
@@ -94,15 +143,27 @@ public class AgentRunStateStore {
             int updated = runStateMapper.updateIfNewer(threadId, userId, stateVersion,
                     AgentStateFormat.V2_FULL.code(), checkpoint.getId(), checkpoint.getNodeId(),
                     checkpoint.getNextNodeId(), payload, runStatus, pendingConfirmation);
-            if (updated == 0) {
-                // 版本不够新（旧备份晚到）或归属不符：都不是错误，是保护
-                log.debug("执行状态未写入（版本较旧或归属不符）, threadId={}, version={}",
-                        threadId, stateVersion);
+            if (updated == 1) {
+                flushPendingMcpCodes(threadId, userId);
+                return StateSaveResult.SAVED;
             }
-            return updated == 1;
+            // 0 行有两种原因，必须分清：版本已被别的写入推进，还是根本写不进去。
+            // 读不到版本时无法判断是不是被取代，一律按「写不进去」留痕，
+            // 否则一次读失败就会被当成「被更新版本取代」，进度静默消失。
+            Long stored = readVersion(threadId, userId);
+            if (stored != null && stored >= stateVersion) {
+                log.info("执行状态被更新版本取代, threadId={}, offered={}, stored={}",
+                        threadId, stateVersion, stored);
+                return StateSaveResult.SUPERSEDED;
+            }
+            log.warn("执行状态未写入且版本未推进，按备份失败处理, threadId={}, version={}",
+                    threadId, stateVersion);
+            recordBackupFailure(threadId, userId,
+                    new IllegalStateException("state row not writable"));
+            return StateSaveResult.FAILED;
         } catch (Exception e) {
             recordBackupFailure(threadId, userId, e);
-            return false;
+            return StateSaveResult.FAILED;
         }
     }
 
@@ -122,6 +183,81 @@ public class AgentRunStateStore {
         }
     }
 
+    /**
+     * 记录本次执行用到的 MCP 服务 code。
+     *
+     * <p>只存 code：续跑时按 code 用当前用户重新授权并重建 Agent。凭据、地址和
+     * 回调对象一律不落库，撤销或停用之后旧 Checkpoint 也续不上。
+     *
+     * <p><b>「没有 MCP」要写成 {@code []}，不能写成 NULL。</b>NULL 保留给
+     * 「根本没记录过」（旧版本写的状态、或记录失败）：续跑时这两种情况必须
+     * 分开处理——前者可以用内置工具继续，后者无法确认上次用了哪些工具，
+     * 只能拒绝续跑，否则会在少了工具的情况下继续跑，等于绕过用户的撤销决定。
+     */
+    public void recordMcpServerCodes(String threadId, Long userId, List<String> serverCodes) {
+        if (threadId == null || userId == null) {
+            return;
+        }
+        try {
+            String json = JsonUtils.toJson(serverCodes == null ? List.of() : serverCodes);
+            // 不在这里建行：状态行只在第一个检查点落库时创建。提前建行会让一个
+            // 还没有任何恢复点的正常执行在界面上显示成「不可恢复」，而它其实
+            // 只是刚开始跑。行不存在时影响 0 行，记录会随第一个检查点补写
+            // （见 saveFullState）。
+            int updated = runStateMapper.updateMcpServerCodes(threadId, userId, json);
+            if (updated == 0) {
+                // 状态行还没建：先记下来，第一个检查点建行后补写
+                pendingMcpCodes.put(pendingKey(threadId, userId), json);
+            }
+        } catch (Exception e) {
+            // 记录失败不影响本次执行；但列保持 NULL，续跑时会被判成「没有记录」
+            // 而拒绝，而不是当作「没有用 MCP」继续跑
+            log.warn("记录 MCP 服务列表失败, threadId={}", threadId);
+        }
+    }
+
+    /** 状态行建好后补写本轮缓冲的 MCP 记录 */
+    private void flushPendingMcpCodes(String threadId, Long userId) {
+        String key = pendingKey(threadId, userId);
+        String json = pendingMcpCodes.remove(key);
+        if (json == null) {
+            return;
+        }
+        try {
+            runStateMapper.updateMcpServerCodes(threadId, userId, json);
+        } catch (Exception e) {
+            // 补写失败与首次记录失败同等处理：列保持 NULL，续跑时拒绝而不是猜
+            log.warn("补写 MCP 服务列表失败, threadId={}", threadId);
+        }
+    }
+
+    private String pendingKey(String threadId, Long userId) {
+        return threadId + "|" + userId;
+    }
+
+    /**
+     * 读取上次执行用到的 MCP 服务 code。
+     *
+     * <p>返回空 {@link Optional} 表示<b>没有记录</b>（列为 NULL 或无法解析），
+     * 与「记录了但没有用 MCP」（空列表）是两回事：前者无法确认上次的工具环境，
+     * 续跑时必须拒绝；后者可以安全地用内置工具继续。
+     */
+    public Optional<List<String>> recordedMcpServerCodes(AgentRunState state) {
+        if (state == null || state.getMcpServerCodes() == null
+                || state.getMcpServerCodes().isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            List<String> codes = JsonUtils.fromJson(state.getMcpServerCodes(),
+                    new TypeReference<List<String>>() {
+                    });
+            return Optional.of(codes == null ? List.of() : codes);
+        } catch (Exception e) {
+            log.warn("MCP 服务列表无法解析, threadId={}", state.getThreadId());
+            return Optional.empty();
+        }
+    }
+
     public void updateStatus(String threadId, Long userId, String runStatus, String pendingConfirmation) {
         if (threadId == null || userId == null) {
             return;
@@ -130,21 +266,49 @@ public class AgentRunStateStore {
     }
 
     /**
-     * 认领一次续跑：只有当前版本仍等于调用方看到的版本时才能推进。
-     *
-     * <p>重复或并发的续跑请求带同一个版本，只有一个能成功；失败方拿到
-     * {@code false} 并被告知「请求已过期」，不会产生第二次执行。
+     * 续跑租约时长。只用于回收崩溃遗留的租约，不用于证明动作安全。
      */
-    public boolean claimForResume(String threadId, Long userId, long expectedVersion) {
+    private static final int RESUME_LEASE_SECONDS = 300;
+
+    /**
+     * 认领一次续跑。
+     *
+     * <p>两条约束缺一不可：
+     * <ol>
+     *   <li>版本仍是调用方看到的那个——挡住过期请求；</li>
+     *   <li>没有别的请求持有有效租约——挡住「刷新版本后再次认领」。</li>
+     * </ol>
+     * 只看版本是不够的：第一个请求推进版本后，第二个请求刷新一下就能拿到新版本，
+     * 于是同一次续跑被执行两次。
+     *
+     * @return 认领成功时返回租约凭据，失败返回空
+     */
+    public Optional<String> claimForResume(String threadId, Long userId, long expectedVersion) {
         if (threadId == null || userId == null) {
-            return false;
+            return Optional.empty();
         }
-        return runStateMapper.claimForResume(threadId, userId, expectedVersion,
-                RunStatus.RUNNING) == 1;
+        String leaseToken = UUID.randomUUID().toString();
+        boolean claimed = runStateMapper.claimForResume(threadId, userId, expectedVersion,
+                RunStatus.RUNNING, leaseToken, RESUME_LEASE_SECONDS) == 1;
+        return claimed ? Optional.of(leaseToken) : Optional.empty();
+    }
+
+    /** 释放续跑租约；只释放自己持有的那一份 */
+    public void releaseResumeLease(String threadId, Long userId, String leaseToken) {
+        if (threadId == null || userId == null || leaseToken == null) {
+            return;
+        }
+        try {
+            runStateMapper.releaseResumeLease(threadId, userId, leaseToken);
+        } catch (Exception e) {
+            // 释放失败只是让租约到期后自然失效，不影响本次结果
+            log.warn("释放续跑租约失败, threadId={}", threadId);
+        }
     }
 
     /** 释放会话：清理载荷与待确认信息 */
     public void clearForRelease(String threadId, Long userId) {
+        pendingMcpCodes.remove(pendingKey(threadId, userId));
         runStateMapper.clearForRelease(threadId, userId, RunStatus.COMPLETED);
     }
 

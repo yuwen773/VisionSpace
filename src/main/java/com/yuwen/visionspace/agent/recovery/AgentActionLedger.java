@@ -12,20 +12,27 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 外部动作台账：让「这个动作到底做没做」可以核对，而不是靠重放去猜。
  *
  * <p>状态机（只允许这些推进）：
  * <pre>
- *   (无) --register--> EXECUTING
+ *   (无) --认领--> EXECUTING
  *   EXECUTING --成功--> SUCCEEDED
  *   EXECUTING --明确失败--> FAILED
  *   EXECUTING --结果未知且不能安全重试--> UNKNOWN_NEEDS_REVIEW
  *   EXECUTING --结果未知但可证明幂等--> FAILED（允许安全重试）
  *   UNKNOWN_NEEDS_REVIEW --人工确认已发生--> SUCCEEDED
- *   UNKNOWN_NEEDS_REVIEW --人工确认未发生--> FAILED
+ *   UNKNOWN_NEEDS_REVIEW --人工确认未发生--> DISMISSED
+ *   FAILED --重新认领--> EXECUTING
  * </pre>
+ *
+ * <p><b>执行互斥靠原子认领，不靠等待时间。</b>{@link #claim} 用一条
+ * {@code INSERT ... ON DUPLICATE KEY UPDATE} 完成「判定 + 占用」，只有尚不存在
+ * 或已明确失败的动作能被认领；执行中、待核对、已完成一律影响 0 行。
+ * 认领成功会拿到 {@code claimToken}，后续推进状态必须带同一个 token。
  *
  * <p>{@code SUCCEEDED} 是终态，任何后续写入都不会把它打回可执行状态，
  * 因此已确认完成的动作不会被重放。
@@ -67,33 +74,80 @@ public class AgentActionLedger {
     }
 
     /**
-     * 登记动作开始。已存在的动作不会被重置，因此「已确认完成」不会被打回执行中。
+     * 原子认领一个动作。
      *
-     * @return true 表示可以执行；false 表示该动作已经是终态，必须跳过
+     * <p>返回的 {@link AgentActionClaim.Outcome} 必须被分别处理：
+     * 只有 {@code ALREADY_SUCCEEDED} 能报告「已完成」，其余都要暂停或拒绝。
+     *
+     * <p>台账本身不可用时返回 {@code UNAVAILABLE}：这时什么都证明不了，
+     * 既不能放行外部执行，也不能声称动作已完成。
      */
-    public boolean begin(String threadId, Long userId, String actionId, String toolName,
-                         String arguments, String idempotency) {
-        mapper.insertIfAbsent(threadId, userId, actionId, toolName, argumentsDigest(arguments),
-                AgentActionRecord.STATUS_EXECUTING,
-                idempotency == null ? AgentActionRecord.IDEMPOTENCY_NOT_PROVEN : idempotency);
-        AgentActionRecord record = mapper.selectOne(threadId, userId, actionId);
-        if (record == null) {
-            return true;
+    public AgentActionClaim claim(String threadId, Long userId, String actionId, String toolName,
+                                  String arguments, String idempotency) {
+        String token = UUID.randomUUID().toString();
+        String normalizedIdempotency = idempotency == null
+                ? AgentActionRecord.IDEMPOTENCY_NOT_PROVEN : idempotency;
+        try {
+            mapper.claim(threadId, userId, actionId, toolName,
+                    argumentsDigest(arguments), normalizedIdempotency, token);
+        } catch (Exception e) {
+            log.warn("动作认领失败，台账不可用, tool={}", toolName);
+            return AgentActionClaim.notAcquired(AgentActionClaim.Outcome.UNAVAILABLE,
+                    threadId, userId, actionId);
         }
-        // 只有「未完成」的动作可以继续执行；已确认完成的不重放
-        return AgentActionRecord.STATUS_EXECUTING.equals(record.getStatus())
-                || AgentActionRecord.STATUS_FAILED.equals(record.getStatus());
+
+        // 不能用「影响行数」判断是否抢到：MySQL Connector/J 默认按匹配行数返回，
+        // 「命中但值没变」也会是非零，四个并发认领会全部以为自己是赢家
+        // （真实 MySQL 验收用例 concurrentClaimsOnRealMySqlLetOnlyOneOwnerIn 复现过）。
+        // 唯一可靠的证据是读回的 claimToken 是不是本次生成的。
+        AgentActionRecord record;
+        try {
+            record = mapper.selectForClaim(threadId, userId, actionId);
+        } catch (Exception e) {
+            log.warn("动作状态读取失败，台账不可用, tool={}", toolName);
+            return AgentActionClaim.notAcquired(AgentActionClaim.Outcome.UNAVAILABLE,
+                    threadId, userId, actionId);
+        }
+        if (record == null) {
+            // 认领没生效却读不到行：无法判断，按不可用处理
+            return AgentActionClaim.notAcquired(AgentActionClaim.Outcome.UNAVAILABLE,
+                    threadId, userId, actionId);
+        }
+        if (AgentActionRecord.STATUS_EXECUTING.equals(record.getStatus())
+                && token.equals(record.getClaimToken())) {
+            return AgentActionClaim.acquired(threadId, userId, actionId, token);
+        }
+        // 没抢到：按真实状态区分「已完成 / 执行中 / 待核对 / 已放弃」，不一律当成已完成
+        return AgentActionClaim.notAcquired(outcomeOf(record.getStatus()),
+                threadId, userId, actionId);
     }
 
-    public void markSucceeded(String threadId, Long userId, String actionId, String resultSummary) {
-        mapper.settle(threadId, userId, actionId, AgentActionRecord.STATUS_SUCCEEDED,
-                truncate(resultSummary));
+    private AgentActionClaim.Outcome outcomeOf(String status) {
+        if (AgentActionRecord.STATUS_SUCCEEDED.equals(status)) {
+            return AgentActionClaim.Outcome.ALREADY_SUCCEEDED;
+        }
+        if (AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW.equals(status)) {
+            return AgentActionClaim.Outcome.NEEDS_REVIEW;
+        }
+        if (AgentActionRecord.STATUS_DISMISSED.equals(status)) {
+            return AgentActionClaim.Outcome.DISMISSED;
+        }
+        if (AgentActionRecord.STATUS_EXECUTING.equals(status)) {
+            return AgentActionClaim.Outcome.IN_FLIGHT;
+        }
+        // FAILED 本应被上面的 claim 重新认领成功；走到这里说明存在并发，
+        // 另一次调用刚刚改了状态，按「执行中」处理更保守
+        return AgentActionClaim.Outcome.IN_FLIGHT;
+    }
+
+    /** 由认领者标记成功；token 不符时返回 false，不会把别人的结果覆盖掉 */
+    public boolean markSucceeded(AgentActionClaim claim, String resultSummary) {
+        return settle(claim, AgentActionRecord.STATUS_SUCCEEDED, resultSummary);
     }
 
     /** 明确失败：外部没有成功，可以安全重试 */
-    public void markFailed(String threadId, Long userId, String actionId, String resultSummary) {
-        mapper.settle(threadId, userId, actionId, AgentActionRecord.STATUS_FAILED,
-                truncate(resultSummary));
+    public boolean markFailed(AgentActionClaim claim, String resultSummary) {
+        return settle(claim, AgentActionRecord.STATUS_FAILED, resultSummary);
     }
 
     /**
@@ -103,15 +157,28 @@ public class AgentActionLedger {
      * 否则进入待核对，暂停自动执行。这是本工单对「恰好一次」的替代方案：
      * 不做通用承诺，只保证不会盲目重放。
      */
-    public void markUnknown(String threadId, Long userId, String actionId,
-                            boolean idempotencyProven, String resultSummary) {
+    public boolean markUnknown(AgentActionClaim claim, boolean idempotencyProven,
+                               String resultSummary) {
         String status = idempotencyProven
                 ? AgentActionRecord.STATUS_FAILED
                 : AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW;
-        mapper.settle(threadId, userId, actionId, status, truncate(resultSummary));
+        boolean settled = settle(claim, status, resultSummary);
         if (!idempotencyProven) {
-            log.warn("外部动作结果未知且不能安全重试，进入待核对, actionId={}", actionId);
+            log.warn("外部动作结果未知且不能安全重试，进入待核对, actionId={}",
+                    claim == null ? null : claim.actionId());
         }
+        return settled;
+    }
+
+    private boolean settle(AgentActionClaim claim, String status, String resultSummary) {
+        if (claim == null || claim.token() == null) {
+            // 没有认领凭据就不能推进状态：否则任何调用方都能伪造完成
+            log.warn("缺少认领凭据，拒绝推进动作状态, actionId={}",
+                    claim == null ? null : claim.actionId());
+            return false;
+        }
+        return mapper.settleClaimed(claim.threadId(), claim.userId(), claim.actionId(),
+                claim.token(), status, truncate(resultSummary)) == 1;
     }
 
     /** 人工核对：确认外部已发生 */
@@ -131,39 +198,24 @@ public class AgentActionLedger {
      * 这正是「外部完成、本地结果未提交」的故障窗口：不能把它当成没发生而重放。
      * 可证明幂等的动作退回 {@code FAILED} 走安全重试，其余进入待核对。
      *
-     * <p><b>只收敛陈旧的记录。</b>同一会话被另一个实例或并发请求正常执行时，
-     * 它的 {@code EXECUTING} 是「正在进行」，不是「上次遗留」。用更新时间的
-     * 宽限期区分两者：宽限期内的记录一律不动，否则会把正在执行的动作
-     * 判成中断，进而让另一次执行重放它。
+     * <p><b>宽限期只用于判断「还活着吗」，不用于判断「安不安全」。</b>执行互斥由
+     * {@link #claim} 保证：即便这里不收敛，执行中的动作也不会被再次认领。宽限期
+     * 只决定何时把一条没人再推进的记录改判，避免把另一个实例正在跑的动作提前
+     * 标成待核对。
      *
      * @param staleBefore 只有最后更新早于此时刻的 {@code EXECUTING} 才视为遗留
      * @return 收敛的动作数
      */
     public int reconcileStaleExecuting(String threadId, Long userId, Instant staleBefore) {
-        int reconciled = 0;
-        for (AgentActionRecord record : mapper.selectByThread(threadId, userId)) {
-            if (!AgentActionRecord.STATUS_EXECUTING.equals(record.getStatus())) {
-                continue;
-            }
-            if (!isStale(record, staleBefore)) {
-                continue;
-            }
-            boolean proven = AgentActionRecord.IDEMPOTENCY_PROVEN.equals(record.getIdempotency());
-            String status = proven
-                    ? AgentActionRecord.STATUS_FAILED
-                    : AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW;
-            if (mapper.settle(threadId, userId, record.getActionId(), status,
-                    "上次执行中断，结果未确认") == 1) {
-                reconciled++;
-            }
+        if (staleBefore == null) {
+            throw new IllegalArgumentException("缺少陈旧判定时间，无法收敛中断的动作");
+        }
+        int reconciled = mapper.reconcileStaleExecuting(threadId, userId,
+                Date.from(staleBefore), "上次执行中断，结果未确认");
+        if (reconciled > 0) {
+            log.warn("收敛了 {} 个中断的外部动作，需核对是否已产生副作用", reconciled);
         }
         return reconciled;
-    }
-
-    /** 更新时间为空时按陈旧处理：宁可让用户核对，也不当成「正在执行」而卡死 */
-    private boolean isStale(AgentActionRecord record, Instant staleBefore) {
-        Date updated = record.getUpdateTime();
-        return updated == null || !updated.toInstant().isAfter(staleBefore);
     }
 
     public List<AgentActionRecord> list(String threadId, Long userId) {

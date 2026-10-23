@@ -18,12 +18,14 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,15 +51,20 @@ class AgentRunStateStoreTest {
 
     @Test
     void saveFullStateUsesVersionCasSoLateOldBackupIsIgnored() {
-        // 旧备份晚到：CAS 影响 0 行
+        // 旧备份晚到：CAS 影响 0 行，库里的版本比它新
         when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
                 any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(20L);
 
-        boolean saved = store.saveFullState("t1", OWNER, 5L, checkpoint(), RunStatus.RUNNING, null);
+        StateSaveResult result = store.saveFullState("t1", OWNER, 5L, checkpoint(),
+                RunStatus.RUNNING, null);
 
-        assertFalse(saved, "older version must not overwrite newer state");
+        assertEquals(StateSaveResult.SUPERSEDED, result,
+                "older version must not overwrite newer state, and must be reported as superseded");
         verify(mapper).updateIfNewer(eq("t1"), eq(OWNER), eq(5L), anyString(), any(), any(),
                 any(), any(), eq(RunStatus.RUNNING), any());
+        // 被更新版本取代不是故障：不该写 backupError
+        verify(mapper, never()).recordBackupFailure(anyString(), any(), anyString());
     }
 
     @Test
@@ -65,7 +72,20 @@ class AgentRunStateStoreTest {
         when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
                 any(), any(), anyString(), any())).thenReturn(1);
 
-        assertTrue(store.saveFullState("t1", OWNER, 9L, checkpoint(), RunStatus.RUNNING, null));
+        assertEquals(StateSaveResult.SAVED,
+                store.saveFullState("t1", OWNER, 9L, checkpoint(), RunStatus.RUNNING, null));
+    }
+
+    @Test
+    void unwritableRowIsReportedAsFailureNotAsSuperseded() {
+        // 影响 0 行但库里版本并没有推进：这是真的写不进去，不能当成「旧备份」放过
+        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(2L);
+
+        assertEquals(StateSaveResult.FAILED,
+                store.saveFullState("t1", OWNER, 3L, checkpoint(), RunStatus.RUNNING, null));
+        verify(mapper).recordBackupFailure(eq("t1"), eq(OWNER), anyString());
     }
 
     @Test
@@ -74,10 +94,105 @@ class AgentRunStateStoreTest {
                 any(), any(), anyString(), any()))
                 .thenThrow(new IllegalStateException("disk full"));
 
-        boolean saved = store.saveFullState("t1", OWNER, 3L, checkpoint(), RunStatus.RUNNING, null);
-
-        assertFalse(saved);
+        assertEquals(StateSaveResult.FAILED,
+                store.saveFullState("t1", OWNER, 3L, checkpoint(), RunStatus.RUNNING, null));
         // 失败必须可见且可重试，不能静默吞掉
+        verify(mapper).recordBackupFailure(eq("t1"), eq(OWNER), anyString());
+    }
+
+    @Test
+    void mcpServerCodesArePersistedAsCodesOnlyWithoutCreatingTheRowEarly() {
+        store.recordMcpServerCodes("t1", OWNER, List.of("remote-a", "remote-b"));
+
+        // 不在这里建行：状态行只由第一个检查点创建，提前建行会让刚开始的执行
+        // 显示成「不可恢复」
+        verify(mapper, never()).insertIfAbsent(eq("t1"), eq(OWNER), anyString(), anyString());
+        var captor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(mapper).updateMcpServerCodes(eq("t1"), eq(OWNER), captor.capture());
+        assertEquals("[\"remote-a\",\"remote-b\"]", captor.getValue(),
+                "only server codes are persisted: " + captor.getValue());
+        assertFalse(captor.getValue().contains("apiKey"),
+                "credentials and addresses must never be part of the recovery config");
+    }
+
+    @Test
+    void mcpCodesRecordedBeforeTheRowExistsAreFlushedWithTheFirstCheckpoint() {
+        // 第一次执行：状态行还不存在，记录先缓冲
+        when(mapper.updateMcpServerCodes(eq("t1"), eq(OWNER), anyString())).thenReturn(0);
+        store.recordMcpServerCodes("t1", OWNER, List.of("remote-a"));
+
+        // 第一个检查点建行成功后补写，否则续跑会以为「没有记录」
+        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any())).thenReturn(1);
+        when(mapper.updateMcpServerCodes(eq("t1"), eq(OWNER), eq("[\"remote-a\"]"))).thenReturn(1);
+
+        store.saveFullState("t1", OWNER, 1L, checkpoint(), RunStatus.RUNNING, null);
+
+        verify(mapper, times(2)).updateMcpServerCodes("t1", OWNER, "[\"remote-a\"]");
+    }
+
+    @Test
+    void emptyMcpServerCodesAreRecordedAsAnEmptyListNotAsMissing() {
+        store.recordMcpServerCodes("t1", OWNER, List.of());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(mapper).updateMcpServerCodes(eq("t1"), eq(OWNER), captor.capture());
+        // 「记录了但没有用 MCP」必须能与「根本没有记录」区分：前者可以安全续跑，
+        // 后者无法确认上次的工具环境，只能拒绝
+        assertEquals("[]", captor.getValue(),
+                "a run without MCP must be recorded, not left as an unknown environment");
+    }
+
+    @Test
+    void recordedMcpServerCodesRoundTripAndUnparsableValuesAreNotGuessed() {
+        AgentRunState state = state(AgentStateFormat.V2_FULL.code(), "next", new byte[]{1});
+        state.setMcpServerCodes("[\"remote-a\"]");
+        assertEquals(List.of("remote-a"), store.recordedMcpServerCodes(state).orElseThrow());
+
+        state.setMcpServerCodes("[]");
+        assertEquals(List.of(), store.recordedMcpServerCodes(state).orElseThrow(),
+                "an explicit empty list means the run used no MCP");
+
+        state.setMcpServerCodes("not-json");
+        assertTrue(store.recordedMcpServerCodes(state).isEmpty(),
+                "an unreadable environment must not be guessed");
+
+        state.setMcpServerCodes(null);
+        assertTrue(store.recordedMcpServerCodes(state).isEmpty(),
+                "a state written before this column existed has no recorded environment");
+    }
+
+    @Test
+    void currentVersionComesFromTheSharedStateNotLocalCounters() {
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(41L);
+
+        assertEquals(41L, store.currentVersion("t1", OWNER),
+                "version ordering must follow the shared persistent state");
+    }
+
+    @Test
+    void currentVersionFallsBackToZeroWhenTheRowIsMissingOrUnreadable() {
+        when(mapper.selectVersion("t1", OWNER)).thenReturn(null);
+        assertEquals(0L, store.currentVersion("t1", OWNER));
+
+        when(mapper.selectVersion("t2", OWNER)).thenThrow(new IllegalStateException("db down"));
+        assertEquals(0L, store.currentVersion("t2", OWNER),
+                "an unreadable version must not break the execution");
+    }
+
+    @Test
+    void unwritableRowWithUnreadableVersionIsAFailureNotASupersede() {
+        // 写入影响 0 行，且版本读不到：无法证明「被更新版本取代」，
+        // 只能按真正的写入失败处理，否则这一版进度会静默消失
+        when(mapper.updateIfNewer(anyString(), anyLong(), anyLong(), anyString(), any(), any(),
+                any(), any(), anyString(), any())).thenReturn(0);
+        when(mapper.selectVersion("t1", OWNER)).thenThrow(new IllegalStateException("db down"));
+
+        StateSaveResult result = store.saveFullState("t1", OWNER, 5L,
+                checkpoint(), RunStatus.RUNNING, null);
+
+        assertEquals(StateSaveResult.FAILED, result,
+                "an unreadable version proves nothing, so the write must be reported as failed");
         verify(mapper).recordBackupFailure(eq("t1"), eq(OWNER), anyString());
     }
 
@@ -180,7 +295,8 @@ class AgentRunStateStoreTest {
 
     @Test
     void saveWithoutOwnerIsRejectedBeforeTouchingStorage() {
-        assertFalse(store.saveFullState("t1", null, 1L, checkpoint(), RunStatus.RUNNING, null));
+        assertEquals(StateSaveResult.FAILED,
+                store.saveFullState("t1", null, 1L, checkpoint(), RunStatus.RUNNING, null));
         verify(mapper, never()).updateIfNewer(anyString(), any(), anyLong(), anyString(), any(),
                 any(), any(), any(), anyString(), any());
     }
