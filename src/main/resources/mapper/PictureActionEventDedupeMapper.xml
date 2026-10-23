@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.PictureActionEventDedupeMapper">
+
+    <!--
+      登记一次事件受理。事件幂等键是主键，键冲突时抛唯一约束异常：
+      调用方据此判定为同一事件重放，不再写事件载荷，也就不会二次入账。
+      核对与盘点走只读维护清单（sql/migrations/…-maintenance.sql），不在这里另开查询口。
+    -->
+    <insert id="insertEvidence">
+        INSERT INTO picture_action_event_dedupe (eventId, createdTime)
+        VALUES (#{eventId}, NOW())
+    </insert>
+
+</mapper>

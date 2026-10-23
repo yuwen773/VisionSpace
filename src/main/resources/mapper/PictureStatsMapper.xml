@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.PictureStatsMapper">
+
+    <!--
+      按图片关联键原子累加统计。
+      唯一键是 pictureId：已有统计行在原值上累加，不会被当成新增行，
+      也不会因为按主键误判而撞唯一约束或覆盖别的图片的统计。
+      ctr 在计数更新之后按新的曝光与点击重算：新增行与更新行用同一套语义，
+      首批事件落库时就得到正确的点击率，不必等下一批再来修正。
+      零曝光或零点击时 ctr 为 0，空值按 0 参与计算。
+    -->
+    <insert id="upsertIncrement">
+        INSERT INTO picture_stats (pictureId, viewCount, likeCount, collectCount, downloadCount,
+                                   shareCount, impressionCount, clickCount, ctr, createTime, updateTime)
+        VALUES (#{stats.pictureId},
+                COALESCE(#{stats.viewCount}, 0),
+                COALESCE(#{stats.likeCount}, 0),
+                COALESCE(#{stats.collectCount}, 0),
+                COALESCE(#{stats.downloadCount}, 0),
+                COALESCE(#{stats.shareCount}, 0),
+                COALESCE(#{stats.impressionCount}, 0),
+                COALESCE(#{stats.clickCount}, 0),
+                CASE WHEN COALESCE(#{stats.impressionCount}, 0) > 0
+                     THEN COALESCE(#{stats.clickCount}, 0) / COALESCE(#{stats.impressionCount}, 0)
+                     ELSE 0.000000 END,
+                NOW(),
+                NOW())
+        ON DUPLICATE KEY UPDATE
+            viewCount = viewCount + COALESCE(#{stats.viewCount}, 0),
+            likeCount = likeCount + COALESCE(#{stats.likeCount}, 0),
+            collectCount = collectCount + COALESCE(#{stats.collectCount}, 0),
+            downloadCount = downloadCount + COALESCE(#{stats.downloadCount}, 0),
+            shareCount = shareCount + COALESCE(#{stats.shareCount}, 0),
+            impressionCount = impressionCount + COALESCE(#{stats.impressionCount}, 0),
+            clickCount = clickCount + COALESCE(#{stats.clickCount}, 0),
+            ctr = CASE WHEN impressionCount > 0 THEN clickCount / impressionCount ELSE 0.000000 END,
+            updateTime = NOW()
+    </insert>
+
+</mapper>

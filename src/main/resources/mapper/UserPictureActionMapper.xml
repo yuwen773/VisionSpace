@@ -2,53 +2,79 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.yuwen.visionspace.mapper.UserPictureActionMapper">
 
-    <!-- 按图片ID分组统计各行为数量 -->
-    <select id="aggregateByPictureId" resultType="com.yuwen.visionspace.model.dto.PictureActionStatsDTO">
-        SELECT
-            pictureId AS pictureId,
-            SUM(CASE WHEN actionType = 0 THEN actionValue ELSE 0 END) AS impressionCount,
-            SUM(CASE WHEN actionType = 1 THEN actionValue ELSE 0 END) AS clickCount,
-            SUM(CASE WHEN actionType = 2 THEN actionValue ELSE 0 END) AS viewCount,
-            SUM(CASE WHEN actionType = 3 THEN actionValue ELSE 0 END) AS likeCount,
-            SUM(CASE WHEN actionType = 4 THEN actionValue ELSE 0 END) AS collectCount,
-            SUM(CASE WHEN actionType = 5 THEN actionValue ELSE 0 END) AS downloadCount,
-            SUM(CASE WHEN actionType = 6 THEN actionValue ELSE 0 END) AS shareCount
-        FROM user_picture_action
-        GROUP BY pictureId
-    </select>
-
-    <!-- 查询有行为记录的图片ID列表（用于增量更新） -->
-    <select id="selectPictureIdsWithActions" resultType="java.lang.Long">
-        SELECT DISTINCT pictureId FROM user_picture_action
-    </select>
-
-    <!-- 增量查询待聚合的 action 记录（未处理的） -->
-    <select id="selectStatsByTimeRange" resultType="com.yuwen.visionspace.model.dto.PictureActionStatsDTO">
-        SELECT
-            pictureId AS pictureId,
-            SUM(CASE WHEN actionType = 0 THEN actionValue ELSE 0 END) AS impressionCount,
-            SUM(CASE WHEN actionType = 1 THEN actionValue ELSE 0 END) AS clickCount,
-            SUM(CASE WHEN actionType = 2 THEN actionValue ELSE 0 END) AS viewCount,
-            SUM(CASE WHEN actionType = 3 THEN actionValue ELSE 0 END) AS likeCount,
-            SUM(CASE WHEN actionType = 4 THEN actionValue ELSE 0 END) AS collectCount,
-            SUM(CASE WHEN actionType = 5 THEN actionValue ELSE 0 END) AS downloadCount,
-            SUM(CASE WHEN actionType = 6 THEN actionValue ELSE 0 END) AS shareCount
-        FROM user_picture_action
-        WHERE isProcessed = 0 AND createdTime BETWEEN #{startTime} AND #{endTime}
-        GROUP BY pictureId
-    </select>
-
-    <!-- 标记指定时间范围内的 action 为已处理 -->
-    <update id="markAsProcessed">
-        UPDATE user_picture_action
-        SET isProcessed = 1
-        WHERE isProcessed = 0 AND createdTime BETWEEN #{startTime} AND #{endTime}
+    <!--
+      领取待处理事件。
+      只领取未完成、未计入、且没有有效租约的事件；租约到期的行可以被重新领取，
+      因此领取阶段崩溃后事件不会永久卡住。目标图片已不存在的事件不在这里领取，
+      它们留在待处理状态里作为冲突可见。
+    -->
+    <update id="claimPendingEvents">
+        UPDATE user_picture_action a
+        SET claimToken = #{claimToken},
+            claimedAt = #{claimedAt},
+            claimExpireAt = #{claimExpireAt},
+            attemptCount = attemptCount + 1
+        WHERE a.isProcessed = 0
+          AND a.isAccumulated = 0
+          AND (a.claimToken IS NULL OR a.claimExpireAt IS NULL OR a.claimExpireAt &lt;= #{claimedAt})
+          AND EXISTS (SELECT 1 FROM picture p WHERE p.id = a.pictureId AND p.isDelete = 0)
+        ORDER BY a.id
+        LIMIT #{limit}
     </update>
 
-    <!-- 删除指定时间之前的 action 数据（清理7天前） -->
+    <!-- 取出本次领取到、尚未计入统计的事件并加行锁，避免并发重复累计 -->
+    <select id="selectClaimedForUpdate" resultType="com.yuwen.visionspace.model.entity.UserPictureAction">
+        SELECT id, userId, pictureId, actionType, actionValue, source, eventId,
+               createdTime, isProcessed, isAccumulated, claimToken, claimedAt, claimExpireAt, attemptCount
+        FROM user_picture_action
+        WHERE claimToken = #{claimToken} AND isAccumulated = 0
+        FOR UPDATE
+    </select>
+
+    <!-- 标记本次领取的事件已计入统计 -->
+    <update id="markAccumulated">
+        UPDATE user_picture_action
+        SET isAccumulated = 1
+        WHERE claimToken = #{claimToken} AND isAccumulated = 0 AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <!-- 完成本次领取的事件：只标记真正计入过统计的事件 -->
+    <update id="markProcessed">
+        UPDATE user_picture_action
+        SET isProcessed = 1, claimToken = NULL, claimedAt = NULL, claimExpireAt = NULL
+        WHERE claimToken = #{claimToken} AND isAccumulated = 1 AND isProcessed = 0
+    </update>
+
+    <!-- 收敛已计入统计但未完成的事件：补完成标记，不重新入账 -->
+    <update id="completeAccumulatedPending">
+        UPDATE user_picture_action
+        SET isProcessed = 1, claimToken = NULL, claimedAt = NULL, claimExpireAt = NULL
+        WHERE isProcessed = 0 AND isAccumulated = 1
+    </update>
+
+    <!-- 待处理积压：只含数量，不含用户或事件内容 -->
+    <select id="selectBacklog" resultType="com.yuwen.visionspace.model.vo.PictureStatsBacklogVO">
+        SELECT
+            COALESCE(SUM(CASE WHEN isProcessed = 0 AND isAccumulated = 0 THEN 1 ELSE 0 END), 0) AS pendingCount,
+            COALESCE(SUM(CASE WHEN isProcessed = 0 AND isAccumulated = 1 THEN 1 ELSE 0 END), 0) AS accumulatedPendingCount,
+            COALESCE(SUM(CASE WHEN isProcessed = 0 AND claimToken IS NOT NULL AND claimExpireAt &gt; NOW() THEN 1 ELSE 0 END), 0) AS claimedCount,
+            COALESCE(SUM(CASE WHEN isProcessed = 0 AND attemptCount &gt;= #{stuckThreshold} THEN 1 ELSE 0 END), 0) AS stuckCount
+        FROM user_picture_action
+    </select>
+
+    <!-- 目标图片已不存在却仍未处理的事件：冲突清单的一部分 -->
+    <select id="countOrphanPending" resultType="long">
+        SELECT COUNT(*)
+        FROM user_picture_action a
+        LEFT JOIN picture p ON p.id = a.pictureId AND p.isDelete = 0
+        WHERE a.isProcessed = 0 AND a.isAccumulated = 0 AND p.id IS NULL
+    </select>
+
+    <!-- 只清理已处理且超过保留期的事件，未处理事件不允许被定期清理丢弃 -->
     <delete id="deleteOldActions">
         DELETE FROM user_picture_action
-        WHERE createdTime &lt; #{threshold}
+        WHERE isProcessed = 1 AND createdTime &lt; #{threshold}
     </delete>
 
 </mapper>

@@ -216,6 +216,18 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponsePictureActionReportMetricsVO = {
+    code?: number
+    data?: PictureActionReportMetricsVO
+    message?: string
+  }
+
+  type BaseResponsePictureStatsBacklogVO = {
+    code?: number
+    data?: PictureStatsBacklogVO
+    message?: string
+  }
+
   type BaseResponsePictureTagCategory = {
     code?: number
     data?: PictureTagCategory
@@ -414,6 +426,7 @@ declare namespace API {
     type?: string
     page?: number
     size?: number
+    context?: string
   }
 
   type getRecoveryStateUsingGetParams = {
@@ -457,11 +470,11 @@ declare namespace API {
   }
 
   type IPageMcpServerDetail = {
-    size?: number
+    total?: number
     current?: number
     records?: McpServerDetail[]
-    total?: number
     pages?: number
+    size?: number
   }
 
   type listMcpServersUsingGetParams = {
@@ -651,10 +664,19 @@ declare namespace API {
     isDelete?: number
   }
 
+  type PictureActionReportMetricsVO = {
+    acceptedCount?: number
+    duplicateCount?: number
+    rejectedCount?: number
+    rateLimitedCount?: number
+  }
+
   type PictureActionRequest = {
     pictureId?: number
     actionType?: number
     source?: number
+    eventId?: string
+    userId?: number
   }
 
   type PictureEditByBatchRequest = {
@@ -704,6 +726,14 @@ declare namespace API {
     id?: number
     reviewStatus?: number
     reviewMessage?: string
+  }
+
+  type PictureStatsBacklogVO = {
+    pendingCount?: number
+    accumulatedPendingCount?: number
+    claimedCount?: number
+    stuckCount?: number
+    orphanCount?: number
   }
 
   type PictureTagCategory = {
@@ -769,7 +799,10 @@ declare namespace API {
 
   type RecommendPageVO = {
     records?: RecommendPictureVO[]
-    total?: number
+    /** 总数：十进制字符串，避免 JavaScript 数字精度丢失 */
+    total?: string
+    context?: string
+    contextValid?: boolean
   }
 
   type RecommendPictureVO = {

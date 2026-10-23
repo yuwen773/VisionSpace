@@ -18,10 +18,10 @@ public class PictureStatsAggregateJob {
     private PictureStatsAggregateService pictureStatsAggregateService;
 
     /**
-     * 每 5 分钟执行一次聚合任务
-     * fixedRate = 300000ms = 5 分钟
+     * 周期性执行聚合任务。间隔由配置决定，隔离验收里把间隔调长，
+     * 避免后台任务与验收用例争抢同一批事件。
      */
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedRateString = "${vision-space.picture-stats.aggregate.interval-ms:300000}")
     public void aggregate() {
         pictureStatsAggregateService.aggregateActionStats();
     }
