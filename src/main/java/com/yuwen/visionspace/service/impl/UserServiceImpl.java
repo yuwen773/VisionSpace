@@ -317,6 +317,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return user != null && UserRoleEnum.ADMIN.getValue().equals(user.getUserRole());
     }
 
+    @Override
+    public boolean isModerator(User user) {
+        // 处置权限只来自独立角色；平台管理员与资源所有者都不自动获得
+        return user != null && UserRoleEnum.MODERATOR.getValue().equals(user.getUserRole());
+    }
+
     // region ------- 以下代码为用户兑换会员功能 --------
 
     // 新增依赖注入

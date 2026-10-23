@@ -256,6 +256,9 @@
             <span>移动视图</span>
           </div>
         </div>
+
+        <!-- 单资源限时授权：仅资源所有者与团队管理员可见 -->
+        <PictureGrantPanel :picture-id="pictureId" />
       </aside>
     </div>
 
@@ -276,6 +279,7 @@ import { contentSrc, downloadImage, formatSize, toHexColor } from '@/utils'
 import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import PictureGrantPanel from '@/components/picture/PictureGrantPanel.vue'
 import { toId } from '@/utils'
 import { usePictureAction } from '@/composables/usePictureAction'
 import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'

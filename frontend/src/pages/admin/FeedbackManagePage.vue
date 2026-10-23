@@ -94,12 +94,12 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'userVO'">
             <div class="user-cell">
-              <a-avatar :src="record.userVO?.userAvatar" :size="32">
+              <a-avatar :size="32">
                 <template #icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></template>
               </a-avatar>
               <div class="user-info">
-                <span class="user-name">{{ record.userVO?.userName || '未知用户' }}</span>
-                <span class="user-id">{{ record.userVO?.userId }}</span>
+                <span class="user-name">{{ record.userName || '未知用户' }}</span>
+                <span class="user-id">{{ record.userId }}</span>
               </div>
             </div>
           </template>
@@ -120,9 +120,12 @@
           <template v-else-if="column.key === 'title'">
             <div class="title-cell">
               <span class="title-text">{{ record.title }}</span>
-              <span v-if="record.pictureUrls?.length" class="attachment-badge">
+              <span v-if="record.attachments?.length" class="attachment-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                {{ record.pictureUrls.length }}
+                {{ record.attachments.length }}
+              </span>
+              <span v-if="blockedAttachmentCount(record) > 0" class="attachment-badge blocked">
+                阻断 {{ blockedAttachmentCount(record) }}
               </span>
             </div>
           </template>
@@ -163,12 +166,12 @@
       <div v-if="currentFeedback" class="feedback-detail">
         <div class="detail-header">
           <div class="detail-user">
-            <a-avatar :src="currentFeedback.userVO?.userAvatar" :size="48">
+            <a-avatar :size="48">
               <template #icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></template>
             </a-avatar>
             <div class="detail-user-info">
-              <span class="detail-user-name">{{ currentFeedback.userVO?.userName || '未知用户' }}</span>
-              <span class="detail-user-id">{{ currentFeedback.userVO?.userId }}</span>
+              <span class="detail-user-name">{{ currentFeedback.userName || '未知用户' }}</span>
+              <span class="detail-user-id">{{ currentFeedback.userId }}</span>
             </div>
           </div>
           <div class="detail-meta">
@@ -199,19 +202,24 @@
           </div>
         </div>
 
-        <div v-if="currentFeedback.pictureUrls?.length" class="detail-section">
+        <div v-if="currentFeedback.attachments?.length" class="detail-section">
           <h4 class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             附件截图
           </h4>
           <div class="picture-grid">
-            <img
-              v-for="(url, index) in currentFeedback.pictureUrls"
-              :key="index"
-              :src="url"
-              class="detail-picture"
-              @click="previewImage(url)"
-            />
+            <template v-for="attachment in currentFeedback.attachments" :key="attachment.id">
+              <img
+                v-if="attachment.url"
+                :src="contentSrc(attachment.url)"
+                class="detail-picture"
+                @click="previewImage(contentSrc(attachment.url))"
+              />
+              <!-- 没有受控入口的附件（归属不明、已隔离）只显示状态，不给可直连地址 -->
+              <div v-else class="detail-picture blocked" :title="attachmentStatusText(attachment.status)">
+                <span>{{ attachmentStatusText(attachment.status) }}</span>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -278,9 +286,12 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import {
+  getFeedbackByIdUsingGet,
   listFeedbackByPageUsingPost,
   updateFeedbackStatusUsingPost,
 } from '@/api/feedbackController'
+import { attachmentStatusText } from '@/api-custom/resourceProtection'
+import { contentSrc } from '@/utils'
 import { useLoginUserStore } from '@/stores/userLogin'
 
 const loginUserStore = useLoginUserStore()
@@ -386,12 +397,36 @@ const handleTableChange = (pag: any) => {
   loadData()
 }
 
-const showDetail = (record: any) => {
+const showDetail = async (record: any) => {
   currentFeedback.value = record
   handleForm.status = record.status
   handleForm.handlerNote = record.handlerNote || ''
   detailVisible.value = true
+  // 列表只返回附件状态，不返回受控入口：详情需要单独取一次才能看到附件内容
+  await loadDetail(record.id)
 }
+
+/**
+ * 取反馈详情。附件的受控入口在服务端按当前反馈权限判定，
+ * 没有权限的附件不会出现在响应里。
+ */
+const loadDetail = async (id: number) => {
+  if (!id) return
+  try {
+    const res = await getFeedbackByIdUsingGet({ id })
+    if (res.data.code === 0 && res.data.data) {
+      currentFeedback.value = res.data.data
+    } else {
+      message.error(res.data.message || '获取反馈详情失败')
+    }
+  } catch {
+    message.error('获取反馈详情失败')
+  }
+}
+
+/** 归属不明、已被阻断的附件数量 */
+const blockedAttachmentCount = (record: API.FeedbackVO): number =>
+  (record?.attachments ?? []).filter((attachment) => !attachment.url).length
 
 const quickResolve = async (record: any) => {
   try {
@@ -874,6 +909,12 @@ onMounted(() => {
       width: 10px;
       height: 10px;
     }
+
+    &.blocked {
+      color: var(--admin-danger);
+      background: var(--admin-danger-bg);
+      border: 1px solid rgba(207, 34, 46, 0.2);
+    }
   }
 }
 
@@ -1026,6 +1067,24 @@ onMounted(() => {
 
     &:hover {
       transform: scale(1.05);
+    }
+
+    // 无受控入口的附件：只显示状态，不给可直连地址
+    &.blocked {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--admin-space-2);
+      text-align: center;
+      font-size: var(--admin-text-xs);
+      color: var(--admin-danger);
+      background: var(--admin-danger-bg);
+      border-color: rgba(207, 34, 46, 0.2);
+      cursor: default;
+
+      &:hover {
+        transform: none;
+      }
     }
   }
 

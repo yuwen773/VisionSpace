@@ -119,6 +119,14 @@ public class PictureVO implements Serializable {
     private List<String> permissionList = new ArrayList<>();
 
     /**
+     * 图片是否处于隔离状态。
+     *
+     * <p>隔离本身是可见的业务状态：客户端据此显示"已隔离"而不是误以为内容丢失。
+     * 隔离期间不返回任何内容入口。
+     */
+    private Boolean quarantined;
+
+    /**
      * 统计信息：浏览次数
      */
     private Long viewCount;

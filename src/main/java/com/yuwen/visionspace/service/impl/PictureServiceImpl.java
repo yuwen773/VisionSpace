@@ -33,6 +33,7 @@ import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
+import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
@@ -41,6 +42,7 @@ import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
@@ -116,6 +118,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
+
+    @Resource
+    private ResourceIsolationService resourceIsolationService;
 
     @Override
     public void validPicture(Picture picture) {
@@ -280,7 +285,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // this.clearPictureFile(oldPicture);
         PictureVO pictureVO = PictureVO.objToVo(picture);
         // 上传响应同样只返回受控内容入口
-        pictureContentService.fillContentUrls(pictureVO, picture);
+        fillControlledContentUrls(pictureVO, picture);
         return pictureVO;
     }
 
@@ -323,7 +328,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 对象转封装类
         PictureVO pictureVO = PictureVO.objToVo(picture);
         // 内容地址一律换成本服务的受控入口，不返回源站长期地址
-        pictureContentService.fillContentUrls(pictureVO, picture);
+        fillControlledContentUrls(pictureVO, picture);
         // 关联查询用户信息
         Long userId = picture.getUserId();
         if (userId != null && userId > 0) {
@@ -359,8 +364,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<PictureVO> pictureVOList = pictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
-        // 列表与详情使用同一套内容入口
+        // 列表与详情使用同一套内容入口；隔离中的图片不返回内容地址
+        Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
+        Set<Long> quarantined = resourceIsolationService.quarantinedIds(
+                ResourceTypeEnum.PICTURE.getValue(), pictureIdSet);
         pictureContentService.fillContentUrls(pictureVOList, pictureList);
+        if (!quarantined.isEmpty()) {
+            for (int i = 0; i < pictureVOList.size(); i++) {
+                if (quarantined.contains(pictureList.get(i).getId())) {
+                    clearContentUrls(pictureVOList.get(i));
+                }
+            }
+        }
         // 1. 关联查询用户信息
         // 1,2,3,4
         Set<Long> userIdSet = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
@@ -368,7 +383,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
                 .collect(Collectors.groupingBy(User::getId));
         // 2. 关联查询统计信息（一律按 pictureId 关联；统计行自己的主键与图片 ID 无关）
-        Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
         Map<Long, PictureStats> pictureIdStatsMap = pictureStatsService.mapByPictureIds(pictureIdSet);
         // 3. 填充信息
         pictureVOList.forEach(pictureVO -> {
@@ -721,6 +735,32 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         view.setThumbnailUrl(null);
         view.setPreviewUrl(null);
         return view;
+    }
+
+    /**
+     * 填充受控内容入口，并清掉隔离中图片的入口。
+     *
+     * <p>隔离不删除内容，但在任何视图中都不再给出可读取的地址；
+     * 恢复后按原有归属规则重新可用，不扩大任何人的访问范围。
+     */
+    private void fillControlledContentUrls(PictureVO pictureVO, Picture picture) {
+        pictureContentService.fillContentUrls(pictureVO, picture);
+        if (picture != null && picture.getId() != null
+                && resourceIsolationService.isQuarantined(
+                        ResourceTypeEnum.PICTURE.getValue(), picture.getId())) {
+            clearContentUrls(pictureVO);
+        }
+    }
+
+    private void clearContentUrls(PictureVO pictureVO) {
+        if (pictureVO == null) {
+            return;
+        }
+        pictureVO.setUrl(null);
+        pictureVO.setThumbnailUrl(null);
+        pictureVO.setPreviewUrl(null);
+        // 状态本身是元数据：告知已隔离，而不是让客户端以为内容丢失
+        pictureVO.setQuarantined(true);
     }
 
     @Override

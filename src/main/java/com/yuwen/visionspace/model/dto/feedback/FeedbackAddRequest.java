@@ -5,7 +5,10 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 添加反馈请求
+ * 添加反馈请求。
+ *
+ * <p>附件只能通过上传接口登记并提交标识；请求中的原始地址不会被采纳，
+ * 也不会被当作附件归属依据。
  */
 @Data
 public class FeedbackAddRequest implements Serializable {
@@ -26,7 +29,12 @@ public class FeedbackAddRequest implements Serializable {
     private String content;
 
     /**
-     * 附件图片URLs
+     * 已上传附件的标识列表
+     */
+    private List<Long> attachmentIds;
+
+    /**
+     * 旧版客户端提交的原始地址。保留字段仅为明确拒绝，不作为附件依据。
      */
     private List<String> pictureUrls;
 

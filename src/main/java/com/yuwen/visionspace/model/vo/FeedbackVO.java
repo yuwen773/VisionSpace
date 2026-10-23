@@ -1,12 +1,16 @@
 package com.yuwen.visionspace.model.vo;
 
 import lombok.Data;
+
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
 /**
- * 反馈视图对象
+ * 反馈视图对象。
+ *
+ * <p>响应最小化：提交者只返回标识与名称，附件只返回受控入口与状态。
+ * 不返回完整用户资料、源站附件地址或存储定位信息。
  */
 @Data
 public class FeedbackVO implements Serializable {
@@ -22,9 +26,9 @@ public class FeedbackVO implements Serializable {
     private Long userId;
 
     /**
-     * 反馈用户信息
+     * 反馈用户名称（最小化，不含账号、头像、角色等资料）
      */
-    private UserVO userVO;
+    private String userName;
 
     /**
      * 反馈类型：1=产品建议 2=内容举报 3=工单支持
@@ -42,9 +46,9 @@ public class FeedbackVO implements Serializable {
     private String content;
 
     /**
-     * 附件图片URLs
+     * 受控附件列表
      */
-    private List<String> pictureUrls;
+    private List<FeedbackAttachmentVO> attachments;
 
     /**
      * 处理状态：0=待处理 1=处理中 2=已解决
@@ -57,9 +61,9 @@ public class FeedbackVO implements Serializable {
     private Long handlerId;
 
     /**
-     * 处理人信息
+     * 处理人名称（最小化）
      */
-    private UserVO handlerVO;
+    private String handlerName;
 
     /**
      * 管理员处理备注

@@ -61,6 +61,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseFeedbackAttachmentVO = {
+    code?: number
+    data?: FeedbackAttachmentVO
+    message?: string
+  }
+
   type BaseResponseFeedbackVO = {
     code?: number
     data?: FeedbackVO
@@ -91,9 +97,21 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseListModerationResourceVO = {
+    code?: number
+    data?: ModerationResourceVO[]
+    message?: string
+  }
+
   type BaseResponseListPictureVO = {
     code?: number
     data?: PictureVO[]
+    message?: string
+  }
+
+  type BaseResponseListResourceGrantVO = {
+    code?: number
+    data?: ResourceGrantVO[]
     message?: string
   }
 
@@ -175,6 +193,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseModerationResourceVO = {
+    code?: number
+    data?: ModerationResourceVO
+    message?: string
+  }
+
   type BaseResponsePageFeedbackVO = {
     code?: number
     data?: PageFeedbackVO
@@ -250,6 +274,12 @@ declare namespace API {
   type BaseResponseRecoveryStateVO = {
     code?: number
     data?: RecoveryStateVO
+    message?: string
+  }
+
+  type BaseResponseResourceGrantVO = {
+    code?: number
+    data?: ResourceGrantVO
     message?: string
   }
 
@@ -349,7 +379,14 @@ declare namespace API {
     type?: number
     title?: string
     content?: string
+    attachmentIds?: number[]
     pictureUrls?: string[]
+  }
+
+  type FeedbackAttachmentVO = {
+    id?: number
+    url?: string
+    status?: string
   }
 
   type FeedbackQueryRequest = {
@@ -379,17 +416,21 @@ declare namespace API {
   type FeedbackVO = {
     id?: number
     userId?: number
-    userVO?: UserVO
+    userName?: string
     type?: number
     title?: string
     content?: string
-    pictureUrls?: string[]
+    attachments?: FeedbackAttachmentVO[]
     status?: number
     handlerId?: number
-    handlerVO?: UserVO
+    handlerName?: string
     handlerNote?: string
     handleTime?: string
     createTime?: string
+  }
+
+  type getAttachmentUsingGetParams = {
+    id: number
   }
 
   type getFeedbackByIdUsingGetParams = {
@@ -472,6 +513,11 @@ declare namespace API {
     id: number
   }
 
+  type historyUsingGetParams = {
+    resourceType: string
+    resourceId: number
+  }
+
   type ImageSearchResult = {
     thumbUrl?: string
     fromUrl?: string
@@ -489,6 +535,10 @@ declare namespace API {
     records?: McpServerDetail[]
     pages?: number
     size?: number
+  }
+
+  type listGrantsUsingGetParams = {
+    pictureId: number
   }
 
   type listMcpServersUsingGetParams = {
@@ -542,6 +592,22 @@ declare namespace API {
     attachmentIds?: string[]
     createdTime?: string
     summary?: boolean
+  }
+
+  type ModerationResourceVO = {
+    resourceType?: string
+    resourceId?: number
+    resourceName?: string
+    status?: string
+    operatorId?: number
+    operatorUserName?: string
+    reason?: string
+    createTime?: string
+    releaseOperatorId?: number
+    releaseOperatorUserName?: string
+    releaseReason?: string
+    releaseTime?: string
+    history?: ModerationResourceVO[]
   }
 
   type OrderItem = {
@@ -710,6 +776,18 @@ declare namespace API {
     tags?: string[]
   }
 
+  type PictureGrantCreateRequest = {
+    pictureId?: number
+    granteeUserId?: number
+    expiresTime?: string
+    reason?: string
+  }
+
+  type PictureGrantRevokeRequest = {
+    grantId?: number
+    reason?: string
+  }
+
   type PictureQueryRequest = {
     current?: number
     pageSize?: number
@@ -799,6 +877,7 @@ declare namespace API {
     updateTime?: string
     user?: UserVO
     permissionList?: string[]
+    quarantined?: boolean
     viewCount?: number
     likeCount?: number
     collectCount?: number
@@ -859,6 +938,31 @@ declare namespace API {
   type resumeUsingPostParams = {
     threadId: string
     expectedVersion?: number
+    message?: string
+  }
+
+  type ResourceGrantVO = {
+    id?: number
+    resourceType?: string
+    resourceId?: number
+    resourceName?: string
+    granteeUserId?: number
+    granteeUserName?: string
+    grantedByUserId?: number
+    grantedByUserName?: string
+    reason?: string
+    expiresTime?: string
+    status?: string
+    revokedByUserId?: number
+    revokeReason?: string
+    revokeTime?: string
+    createTime?: string
+  }
+
+  type ResourceModerationRequest = {
+    resourceType?: string
+    resourceId?: number
+    reason?: string
   }
 
   type SearchPictureByColorRequest = {

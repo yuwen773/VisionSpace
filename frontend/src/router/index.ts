@@ -104,6 +104,13 @@ const router = createRouter({
           component: UserCenterPage,
           meta: { title: '用户中心', requiresAuth: true },
         },
+        {
+          // 违规资源处置：独立于平台管理员的处置角色
+          path: 'moderation',
+          name: 'Moderation',
+          component: () => import('@/pages/moderation/ModerationPage.vue'),
+          meta: { title: '内容处置', requiresAuth: true },
+        },
       ],
     },
     // 管理端路由（AdminLayout 包裹）

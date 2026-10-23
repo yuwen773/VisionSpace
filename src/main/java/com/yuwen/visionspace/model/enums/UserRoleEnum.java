@@ -11,7 +11,14 @@ public enum UserRoleEnum {
 
     USER("用户", "user"),
     VIP("会员", "vip"),
-    ADMIN("管理员", "admin");
+    ADMIN("管理员", "admin"),
+    /**
+     * 违规处置角色：仅具有隔离与恢复的独立权限。
+     *
+     * <p>它不继承平台管理员的其他职责，平台管理员也不自动获得处置权限；
+     * 处置不授予读取私人内容的权利。
+     */
+    MODERATOR("内容处置员", "moderator");
 
     private final String text;
 
