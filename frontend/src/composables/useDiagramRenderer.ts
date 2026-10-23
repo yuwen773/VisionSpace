@@ -126,8 +126,11 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
         rendered = `<div class="diagram-error">${escapeHtml(lang)} 渲染失败</div>`
       }
 
-      // 渲染产物再走一次清理，防止渲染器自身拼出危险内容
-      rendered = sanitizeDiagramSvg(rendered)
+      // 渲染产物再走一次清理，防止渲染器自身拼出危险内容。
+      // PlantUML 的预览图指向受控服务，是唯一被允许的外部图片源。
+      rendered = sanitizeDiagramSvg(rendered, {
+        imageOrigins: lang.toLowerCase() === 'plantuml' ? [plantumlServer ?? ''] : [],
+      })
 
       const wrapper = document.createElement('div')
       wrapper.className = `diagram-wrapper diagram-${lang.toLowerCase()}`

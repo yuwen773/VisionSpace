@@ -34,10 +34,42 @@ const RESOURCE_ATTRS = ['href', 'xlink:href', 'src', 'action', 'formaction']
 
 /**
  * DOMPurify 在 SVG 配置下默认允许的 URI 属性含 href/xlink:href，不含 img 的 src。
- * 图表预览需要 src，但对于 img 我们仍只接受 http(s)/站内/data 位图——
- * 也就是先把危险协议筛掉，再让 DOMPurify 做它那层结构清理。
+ * 图表预览需要 src，但只接受本地引用与受控主机的绝对地址：
+ * 先筛协议，再核对主机，最后才交给 DOMPurify 做结构清理。
  */
-const IMG_SRC_SCHEME = /^(https?:|\/|\.\/|\.\.\/|data:image\/(png|jpe?g|gif|webp);|blob:)/i
+const IMG_SRC_SCHEME = /^(\/|\.\/|\.\.\/|data:image\/(png|jpe?g|gif|webp);|blob:)/i
+const IMG_SRC_ABSOLUTE = /^https?:/i
+
+/**
+ * 受控图片主机清单。默认空：只允许站内相对路径与内联位图。
+ * PlantUML 预览图是唯一的例外，由调用方显式传入受控服务地址。
+ */
+export type SanitizeOptions = {
+  /** 允许作为图片地址的绝对源（scheme://host[:port]），如受控 PlantUML 服务 */
+  imageOrigins?: string[]
+}
+
+function originOf(value: string): string | null {
+  try {
+    const u = new URL(value)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    return u.origin
+  } catch {
+    return null
+  }
+}
+
+/** 图片地址是否允许：本地引用，或落在受控源清单里。 */
+function isAllowedImageSrc(src: string, imageOrigins: string[]): boolean {
+  const v = src.trim()
+  if (!v) return false
+  // `//host/x` 是协议相对地址，实际会发往外部主机，不能当成本地路径
+  if (v.startsWith('//')) return false
+  if (IMG_SRC_SCHEME.test(v)) return true
+  if (!IMG_SRC_ABSOLUTE.test(v)) return false
+  const origin = originOf(v)
+  return !!origin && imageOrigins.includes(origin)
+}
 
 /**
  * 判断资源引用是否只指向本地。
@@ -70,16 +102,16 @@ function stripRemoteCss(css: string): string {
 const DANGEROUS_PROTOCOL = /^\s*(javascript|vbscript|data:text\/html|file):/i
 
 /**
- * 在清理之前把 img 上不属于受控协议的 src 直接摘掉。
- * DOMPurify 的结构清理不认 src，这一步才是挡住 `src="javascript:…"`
- * 与内联 SVG 文档的地方；合法地址原样保留，供预览使用。
+ * 在清理之前把 img 上不在受控范围内的 src 直接摘掉。
+ * DOMPurify 的结构清理不认 src，这一步才是挡住 `src="javascript:…"`、
+ * 内联 SVG 文档以及任意第三方主机的地方。
  */
-function stripUnsafeImgSrc(html: string): string {
+function stripUnsafeImgSrc(html: string, imageOrigins: string[]): string {
   if (!html.includes('<img')) return html
   const doc = new DOMParser().parseFromString(html, 'text/html')
   for (const img of Array.from(doc.querySelectorAll('img'))) {
     const src = img.getAttribute('src') ?? ''
-    if (!IMG_SRC_SCHEME.test(src.trim())) img.removeAttribute('src')
+    if (!isAllowedImageSrc(src, imageOrigins)) img.removeAttribute('src')
   }
   return doc.body.innerHTML
 }
@@ -88,13 +120,16 @@ function stripUnsafeImgSrc(html: string): string {
  * 清理图表 SVG/HTML。
  * 保留正常图形结构（rect/path/text/style 等），只切除可执行与外发能力。
  */
-export function sanitizeDiagramSvg(svg: string): string {
+export function sanitizeDiagramSvg(svg: string, options: SanitizeOptions = {}): string {
   if (!svg) return ''
 
   const purifier = getPurify()
+  const imageOrigins = (options.imageOrigins ?? [])
+    .map(originOf)
+    .filter((o): o is string => o !== null)
 
   // 先剔除 img 上的非法 src，再交给 DOMPurify 做结构清理
-  const prefiltered = stripUnsafeImgSrc(svg)
+  const prefiltered = stripUnsafeImgSrc(svg, imageOrigins)
 
   const clean = purifier.sanitize(prefiltered, {
     // 只额外放行 img 的 src；危险协议在这一步之前已被剔除
@@ -125,10 +160,10 @@ export function sanitizeDiagramSvg(svg: string): string {
       const value = el.getAttribute(attr)
       if (value === null) continue
 
-      // img 的 src 走图片白名单（已在前置过滤中校验过协议）；
-      // 其它资源属性只允许本地引用，避免 SVG 内部把内容发到任意主机。
+      // img 的 src 走受控主机清单；其它资源属性只允许本地引用，
+      // 避免 SVG 内部把内容发到任意主机。
       const isImageSrc = attr === 'src' && el.tagName.toLowerCase() === 'img'
-      const allowed = isImageSrc ? IMG_SRC_SCHEME.test(value.trim()) : isLocalResource(value)
+      const allowed = isImageSrc ? isAllowedImageSrc(value, imageOrigins) : isLocalResource(value)
       if (!allowed) el.removeAttribute(attr)
     }
 

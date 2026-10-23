@@ -52,10 +52,39 @@ describe('sanitizeDiagramSvg', () => {
   it('保留受控服务的预览图地址（PlantUML 自托管）', () => {
     const legit =
       '<img class="plantuml-diagram" src="https://uml.internal.example/svg/abc" alt="图表" />'
-    const clean = sanitizeDiagramSvg(legit)
+    const clean = sanitizeDiagramSvg(legit, {
+      imageOrigins: ['https://uml.internal.example'],
+    })
 
     expect(clean).toContain('src="https://uml.internal.example/svg/abc"')
     expect(clean).toContain('plantuml-diagram')
+  })
+
+  it('未声明为受控源的 https 图片一律摘掉 src', () => {
+    // 这是"内容自述一个外部地址"的典型形态：协议合法，但主机不受控。
+    const dirty =
+      '<img src="https://evil.example/track?c=secret" alt="a"/>' +
+      '<img src="//evil.example/protocol-relative.png" alt="b"/>' +
+      '<img src="https://uml.internal.example/ok.png" alt="c"/>'
+    const clean = sanitizeDiagramSvg(dirty, {
+      imageOrigins: ['https://uml.internal.example'],
+    })
+
+    expect(clean).not.toContain('evil.example')
+    // 受控源仍然保留，否则等于把 PlantUML 预览一起关掉
+    expect(clean).toContain('src="https://uml.internal.example/ok.png"')
+  })
+
+  it('受控源按 origin 匹配，不能靠路径或子域绕过', () => {
+    const clean = sanitizeDiagramSvg(
+      '<img src="https://uml.internal.example.evil.com/a.png" alt="a"/>' +
+        '<img src="http://uml.internal.example:8080/b.png" alt="b"/>',
+      { imageOrigins: ['https://uml.internal.example'] },
+    )
+
+    expect(clean).not.toContain('evil.com')
+    // 协议或端口不同就是不同的源
+    expect(clean).not.toContain(':8080')
   })
 
   it('图片地址的危险协议被摘掉', () => {

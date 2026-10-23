@@ -30,11 +30,22 @@ void renderDiagrams(
 type HarnessWindow = Window & {
   __executed?: Set<string>
   __mark?: (name: string) => void
+  __cspViolations?: string[]
+  __cspListenerInstalled?: boolean
 }
 const harnessWindow = window as HarnessWindow
 const executed = new Set<string>()
 harnessWindow.__executed = executed
 harnessWindow.__mark = (name: string) => executed.add(name)
+
+// CSP 违规监听：不装监听器的话，"没有违规"和"没在观测"看起来一样。
+// 验收脚本会同时检查 __cspListenerInstalled，把这两者区分开。
+const violations: string[] = []
+harnessWindow.__cspViolations = violations
+harnessWindow.__cspListenerInstalled = true
+document.addEventListener('securitypolicyviolation', (e) => {
+  violations.push(`${e.violatedDirective} ${e.blockedURI}`)
+})
 
 const CASES: Array<{ id: string; label: string; content: string }> = [
   {
@@ -151,3 +162,25 @@ const App = {
 }
 
 createApp(App).mount('#app')
+
+/**
+ * 正向对照：主动制造三次应被拦截的行为，证明策略真的在浏览器里执行。
+ * 没有这一步，"零违规"也可能只是没在观测。三次探测都不应产生真实外发：
+ * CSP 在发请求之前就拦下它们。
+ */
+function probeCspEnforcement(): void {
+  const remote = document.createElement('script')
+  remote.src = 'https://csp-probe.invalid/probe.js'
+  document.head.appendChild(remote)
+  remote.remove()
+
+  const inline = document.createElement('script')
+  inline.textContent = "__mark('csp-inline-script')"
+  document.head.appendChild(inline)
+  inline.remove()
+
+  // connect-src 'self' 应当拦下这条；被拦下就不会真的发出去
+  void fetch('https://csp-probe.invalid/beacon').catch(() => {})
+}
+
+probeCspEnforcement()

@@ -29,6 +29,16 @@ CDP_PORT=9222 node harness/browser-check.mjs
 
 退出码 0 表示通过；失败时逐条打印原因（未授权外发、payload 被执行、危险链接残留等）。
 
+## 正向对照：证明策略真的在执行
+
+"没有观测到违规"有两种可能——策略拦住了，或者压根没在观测。harness 因此做两件事：
+
+1. 安装 `securitypolicyviolation` 监听器，并把 `__cspListenerInstalled` 暴露给验收脚本；
+2. 主动制造三次应被拦截的行为（外域脚本、内联脚本、外域 fetch），确认真的收到违规。
+
+验收要求"监听器已安装"且"至少观测到一次违规"，否则判失败。这样 CSP 那一半的
+证据才是实打实的，而不是一个恒为空的数组。
+
 ## 验证两种部署形态
 
 PlantUML 的行为取决于是否配置了受控服务，两种都要跑：
@@ -39,20 +49,23 @@ npx vite build --config harness-src/vite.config.ts --configLoader runner
 CDP_PORT=9222 node harness/browser-check.mjs
 
 # 已配置：预览地址只能指向该服务，内容不能改写目标
-VITE_PLANTUML_SERVER=http://127.0.0.1:9/plantuml \
+VITE_PLANTUML_SERVER=http://127.0.0.1:18089/plantuml \
   npx vite build --config harness-src/vite.config.ts --configLoader runner
 CDP_PORT=9222 node harness/browser-check.mjs
 ```
 
-配置里的端口故意选一个连不上的地址：只要没有真实请求发出，就说明预览图地址
-只是被生成而没有被内容改写去别的目标。
+配置里的端口故意选一个没有服务在听的本地地址。这一形态下浏览器**会**尝试加载
+预览图（`<img>` 一旦进入 DOM 就会发请求），所以验收的判据不是"零请求"，而是
+**所有请求都指向该受控目标**——`unexpectedRequests` 必须为空，`orchestratedOtherHosts`
+必须为空。内容里的 `https://evil.example/steal` 只能落在编码后的路径段里，改变不了目标。
+端口不要用 9 这类浏览器屏蔽端口，否则请求根本不会发出，"目标正确"就无从验证。
 
 ## 覆盖的样例
 
 | 样例 | 期望 |
 | --- | --- |
 | 正常 Mermaid 流程图 / 时序图 | 渲染出 SVG |
-| 正常 draw.io 图 | 渲染出 SVG（本地 mxgraph，非公共 CDN） |
+| 正常 draw.io 图 | 渲染出 SVG 且含真实形状（本地 mxgraph，非公共 CDN） |
 | 正常 PlantUML | 未配置显示源码；配置后指向受控服务 |
 | Mermaid 内的 HTML / `click` 回调 / `javascript:` 链接 | 不执行，DOM 中无事件属性 |
 | Markdown 内联 SVG、`onerror`、`javascript:`/`data:` 链接 | 不执行，无可用的危险 href |

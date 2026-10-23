@@ -27,15 +27,42 @@ export type DrawioLoader = () => Promise<DrawioLike | null>
 /** mxgraph 打包版导出的工厂：调用后返回 mxGraph/mxCodec/mxUtils 等类型。 */
 type MxFactory = (options: object) => Record<string, unknown>
 
+/** 解码后的模型只需要能数出根节点下挂了几个单元格。 */
+type MxModel = {
+  getRoot: () => { getChildCount: () => number } | null
+}
+
 /** 渲染 draw.io 时需要的最小接口，避免把整个库的类型引进来。 */
 type MxRuntime = {
   mxGraph: new (container: HTMLElement) => {
     setEnabled: (enabled: boolean) => void
-    getModel: () => unknown
+    getModel: () => MxModel
     refresh: () => void
   }
   mxCodec: new () => { decode: (node: Element, model: unknown) => void }
   mxUtils: { parseXml: (xml: string) => XMLDocument }
+  /** 解码时需要按节点名找到的构造器，见 registerCodecConstructors */
+  mxGraphModel?: unknown
+  mxCell?: unknown
+  mxGeometry?: unknown
+  mxPoint?: unknown
+  mxRectangle?: unknown
+}
+
+/**
+ * mxgraph 的 `mxCodec.decode` 用 `window[node.nodeName]` 找解码器，
+ * 找不到就退化成 `node.cloneNode`——图形结构被原样复制，一个单元格都进不了模型，
+ * 最终产出一张空 SVG。CDN 版把构造器挂在 window 上所以碰不到这个问题，
+ * ESM 打包版不会。这里只补解码真正会用到的几个节点名。
+ */
+function registerCodecConstructors(mx: MxRuntime): void {
+  if (typeof window === 'undefined') return
+  const w = window as unknown as Record<string, unknown>
+  for (const name of ['mxGraphModel', 'mxCell', 'mxGeometry', 'mxPoint', 'mxRectangle']) {
+    if (w[name] === undefined && mx[name as keyof MxRuntime]) {
+      w[name] = mx[name as keyof MxRuntime]
+    }
+  }
 }
 
 const MERMAID_OPTIONS = {
@@ -84,6 +111,7 @@ const defaultDrawioLoader: DrawioLoader = async () => {
   const factory = (await import('mxgraph')).default as unknown as MxFactory
   const mx = factory({}) as unknown as MxRuntime
   if (!mx?.mxGraph || !mx?.mxCodec || !mx?.mxUtils) return null
+  registerCodecConstructors(mx)
 
   return {
     renderToHtml: async (xml: string) => {
@@ -95,8 +123,14 @@ const defaultDrawioLoader: DrawioLoader = async () => {
       // mxgraph 4.x 的 XML 解析入口是 mxUtils.parseXml（不是 parseXmlString）
       const doc = mx.mxUtils.parseXml(xml)
       const codec = new mx.mxCodec()
-      codec.decode(doc.documentElement, graph.getModel())
+      const model = graph.getModel()
+      codec.decode(doc.documentElement, model)
       graph.refresh()
+      // 解码失败时 mxgraph 不抛错，只是留下空模型。宁可显式报错，
+      // 也不要让一张空图冒充"渲染成功"——那会掩盖真实的安全/兼容问题。
+      if ((model.getRoot()?.getChildCount() ?? 0) === 0) {
+        throw new Error('draw.io 内容无法解码')
+      }
       return container.innerHTML
     },
   }

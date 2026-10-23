@@ -173,6 +173,12 @@ const dom = await evaluate(`(() => {
     mermaidSvgHasScript: svgs.some(s => s.querySelector('script')),
     mermaidSvgHasOnAttr: svgs.some(s => [...s.querySelectorAll('*')].some(el => [...el.attributes].some(a => /^on/i.test(a.name)))),
     drawioSvgCount: root.querySelectorAll('[data-case="normal-drawio"] .diagram-preview svg').length,
+    // 空图（只有两层空 <g>）同样会被上面的计数算进去，所以单独看有没有形状
+    drawioShapeCount: root.querySelectorAll(
+      '[data-case="normal-drawio"] .diagram-preview svg rect, ' +
+        '[data-case="normal-drawio"] .diagram-preview svg path, ' +
+        '[data-case="normal-drawio"] .diagram-preview svg text',
+    ).length,
     drawioPreviewText: previewText('normal-drawio'),
     plantumlImgCount: root.querySelectorAll('.plantuml-diagram').length,
     plantumlSourceShown: !!root.querySelector('[data-case="normal-plantuml"] .plantuml-source'),
@@ -198,6 +204,7 @@ const blocked = events
   }))
 
 const violations = await evaluate(`(window.__cspViolations || []).slice(0, 50)`)
+const cspListenerInstalled = await evaluate(`window.__cspListenerInstalled === true`)
 
 const externalRequests = [...new Set(requests)].filter(
   (u) => !u.startsWith('http://127.0.0.1:') && !u.startsWith('data:') && !u.startsWith('blob:'),
@@ -205,15 +212,25 @@ const externalRequests = [...new Set(requests)].filter(
 
 // 第三方主机应当收到零请求。配置了受控 PlantUML 服务时，允许出现该服务这一条
 // ——它是部署配置显式指定的目标，不是内容决定的。
+//
+// harness 的正向对照会主动请求 csp-probe.invalid 来证明策略在执行。它必然出现在
+// 请求记录里（CSP 拦的是"拿到响应"，不是"尝试发送"），所以单独列出，
+// 并且下面会要求它确实被 CSP 拦下——否则就成了真的外发。
+const CSP_PROBE_HOST = 'https://csp-probe.invalid/'
 const allowed = dom.plantumlServer ? [dom.plantumlServer.replace(/\/+$/, '')] : []
-const unexpectedRequests = externalRequests.filter((u) => !allowed.some((a) => u.startsWith(a)))
+const probeRequests = externalRequests.filter((u) => u.startsWith(CSP_PROBE_HOST))
+const unexpectedRequests = externalRequests.filter(
+  (u) => !allowed.some((a) => u.startsWith(a)) && !u.startsWith(CSP_PROBE_HOST),
+)
 
 const report = {
   pageUrl,
   unexpectedRequests,
+  cspProbeRequests: probeRequests,
   externalRequests,
   localRequestCount: requests.length - externalRequests.length,
   blockedRequests: blocked,
+  cspListenerInstalled,
   cspViolations: violations,
   dom,
 }
@@ -235,9 +252,24 @@ if (dom.orchestratedOtherHosts?.length) {
   failures.push(`PlantUML 目标被改写: ${dom.orchestratedOtherHosts.join(', ')}`)
 }
 
+// CSP 必须真的在浏览器里执行，且我们确实在观测它。
+// 只断言"没有违规"是不够的：没装监听器时它恒为空。
+if (!cspListenerInstalled) failures.push('CSP 违规监听器未安装，无法证明策略被执行')
+if (!violations.length) failures.push('未观测到任何 CSP 违规：正向对照未生效，策略执行情况未知')
+// 正向对照请求必须被 CSP 拦下，而不是真的送达对方
+const blockedByCsp = blocked.filter((b) => b.blockedReason === 'csp')
+if (probeRequests.length && !blockedByCsp.length) {
+  failures.push(`正向对照请求未被 CSP 拦截: ${probeRequests.join(', ')}`)
+}
+if (!probeRequests.length) failures.push('正向对照未产生请求：无法验证拦截路径')
+
 // 正常图表必须真的渲染出来，否则"清空"也能骗过上面的检查
 if (dom.mermaidSvgCount < 2) failures.push(`Mermaid 正常图表未渲染（仅 ${dom.mermaidSvgCount} 个）`)
 if (dom.drawioSvgCount < 1) failures.push('draw.io 正常图表未渲染')
+// 空 SVG 也含两层 <g>，所以必须检查真的画出了图形元素
+if (dom.drawioSvgCount >= 1 && !(dom.drawioShapeCount > 0)) {
+  failures.push('draw.io 产出空图：SVG 中没有形状元素')
+}
 
 // 配置了受控服务：必须指向它；未配置：必须显示源码且不产生图片
 if (dom.plantumlServer) {
