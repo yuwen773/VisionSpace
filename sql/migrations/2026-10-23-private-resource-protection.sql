@@ -1,9 +1,13 @@
 -- #36 私有资源管理与反馈保护：反馈附件、限时只读授权、违规隔离（前向迁移）
 --
--- 只新增三张表，不修改既有表结构，不回填或删除既有业务数据：
+-- 只新增业务表与一张回滚归档表，不修改既有表结构，不回填或删除既有业务数据：
 --   feedback_attachment   反馈附件的可信上传记录（上传者、平台、对象键、状态）
 --   resource_access_grant 单资源限时只读授权（被授权人、授权人、到期、撤销、理由）
 --   resource_isolation    违规资源隔离与恢复（操作者、理由、时间、解除信息）
+--   feedback_attachment_archive_20261023
+--                         回滚归档：新反馈只保存 attachment:{id} 引用，回滚时若直接删表
+--                         就会丢掉平台、对象键、归属与绑定记录；归档表保留这些记录，
+--                         再次执行本脚本时把记录搬回 feedback_attachment。
 --
 -- 旧反馈附件（user_feedback.pictureUrls）无法从可信资源记录确认归属：
 -- 上传时写入 /temp/{userId}/ 前缀，但前缀不是归属证据，因此旧附件先登记为
@@ -33,6 +37,34 @@ CREATE TABLE IF NOT EXISTS `feedback_attachment` (
   INDEX `idx_feedback_status`(`feedbackId`, `status`) USING BTREE,
   INDEX `idx_owner_status`(`ownerUserId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '反馈附件记录';
+
+-- 回滚归档表：回滚时新反馈附件的定位记录先搬到这里，再删业务表；
+-- 再次执行本脚本时从归档表搬回，业务数据不丢。
+CREATE TABLE IF NOT EXISTS `feedback_attachment_archive_20261023` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '附件标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '上传者用户 id',
+  `feedbackId` bigint(20) NULL DEFAULT NULL COMMENT '绑定后的反馈 id；未提交时为空',
+  `platform` varchar(32) NOT NULL COMMENT '存储平台标识；旧附件为 legacy',
+  `objectKey` varchar(768) NOT NULL COMMENT '存储对象键；旧附件保留地址原文',
+  `url` varchar(1024) NULL DEFAULT NULL COMMENT '上传时返回的地址，仅作记录，不对外返回',
+  `fileSize` bigint(20) NULL DEFAULT NULL COMMENT '文件字节数',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=UPLOADED 1=BOUND 2=LEGACY_VERIFIED 3=BLOCKED',
+  `legacyUrlHash` char(64) NULL DEFAULT NULL COMMENT '旧附件地址摘要，仅用于幂等登记',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_legacy_url_hash`(`legacyUrlHash`) USING BTREE,
+  INDEX `idx_feedback_status`(`feedbackId`, `status`) USING BTREE,
+  INDEX `idx_owner_status`(`ownerUserId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '反馈附件回滚归档';
+
+-- 归档记录搬回业务表：回滚过再部署本工单时，新反馈的附件定位、归属与绑定仍然可用
+INSERT IGNORE INTO `feedback_attachment`
+  (`id`, `ownerUserId`, `feedbackId`, `platform`, `objectKey`, `url`, `fileSize`, `status`,
+   `legacyUrlHash`, `createTime`, `updateTime`)
+SELECT `id`, `ownerUserId`, `feedbackId`, `platform`, `objectKey`, `url`, `fileSize`, `status`,
+       `legacyUrlHash`, `createTime`, `updateTime`
+FROM `feedback_attachment_archive_20261023`;
 
 CREATE TABLE IF NOT EXISTS `resource_access_grant` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '授权标识',

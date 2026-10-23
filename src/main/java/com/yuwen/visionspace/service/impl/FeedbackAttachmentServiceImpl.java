@@ -5,16 +5,15 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.FeedbackAccessPolicy;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.mapper.FeedbackAttachmentMapper;
-import com.yuwen.visionspace.mapper.UserFeedbackMapper;
 import com.yuwen.visionspace.model.entity.FeedbackAttachment;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.FeedbackAttachmentStatusEnum;
 import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.service.FeedbackAttachmentService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
-import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -33,10 +32,7 @@ public class FeedbackAttachmentServiceImpl extends ServiceImpl<FeedbackAttachmen
     static final String CONTENT_PATH = "/feedback/attachment/";
 
     @Resource
-    private UserService userService;
-
-    @Resource
-    private UserFeedbackMapper userFeedbackMapper;
+    private FeedbackAccessPolicy feedbackAccessPolicy;
 
     @Resource
     private PictureStorageService pictureStorageService;
@@ -149,24 +145,14 @@ public class FeedbackAttachmentServiceImpl extends ServiceImpl<FeedbackAttachmen
         }
         if (attachment.getFeedbackId() == null) {
             // 尚未随反馈提交：只有上传者本人可以读取
-            return Objects.equals(attachment.getOwnerUserId(), viewer.getId());
+            return canReadFeedback(null, attachment.getOwnerUserId(), viewer);
         }
         return canReadFeedback(attachment.getFeedbackId(), attachment.getOwnerUserId(), viewer);
     }
 
     @Override
     public boolean canReadFeedback(Long feedbackId, Long ownerUserId, User viewer) {
-        if (viewer == null || viewer.getId() == null || feedbackId == null) {
-            return false;
-        }
-        if (Objects.equals(ownerUserId, viewer.getId())) {
-            return true;
-        }
-        // 反馈管理职责：平台管理员角色，且反馈记录仍存在
-        if (!userService.isAdmin(viewer)) {
-            return false;
-        }
-        return userFeedbackMapper.selectById(feedbackId) != null;
+        return feedbackAccessPolicy.canReadAttachment(feedbackId, ownerUserId, viewer);
     }
 
     @Override

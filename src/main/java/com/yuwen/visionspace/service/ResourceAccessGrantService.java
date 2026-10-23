@@ -59,4 +59,13 @@ public interface ResourceAccessGrantService extends IService<ResourceAccessGrant
      * 判断用户是否可以对该资源授权：个人资源为所有者，团队资源为团队管理员。
      */
     boolean canGrant(Picture picture, User user);
+
+    /**
+     * 把已到期的授权落库为 EXPIRED 并释放唯一键。
+     *
+     * <p>到期是状态迁移而不是展示状态：唯一键不释放，同一资源与被授权人就无法再次授权。
+     *
+     * @return 本次迁移为过期状态的授权条数
+     */
+    int expireOutdatedGrants();
 }

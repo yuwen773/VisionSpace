@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   GRANT_DEFAULT_VALIDITY_DAYS,
   GRANT_MAX_VALIDITY_DAYS,
+  attachmentIdsOf,
   attachmentReadable,
   attachmentStatusText,
+  canManageGrants,
   formatDateTime,
   grantExpiresSoon,
   grantExpiresTime,
@@ -104,6 +106,29 @@ describe('resourceTypeText / isolationStatusText', () => {
     expect(resourceTypeText('other')).toBe('未知资源')
     expect(isolationStatusText('QUARANTINED')).toBe('隔离中')
     expect(isolationStatusText('RELEASED')).toBe('已恢复')
+  })
+})
+
+describe('attachmentIdsOf', () => {
+  it('保留服务端给出的字符串标识：雪花值不能被丢掉', () => {
+    const ids = attachmentIdsOf([{ id: '2040035398941839362' }, { id: '2040035398941839363' }])
+    expect(ids).toEqual(['2040035398941839362', '2040035398941839363'])
+  })
+
+  it('缺失标识被剔除，其余原样透传', () => {
+    expect(attachmentIdsOf([{ id: '42' }, {}, { id: null }])).toEqual(['42'])
+    expect(attachmentIdsOf([])).toEqual([])
+    expect(attachmentIdsOf(undefined)).toEqual([])
+  })
+})
+
+describe('canManageGrants', () => {
+  it('管理入口完全由服务端资格决定', () => {
+    expect(canManageGrants({ canManage: true })).toBe(true)
+    expect(canManageGrants({ canManage: false })).toBe(false)
+    expect(canManageGrants({})).toBe(false)
+    expect(canManageGrants(undefined)).toBe(false)
+    expect(canManageGrants(null)).toBe(false)
   })
 })
 

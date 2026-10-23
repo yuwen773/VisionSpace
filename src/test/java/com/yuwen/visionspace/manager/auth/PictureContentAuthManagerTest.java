@@ -80,7 +80,7 @@ class PictureContentAuthManagerTest {
     }
 
     @Test
-    void quarantineDeniesEveryoneExceptModerators() {
+    void quarantineDeniesEveryoneIncludingModerators() {
         Picture approved = publicPicture(1);
         when(resourceIsolationService.isQuarantined(anyString(), any())).thenReturn(true);
 
@@ -89,8 +89,8 @@ class PictureContentAuthManagerTest {
         assertFalse(manager.canReadContent(approved, user(OWNER)));
         assertFalse(manager.canReadContent(approved, user(ADMIN)));
         assertFalse(manager.canReadContent(approved, user(GRANTEE)));
-        // 独立处置人员可以复核隔离内容
-        assertTrue(manager.canReadContent(approved, user(MODERATOR)));
+        // 处置职责只看元数据：隔离不能成为读取私人内容的后门
+        assertFalse(manager.canReadContent(approved, user(MODERATOR)));
     }
 
     @Test

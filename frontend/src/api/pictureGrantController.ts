@@ -23,7 +23,7 @@ export async function listGrantsUsingGet(
   params: API.listGrantsUsingGetParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseListResourceGrantVO>('/picture/grant/list', {
+  return request<API.BaseResponseResourceGrantListVO>('/picture/grant/list', {
     method: 'GET',
     params: {
       ...params,

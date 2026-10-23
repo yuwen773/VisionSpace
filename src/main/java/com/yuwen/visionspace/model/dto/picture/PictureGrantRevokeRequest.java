@@ -6,12 +6,14 @@ import java.io.Serializable;
 
 /**
  * 撤销单资源授权。
+ *
+ * <p>标识按十进制字符串传输，理由与创建授权一致。
  */
 @Data
 public class PictureGrantRevokeRequest implements Serializable {
 
     /** 授权记录标识 */
-    private Long grantId;
+    private String grantId;
 
     /** 撤销理由 */
     private String reason;

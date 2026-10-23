@@ -134,9 +134,8 @@ public class PictureController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
-        // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径
-        ThrowUtils.throwIf(pictureContentAuthManager.isQuarantined(pictureService.getById(deleteRequest.getId())),
-                ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
+        // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径。
+        // 判定放在服务层，直接调用服务的入口同样受约束。
         pictureService.deletePicture(deleteRequest.getId(), loginUser);
         return ResultUtils.success(true);
     }

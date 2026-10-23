@@ -235,9 +235,10 @@ class HttpFeedbackProtectionTest {
         try (var creator = client()) {
             login(creator, creatorId);
             long attachmentId = uploadAttachment(creator);
+            // 附件标识按十进制字符串提交：雪花标识超出 JavaScript 的安全整数范围
             var response = post(creator, "/feedback/add", Map.of(
                     "type", 2, "title", "附件反馈", "content", "正文内容",
-                    "attachmentIds", List.of(attachmentId)));
+                    "attachmentIds", List.of(String.valueOf(attachmentId))));
             assertEquals(0, response.path("code").asInt(), response.toString());
             long feedbackId = response.path("data").asLong();
             assertEquals(attachmentId, attachmentIdOf(feedbackId));
@@ -245,6 +246,37 @@ class HttpFeedbackProtectionTest {
                     "SELECT status FROM feedback_attachment WHERE id = ?", Integer.class, attachmentId),
                     "bound attachment must be BOUND");
             return feedbackId;
+        }
+    }
+
+    @Test
+    void attachmentIdsBindWhetherTheyArriveAsStringOrNumber() throws Exception {
+        // 服务端只接受服务端登记过的附件标识；字符串形式是客户端的正式提交方式
+        try (var creator = client()) {
+            login(creator, creatorId);
+            long attachmentId = uploadAttachment(creator);
+            var response = post(creator, "/feedback/add", Map.of(
+                    "type", 2, "title", "标识格式", "content", "正文内容",
+                    "attachmentIds", List.of(String.valueOf(attachmentId))));
+            assertEquals(0, response.path("code").asInt(), response.toString());
+            long feedbackId = response.path("data").asLong();
+            assertEquals(attachmentId, attachmentIdOf(feedbackId),
+                    "string attachment ids must bind to the uploaded attachment");
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND status = 1",
+                    Integer.class, attachmentId));
+        }
+        // 非法标识整体拒绝，不做部分绑定
+        try (var creator = client()) {
+            login(creator, creatorId);
+            long attachmentId = uploadAttachment(creator);
+            var response = post(creator, "/feedback/add", Map.of(
+                    "type", 2, "title", "非法标识", "content", "正文内容",
+                    "attachmentIds", List.of(String.valueOf(attachmentId), "not-a-number")));
+            assertEquals(40000, response.path("code").asInt(), response.toString());
+            assertEquals(0, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND feedbackId IS NOT NULL",
+                    Integer.class, attachmentId), "rejected submission must not bind any attachment");
         }
     }
 

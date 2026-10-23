@@ -46,10 +46,8 @@
 
     <!-- 授予表单 -->
     <div v-if="canManage" class="grant-form">
-      <a-input-number
+      <a-input
         v-model:value="form.granteeUserId"
-        :min="1"
-        :precision="0"
         placeholder="被授权用户 ID"
         class="form-field"
       />
@@ -97,11 +95,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   GRANT_DEFAULT_VALIDITY_DAYS,
   GRANT_MAX_VALIDITY_DAYS,
+  canManageGrants,
   createGrantUsingPost,
   formatDateTime,
   grantExpiresSoon,
@@ -110,17 +109,16 @@ import {
   listGrantsUsingGet,
   revokeGrantUsingPost,
 } from '@/api-custom/resourceProtection'
-import { useLoginUserStore } from '@/stores/userLogin'
 
 /** 授权至少给一天，避免出现事实上的即时永久授权 */
 const GRANT_MIN_VALIDITY_DAYS = 1
 
 interface Props {
-  pictureId?: number
+  /** 资源标识按字符串传递：雪花标识超出 JavaScript 安全整数范围，转成 number 会丢精度 */
+  pictureId?: string
 }
 
 const props = defineProps<Props>()
-const loginUserStore = useLoginUserStore()
 
 const visible = ref(false)
 const grants = ref<API.ResourceGrantVO[]>([])
@@ -129,17 +127,17 @@ const revokeVisible = ref(false)
 const revokeReason = ref('')
 const revokeTarget = ref<API.ResourceGrantVO | null>(null)
 
+/**
+ * 管理入口由服务端给出的资格决定：个人资源看所有者，团队资源看团队管理员身份，
+ * 平台管理身份本身不构成授权依据。角色不由前端猜测，避免与服务端规则漂移。
+ */
+const canManage = ref(false)
+
 const form = reactive({
-  granteeUserId: undefined as number | undefined,
+  granteeUserId: '' as string | undefined,
   validityDays: GRANT_DEFAULT_VALIDITY_DAYS as number | undefined,
   reason: '',
 })
-
-/**
- * 平台管理员只能审计授权记录，不能授予或撤销：
- * 管理身份本身不构成对私人资源的授权依据。
- */
-const canManage = computed(() => visible.value && loginUserStore.loginUser.userRole !== 'admin')
 
 const statusColor = (status?: string) => {
   const map: Record<string, string> = { ACTIVE: 'green', REVOKED: 'red', EXPIRED: 'default' }
@@ -151,17 +149,20 @@ const loadGrants = async () => {
   const res = await listGrantsUsingGet({ pictureId: props.pictureId })
   if (res.data.code === 0) {
     visible.value = true
-    grants.value = res.data.data ?? []
+    grants.value = res.data.data?.grants ?? []
+    canManage.value = canManageGrants(res.data.data)
   } else {
     // 没有授权查看资格：整个面板不出现，也不暴露资源授权信息
     visible.value = false
     grants.value = []
+    canManage.value = false
   }
 }
 
 const doGrant = async () => {
   if (!props.pictureId) return
-  if (!form.granteeUserId || form.granteeUserId <= 0) {
+  const granteeUserId = (form.granteeUserId ?? '').trim()
+  if (!/^\d+$/.test(granteeUserId) || Number(granteeUserId) <= 0) {
     message.warning('请填写被授权用户 ID')
     return
   }
@@ -170,7 +171,7 @@ const doGrant = async () => {
   try {
     const res = await createGrantUsingPost({
       pictureId: props.pictureId,
-      granteeUserId: form.granteeUserId,
+      granteeUserId,
       expiresTime: grantExpiresTime(days).toISOString(),
       reason: form.reason || undefined,
     })
@@ -197,12 +198,12 @@ const openRevoke = (grant: API.ResourceGrantVO) => {
 }
 
 const doRevoke = async () => {
-  const target = revokeTarget.value
-  if (!target?.id) return
+  const grantId = revokeTarget.value?.id
+  if (!grantId) return
   submitting.value = true
   try {
     const res = await revokeGrantUsingPost({
-      grantId: target.id,
+      grantId,
       reason: revokeReason.value || undefined,
     })
     if (res.data.code === 0) {

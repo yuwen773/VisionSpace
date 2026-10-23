@@ -8,6 +8,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.FeedbackAccessPolicy;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackAddRequest;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackQueryRequest;
@@ -57,6 +58,9 @@ public class FeedbackController {
 
     @Resource
     private PictureStorageService pictureStorageService;
+
+    @Resource
+    private FeedbackAccessPolicy feedbackAccessPolicy;
 
     /**
      * 提交反馈
@@ -122,7 +126,8 @@ public class FeedbackController {
                 upload.getPlatform(), upload.getStoragePath(), upload.getUrl(), upload.getPicSize());
         log.info("反馈附件上传成功: userId={}, attachmentId={}", loginUser.getId(), attachment.getId());
         FeedbackAttachmentVO vo = new FeedbackAttachmentVO();
-        vo.setId(attachment.getId());
+        // 标识按十进制字符串给出：雪花标识超出 JavaScript 的安全整数范围
+        vo.setId(String.valueOf(attachment.getId()));
         vo.setStatus("UPLOADED");
         vo.setUrl(feedbackAttachmentService.contentUrl(attachment, loginUser));
         return ResultUtils.success(vo);
@@ -152,14 +157,7 @@ public class FeedbackController {
     }
 
     private boolean canReadFeedback(UserFeedback feedback, User viewer) {
-        if (viewer == null || viewer.getId() == null) {
-            return false;
-        }
-        if (feedback.getUserId() != null && feedback.getUserId().equals(viewer.getId())) {
-            return true;
-        }
-        // 反馈管理职责：平台管理员角色
-        return userService.isAdmin(viewer);
+        return feedbackAccessPolicy.canReadFeedback(feedback, viewer);
     }
 
     /**

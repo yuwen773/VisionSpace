@@ -17,6 +17,7 @@ import com.yuwen.visionspace.model.vo.FeedbackVO;
 import com.yuwen.visionspace.service.FeedbackAttachmentService;
 import com.yuwen.visionspace.service.FeedbackService;
 import com.yuwen.visionspace.service.UserService;
+import com.yuwen.visionspace.utils.IdentifierUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @Slf4j
 @Service
@@ -52,8 +52,7 @@ public class FeedbackServiceImpl implements FeedbackService {
                 ErrorCode.PARAMS_ERROR, "参数不完整");
         ThrowUtils.throwIf(request.getTitle().length() > 50, ErrorCode.PARAMS_ERROR, "标题过长");
         ThrowUtils.throwIf(request.getContent().length() > 2000, ErrorCode.PARAMS_ERROR, "内容过长");
-        List<Long> attachmentIds = request.getAttachmentIds() == null
-                ? List.of() : request.getAttachmentIds();
+        List<Long> attachmentIds = IdentifierUtils.parseIds(request.getAttachmentIds(), "附件标识");
         ThrowUtils.throwIf(attachmentIds.size() > MAX_ATTACHMENTS, ErrorCode.PARAMS_ERROR, "附件数量超出限制");
         // 客户端提交的地址不再作为附件依据：只接受服务端登记过的附件标识
         ThrowUtils.throwIf(request.getPictureUrls() != null && !request.getPictureUrls().isEmpty(),
@@ -167,7 +166,8 @@ public class FeedbackServiceImpl implements FeedbackService {
         List<FeedbackAttachmentVO> attachmentVOs = new ArrayList<>();
         for (FeedbackAttachment attachment : attachments) {
             FeedbackAttachmentVO attachmentVO = new FeedbackAttachmentVO();
-            attachmentVO.setId(attachment.getId());
+            // 标识按十进制字符串给出：雪花标识超出 JavaScript 的安全整数范围
+            attachmentVO.setId(String.valueOf(attachment.getId()));
             attachmentVO.setStatus(attachmentStatus(attachment));
             if (includeContentUrls) {
                 attachmentVO.setUrl(feedbackAttachmentService.contentUrl(attachment, viewer));
@@ -204,18 +204,5 @@ public class FeedbackServiceImpl implements FeedbackService {
             builder.append("\"attachment:").append(attachments.get(i).getId()).append('"');
         }
         return builder.append(']').toString();
-    }
-
-    /**
-     * 判断查看者对反馈是否可读：创建者本人，或具有反馈管理职责的平台管理员。
-     */
-    public static boolean canReadFeedback(UserFeedback feedback, User viewer, UserService userService) {
-        if (feedback == null || viewer == null || viewer.getId() == null) {
-            return false;
-        }
-        if (Objects.equals(feedback.getUserId(), viewer.getId())) {
-            return true;
-        }
-        return userService.isAdmin(viewer);
     }
 }

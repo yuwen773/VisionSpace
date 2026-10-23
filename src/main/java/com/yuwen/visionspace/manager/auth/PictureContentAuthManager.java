@@ -24,7 +24,7 @@ import jakarta.annotation.Resource;
  *
  * <p>每次新请求都按当前数据库状态判定，不缓存判定结果：
  * <ul>
- *   <li>隔离中的资源：除隔离操作者与违规处置人员外一律拒绝，不因公开状态或所有权放行；</li>
+ *   <li>隔离中的资源：一律拒绝内容读取；违规处置只看元数据，不因此获得私人内容读取权限；</li>
  *   <li>已审核的公共图库图片：允许匿名读取；</li>
  *   <li>未审核的公共图库图片：作者与具有审核职责的平台管理员；</li>
  *   <li>私有空间：空间所有者，以及资源所有者授予的限时只读访问；</li>
@@ -69,7 +69,8 @@ public class PictureContentAuthManager {
         }
         // 隔离优先于一切：隔离后公开与私人访问都按隔离规则拒绝
         if (isQuarantined(picture)) {
-            return canAccessQuarantinedContent(viewer);
+            // 处置职责只看元数据：隔离不能成为读取私人内容的后门
+            return false;
         }
         if (canReadByOwnership(picture, viewer)) {
             return true;
@@ -97,14 +98,6 @@ public class PictureContentAuthManager {
             return canReadPublicPicture(picture, viewer);
         }
         return canReadSpacePicture(picture, spaceId, viewer);
-    }
-
-    /**
-     * 隔离中的内容只对具有独立处置权限的人员开放，用于复核隔离是否恰当；
-     * 平台管理员、公开状态与所有权都不构成例外。
-     */
-    private boolean canAccessQuarantinedContent(User viewer) {
-        return viewer != null && userService.isModerator(viewer);
     }
 
     private boolean canReadPublicPicture(Picture picture, User viewer) {

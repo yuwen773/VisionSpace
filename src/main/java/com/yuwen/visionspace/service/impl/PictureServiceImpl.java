@@ -170,6 +170,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
             // 重新上传会覆盖原图，业务边界必须复核归属
             checkPictureAuth(loginUser, oldPicture);
+            // 隔离中的资源保留原文等待处置：替换会销毁旧对象，不能成为绕过恢复与审计的路径
+            ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
             // 校验空间是否一致
             // 没传 spaceId，则复用原有图片的 spaceId（这样也兼容了公共图库）
             if (spaceId == null) {
@@ -655,6 +657,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
         checkPictureAuth(loginUser, oldPicture);
+        // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径
+        ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
         // 开启事务
         transactionTemplate.execute(status -> {
             // 操作数据库
@@ -735,6 +739,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         view.setThumbnailUrl(null);
         view.setPreviewUrl(null);
         return view;
+    }
+
+    /**
+     * 图片当前是否处于隔离状态。
+     */
+    private boolean isQuarantined(Long pictureId) {
+        return pictureId != null
+                && resourceIsolationService.isQuarantined(ResourceTypeEnum.PICTURE.getValue(), pictureId);
     }
 
     /**

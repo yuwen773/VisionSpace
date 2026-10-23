@@ -90,11 +90,14 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
         User grantee = userService.getById(granteeId);
         ThrowUtils.throwIf(grantee == null, ErrorCode.NOT_FOUND_ERROR, "被授权用户不存在");
         ThrowUtils.throwIf(granteeId.equals(grantor.getId()), ErrorCode.PARAMS_ERROR, "不能给自己授权");
-        // 授权主体：个人资源所有者或团队管理员；平台管理员身份不构成授权依据
+        // 授权主体：个人资源所有者或团队管理员；平台管理员身份本身不构成授权依据，
+        // 但平台管理员若独立拥有团队管理员身份，该身份照常生效
         ThrowUtils.throwIf(!canGrant(picture, grantor), ErrorCode.NO_AUTH_ERROR, "无权为该资源授权");
         validateExpiry(expiresAt, new Date());
         // 隔离中的资源不能被重新授权为可读
         ThrowUtils.throwIf(isQuarantined(picture), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能授权");
+        // 到期即失效：先释放同一资源同一被授权人的过期授权，才能重新授予
+        releaseExpiredGrant(picture.getId(), granteeId);
 
         ResourceAccessGrant entity = new ResourceAccessGrant();
         entity.setResourceType(ResourceTypeEnum.PICTURE.getValue());
@@ -210,16 +213,56 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
             // 私有空间仅所有者；平台管理员不能代为授权
             return false;
         }
-        if (userService.isAdmin(user)) {
-            // 平台管理身份不扩展到团队空间
-            return false;
-        }
+        // 团队空间按成员关系判定：平台管理员若独立持有团队管理员身份，
+        // 该身份照常生效；平台角色本身不额外扩大授权范围
         SpaceUser spaceUser = spaceUserService.lambdaQuery()
                 .eq(SpaceUser::getSpaceId, spaceId)
                 .eq(SpaceUser::getUserId, user.getId())
                 .one();
         return spaceUser != null
                 && SpaceRoleEnum.ADMIN.getValue().equals(spaceUser.getSpaceRole());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int expireOutdatedGrants() {
+        Date now = new Date();
+        List<Long> expiredIds = this.lambdaQuery()
+                .select(ResourceAccessGrant::getId)
+                .eq(ResourceAccessGrant::getStatus, ResourceGrantStatusEnum.ACTIVE.getValue())
+                .le(ResourceAccessGrant::getExpiresTime, now)
+                .list().stream()
+                .map(ResourceAccessGrant::getId)
+                .toList();
+        if (expiredIds.isEmpty()) {
+            return 0;
+        }
+        this.lambdaUpdate()
+                .in(ResourceAccessGrant::getId, expiredIds)
+                .eq(ResourceAccessGrant::getStatus, ResourceGrantStatusEnum.ACTIVE.getValue())
+                .set(ResourceAccessGrant::getStatus, ResourceGrantStatusEnum.EXPIRED.getValue())
+                .set(ResourceAccessGrant::getActiveKey, null)
+                .update();
+        log.info("到期授权已迁移为过期并释放唯一键: count={}, now={}", expiredIds.size(), now);
+        return expiredIds.size();
+    }
+
+    /**
+     * 释放同一资源同一被授权人的过期授权。
+     *
+     * <p>唯一约束表达"同一资源同一对象最多一条有效授权"，到期后必须真正释放，
+     * 否则再次授权会被判为重复授权。
+     */
+    private void releaseExpiredGrant(Long pictureId, Long granteeId) {
+        this.lambdaUpdate()
+                .eq(ResourceAccessGrant::getResourceType, ResourceTypeEnum.PICTURE.getValue())
+                .eq(ResourceAccessGrant::getResourceId, pictureId)
+                .eq(ResourceAccessGrant::getGranteeUserId, granteeId)
+                .eq(ResourceAccessGrant::getStatus, ResourceGrantStatusEnum.ACTIVE.getValue())
+                .le(ResourceAccessGrant::getExpiresTime, new Date())
+                .set(ResourceAccessGrant::getStatus, ResourceGrantStatusEnum.EXPIRED.getValue())
+                .set(ResourceAccessGrant::getActiveKey, null)
+                .update();
     }
 
     private void validateExpiry(Date expiresAt, Date now) {
@@ -251,24 +294,29 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
         List<ResourceGrantVO> result = new ArrayList<>();
         for (ResourceAccessGrant grant : grants) {
             ResourceGrantVO vo = new ResourceGrantVO();
-            vo.setId(grant.getId());
+            vo.setId(asId(grant.getId()));
             vo.setResourceType(grant.getResourceType());
-            vo.setResourceId(grant.getResourceId());
+            vo.setResourceId(asId(grant.getResourceId()));
             vo.setResourceName(resourceNames.get(grant.getResourceId()));
-            vo.setGranteeUserId(grant.getGranteeUserId());
+            vo.setGranteeUserId(asId(grant.getGranteeUserId()));
             vo.setGranteeUserName(displayName(users.get(grant.getGranteeUserId())));
-            vo.setGrantedByUserId(grant.getGrantedByUserId());
+            vo.setGrantedByUserId(asId(grant.getGrantedByUserId()));
             vo.setGrantedByUserName(displayName(users.get(grant.getGrantedByUserId())));
             vo.setReason(grant.getReason());
             vo.setExpiresTime(grant.getExpiresTime());
             vo.setStatus(currentStatus(grant, now));
-            vo.setRevokedByUserId(grant.getRevokedByUserId());
+            vo.setRevokedByUserId(asId(grant.getRevokedByUserId()));
             vo.setRevokeReason(grant.getRevokeReason());
             vo.setRevokeTime(grant.getRevokeTime());
             vo.setCreateTime(grant.getCreateTime());
             result.add(vo);
         }
         return result;
+    }
+
+    /** 标识按十进制字符串给出，避免客户端丢失精度 */
+    private String asId(Long id) {
+        return id == null ? null : String.valueOf(id);
     }
 
     /**

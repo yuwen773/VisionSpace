@@ -86,6 +86,32 @@ export function grantStatusText(status?: string | null): string {
   return GRANT_STATUS_TEXT[status ?? ''] ?? '未知状态'
 }
 
+/**
+ * 当前查看者能否管理该资源的授权。
+ *
+ * <p>资格由服务端给出（个人资源看所有者，团队资源看团队管理员身份）：
+ * 平台管理身份本身不构成授权依据，但平台管理员若独立持有团队管理员身份，
+ * 该身份照常生效。前端不按角色自行推断。
+ */
+export function canManageGrants(payload?: { canManage?: boolean } | null): boolean {
+  return Boolean(payload?.canManage)
+}
+
+/**
+ * 取出要随反馈提交的附件标识。
+ *
+ * <p>附件标识是雪花值，超出 JavaScript 的安全整数范围，服务端按十进制字符串给出；
+ * 这里原样透传，不能转成 number，也不能按类型过滤掉——否则附件会静默丢失。
+ */
+export function attachmentIdsOf(attachments?: { id?: string | null }[] | null): string[] {
+  if (!attachments) {
+    return []
+  }
+  return attachments
+    .map((attachment) => attachment.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+}
+
 /** 授权是否仍然可读：只有生效中且未到期的授权才算 */
 export function isGrantActive(grant?: { status?: string; expiresTime?: string } | null): boolean {
   if (!grant || grant.status !== 'ACTIVE') return false

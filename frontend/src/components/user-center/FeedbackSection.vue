@@ -96,6 +96,7 @@ import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
 import { addFeedbackUsingPost, uploadFeedbackAttachmentUsingPost } from '@/api/feedbackController'
+import { attachmentIdsOf } from '@/api-custom/resourceProtection'
 import { contentSrc } from '@/utils'
 
 const feedbackTypeOptions = [
@@ -179,9 +180,9 @@ const doFeedbackSubmit = async () => {
       type: feedbackForm.value.type,
       title: feedbackForm.value.title,
       content: feedbackForm.value.content,
-      attachmentIds: feedbackForm.value.attachments
-        .map((attachment) => attachment.id)
-        .filter((id): id is number => typeof id === 'number'),
+      // 附件标识原样提交：服务端按十进制字符串给出，转成 number 会丢精度，
+      // 按类型过滤会让附件静默丢失
+      attachmentIds: attachmentIdsOf(feedbackForm.value.attachments),
     })
     if (res.data.code === 0) {
       message.success('反馈提交成功！感谢您的宝贵意见')

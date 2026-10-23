@@ -200,6 +200,26 @@ class HttpResourceQuarantineTest {
     }
 
     @Test
+    void quarantinedResourceCannotBeReplacedByReupload() throws Exception {
+        quarantine(TEAM_PICTURE);
+        int deletesBefore = countStorageCalls("DELETE");
+        // 重新上传会用新文件替换记录并删除旧对象：隔离中的资源必须拒绝替换
+        try (var owner = client()) {
+            login(owner, ownerId);
+            var response = upload(owner, "/picture/upload", "replacement.png", "id", String.valueOf(TEAM_PICTURE));
+            assertRejected(response);
+        }
+        assertEquals(deletesBefore, countStorageCalls("DELETE"), "quarantined content must not be deleted");
+        // 记录与原文都还在
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM picture_file WHERE pictureId = ? AND status = 1",
+                Integer.class, TEAM_PICTURE), "quarantined picture file must be kept");
+        assertEquals("https://origin.invalid/" + TEAM_PICTURE + ".jpg", jdbc.queryForObject(
+                "SELECT url FROM picture WHERE id = ?", String.class, TEAM_PICTURE),
+                "quarantined picture must keep its original content");
+    }
+
+    @Test
     void releaseRestoresOriginalAccessRulesWithoutWidening() throws Exception {
         quarantine(GRANTED_PICTURE);
         // 恢复后：显式授权仍在有效期内，被授权人恢复读取
@@ -272,11 +292,12 @@ class HttpResourceQuarantineTest {
             assertEquals(0, history.path("code").asInt(), history.toString());
             assertEquals(1, history.path("data").size());
         }
-        // 处置人员能复核内容，但仍不能读取私人空间的非审核场景？
-        // 隔离中的内容复核属于处置职责，允许读取原文但不改变处置结论
+        // 处置职责只看元数据：隔离不能成为读取私人内容的后门
         try (var moderator = client()) {
             login(moderator, moderatorId);
-            assertContent(moderator, "/picture/content/" + TEAM_PICTURE + "/original");
+            int before = recorder.calls().size();
+            assertDenied(moderator, "/picture/content/" + TEAM_PICTURE + "/original");
+            assertEquals(before, recorder.calls().size(), "quarantine must not read quarantined content");
         }
         // 管理员仍然读不到
         long adminId = registerAdmin("quarantine_admin_" + System.nanoTime());
@@ -335,6 +356,36 @@ class HttpResourceQuarantineTest {
     }
 
     // ---- helpers ----
+
+    /**
+     * 重新上传：带一个额外的表单字段（替换目标图片 id）。
+     */
+    private JsonNode upload(HttpClient client, String path, String filename,
+                            String fieldName, String fieldValue) throws Exception {
+        String boundary = "----acceptance" + System.nanoTime();
+        byte[] content = "acceptance-image-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var body = new java.io.ByteArrayOutputStream();
+        body.write(("--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n"
+                + "Content-Type: image/png\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(content);
+        body.write(("\r\n--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"" + fieldName + "\"\r\n\r\n"
+                + fieldValue + "\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(("--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var response = client.send(HttpRequest.newBuilder(uri(path))
+                        .timeout(Duration.ofSeconds(10))
+                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                        .header(CsrfToken.HEADER, CsrfToken.of(client))
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+        return json.readTree(response.body());
+    }
+
+    private int countStorageCalls(String method) {
+        return (int) recorder.calls().stream().filter(call -> method.equals(call.method())).count();
+    }
 
     private void quarantine(long pictureId) throws Exception {
         JsonNode response = postAs(moderatorId, "/moderation/quarantine", moderationBody(pictureId, "举报"));

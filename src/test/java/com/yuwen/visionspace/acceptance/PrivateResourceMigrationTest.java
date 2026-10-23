@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -32,6 +33,7 @@ class PrivateResourceMigrationTest {
     private static final String ISOLATION = "scratch_isolation_36";
     private static final String GUARD = "scratch_guard_36";
     private static final String USER_FEEDBACK = "scratch_user_feedback_36";
+    private static final String FEEDBACK_ARCHIVE = "scratch_feedback_archive_36";
 
     private static final List<String> TABLES = List.of(FEEDBACK, GRANT, ISOLATION);
 
@@ -149,15 +151,61 @@ class PrivateResourceMigrationTest {
             jdbc.update("UPDATE `" + ISOLATION + "` SET status = 2, activeKey = NULL,"
                     + " releaseOperatorId = 5, releaseReason = '复核通过', releaseTime = NOW()"
                     + " WHERE resourceType = 'picture' AND resourceId = 1");
+            jdbc.update("INSERT INTO `" + USER_FEEDBACK + "`"
+                    + " (id, userId, type, title, content, pictureUrls, status, isDelete)"
+                    + " VALUES (1, 7, 2, 't', 'c', ?, 0, 0)", "[\"attachment:42\"]");
             run(ROLLBACK);
             for (String table : TABLES) {
                 assertFalse(tableExists(table), "rollback must drop " + table);
             }
             // 回滚保留既有业务数据，只删除本工单新增的表与守卫表
-            assertEquals(0, jdbc.queryForObject(
+            assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM `" + USER_FEEDBACK + "`", Integer.class),
                     "rollback must keep existing feedback rows");
             assertFalse(tableExists(GUARD), "successful rollback must clean up its guard table");
+        } finally {
+            dropScratchTables();
+        }
+    }
+
+    @Test
+    void rollbackKeepsAttachmentLocationsAndReapplyRestoresThem() throws Exception {
+        try {
+            createScratchTables();
+            run(FORWARD);
+            // 新反馈只保存 attachment:{id} 引用，定位信息在附件记录里
+            jdbc.update("INSERT INTO `" + FEEDBACK + "`"
+                    + " (id, ownerUserId, feedbackId, platform, objectKey, url, status)"
+                    + " VALUES (42, 7, 1, 'acceptance', 'obj/42', 'https://acceptance.invalid/obj/42', 1)");
+            jdbc.update("INSERT INTO `" + USER_FEEDBACK + "`"
+                    + " (id, userId, type, title, content, pictureUrls, status, isDelete)"
+                    + " VALUES (1, 7, 2, 't', 'c', ?, 0, 0)", "[\"attachment:42\"]");
+
+            run(ROLLBACK);
+
+            // 业务表删掉了，定位记录仍在归档里：平台、对象键、归属与绑定都在
+            assertFalse(tableExists(FEEDBACK), "rollback must drop the attachment table");
+            assertTrue(tableExists(FEEDBACK_ARCHIVE), "rollback must keep an archive of the attachments");
+            Map<String, Object> archived = jdbc.queryForMap(
+                    "SELECT ownerUserId, feedbackId, platform, objectKey, url, status FROM `"
+                            + FEEDBACK_ARCHIVE + "` WHERE id = 42");
+            assertEquals(7L, ((Number) archived.get("ownerUserId")).longValue());
+            assertEquals(1L, ((Number) archived.get("feedbackId")).longValue());
+            assertEquals("acceptance", archived.get("platform"));
+            assertEquals("obj/42", archived.get("objectKey"));
+            assertEquals(1, ((Number) archived.get("status")).intValue());
+            // 反馈记录本身保留，引用不被改写
+            assertEquals("[\"attachment:42\"]", jdbc.queryForObject(
+                    "SELECT pictureUrls FROM `" + USER_FEEDBACK + "` WHERE id = 1", String.class));
+
+            // 重新部署本工单：记录从归档搬回业务表，引用重新可解析
+            run(FORWARD);
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + FEEDBACK + "` WHERE id = 42 AND feedbackId = 1 AND status = 1",
+                    Integer.class), "re-applying the migration must restore the attachment record");
+            // 引用不再被当成归属不明的旧附件重复登记
+            assertEquals(0, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + FEEDBACK + "` WHERE platform = 'legacy'", Integer.class));
         } finally {
             dropScratchTables();
         }
@@ -173,7 +221,7 @@ class PrivateResourceMigrationTest {
     }
 
     private void dropScratchTables() {
-        for (String table : List.of(FEEDBACK, GRANT, ISOLATION, GUARD, USER_FEEDBACK)) {
+        for (String table : List.of(FEEDBACK, GRANT, ISOLATION, GUARD, USER_FEEDBACK, FEEDBACK_ARCHIVE)) {
             jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
         }
     }
@@ -189,6 +237,7 @@ class PrivateResourceMigrationTest {
 
     private String rename(String sql) {
         return sql.replace("`user_feedback`", "`" + USER_FEEDBACK + "`")
+                .replace("`feedback_attachment_archive_20261023`", "`" + FEEDBACK_ARCHIVE + "`")
                 .replace("`feedback_attachment`", "`" + FEEDBACK + "`")
                 .replace("`resource_access_grant`", "`" + GRANT + "`")
                 .replace("`resource_isolation`", "`" + ISOLATION + "`")

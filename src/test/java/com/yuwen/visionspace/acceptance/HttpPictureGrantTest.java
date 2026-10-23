@@ -229,8 +229,10 @@ class HttpPictureGrantTest {
             login(owner, ownerId);
             var grants = get(owner, "/picture/grant/list?pictureId=" + PRIVATE_PICTURE);
             assertEquals(0, grants.path("code").asInt(), grants.toString());
-            assertEquals(1, grants.path("data").size());
-            JsonNode grant = grants.path("data").get(0);
+            assertEquals(1, grants.path("data").path("grants").size());
+            // 所有者对自有资源具备管理资格
+            assertTrue(grants.path("data").path("canManage").asBoolean(), grants.toString());
+            JsonNode grant = grants.path("data").path("grants").get(0);
             // 授权视图不含内容地址
             assertFalse(grants.toString().contains("/picture/content/"), "grant list must not expose content: " + grants);
             assertFalse(grants.toString().contains("acceptance.invalid"), "grant list must not expose storage keys");
@@ -242,7 +244,61 @@ class HttpPictureGrantTest {
             login(admin, adminId);
             var grants = get(admin, "/picture/grant/list?pictureId=" + PRIVATE_PICTURE);
             assertEquals(0, grants.path("code").asInt(), grants.toString());
+            assertFalse(grants.path("data").path("canManage").asBoolean(),
+                    "platform admin must not manage grants of a resource it does not own: " + grants);
             assertDenied(admin, "/picture/content/" + PRIVATE_PICTURE + "/original");
+        }
+    }
+
+    @Test
+    void expiredGrantReleasesItsSlotSoTheResourceCanBeGrantedAgain() throws Exception {
+        long grantId = grant(ownerId, PRIVATE_PICTURE, viewerId, hoursFromNow(1));
+        // 让授权到期：到期是状态迁移，唯一键必须一起释放
+        jdbc.update("UPDATE resource_access_grant SET expiresTime = ? WHERE id = ?",
+                Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)), grantId);
+        try (var viewer = client()) {
+            login(viewer, viewerId);
+            assertDenied(viewer, "/picture/content/" + PRIVATE_PICTURE + "/original");
+        }
+        // 到期后可以重新授予同一资源与同一被授权人
+        long regrantId = grant(ownerId, PRIVATE_PICTURE, viewerId, hoursFromNow(2));
+        assertTrue(regrantId > 0);
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId = ? AND status = 1",
+                Integer.class, PRIVATE_PICTURE), "only the new grant stays active");
+        try (var viewer = client()) {
+            login(viewer, viewerId);
+            assertContent(viewer, "/picture/content/" + PRIVATE_PICTURE + "/original", "/private/original.jpg");
+        }
+    }
+
+    @Test
+    void platformAdminKeepsTeamAdminAuthorityButNotStrangersAuthority() throws Exception {
+        long adminId = registerAdmin("grant_admin_" + System.nanoTime());
+        // 平台管理员若独立持有团队管理员身份，该身份照常生效
+        joinTeam(adminId, "admin");
+        long grantId = grant(adminId, TEAM_PICTURE, strangerId, hoursFromNow(1));
+        assertTrue(grantId > 0);
+        try (var stranger = client()) {
+            login(stranger, strangerId);
+            assertContent(stranger, "/picture/content/" + TEAM_PICTURE + "/original", "/team/original.jpg");
+        }
+        // 但平台身份本身不构成授权依据：非成员的管理员仍然不能授权
+        long otherAdminId = registerAdmin("grant_admin_other_" + System.nanoTime());
+        assertRejected(postAs(otherAdminId, "/picture/grant/add",
+                grantBody(TEAM_PICTURE, strangerId, hoursFromNow(1))));
+        // 列表同样按同一资格给出管理入口
+        try (var admin = client()) {
+            login(admin, adminId);
+            var grants = get(admin, "/picture/grant/list?pictureId=" + TEAM_PICTURE);
+            assertEquals(0, grants.path("code").asInt(), grants.toString());
+            assertTrue(grants.path("data").path("canManage").asBoolean(), grants.toString());
+        }
+        try (var otherAdmin = client()) {
+            login(otherAdmin, otherAdminId);
+            var grants = get(otherAdmin, "/picture/grant/list?pictureId=" + TEAM_PICTURE);
+            assertEquals(0, grants.path("code").asInt(), grants.toString());
+            assertFalse(grants.path("data").path("canManage").asBoolean(), grants.toString());
         }
     }
 
@@ -292,8 +348,9 @@ class HttpPictureGrantTest {
 
     private Map<String, Object> grantBody(long pictureId, long granteeId, Date expires) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("pictureId", pictureId);
-        body.put("granteeUserId", granteeId);
+        // 标识按十进制字符串传输：雪花标识超出 JavaScript 的安全整数范围
+        body.put("pictureId", String.valueOf(pictureId));
+        body.put("granteeUserId", String.valueOf(granteeId));
         body.put("expiresTime", expires.toInstant().toString());
         body.put("reason", "验收测试");
         return body;

@@ -277,6 +277,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseResourceGrantListVO = {
+    code?: number
+    data?: ResourceGrantListVO
+    message?: string
+  }
+
   type BaseResponseResourceGrantVO = {
     code?: number
     data?: ResourceGrantVO
@@ -379,12 +385,12 @@ declare namespace API {
     type?: number
     title?: string
     content?: string
-    attachmentIds?: number[]
+    attachmentIds?: string[]
     pictureUrls?: string[]
   }
 
   type FeedbackAttachmentVO = {
-    id?: number
+    id?: string
     url?: string
     status?: string
   }
@@ -538,7 +544,7 @@ declare namespace API {
   }
 
   type listGrantsUsingGetParams = {
-    pictureId: number
+    pictureId: string
   }
 
   type listMcpServersUsingGetParams = {
@@ -777,14 +783,14 @@ declare namespace API {
   }
 
   type PictureGrantCreateRequest = {
-    pictureId?: number
-    granteeUserId?: number
+    pictureId?: string
+    granteeUserId?: string
     expiresTime?: string
     reason?: string
   }
 
   type PictureGrantRevokeRequest = {
-    grantId?: number
+    grantId?: string
     reason?: string
   }
 
@@ -939,21 +945,27 @@ declare namespace API {
     threadId: string
     expectedVersion?: number
     message?: string
+    message?: string
+  }
+
+  type ResourceGrantListVO = {
+    canManage?: boolean
+    grants?: ResourceGrantVO[]
   }
 
   type ResourceGrantVO = {
-    id?: number
+    id?: string
     resourceType?: string
-    resourceId?: number
+    resourceId?: string
     resourceName?: string
-    granteeUserId?: number
+    granteeUserId?: string
     granteeUserName?: string
-    grantedByUserId?: number
+    grantedByUserId?: string
     grantedByUserName?: string
     reason?: string
     expiresTime?: string
     status?: string
-    revokedByUserId?: number
+    revokedByUserId?: string
     revokeReason?: string
     revokeTime?: string
     createTime?: string

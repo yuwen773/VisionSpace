@@ -9,24 +9,31 @@ import java.util.Date;
  * 授权记录视图。
  *
  * <p>只包含授权审计所需字段；不包含图片内容、存储地址或任何密钥。
+ *
+ * <p>标识按十进制字符串给出：雪花标识超出 JavaScript 的安全整数范围，
+ * 客户端转成 number 会丢精度。
  */
 @Data
 public class ResourceGrantVO implements Serializable {
 
-    private Long id;
+    /** 授权记录标识（十进制字符串） */
+    private String id;
 
     private String resourceType;
 
-    private Long resourceId;
+    /** 资源标识（十进制字符串） */
+    private String resourceId;
 
     private String resourceName;
 
-    private Long granteeUserId;
+    /** 被授权查看者标识（十进制字符串） */
+    private String granteeUserId;
 
     /** 被授权人的展示名（最小化：仅名称） */
     private String granteeUserName;
 
-    private Long grantedByUserId;
+    /** 授权主体标识（十进制字符串） */
+    private String grantedByUserId;
 
     private String grantedByUserName;
 
@@ -37,7 +44,8 @@ public class ResourceGrantVO implements Serializable {
     /** ACTIVE / REVOKED / EXPIRED */
     private String status;
 
-    private Long revokedByUserId;
+    /** 撤销人标识（十进制字符串） */
+    private String revokedByUserId;
 
     private String revokeReason;
 
