@@ -51,6 +51,9 @@ vision-space:
     default-password: acceptance-only
     # 测试用低成本，避免每次登录都付生产级 CPU 代价
     password-bcrypt-cost: 4
+  # 受控替身只监听回环；生产配置保持 false，私网与元数据地址仍然拒绝
+  outbound:
+    allow-loopback: true
   pexels:
     api-key: acceptance-dummy
   vision-recognition:

@@ -11,16 +11,28 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 
 import java.util.Map;
 
+/**
+ * 一次 MCP 工具调用的回调。
+ *
+ * <p>回调只保存「服务 code + 所属用户」，不保存实体快照：执行时按当前用户回读
+ * 归属与启用状态，因此停用、删除、换归属之后，已缓存的回调不会再执行。
+ * 模型给出的参数不能替代这里的授权上下文。
+ */
 @Slf4j
 public class McpToolCallback implements ToolCallback {
 
     private final MCPManager mcpManager;
-    private final McpServer mcpServer;
+    private final McpServerAccess serverAccess;
+    private final String mcpServerCode;
+    private final Long userId;
     private final McpTool mcpTool;
 
-    public McpToolCallback(MCPManager mcpManager, McpServer entity, McpTool tool) {
+    public McpToolCallback(MCPManager mcpManager, McpServerAccess serverAccess,
+                           String mcpServerCode, Long userId, McpTool tool) {
         this.mcpManager = mcpManager;
-        this.mcpServer = entity;
+        this.serverAccess = serverAccess;
+        this.mcpServerCode = mcpServerCode;
+        this.userId = userId;
         this.mcpTool = tool;
     }
 
@@ -42,14 +54,17 @@ public class McpToolCallback implements ToolCallback {
 
     @Override
     public String call(String functionInput) {
+        // 执行前回读：归属、启用状态任一不成立都不建立连接、不执行工具
+        McpServer executable = serverAccess.requireExecutable(mcpServerCode, userId);
+
         Map<String, Object> params = parseInput(functionInput);
 
         McpServerCallToolRequest request = new McpServerCallToolRequest();
-        request.setMcpServerCode(mcpServer.getMcpServerCode());
+        request.setMcpServerCode(mcpServerCode);
         request.setToolName(mcpTool.getName());
         request.setToolParams(params);
 
-        McpServerCallToolResponse response = mcpManager.callTool(request, mcpServer);
+        McpServerCallToolResponse response = mcpManager.callTool(request, executable);
         return formatResponse(response);
     }
 
@@ -60,7 +75,7 @@ public class McpToolCallback implements ToolCallback {
         try {
             return JsonUtils.fromJson(functionInput, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            log.warn("Failed to parse mcp input: {}", functionInput);
+            log.warn("Failed to parse mcp input");
             return Map.of();
         }
     }

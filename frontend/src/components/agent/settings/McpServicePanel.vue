@@ -93,6 +93,7 @@
         <McpServerForm
           mode="create"
           :init-mode="formMode"
+          :stdio-disabled="stdioDisabled"
           @success="handleCreateSuccess"
           @cancel="viewMode = 'list'"
         />
@@ -117,6 +118,7 @@
         <McpServerForm
           :server="getServerByCode(editingCode!)"
           mode="edit"
+          :stdio-disabled="stdioDisabled"
           @success="handleEditSuccess"
           @cancel="viewMode = 'list'"
         />
@@ -129,6 +131,7 @@
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { listMcpServers, createMcpServer, updateMcpServer, deleteMcpServer } from '@/api-custom/mcp'
+import { capabilitiesUsingGet } from '@/api/mcpController'
 import McpServerForm from './McpServerForm.vue'
 import type { McpServerVO, McpServerFormData } from '@/types/mcp'
 import { getServerTypeLabel } from '@/types/mcp'
@@ -138,6 +141,8 @@ const mcpServerList = ref<McpServerVO[]>([])
 const editingCode = ref('')
 const viewMode = ref<'list' | 'create' | 'edit'>('list')
 const formMode = ref<'form' | 'json'>('form')
+// 服务端能力判定：禁用时界面不提供 STDIO 选项
+const stdioDisabled = ref(false)
 
 // 开始编辑
 const startEdit = (code: string) => {
@@ -256,7 +261,22 @@ const handleDelete = async (mcpServerCode: string) => {
   }
 }
 
+const loadCapabilities = async () => {
+  try {
+    const res = await capabilitiesUsingGet()
+    if (res.data.code === 0) {
+      stdioDisabled.value = Boolean(res.data.data?.stdioDisabled)
+      return
+    }
+  } catch {
+    // 落到下面的保守分支
+  }
+  // 能力接口失败或返回错误时保守处理：不展示服务端可能拒绝的 STDIO 选项
+  stdioDisabled.value = true
+}
+
 onMounted(() => {
+  loadCapabilities()
   loadMcpServerList()
 })
 </script>

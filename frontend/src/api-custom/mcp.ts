@@ -1,6 +1,6 @@
 // 手写 API 客户端：MCP Server 管理。
 //
-// 生成器产出的 mcpServerController.ts 已经覆盖了这五个端点，但这里保留一份
+// 生成器产出的 mcpController.ts 已经覆盖了这些端点（含 /capabilities），但这里保留一份
 // 薄封装：生成版要求调用方传完整的 API.McpServerDetail 类型，而 MCP 面板里
 // 的数据结构是局部构造的，用 any 更省事。等面板类型收敛后再切到生成版。
 import request from '@/request'
@@ -37,3 +37,4 @@ export const getMcpServer = (mcpServerCode: string, needTools = false) =>
  */
 export const listMcpServers = (params: { name?: string; current?: number; size?: number }) =>
   request('/api/mcp-server', { params })
+
