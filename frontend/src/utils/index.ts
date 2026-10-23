@@ -1,5 +1,5 @@
 import { saveAs } from 'file-saver'
-import { API_BASE_URL } from '@/request'
+import { apiUrl } from '@/apiOrigin'
 
 export const formatSize = (size: number) => {
   if (!size && size !== 0) return '未知'
@@ -15,7 +15,7 @@ export const formatSize = (size: number) => {
 export function contentSrc(url?: string | null): string {
   if (!url) return ''
   if (url.startsWith('/picture/content/')) {
-    return `${API_BASE_URL}/api${url}`
+    return apiUrl(`/api${url}`)
   }
   return url
 }

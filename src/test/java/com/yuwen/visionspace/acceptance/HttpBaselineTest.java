@@ -142,6 +142,7 @@ class HttpBaselineTest {
 
     private JsonNode post(HttpClient client, String path, String body) throws Exception {
         return send(client, HttpRequest.newBuilder(uri(path)).timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json")
+                .header(CsrfToken.HEADER, CsrfToken.of(client))
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build());
     }
 

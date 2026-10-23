@@ -2,9 +2,8 @@
 //
 // 这个目录不在 src/api/ 下——生成器每次运行都会 rimraf 整个 src/api/，
 // 所以手写文件必须放在它的作用范围之外。
-import request, { API_BASE_URL } from '@/request'
-
-const BASE_URL = API_BASE_URL
+import request from '@/request'
+import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
 
 // ============ 图片上传 ============
 // 走原生 fetch 而非 axios：上传需要 FormData，且要读原始 JSON 拿 data 字段。
@@ -25,10 +24,11 @@ export interface AgentImage {
 export async function uploadAgentImage(file: File): Promise<AgentImage> {
   const formData = new FormData()
   formData.append('file', file)
-  const res = await fetch(`${BASE_URL}/api/agent/image/upload`, {
+  const res = await fetch(`${API_ROOT}/agent/image/upload`, {
     method: 'POST',
     body: formData,
     credentials: 'include',
+    headers: { [CSRF_HEADER]: readCsrfToken() },
   })
   const json = await res.json()
   if (json.code !== 0) {
@@ -43,9 +43,9 @@ export async function uploadAgentImage(file: File): Promise<AgentImage> {
  * POST /api/agent/image/upload/delete
  */
 export async function deleteAgentImage(resourceId: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/agent/image/upload/delete`, {
+  const res = await fetch(`${API_ROOT}/agent/image/upload/delete`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', [CSRF_HEADER]: readCsrfToken() },
     body: JSON.stringify({ resourceId }),
     credentials: 'include',
   })

@@ -23,6 +23,7 @@ import com.yuwen.visionspace.model.enums.UserRoleEnum;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
 import com.yuwen.visionspace.model.vo.UserPictureStatsResponse;
 import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.PasswordHasher;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.mapper.UserMapper;
@@ -32,9 +33,12 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
 
+import cn.dev33.satoken.stp.parameter.SaLogoutParameter;
+import cn.dev33.satoken.stp.parameter.enums.SaLogoutMode;
+import cn.dev33.satoken.stp.parameter.enums.SaLogoutRange;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -52,6 +56,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         implements UserService {
+
+    @Autowired
+    private PasswordHasher passwordHasher;
+
     /**
      * 用户注册
      *
@@ -82,7 +90,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
         }
-        // 3. 密码一定要加密
+        // 3. 密码使用每用户独立盐的自适应摘要
         String encryptPassword = getEncryptPassword(userPassword);
         // 4. 插入数据到数据库中
         User user = new User();
@@ -109,18 +117,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (userPassword.length() < 8) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码错误");
         }
-        // 2. 对用户传递的密码进行加密
-        String encryptPassword = getEncryptPassword(userPassword);
-        // 3. 查询数据库中的用户是否存在
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userAccount", userAccount);
-        queryWrapper.eq("userPassword", encryptPassword);
-        User user = this.baseMapper.selectOne(queryWrapper);
-        // 不存在，抛异常
-        if (user == null) {
+        // 2. 按账号取回摘要：摘要带独立盐，不能再用「账号 + 摘要」拼查询条件
+        User user = this.lambdaQuery()
+                .eq(User::getUserAccount, userAccount)
+                .one();
+        // 不存在，抛异常。未命中时照样走一次哈希校验，避免以响应时间枚举账号
+        if (user == null || !passwordHasher.matches(userPassword, user.getUserPassword())) {
             log.info("user login failed, userAccount cannot match userPassword");
+            if (user == null) {
+                passwordHasher.matches(userPassword, passwordHasher.hash("timing-equalizer"));
+            }
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或者密码错误");
         }
+        // 3. 旧摘要或低成本摘要：仅在验证成功后升级。失败路径不写库。
+        upgradeStoredPassword(user, userPassword);
         // 4. 保存用户的登录态
         request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
         // 记录用户登录态到 Sa-token，便于空间鉴权时使用，注意保证该用户信息与 SpringSession 中的信息过期时间一致
@@ -130,16 +140,43 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     /**
-     * 获取加密后的密码
+     * 登录成功后把旧摘要升级为当前算法。
+     *
+     * <p>并发登录可能同时升级：更新条件是「摘要仍是本实例读到的那一个」，
+     * 因此只有第一个写入生效，后到者影响 0 行。升级只改 {@code userPassword}，
+     * 不触碰角色、会员等其它列，回滚只需保留旧摘要的备份数据。
+     */
+    private void upgradeStoredPassword(User user, String rawPassword) {
+        String stored = user.getUserPassword();
+        if (!passwordHasher.needsUpgrade(stored)) {
+            return;
+        }
+        String upgraded = passwordHasher.hash(rawPassword);
+        try {
+            boolean updated = this.lambdaUpdate()
+                    .set(User::getUserPassword, upgraded)
+                    .eq(User::getId, user.getId())
+                    .eq(User::getUserPassword, stored)
+                    .update();
+            if (updated) {
+                user.setUserPassword(upgraded);
+                log.info("password digest upgraded, userId={}", user.getId());
+            }
+        } catch (Exception e) {
+            // 升级失败不影响本次登录：用户仍可用原摘要继续登录
+            log.warn("password digest upgrade failed, userId={}", user.getId(), e);
+        }
+    }
+
+    /**
+     * 生成密码摘要
      *
      * @param userPassword 用户密码
-     * @return 加密后的密码
+     * @return 带独立盐的自适应摘要
      */
     @Override
     public String getEncryptPassword(String userPassword) {
-        // 加盐，混淆密码
-        final String SALT = "yuwen";
-        return DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+        return passwordHasher.hash(userPassword);
     }
 
     @Override
@@ -221,13 +258,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        // 判断是否已经登录
-        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
-        if (userObj == null) {
+        HttpSession session = request.getSession(false);
+        Object userObj = session == null ? null : session.getAttribute(UserConstant.USER_LOGIN_STATE);
+        boolean spaceLoggedIn = StpKit.SPACE.isLogin();
+        if (userObj == null && !spaceLoggedIn) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
-        // 移除登录态
-        request.getSession().removeAttribute(UserConstant.USER_LOGIN_STATE);
+        // 1. 撤销空间认证：删除令牌与账号映射，旧 Cookie 里的令牌立即失效
+        // 撤销失败必须让调用方看到，不能吞掉异常后返回「已注销」：
+        // 那样会话被清掉、令牌却还活着，用户以为退出了而空间鉴权仍然通过。
+        if (spaceLoggedIn) {
+            StpKit.SPACE.logout(SaLogoutParameter.create()
+                    .setMode(SaLogoutMode.LOGOUT)
+                    .setRange(SaLogoutRange.ACCOUNT));
+        }
+        // 2. 失效整个 HTTP 会话，只移除单个属性会让旧 Session 继续可用
+        if (session != null) {
+            try {
+                session.invalidate();
+            } catch (IllegalStateException e) {
+                log.debug("http session already invalidated");
+            }
+        }
         return true;
     }
 

@@ -164,6 +164,7 @@ class HttpAgentSessionIsolationTest {
             var response = send(stranger, HttpRequest.newBuilder(uri("/agent/image/chat/stream"))
                     .header("Content-Type", "application/json")
                     .header("Accept", "text/event-stream")
+                    .header(CsrfToken.HEADER, CsrfToken.of(stranger))
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(
                             Map.of("message", "越权执行", "threadId", threadId)))).build());
             // 归属在返回 Flux 之前判定，客户端拿到的是 JSON 错误而不是事件流；
@@ -352,9 +353,17 @@ class HttpAgentSessionIsolationTest {
         return json.readTree(send(client, HttpRequest.newBuilder(uri(path)).GET().build()).body());
     }
 
+    /**
+     * 与浏览器一致：状态修改带上会话下发的双提交令牌。
+     *
+     * <p>本类断言的是「归属判定」而非 CSRF，但 #32 的过滤器会先拦下已登录的
+     * 无令牌写请求（40300）。不带令牌会让每条用例都停在过滤器上，永远走不到
+     * 被测的归属逻辑；带上令牌才是真实链路。
+     */
     private JsonNode post(HttpClient client, String path, Map<String, ?> body) throws Exception {
         return json.readTree(send(client, HttpRequest.newBuilder(uri(path))
                 .header("Content-Type", "application/json")
+                .header(CsrfToken.HEADER, CsrfToken.of(client))
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build()).body());
     }
 

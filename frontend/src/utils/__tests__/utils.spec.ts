@@ -49,7 +49,7 @@ describe('lerp / clamp', () => {
 
 describe('contentSrc', () => {
   it('受控内容入口补上 API 源站与 context-path', () => {
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
     expect(contentSrc('/picture/content/1/original')).toBe(`${base}/api/picture/content/1/original`)
   })
 
