@@ -1,6 +1,8 @@
 package com.yuwen.visionspace.agent.config;
 
+import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
+import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.store.stores.MemoryStore;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -52,5 +54,17 @@ public class AgentStoreConfig {
     @Bean
     public MemoryStore memoryStore() {
         return new MemoryStore();
+    }
+
+    /**
+     * 与 RedisSaver 默认一致的序列化器。
+     *
+     * <p>完整执行状态的持久化必须用同一份序列化语义，否则「Redis 里能读、
+     * MySQL 里读不回」。这里显式建 Bean，避免两边各自 new 一个 ObjectMapper
+     * 后悄悄分叉。
+     */
+    @Bean
+    public StateSerializer stateSerializer() {
+        return StateGraph.DEFAULT_JACKSON_SERIALIZER;
     }
 }

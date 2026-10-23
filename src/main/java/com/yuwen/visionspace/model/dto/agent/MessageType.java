@@ -36,7 +36,12 @@ public enum MessageType {
     /**
      * 工具响应
      */
-    TOOL_RESPONSE("tool-response");
+    TOOL_RESPONSE("tool-response"),
+
+    /**
+     * 外部动作结果未知：与「明确失败」分开显示，等待用户核对
+     */
+    ACTION_UNKNOWN("action-unknown");
 
     private final String value;
 

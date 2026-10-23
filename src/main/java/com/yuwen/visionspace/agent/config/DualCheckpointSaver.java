@@ -5,6 +5,8 @@ import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 
+import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
+import com.yuwen.visionspace.agent.recovery.RunStatus;
 import com.yuwen.visionspace.mapper.AgentSessionMapper;
 import com.yuwen.visionspace.model.dto.agent.LightweightCheckpoint;
 import com.yuwen.visionspace.model.dto.agent.SimpleMessage;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,9 +45,13 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
 
     private final RedisSaver redisSaver;
     private final AgentSessionMapper sessionMapper;
+    private final AgentRunStateStore runStateStore;
     private final GzipUtils gzipUtils;
     private final ObjectMapper objectMapper;
     private final RedissonClient redissonClient;
+
+    /** 本实例启动时间，参与版本号初值，避免两个实例从同一个很小的数字开始交错 */
+    private final long versionSeed = System.currentTimeMillis();
 
     @Autowired
     @Qualifier("agentAsyncExecutor")
@@ -52,11 +59,37 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
 
     /** 备份频率控制：每 N 步才执行一次 MySQL 备份 */
     private static final int BACKUP_EVERY_N_STEPS = 3;
-    /** 按 threadId 分别的步骤计数器，支持多会话并发 */
+    /** 按 threadId 分别的步骤计数器，支持多会话并发；释放会话时清理 */
     private final ConcurrentHashMap<String, AtomicInteger> stepCounters = new ConcurrentHashMap<>();
+    /** 按 threadId 分别的状态版本号，保证同一实例内的版本严格递增 */
+    private final ConcurrentHashMap<String, AtomicLong> versionCounters = new ConcurrentHashMap<>();
+
+    /**
+     * 取下一个状态版本。
+     *
+     * <p>跨实例的先后由数据库 CAS 兜底：版本不够新的写入影响 0 行。
+     * 这里用启动时间参与初值，让两个实例各自生成的版本不会长期交错。
+     */
+    private long nextVersion(String threadId) {
+        long seed = versionSeed;
+        return versionCounters.computeIfAbsent(threadId, key -> new AtomicLong(seed))
+                .incrementAndGet();
+    }
 
     // ==================== 必须实现的 4 个方法 ====================
 
+    /**
+     * 加载检查点。
+     *
+     * <p>只在 Redis 有数据时返回。旧实现会在 Redis 缺失时用 MySQL 的轻量归档
+     * 「重建」一个只含 messages 的 Checkpoint，但框架的 {@code getInitialState}
+     * 每次正常开始都会调用本方法——于是仅含消息的归档会被当成完整恢复点混进
+     * 新一次执行，正是「不能证明安全续跑却伪装恢复」的缺陷。
+     *
+     * <p>现在 Redis 缺失一律返回空：新一次执行从干净状态开始，历史消息由
+     * {@code agent_message} 负责展示，完整续跑只走 {@link AgentRunStateStore}
+     * 的显式恢复入口。旧轻量归档仍然可查看，只是不再参与执行。
+     */
     @Override
     public Optional<Checkpoint> get(RunnableConfig config) {
         Optional<String> threadIdOpt = config.threadId();
@@ -64,16 +97,7 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
             log.warn("RunnableConfig 缺少 threadId，无法加载 Checkpoint");
             return Optional.empty();
         }
-        String threadId = threadIdOpt.get();
-
-        // 1. 优先 Redis
-        Optional<Checkpoint> redisCp = redisSaver.get(config);
-        if (redisCp.isPresent()) {
-            return redisCp;
-        }
-
-        log.info("Redis Checkpoint 不存在 → 触发 MySQL 预热: {}", threadId);
-        return loadLightweightFromMySQL(threadId);
+        return redisSaver.get(config);
     }
 
     @Override
@@ -86,8 +110,21 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
         // 2. 设置 TTL
         setCheckpointTtl(threadId);
 
-        // 3. 异步轻量备份到 MySQL（直接提交到线程池，绕过 Spring 代理问题）
         Long ownerUserId = ownerUserId(config);
+
+        // 3. 完整状态：同步、版本化写入。恢复点必须可靠，不能等异步任务，
+        //    否则「进程在 put 之后崩溃」就没有可续跑的完整状态。
+        if (ownerUserId != null) {
+            long version = nextVersion(threadId);
+            boolean saved = runStateStore.saveFullState(threadId, ownerUserId, version, checkpoint,
+                    RunStatus.RUNNING, null);
+            if (!saved) {
+                log.debug("完整状态未写入（版本较旧或归属不符）, threadId={}, version={}",
+                        threadId, version);
+            }
+        }
+
+        // 4. 异步轻量备份到 MySQL（历史展示用，直接提交到线程池，绕过 Spring 代理问题）
         asyncExecutor.execute(() -> doBackupLightweight(threadId, ownerUserId, checkpoint));
 
         return result;
@@ -98,8 +135,26 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
         return redisSaver.list(config);
     }
 
+    /**
+     * 释放会话。
+     *
+     * <p>除了框架侧的释放，还要清掉本会话的进程内运行计数与持久化状态载荷：
+     * 否则每开一个新会话就永久留下一个计数器，长期运行会无界增长。
+     */
     @Override
     public BaseCheckpointSaver.Tag release(RunnableConfig config) throws Exception {
+        config.threadId().ifPresent(threadId -> {
+            stepCounters.remove(threadId);
+            versionCounters.remove(threadId);
+            Long owner = ownerUserId(config);
+            if (owner != null) {
+                try {
+                    runStateStore.clearForRelease(threadId, owner);
+                } catch (Exception e) {
+                    log.warn("释放会话时清理执行状态失败, threadId={}", threadId);
+                }
+            }
+        });
         return redisSaver.release(config);
     }
 
@@ -121,23 +176,25 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
 
     // ==================== 轻量备份核心逻辑（保持不变） ====================
 
-    private Optional<Checkpoint> loadLightweightFromMySQL(String threadId) {
+    /**
+     * 旧轻量归档的读取入口。
+     *
+     * <p><b>只用于查看历史，不用于续跑。</b>返回的消息列表来自
+     * {@code agent_session.checkpointData}，没有恢复点、迭代状态与待确认信息，
+     * 因此不能被包装成 Checkpoint 交给框架。显式恢复走
+     * {@link AgentRunStateStore#loadResumable}。
+     */
+    Optional<List<SimpleMessage>> loadLegacyArchiveMessages(String threadId) {
         AgentSession session = sessionMapper.selectBySessionId(threadId);
         if (session == null || session.getCheckpointData() == null) {
             return Optional.empty();
         }
-
         try {
             String json = gzipUtils.decompress(session.getCheckpointData());
             LightweightCheckpoint lw = objectMapper.readValue(json, LightweightCheckpoint.class);
-
-            Checkpoint rebuilt = Checkpoint.builder()
-                    .state(Map.of("messages", convertToSpringAIMessages(lw.messages())))
-                    .build();
-
-            return Optional.of(rebuilt);
+            return Optional.of(lw.messages() == null ? List.of() : lw.messages());
         } catch (Exception e) {
-            log.error("MySQL 预热失败, threadId={}", threadId, e);
+            log.warn("旧轻量归档无法解析, threadId={}", threadId);
             return Optional.empty();
         }
     }
@@ -237,19 +294,4 @@ public class DualCheckpointSaver implements BaseCheckpointSaver {
         }
     }
 
-    /**
-     * 将 SimpleMessage 列表转换回 Spring AI Message
-     */
-    private List<org.springframework.ai.chat.messages.Message> convertToSpringAIMessages(
-            List<SimpleMessage> simpleMsgs) {
-        if (simpleMsgs == null) return List.of();
-        return simpleMsgs.stream()
-                .map(m -> switch (m.role()) {
-                    case "USER" -> new org.springframework.ai.chat.messages.UserMessage(m.content());
-                    case "ASSISTANT" -> new org.springframework.ai.chat.messages.AssistantMessage(m.content());
-                    case "SYSTEM" -> new org.springframework.ai.chat.messages.SystemMessage(m.content());
-                    default -> new org.springframework.ai.chat.messages.AssistantMessage(m.content());
-                })
-                .collect(Collectors.toList());
-    }
 }

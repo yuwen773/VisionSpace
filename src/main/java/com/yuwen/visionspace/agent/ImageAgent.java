@@ -8,9 +8,17 @@ import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
+import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
+import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
+import com.yuwen.visionspace.agent.recovery.PendingReviewException;
+import com.yuwen.visionspace.agent.recovery.RunStatus;
+import com.yuwen.visionspace.exception.BusinessException;
+import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.model.entity.AgentRunState;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
@@ -96,10 +104,19 @@ public class ImageAgent {
     private AgentSessionGuard sessionGuard;
 
     @Resource
+    private AgentRunStateStore runStateStore;
+
+    @Resource
     private BaseCheckpointSaver checkpointSaver;
 
     @Resource
     private TextMcpModelInterceptor textMcpModelInterceptor;
+
+    @Resource
+    private com.yuwen.visionspace.agent.recovery.AgentActionInterceptor actionInterceptor;
+
+    @Resource
+    private AgentRecoveryService recoveryService;
 
     private ReactAgent agent;
 
@@ -222,6 +239,8 @@ public class ImageAgent {
                         summarizationHook,
                         ModelCallLimitHook.builder().runLimit(15).build()
                 ))
+                // 动作台账：已确认完成不重放，结果未知进入待核对
+                .interceptors(List.of(actionInterceptor))
                 .saver(checkpointSaver)
                 .build();
     }
@@ -287,6 +306,10 @@ public class ImageAgent {
         ReactAgent activeAgent = (mcpCallbacks == null || mcpCallbacks.length == 0)
                 ? agent
                 : buildMcpAgent(mcpCallbacks);
+
+        // 本次执行开始前收敛上次遗留的「执行中」动作：可证明幂等的退回可重试，
+        // 其余进入待核对，避免把它们当成「没发生」而重放
+        recoveryService.reconcileBeforeRun(threadId, userId);
 
         try {
             Flux<NodeOutput> stream = activeAgent.stream(fullMessage, config);
@@ -360,9 +383,23 @@ public class ImageAgent {
                             }
                             messageDTO.setContent(sb.toString());
                             chatHistoryService.saveToolConfirmMessage(threadId, userId, sb.toString());
+                            // 人工确认信息随完整状态一起落库：重启后仍能区分
+                            // 「停在待确认」与「已经确认过」
+                            persistAwaitingConfirmation(threadId, userId, interruptionMetadata);
                             return messageDTO;
                         }
                         return null;
+                    })
+                    // 结果未知与明确失败分开呈现：前者不能直接重试，必须核对
+                    .onErrorResume(PendingReviewException.class, error -> {
+                        MessageDTO messageDTO = new MessageDTO();
+                        messageDTO.setMessageType(MessageType.ACTION_UNKNOWN);
+                        messageDTO.setToolName(error.getToolName());
+                        messageDTO.setContent("工具 " + error.getToolName()
+                                + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
+                        runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                                "外部动作结果未知，等待核对：" + error.getToolName());
+                        return Flux.just(messageDTO);
                     })
                     .doOnComplete(() -> {
                         String fullReasoning = reasoningContent.toString();
@@ -428,6 +465,74 @@ public class ImageAgent {
     }
 
     /**
+     * 从完整执行状态续跑。
+     *
+     * <p>只有 {@link AgentRecoveryService} 判定可续跑时才会走到这里；本方法再
+     * 核对一次归属与状态，保证任何直接调用方也无法用消息历史伪造恢复点。
+     *
+     * <p>失败时区分三种结果，不混成一句「失败」：
+     * <ul>
+     *   <li>结果未知且不能安全重试：暂停并返回待核对提示；</li>
+     *   <li>可安全重试：记录失败，保持可重试；</li>
+     *   <li>已确认完成：不重放。</li>
+     * </ul>
+     */
+    public String resume(String threadId, Long userId) {
+        sessionGuard.requireOwned(threadId, userId);
+        AgentRunState state = runStateStore.loadResumable(threadId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.OPERATION_ERROR,
+                        "该会话没有可安全续跑的执行状态，已暂停自动执行"));
+
+        Optional<Checkpoint> checkpoint = runStateStore.toCheckpoint(state);
+        if (checkpoint.isEmpty()) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    state.getPendingConfirmation());
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "执行状态无法还原，已暂停自动执行");
+        }
+
+        RunnableConfig config = runStateStore.resumeConfig(threadId, userId, state,
+                DualCheckpointSaver.OWNER_USER_ID_METADATA_KEY);
+
+        try {
+            // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
+            AssistantMessage response = agent.call("", config);
+            runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
+            return response.getText();
+        } catch (PendingReviewException e) {
+            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
+                    "外部动作结果未知，等待核对：" + e.getToolName());
+            return "该步骤的外部执行结果未知，已暂停。请核对后再继续。";
+        } catch (Exception e) {
+            log.error("Agent 续跑失败, threadId={}, userId={}", threadId, userId);
+            runStateStore.updateStatus(threadId, userId, RunStatus.FAILED, null);
+            return "抱歉，继续执行时出现了问题，请稍后重试。";
+        }
+    }
+
+    /**
+     * 把「停在人工确认点」这件事持久化。
+     *
+     * <p>只保存工具名与已脱敏的描述：确认信息要能被下一次执行读到，
+     * 但审计里不应出现对话正文。
+     */
+    private void persistAwaitingConfirmation(String threadId, Long userId,
+                                             InterruptionMetadata interruption) {
+        StringBuilder summary = new StringBuilder();
+        for (InterruptionMetadata.ToolFeedback feedback : interruption.toolFeedbacks()) {
+            summary.append(feedback.getName());
+            if (feedback.getDescription() != null) {
+                String description = feedback.getDescription().replaceAll("\\s+", " ").trim();
+                summary.append(": ")
+                        .append(description.length() > 120 ? description.substring(0, 120) + "..." : description);
+            }
+            summary.append('\n');
+        }
+        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION,
+                summary.toString());
+    }
+
+    /**
      * 构造带归属信息的执行配置。
      *
      * <p>归属放在 metadata 里交给 Checkpoint 备份做条件写入；threadId 本身
@@ -473,6 +578,8 @@ public class ImageAgent {
                         summarizationHook,
                         ModelCallLimitHook.builder().runLimit(15).build()
                 ))
+                // MCP 工具同样经过台账：外部动作不因来源不同而失去核对能力
+                .interceptors(List.of(actionInterceptor))
                 .saver(checkpointSaver)
                 .build();
     }

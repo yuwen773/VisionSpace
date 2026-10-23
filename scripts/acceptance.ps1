@@ -68,7 +68,8 @@ try {
         # Reuse tracked DDL only: exclude database selection, DROP statements and any data.
         $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
         $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-        if ($tables.Count -ne 12) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+        # #41 新增 agent_run_state / agent_action_record，表数由 12 变为 14。
+        if ($tables.Count -ne 14) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
         $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
         $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

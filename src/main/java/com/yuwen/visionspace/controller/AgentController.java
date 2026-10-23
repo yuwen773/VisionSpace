@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
 import com.yuwen.visionspace.agent.service.AgentImageUploadService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -14,8 +15,10 @@ import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.model.dto.agent.ActionReviewRequest;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
 import com.yuwen.visionspace.model.dto.agent.ChatHistoryVO;
+import com.yuwen.visionspace.model.dto.agent.RecoveryStateVO;
 import com.yuwen.visionspace.model.dto.agent.FeedbackRequest;
 import com.yuwen.visionspace.model.dto.agent.MessageDTO;
 import com.yuwen.visionspace.model.dto.agent.SessionVO;
@@ -54,6 +57,9 @@ public class AgentController {
 
     @Resource
     private AgentSessionGuard sessionGuard;
+
+    @Resource
+    private AgentRecoveryService agentRecoveryService;
 
     @Resource
     private AgentConstants agentConstants;
@@ -245,6 +251,65 @@ public class AgentController {
         // 归属不成立时拒绝；不区分「不存在」与「属于他人」
         sessionGuard.requireOwned(threadId, loginUser.getId());
         return ResultUtils.success(chatHistoryService.loadHistory(threadId, beforeId, Math.min(limit, agentConstants.getMaxHistoryPageSize())));
+    }
+
+    /**
+     * 查询会话的恢复状态。
+     *
+     * <p>归属不成立时与历史接口一样拒绝，且不区分「不存在」与「属于他人」。
+     */
+    @GetMapping("/recovery/{threadId}")
+    public BaseResponse<RecoveryStateVO> getRecoveryState(
+            @PathVariable String threadId,
+            HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        return ResultUtils.success(agentRecoveryService.describe(threadId, loginUser.getId()));
+    }
+
+    /**
+     * 续跑会话。
+     *
+     * <p>只在存在可安全续跑的完整状态、且没有待核对动作时执行；
+     * 否则返回明确原因并保持暂停，不用消息历史伪造恢复。
+     */
+    @PostMapping("/recovery/{threadId}/resume")
+    public BaseResponse<String> resume(
+            @PathVariable String threadId,
+            @RequestParam(required = false) Long expectedVersion,
+            HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        Long userId = loginUser.getId();
+
+        // 上次执行遗留的「执行中」动作先收敛，再判断能不能续跑
+        agentRecoveryService.reconcileBeforeRun(threadId, userId);
+        agentRecoveryService.requireResumable(threadId, userId, expectedVersion);
+
+        String output = imageAgent.resume(threadId, userId);
+        return ResultUtils.success(output);
+    }
+
+    /**
+     * 人工核对：确认外部动作已经发生。
+     */
+    @PostMapping("/recovery/action/confirm")
+    public BaseResponse<RecoveryStateVO> confirmAction(@RequestBody ActionReviewRequest request,
+                                                       HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        return ResultUtils.success(agentRecoveryService.confirmAction(
+                resolveThreadId(request.getThreadId()), loginUser.getId(),
+                request.getActionId(), request.getNote()));
+    }
+
+    /**
+     * 人工核对：确认外部动作没有发生（或接受不再执行）。
+     */
+    @PostMapping("/recovery/action/dismiss")
+    public BaseResponse<RecoveryStateVO> dismissAction(@RequestBody ActionReviewRequest request,
+                                                       HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        return ResultUtils.success(agentRecoveryService.dismissAction(
+                resolveThreadId(request.getThreadId()), loginUser.getId(),
+                request.getActionId(), request.getNote()));
     }
 
     /**
