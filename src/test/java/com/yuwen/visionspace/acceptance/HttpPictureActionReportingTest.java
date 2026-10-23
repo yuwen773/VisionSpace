@@ -218,6 +218,7 @@ class HttpPictureActionReportingTest {
     void excessiveTrafficIsRejectedAndObservable() throws Exception {
         long accountUser = register("action_burst_" + System.nanoTime());
         long before = pictureActionService.getReportMetrics().getRateLimitedCount();
+        long rejectedBefore = pictureActionService.getReportMetrics().getRejectedCount();
         try (var client = client()) {
             login(client, accountUser);
             // 隔离验收配置的限额是 50 次/分钟，第 51 次必须被拒绝
@@ -233,6 +234,10 @@ class HttpPictureActionReportingTest {
         }
         long after = pictureActionService.getReportMetrics().getRateLimitedCount();
         assertTrue(after > before, "rate limited traffic must be observable: " + before + " -> " + after);
+        // 限流与拒绝是两个类别：被限流的请求只计限流，不得再计一次拒绝
+        long rejectedAfter = pictureActionService.getReportMetrics().getRejectedCount();
+        assertEquals(rejectedBefore, rejectedAfter,
+                "rate-limited requests must not also count as rejected: " + rejectedBefore + " -> " + rejectedAfter);
     }
 
     /**

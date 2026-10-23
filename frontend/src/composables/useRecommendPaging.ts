@@ -1,9 +1,5 @@
 import { ref } from 'vue'
-import {
-  getRecommendListUsingGet,
-  type PictureRecommendRequest,
-  type RecommendPageData,
-} from '@/api-custom/picture'
+import { getRecommendListUsingGet, type PictureRecommendRequest } from '@/api-custom/picture'
 
 /**
  * 解析服务端给出的总数。
@@ -71,7 +67,9 @@ export function useRecommendPaging() {
       size: size.value,
       context: context.value,
     })
-    const payload: RecommendPageData | undefined = res?.data?.data
+    // 契约类型来自生成器（API.RecommendPageVO）：total 是十进制字符串。
+    // 解析仍然容忍两种形状，但只认非负安全整数。
+    const payload: API.RecommendPageVO | undefined = res?.data?.data
     const data: unknown[] = payload?.records ?? []
     // 总数始终取服务端给出的真实数量：越界页只返回空记录，不会把总数抹成零
     const serverTotal = parseRecommendTotal(payload?.total)

@@ -2,7 +2,6 @@ package com.yuwen.visionspace.service.impl;
 
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
-import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
 import com.yuwen.visionspace.manager.cache.PictureActionRateLimiter;
 import com.yuwen.visionspace.mapper.PictureActionEventDedupeMapper;
@@ -84,46 +83,64 @@ public class PictureActionServiceImpl implements PictureActionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean reportAction(PictureActionReportCommand command) {
-        try {
-            return doReportAction(command);
-        } catch (BusinessException e) {
-            // 被拒绝的请求同样计数，异常流量才看得见
-            rateLimiter.countRejected();
-            throw e;
-        }
+        return doReportAction(command);
+    }
+
+    /**
+     * 拒绝当前上报：在拒绝发生的分支上就地计数并抛出。
+     *
+     * <p>不用外层 catch 统一计数：限流分支已经计入限流，再按拒绝计数
+     * 会把同一请求算进两个类别，可观测信息就失真了。
+     */
+    private void reject(ErrorCode errorCode, String message) {
+        rateLimiter.countRejected();
+        throw new BusinessException(errorCode, message);
     }
 
     private boolean doReportAction(PictureActionReportCommand command) {
-        ThrowUtils.throwIf(command == null, ErrorCode.PARAMS_ERROR);
+        if (command == null) {
+            reject(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
         // 客户端不得声明身份：出现即拒绝，避免冒充他人上报
-        ThrowUtils.throwIf(command.getDeclaredUserId() != null, ErrorCode.PARAMS_ERROR,
-                "客户端不得声明用户身份");
-        ThrowUtils.throwIf(command.getPictureId() == null || command.getPictureId() <= 0,
-                ErrorCode.PARAMS_ERROR, "图片ID不合法");
+        if (command.getDeclaredUserId() != null) {
+            reject(ErrorCode.PARAMS_ERROR, "客户端不得声明用户身份");
+        }
+        if (command.getPictureId() == null || command.getPictureId() <= 0) {
+            reject(ErrorCode.PARAMS_ERROR, "图片ID不合法");
+        }
         ActionTypeEnum actionType = ActionTypeEnum.fromValue(
                 command.getActionType() == null ? -1 : command.getActionType());
-        ThrowUtils.throwIf(actionType == null, ErrorCode.PARAMS_ERROR, "行为类型不合法");
+        if (actionType == null) {
+            reject(ErrorCode.PARAMS_ERROR, "行为类型不合法");
+        }
         ActionSourceEnum source = ActionSourceEnum.fromValue(
                 command.getSource() == null ? -1 : command.getSource());
-        ThrowUtils.throwIf(source == null, ErrorCode.PARAMS_ERROR, "行为来源不合法");
+        if (source == null) {
+            reject(ErrorCode.PARAMS_ERROR, "行为来源不合法");
+        }
 
         boolean anonymous = command.getActorUserId() == null;
         // 点赞、收藏等账户动作要求登录
-        ThrowUtils.throwIf(anonymous && !ANONYMOUS_ALLOWED_ACTIONS.contains(actionType),
-                ErrorCode.NO_AUTH_ERROR, "该行为需要登录后上报");
+        if (anonymous && !ANONYMOUS_ALLOWED_ACTIONS.contains(actionType)) {
+            reject(ErrorCode.NO_AUTH_ERROR, "该行为需要登录后上报");
+        }
 
-        // 限流放在写库之前，异常流量不会压到数据库
+        // 限流放在写库之前，异常流量不会压到数据库；只计限流，不重复计拒绝
         if (!rateLimiter.allow(command.getClientKey())) {
             rateLimiter.countRateLimited();
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "上报过于频繁，请稍后再试");
         }
 
         Picture picture = pictureMapper.selectById(command.getPictureId());
-        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
-        ThrowUtils.throwIf(!isPubliclyVisible(picture), ErrorCode.NO_AUTH_ERROR, "无权对该图片上报行为");
+        if (picture == null) {
+            reject(ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+        }
+        if (!isPubliclyVisible(picture)) {
+            reject(ErrorCode.NO_AUTH_ERROR, "无权对该图片上报行为");
+        }
 
         String eventId = resolveEventId(command, actionType, source);
-        // 先登记幂等台账再写事件载荷：台账是可靠去重依据，
+        // 先登记幂等台账再写事件载荷：台账是重复判定的可靠来源，
         // 载荷按保留期清理之后，同一个事件重放仍然被挡住，不会二次入账。
         if (!registerEvent(eventId)) {
             // 同一事件重放：不重复入账，按成功受理返回
@@ -201,8 +218,9 @@ public class PictureActionServiceImpl implements PictureActionService {
         String scope = command.getClientKey();
         String raw = command.getEventId();
         if (raw != null && !raw.isBlank()) {
-            ThrowUtils.throwIf(!EVENT_ID_PATTERN.matcher(raw).matches(), ErrorCode.PARAMS_ERROR,
-                    "事件ID格式不合法");
+            if (!EVENT_ID_PATTERN.matcher(raw).matches()) {
+                reject(ErrorCode.PARAMS_ERROR, "事件ID格式不合法");
+            }
             return scope + ":" + raw;
         }
         long bucket = System.currentTimeMillis() / 1000 / Math.max(1L, dedupeWindowSeconds);

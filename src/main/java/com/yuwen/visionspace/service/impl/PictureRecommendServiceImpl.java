@@ -33,8 +33,8 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>候选有界：热门与随机先取有界候选池，评分只在候选池内进行；</li>
  *   <li>页切分正确：热门与随机按候选池的有序结果做内存切片，最新与优质用数据库分页；</li>
- *   <li>总数真实：来自实际可翻到的数量，不是写死的常量；越界页只返回空记录，
- *       不把非空集合的总数抹成 0；</li>
+ *   <li>总数真实：公开图库的实际数量，不是写死的常量，也不随候选池上限缩小；
+ *       越界页只返回空记录，不把非空集合的总数抹成 0；</li>
  *   <li>分页上下文稳定：同一上下文里的候选顺序固定，翻页不重复、不遗漏；</li>
  *   <li>上下文失效时明确结束：候选被刷新或到期后，旧上下文不会被悄悄绑定到新的
  *       排序上，响应会给出新的候选与 contextValid=false，客户端从新的一份重新开始；</li>
@@ -78,16 +78,6 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     private long qualityMinPixels;
 
     @Override
-    public List<Long> getRecommendPictureIds(String type, int page, int size) {
-        return getRecommendPictureIds(type, page, size, null);
-    }
-
-    @Override
-    public List<Long> getRecommendPictureIds(String type, int page, int size, String context) {
-        return resolvePage(type, page, size, context).pictureIds();
-    }
-
-    @Override
     public RecommendPageVO getRecommendPictures(String type, int page, int size) {
         return getRecommendPictures(type, page, size, null);
     }
@@ -117,15 +107,17 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         }
         CandidateResolution resolution = candidateList(type, context);
         RecommendCandidateList candidates = resolution.candidates();
+        // 总数始终取公开图库的真实数量：候选池有界，但对外报告的集合大小不随池上限缩小
+        long total = countRecommendPictures(type);
         if (resolution.contextValid()) {
             return new PageSlice(slice(candidates.getPictureIds(), safePage, safeSize),
-                    candidates.getTotal(), candidates.getContext(), true);
+                    total, candidates.getContext(), true);
         }
         // 上下文已经失效：这份候选被刷新或到期，原来的页码不再对应任何候选。
         // 明确结束这份上下文，把当前快照的第一页交回去，客户端从新的一份结果重新开始，
         // 而不是把旧上下文悄悄绑定到新的排序上。
         return new PageSlice(slice(candidates.getPictureIds(), 1, safeSize),
-                candidates.getTotal(), candidates.getContext(), false);
+                total, candidates.getContext(), false);
     }
 
     /**
@@ -217,11 +209,25 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     private RecommendCandidateList buildCandidateList(String type, String resolvedContext) {
         List<Long> ids = switch (type) {
             case "hot" -> hotCandidateIds();
-            // 随机：同一个上下文对同一份数据给出同一个顺序
-            case "random" -> pictureMapper.selectRandomCandidateIds(resolvedContext, candidateLimit);
+            // 随机：同一个上下文对同一份数据给出同一个顺序，
+            // 选出候选后仍沿用现有的重打散，与既有行为保持一致
+            case "random" -> reorderedRandomIds(resolvedContext);
             default -> Collections.emptyList();
         };
-        return new RecommendCandidateList(resolvedContext, ids, ids.size());
+        return new RecommendCandidateList(resolvedContext, ids);
+    }
+
+    /**
+     * 随机候选：确定性随机序选出有界候选，再按现有规则重打散。
+     */
+    private List<Long> reorderedRandomIds(String resolvedContext) {
+        List<Long> ids = pictureMapper.selectRandomCandidateIds(resolvedContext, candidateLimit);
+        if (ids.isEmpty()) {
+            return ids;
+        }
+        List<Picture> pictures = pictureMapper.selectBatchIds(ids);
+        pictures = reorderPictures(pictures);
+        return pictures.stream().map(Picture::getId).collect(Collectors.toList());
     }
 
     /**
@@ -318,7 +324,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
             return pictures;
         }
 
-        // 批量获取统计数据（按 pictureId 关联键，不能用统计主键）
+        // 批量获取统计数据（一律按 pictureId 关联，不按统计行自己的主键）
         List<Long> pictureIds = pictures.stream().map(Picture::getId).collect(Collectors.toList());
         Map<Long, PictureStats> statsMap = pictureStatsService.mapByPictureIds(pictureIds);
 

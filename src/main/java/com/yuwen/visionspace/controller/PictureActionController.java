@@ -75,7 +75,7 @@ public class PictureActionController {
             return "u:" + loginUser.getId();
         }
         String remoteAddress = httpRequest.getRemoteAddr();
-        return "a:" + HashUtils.shortHash(remoteAddress == null ? "" : remoteAddress, 8);
+        return "a:" + HashUtils.shortHash(remoteAddress == null ? "" : remoteAddress);
     }
 
     /**

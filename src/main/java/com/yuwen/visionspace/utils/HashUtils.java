@@ -15,6 +15,9 @@ public final class HashUtils {
     /** SHA-256 摘要的字节长度 */
     private static final int SHA256_BYTES = 32;
 
+    /** 短摘要取用的字节数：8 字节即 16 位十六进制字符 */
+    private static final int SHORT_HASH_BYTES = 8;
+
     private HashUtils() {
     }
 
@@ -26,13 +29,11 @@ public final class HashUtils {
     }
 
     /**
-     * 计算 SHA-256 摘要的前若干个字节对应的十六进制字符。
-     *
-     * @param bytes 取用的字节数，8 表示 16 位十六进制字符
+     * 计算 SHA-256 摘要前 8 个字节对应的十六进制字符（16 位），用于缓存分槽
+     * 与脱敏标识这类只需要低碰撞概率前缀的场合。
      */
-    public static String shortHash(String material, int bytes) {
-        int length = Math.min(Math.max(bytes, 1), SHA256_BYTES);
-        return toHex(digest(material), length);
+    public static String shortHash(String material) {
+        return toHex(digest(material), SHORT_HASH_BYTES);
     }
 
     private static byte[] digest(String material) {

@@ -91,11 +91,7 @@ public class RecommendCacheManager {
         if (context == null || context.isBlank()) {
             return RECOMMEND_KEY_PREFIX + type + ":list";
         }
-        return RECOMMEND_KEY_PREFIX + type + ":list:" + shortHash(context.trim());
-    }
-
-    private String shortHash(String material) {
-        return HashUtils.shortHash(material, 8);
+        return RECOMMEND_KEY_PREFIX + type + ":list:" + HashUtils.shortHash(context.trim());
     }
 
     /**

@@ -10,6 +10,7 @@ import java.util.List;
  *
  * <p>候选列表按「类型 + 分页上下文」缓存一份，翻页时只做内存切片：
  * 不会再因为每页缓存未命中而重新加载并保存全量结果。
+ * 候选池有界；对外报告的总数不放在这里，始终按公开图库的真实数量现算。
  */
 @Data
 public class RecommendCandidateList implements Serializable {
@@ -22,15 +23,11 @@ public class RecommendCandidateList implements Serializable {
     /** 有界候选的图片 id（已按类型排好序） */
     private List<Long> pictureIds;
 
-    /** 候选总数：真实数量，不是写死的常量 */
-    private long total;
-
     public RecommendCandidateList() {
     }
 
-    public RecommendCandidateList(String context, List<Long> pictureIds, long total) {
+    public RecommendCandidateList(String context, List<Long> pictureIds) {
         this.context = context;
         this.pictureIds = pictureIds;
-        this.total = total;
     }
 }

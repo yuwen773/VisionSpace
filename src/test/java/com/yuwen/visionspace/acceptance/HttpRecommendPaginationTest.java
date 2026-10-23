@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 推荐分页与候选有界（原 21.x），全部经真实 HTTP 与真实库。
  *
  * <p>数据集固定：12 张公开已审核图片（其中 3 张大图、9 张小图）、1 张空间图片、
- * 1 张未审核图片。统计主键与图片 ID 完全不同，热门的排序必须依赖正确的统计关联。
+ * 1 张未审核图片。统计行的行键与图片 ID 完全不同，热门的排序必须依赖正确的统计关联。
  */
 @IsolatedSpringBootTest
 class HttpRecommendPaginationTest {
@@ -47,7 +47,7 @@ class HttpRecommendPaginationTest {
     private static final long HOT_PICTURE = 88_901L;
     private static final long SPACE_PICTURE = 88_950L;
     private static final long PENDING_PICTURE = 88_951L;
-    /** 统计主键与图片 ID 完全不重叠，避免按主键查统计的误用被巧合掩盖 */
+    /** 统计行的行键与图片 ID 完全不重叠，避免按行键查统计的误用被巧合掩盖 */
     private static final long STATS_ID = 9_901L;
     private static final long OWNER = 88_900L;
 
@@ -97,7 +97,7 @@ class HttpRecommendPaginationTest {
                 VALUES (?, 'content-pending', 'pending', ?, 10, 1920, 1080, NULL, 0, 0)
                 """, PENDING_PICTURE, OWNER);
 
-        // 热门图片：互动量远高于其他图片，统计主键与图片 ID 无关
+        // 热门图片：互动量远高于其他图片，统计行的行键与图片 ID 无关
         jdbc.update("""
                 INSERT INTO picture_stats (id, pictureId, viewCount, likeCount, collectCount, downloadCount,
                                            shareCount, impressionCount, clickCount, ctr)

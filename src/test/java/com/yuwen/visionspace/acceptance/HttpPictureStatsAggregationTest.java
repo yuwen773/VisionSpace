@@ -49,7 +49,7 @@ class HttpPictureStatsAggregationTest {
     private static final long OTHER_PICTURE = 88_702L;
     private static final long MISSING_PICTURE = 88_703L;
     private static final long OWNER = 88_700L;
-    /** 统计主键与图片 ID 故意不同，且与另一张图的统计主键交叉 */
+    /** 统计行的行键与图片 ID 故意不同，且与另一张图的统计行行键交叉 */
     private static final long STATS_ID = 9_701L;
     private static final long OTHER_STATS_ID = 9_702L;
 
@@ -82,7 +82,7 @@ class HttpPictureStatsAggregationTest {
 
         seedPicture(PICTURE, "aggregated");
         seedPicture(OTHER_PICTURE, "other");
-        // 另一张图的统计行，主键与本图的统计主键相邻但不交叉
+        // 另一张图的统计行，行键与本图统计行的行键相邻但不交叉
         seedStats(OTHER_STATS_ID, OTHER_PICTURE, 100, 0, 0, 0, 0, 0, 0);
     }
 
@@ -326,7 +326,7 @@ class HttpPictureStatsAggregationTest {
     /**
      * 已计入统计的事件，其载荷被保留期清理之后，重放仍然不能二次入账。
      *
-     * <p>清理任务只删事件载荷，去重依据单独存放：载荷删掉不等于「这个事件没发生过」。
+     * <p>清理任务只删事件载荷，幂等台账单独存放：载荷删掉不等于「这个事件没发生过」。
      */
     @Test
     void replayingAnEventAfterItsPayloadWasCleanedUpDoesNotCountItTwice() throws Exception {

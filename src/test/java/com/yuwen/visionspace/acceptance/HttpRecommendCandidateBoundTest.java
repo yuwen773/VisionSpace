@@ -64,22 +64,40 @@ class HttpRecommendCandidateBoundTest {
         assertEquals(0, page.path("code").asInt(), page.toString());
         assertEquals(4, page.path("data").path("records").size(),
                 "the candidate pool bounds the result: " + page.toString());
-        assertEquals(4, page.path("data").path("total").asInt(),
-                "the total must match the reachable candidate pool: " + page.toString());
+        assertEquals(PUBLIC_PICTURE_COUNT, page.path("data").path("total").asInt(),
+                "the total must stay the real library size, not shrink to the pool: " + page.toString());
     }
 
     @Test
     void randomOnlyReturnsTheBoundedCandidatePool() throws Exception {
         var page = recommend("random", 1, 10, null);
         assertEquals(4, page.path("data").path("records").size(), page.toString());
-        assertEquals(4, page.path("data").path("total").asInt(), page.toString());
+        assertEquals(PUBLIC_PICTURE_COUNT, page.path("data").path("total").asInt(),
+                "the random total must stay the real library size: " + page.toString());
     }
 
     @Test
     void pagingBeyondTheCandidatePoolReturnsNoRecordsButKeepsTheTotal() throws Exception {
         var page = recommend("hot", 2, 10, null);
         assertEquals(0, page.path("data").path("records").size(), page.toString());
-        assertEquals(4, page.path("data").path("total").asInt(), page.toString());
+        assertEquals(PUBLIC_PICTURE_COUNT, page.path("data").path("total").asInt(),
+                "an out-of-range page keeps the real total: " + page.toString());
+    }
+
+    /**
+     * 总数不得随候选池上限缩小：把上限压到 4 而图库有 12 张时，
+     * 总数仍然是 12。若实现把候选池大小当作总数，这里会拿到 4——
+     * 那正是「随机总数是固定常量」这一旧缺陷换个常量回来。
+     */
+    @Test
+    void theTotalIsNotCappedByTheCandidatePool() throws Exception {
+        for (String type : new String[] {"hot", "random"}) {
+            var page = recommend(type, 1, 10, null);
+            assertEquals(4, page.path("data").path("records").size(),
+                    type + " stays bounded by the pool: " + page);
+            assertEquals(PUBLIC_PICTURE_COUNT, page.path("data").path("total").asInt(),
+                    type + " total must be the real library size, not the pool cap: " + page);
+        }
     }
 
     @Test

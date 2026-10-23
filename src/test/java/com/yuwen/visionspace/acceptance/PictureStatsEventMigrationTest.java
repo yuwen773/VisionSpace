@@ -93,7 +93,7 @@ class PictureStatsEventMigrationTest {
     }
 
     /**
-     * 幂等台账随前向迁移建立：去重依据与事件载荷的保留期分开。
+     * 幂等台账随前向迁移建立：重复判定与事件载荷的保留期分开。
      */
     @Test
     void forwardMigrationCreatesTheDedupeLedgerAndBackfillsExistingEventKeys() throws Exception {

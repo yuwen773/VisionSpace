@@ -38,7 +38,7 @@ class HttpPictureStatsAssociationTest {
     private static final long SECOND_PICTURE = 88_002L;
     private static final long THIRD_PICTURE = 88_003L;
 
-    /** 统计主键与图片 ID 完全无关，且两两交叉，避免"碰巧相等"掩盖错误。 */
+    /** 统计行的行键与图片 ID 完全无关，且两两交叉，避免"碰巧相等"掩盖错误。 */
     private static final long FIRST_STATS_ID = 9_101L;
     private static final long SECOND_STATS_ID = 9_102L;
     private static final long THIRD_STATS_ID = 9_103L;
@@ -112,8 +112,8 @@ class HttpPictureStatsAssociationTest {
     }
 
     @Test
-    void statsPrimaryKeyIsIndependentOfThePictureId() {
-        // 前提断言：数据集本身不能让 id == pictureId 的巧合掩盖关联错误
+    void pictureStatsFollowPictureIdNotTheirOwnRowKey() {
+        // 前提断言：数据集本身不能让统计行的行键恰好等于图片 ID，掩盖关联错误
         List<Long> ids = jdbc.queryForList(
                 "SELECT id FROM picture_stats WHERE pictureId IN (?, ?, ?) ORDER BY id",
                 Long.class, FIRST_PICTURE, SECOND_PICTURE, THIRD_PICTURE);

@@ -10,7 +10,7 @@
 --   * attemptCount 领取尝试次数。反复失败的事件据此可见，形成积压清单。
 --   * picture_action_event_dedupe 幂等台账。事件载荷按保留期清理之后，
 --                  载荷里就没有事件幂等键了；台账把「这个事件已经受理过」
---                  这条去重依据单独保存下来，同一个事件重放仍然被挡住，
+--                  这条重复判定凭证单独保存下来，同一个事件重放仍然被挡住，
 --                  不会二次入账。台账只增不减，不随载荷保留期一起清理。
 --
 -- 执行前提：维护窗口内、已有备份、且应用已停止写入 user_picture_action。
@@ -27,15 +27,17 @@ ALTER TABLE `user_picture_action`
   ADD UNIQUE INDEX `uk_eventId` (`eventId`) USING BTREE,
   ADD INDEX `idx_claim` (`isProcessed`, `isAccumulated`, `claimExpireAt`) USING BTREE;
 
--- 幂等台账：可靠去重依据，与事件载荷的保留期分开
+-- 幂等台账：重复判定的可靠凭证，与事件载荷的保留期分开
 CREATE TABLE IF NOT EXISTS `picture_action_event_dedupe` (
   `eventId` varchar(128) NOT NULL COMMENT '事件幂等键: 载荷清理后仍然挡住同一事件的重放',
   `createdTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次受理该事件的时间',
   PRIMARY KEY (`eventId`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
--- 把存量事件幂等键补进台账：只补去重依据，不改任何计数，也不合并任何事件。
--- 存量行为 NULL（没有幂等键），不补。
+-- 把存量事件幂等键补进台账：只补重复判定凭证，不改任何计数，也不合并任何事件。
+-- 存量行为 NULL（列由本脚本新增，正常前向执行时补不进任何行）；
+-- 这条语句服务于「列已存在且已有写入」的环境补建台账，避免这类环境里已受理
+-- 的事件在载荷清理后被重放进账。
 INSERT IGNORE INTO `picture_action_event_dedupe` (`eventId`, `createdTime`)
 SELECT `eventId`, COALESCE(`createdTime`, NOW())
 FROM `user_picture_action`

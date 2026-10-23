@@ -5,27 +5,11 @@
     <!--
       登记一次事件受理。事件幂等键是主键，键冲突时抛唯一约束异常：
       调用方据此判定为同一事件重放，不再写事件载荷，也就不会二次入账。
+      核对与盘点走只读维护清单（sql/migrations/…-maintenance.sql），不在这里另开查询口。
     -->
     <insert id="insertEvidence">
         INSERT INTO picture_action_event_dedupe (eventId, createdTime)
         VALUES (#{eventId}, NOW())
     </insert>
-
-    <select id="selectCreatedTime" resultType="java.time.LocalDateTime">
-        SELECT createdTime
-        FROM picture_action_event_dedupe
-        WHERE eventId = #{eventId}
-    </select>
-
-    <select id="countEvidence" resultType="long">
-        SELECT COUNT(*)
-        FROM picture_action_event_dedupe
-    </select>
-
-    <select id="countCreatedBefore" resultType="long">
-        SELECT COUNT(*)
-        FROM picture_action_event_dedupe
-        WHERE createdTime &lt; #{threshold}
-    </select>
 
 </mapper>
