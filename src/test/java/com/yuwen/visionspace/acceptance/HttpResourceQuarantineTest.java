@@ -75,6 +75,9 @@ class HttpResourceQuarantineTest {
         moderatorId = registerModerator("quarantine_moderator_" + System.nanoTime());
 
         seedTeamSpace();
+        // 空间成员关系决定空间权限：所有者必须是团队管理员，
+        // 否则删除与重新上传会在权限校验阶段被拒，测不到隔离判定本身
+        joinTeam(ownerId, "admin");
         joinTeam(memberId, "viewer");
 
         seedPicture(PUBLIC_PICTURE, ownerId, null);
@@ -192,7 +195,8 @@ class HttpResourceQuarantineTest {
         try (var owner = client()) {
             login(owner, ownerId);
             var deleted = post(owner, "/picture/delete", Map.of("id", GRANTED_PICTURE));
-            assertRejected(deleted);
+            // 拒绝必须来自隔离判定本身，而不是更早的权限校验
+            assertEquals(50001, deleted.path("code").asInt(), deleted.toString());
         }
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM picture WHERE id = ?", Integer.class, GRANTED_PICTURE),
@@ -207,7 +211,8 @@ class HttpResourceQuarantineTest {
         try (var owner = client()) {
             login(owner, ownerId);
             var response = upload(owner, "/picture/upload", "replacement.png", "id", String.valueOf(TEAM_PICTURE));
-            assertRejected(response);
+            // 拒绝必须来自隔离判定本身，而不是更早的权限校验
+            assertEquals(50001, response.path("code").asInt(), response.toString());
         }
         assertEquals(deletesBefore, countStorageCalls("DELETE"), "quarantined content must not be deleted");
         // 记录与原文都还在

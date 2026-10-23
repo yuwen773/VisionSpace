@@ -32,6 +32,19 @@ public interface ResourceIsolationService extends IService<ResourceIsolation> {
     boolean isQuarantined(String resourceType, Long resourceId);
 
     /**
+     * 锁定读判定隔离状态：读到的是最新已提交状态，并锁住相关行。
+     *
+     * <p>替换与删除在事务里用它复核隔离状态：锁定读不会读到事务开始时的旧快照，
+     * 因此隔离在事务开始之后生效的，也能被看到——这是"隔离生效后原内容不被销毁"
+     * 得以成立的另一半保证（另一半是双方共用同一把资源行锁）。
+     *
+     * @param resourceType 资源类型
+     * @param resourceId   资源 id
+     * @return 是否处于隔离状态
+     */
+    boolean isQuarantinedForUpdate(String resourceType, Long resourceId);
+
+    /**
      * 在查询条件里排除隔离中的资源。
      *
      * <p>用 {@code NOT EXISTS} 子查询而不是先查 id 再拼 {@code NOT IN}：

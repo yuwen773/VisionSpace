@@ -7,7 +7,7 @@
 --   feedback_attachment_archive_20261023
 --                         回滚归档：新反馈只保存 attachment:{id} 引用，回滚时若直接删表
 --                         就会丢掉平台、对象键、归属与绑定记录；归档表保留这些记录，
---                         再次执行本脚本时把记录搬回 feedback_attachment。
+--                         再次执行本脚本时把记录搬回 feedback_attachment 并消费掉。
 --
 -- 旧反馈附件（user_feedback.pictureUrls）无法从可信资源记录确认归属：
 -- 上传时写入 /temp/{userId}/ 前缀，但前缀不是归属证据，因此旧附件先登记为
@@ -58,13 +58,24 @@ CREATE TABLE IF NOT EXISTS `feedback_attachment_archive_20261023` (
   INDEX `idx_owner_status`(`ownerUserId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '反馈附件回滚归档';
 
--- 归档记录搬回业务表：回滚过再部署本工单时，新反馈的附件定位、归属与绑定仍然可用
-INSERT IGNORE INTO `feedback_attachment`
+-- 恢复策略（消费）：归档是回滚时留下的载荷，重新部署时把它搬回业务表并消费掉。
+--   1. 活数据优先：业务表已有的记录不被归档覆盖（归档里可能是更早的旧快照）；
+--   2. 补齐恢复：归档里业务表没有的记录原样搬回，定位、归属、绑定与状态都保留；
+--   3. 消费：恢复完成后清空归档载荷，下一轮回滚从当前业务状态重新归档，
+--      不会拿更早的快照覆盖更晚的绑定。
+-- 恢复遇到唯一键冲突时语句报错中断：归档载荷保持不动，人工处理后重跑即可，
+-- 不允许用 IGNORE 静默跳过——那会让附件记录悄悄不恢复。
+DELETE a FROM `feedback_attachment_archive_20261023` a
+JOIN `feedback_attachment` f ON f.`id` = a.`id`;
+
+INSERT INTO `feedback_attachment`
   (`id`, `ownerUserId`, `feedbackId`, `platform`, `objectKey`, `url`, `fileSize`, `status`,
    `legacyUrlHash`, `createTime`, `updateTime`)
 SELECT `id`, `ownerUserId`, `feedbackId`, `platform`, `objectKey`, `url`, `fileSize`, `status`,
        `legacyUrlHash`, `createTime`, `updateTime`
 FROM `feedback_attachment_archive_20261023`;
+
+DELETE FROM `feedback_attachment_archive_20261023`;
 
 CREATE TABLE IF NOT EXISTS `resource_access_grant` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '授权标识',

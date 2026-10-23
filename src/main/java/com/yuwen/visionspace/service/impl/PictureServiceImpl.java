@@ -17,6 +17,7 @@ import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
+import com.yuwen.visionspace.manager.lock.ResourceLockManager;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.storage.UploadQuotaManager;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
@@ -122,6 +123,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private ResourceIsolationService resourceIsolationService;
 
+    @Resource
+    private ResourceLockManager resourceLockManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -170,7 +174,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
             // 重新上传会覆盖原图，业务边界必须复核归属
             checkPictureAuth(loginUser, oldPicture);
-            // 隔离中的资源保留原文等待处置：替换会销毁旧对象，不能成为绕过恢复与审计的路径
+            // 预检：请求开始前就已隔离的资源直接拒绝，不进入对象存储
+            // 事务内还有一次权威判定（行锁 + 锁定读），覆盖预检之后隔离才生效的竞态
             ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
             // 校验空间是否一致
             // 没传 spaceId，则复用原有图片的 spaceId（这样也兼容了公共图库）
@@ -253,8 +258,20 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         // 开启事务
         Long finalSpaceId = spaceId;
+        Long finalPictureId = pictureId;
         try {
             transactionTemplate.execute(status -> {
+                if (finalPictureId != null) {
+                    // 替换已有资源：先取资源行锁，再按最新状态复核隔离。
+                    // 隔离与替换共用同一把行锁：谁先取到谁先提交，后取到的一方
+                    // 在锁释放后重新判定，因此"隔离已生效但原图仍被替换销毁"的窗口不存在。
+                    ThrowUtils.throwIf(!resourceLockManager.lockResourceRow(
+                                    ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
+                            ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+                    ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
+                                    ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
+                            ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
+                }
                 // 插入数据
                 boolean result = this.saveOrUpdate(picture);
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
@@ -269,18 +286,19 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 }
                 // 资源记录与图片记录在同一事务内绑定，避免出现无主对象
                 pictureFileService.bindToPicture(picture.getId(), loginUser.getId(), uploadedFiles);
+                // 被替换的旧资源在同一事务内标记并清理：数据提交与对象清理属于同一次替换，
+                // 不会出现"数据已经换掉、对象清理落在隔离生效之后"的空档
+                List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
+                        uploadedFiles.stream().map(PictureFile::getId).toList());
+                if (!superseded.isEmpty()) {
+                    this.cleanupReplacedFiles(superseded);
+                }
                 return picture;
             });
         } catch (RuntimeException e) {
             // 事务回滚后图片记录不存在，登记的资源仍是临时状态：回收对象并删除记录
             discardRegisteredFiles(loginUser.getId(), uploadedFiles, uploadPictureResult);
             throw e;
-        }
-        // 重新上传：旧资源被替换，清理其对象；失败只记录，不回滚已生效的新图
-        List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
-                uploadedFiles.stream().map(PictureFile::getId).toList());
-        if (!superseded.isEmpty()) {
-            this.cleanupReplacedFiles(superseded);
         }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
         // 可自行实现，如果是更新，可以清理图片资源
@@ -657,10 +675,19 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
         checkPictureAuth(loginUser, oldPicture);
-        // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径
+        // 预检：请求开始前就已隔离的资源直接拒绝
         ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
         // 开启事务
         transactionTemplate.execute(status -> {
+            // 资源行锁：与隔离、替换共用同一把锁。
+            // 拿到锁之后复核隔离状态，隔离若在预检之后生效，这里直接拒绝：
+            // 谁先取到锁谁先提交，破坏性动作不会落在隔离生效之后。
+            ThrowUtils.throwIf(!resourceLockManager.lockResourceRow(
+                            ResourceTypeEnum.PICTURE.getValue(), pictureId),
+                    ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+            ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
+                            ResourceTypeEnum.PICTURE.getValue(), pictureId),
+                    ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
             // 操作数据库
             boolean result = this.removeById(pictureId);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -675,7 +702,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return true;
         });
-        // 异步清理文件
+        // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
+        // 因此不会与处置流程抢同一份内容
         this.clearPictureFile(oldPicture);
     }
 

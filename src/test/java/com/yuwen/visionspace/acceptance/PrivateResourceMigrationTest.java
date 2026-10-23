@@ -32,6 +32,7 @@ class PrivateResourceMigrationTest {
     private static final String GRANT = "scratch_grant_36";
     private static final String ISOLATION = "scratch_isolation_36";
     private static final String GUARD = "scratch_guard_36";
+    private static final String ARCHIVE_GUARD = "scratch_archive_guard_36";
     private static final String USER_FEEDBACK = "scratch_user_feedback_36";
     private static final String FEEDBACK_ARCHIVE = "scratch_feedback_archive_36";
 
@@ -211,6 +212,83 @@ class PrivateResourceMigrationTest {
         }
     }
 
+    @Test
+    void twoRollbackCyclesKeepTheLatestAttachmentBindingAndStatus() throws Exception {
+        try {
+            createScratchTables();
+            run(FORWARD);
+            // 新反馈只保存 attachment:{id} 引用；附件 901 登记后尚未绑定
+            jdbc.update("INSERT INTO `" + FEEDBACK + "`"
+                    + " (id, ownerUserId, feedbackId, platform, objectKey, url, status)"
+                    + " VALUES (901, 7, NULL, 'acceptance', 'obj/901', 'https://acceptance.invalid/obj/901', 0)");
+            jdbc.update("INSERT INTO `" + USER_FEEDBACK + "`"
+                    + " (id, userId, type, title, content, pictureUrls, status, isDelete)"
+                    + " VALUES (88, 7, 2, 't', 'c', ?, 0, 0)", "[\"attachment:901\"]");
+
+            // 第一轮：回滚归档后重新部署，附件回到未绑定的初始状态
+            run(ROLLBACK);
+            assertFalse(tableExists(FEEDBACK), "rollback must drop the attachment table");
+            run(FORWARD);
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + FEEDBACK + "` WHERE id = 901 AND feedbackId IS NULL AND status = 0",
+                    Integer.class), "the first cycle must restore the unbound attachment");
+
+            // 恢复之后附件绑定到反馈 88，状态改为 BOUND
+            jdbc.update("UPDATE `" + FEEDBACK + "` SET feedbackId = 88, status = 1 WHERE id = 901");
+
+            // 第二轮：回滚必须归档最新的绑定与状态，不能沿用第一轮的旧快照
+            run(ROLLBACK);
+            Map<String, Object> archived = jdbc.queryForMap(
+                    "SELECT feedbackId, status FROM `" + FEEDBACK_ARCHIVE + "` WHERE id = 901");
+            assertEquals(88L, ((Number) archived.get("feedbackId")).longValue(),
+                    "the second rollback must archive the latest binding");
+            assertEquals(1, ((Number) archived.get("status")).intValue(),
+                    "the second rollback must archive the latest status");
+
+            // 重新部署：最新绑定与状态被恢复，反馈里的引用仍然可解析
+            run(FORWARD);
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + FEEDBACK + "` WHERE id = 901 AND feedbackId = 88 AND status = 1",
+                    Integer.class), "the second cycle must restore the latest binding and status");
+            assertEquals("[\"attachment:901\"]", jdbc.queryForObject(
+                    "SELECT pictureUrls FROM `" + USER_FEEDBACK + "` WHERE id = 88", String.class),
+                    "the feedback reference must survive both cycles");
+            // 归档被消费：下一轮回滚从当前业务状态重新归档，不会拿旧快照覆盖新绑定
+            assertEquals(0, count(FEEDBACK_ARCHIVE), "the archive payload must be consumed after restore");
+        } finally {
+            dropScratchTables();
+        }
+    }
+
+    @Test
+    void rollbackIsBlockedWhenTheArchiveCannotHoldTheBusinessState() throws Exception {
+        try {
+            createScratchTables();
+            run(FORWARD);
+            // 业务表里有一条受控登记的附件
+            jdbc.update("INSERT INTO `" + FEEDBACK + "`"
+                    + " (id, ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash)"
+                    + " VALUES (901, 7, NULL, 'acceptance', 'obj/901',"
+                    + " 'https://acceptance.invalid/obj/901', 1, 'hash901')");
+            // 归档里有一条占用同一地址摘要的旧记录：归档接不住业务状态
+            jdbc.update("INSERT INTO `" + FEEDBACK_ARCHIVE + "`"
+                    + " (id, ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash)"
+                    + " VALUES (902, 7, NULL, 'acceptance', 'stale/902',"
+                    + " 'https://acceptance.invalid/stale/902', 0, 'hash901')");
+
+            // 归档接不住最新状态时必须阻断回滚：唯一有效的记录还在业务表里
+            assertThrows(Exception.class, () -> run(ROLLBACK),
+                    "rollback must be blocked when the archive cannot hold the business state");
+            assertTrue(tableExists(FEEDBACK), "a blocked rollback must not drop the attachment table");
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + FEEDBACK + "` WHERE id = 901", Integer.class),
+                    "the only valid record must stay in the business table");
+            assertTrue(tableExists(ARCHIVE_GUARD), "the archive guard must be left behind for inspection");
+        } finally {
+            dropScratchTables();
+        }
+    }
+
     // ---- helpers ----
 
     private void createScratchTables() {
@@ -221,7 +299,8 @@ class PrivateResourceMigrationTest {
     }
 
     private void dropScratchTables() {
-        for (String table : List.of(FEEDBACK, GRANT, ISOLATION, GUARD, USER_FEEDBACK, FEEDBACK_ARCHIVE)) {
+        for (String table : List.of(FEEDBACK, GRANT, ISOLATION, GUARD, ARCHIVE_GUARD,
+                USER_FEEDBACK, FEEDBACK_ARCHIVE)) {
             jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
         }
     }
@@ -241,6 +320,7 @@ class PrivateResourceMigrationTest {
                 .replace("`feedback_attachment`", "`" + FEEDBACK + "`")
                 .replace("`resource_access_grant`", "`" + GRANT + "`")
                 .replace("`resource_isolation`", "`" + ISOLATION + "`")
+                .replace("`_private_resource_archive_guard`", "`" + ARCHIVE_GUARD + "`")
                 .replace("`_private_resource_rollback_guard`", "`" + GUARD + "`");
     }
 

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.lock.ResourceLockManager;
 import com.yuwen.visionspace.mapper.ResourceIsolationMapper;
 import com.yuwen.visionspace.model.entity.ResourceIsolation;
 import com.yuwen.visionspace.model.entity.User;
@@ -32,6 +33,9 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private ResourceLockManager resourceLockManager;
 
     @Override
     public Set<Long> quarantinedIds(String resourceType, Collection<Long> resourceIds) {
@@ -63,6 +67,22 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
     }
 
     @Override
+    public boolean isQuarantinedForUpdate(String resourceType, Long resourceId) {
+        if (resourceType == null || resourceId == null) {
+            return false;
+        }
+        // 锁定读：读到最新已提交状态，并锁住命中行；
+        // 未命中时锁住索引间隙，后续的隔离写入会等这把锁释放
+        return this.lambdaQuery()
+                .select(ResourceIsolation::getId)
+                .eq(ResourceIsolation::getResourceType, resourceType)
+                .eq(ResourceIsolation::getResourceId, resourceId)
+                .eq(ResourceIsolation::getStatus, ResourceIsolationStatusEnum.QUARANTINED.getValue())
+                .last("FOR UPDATE")
+                .list().size() > 0;
+    }
+
+    @Override
     public void excludeQuarantined(QueryWrapper<?> wrapper, String column, String resourceType) {
         if (wrapper == null || StrUtil.isBlank(column) || StrUtil.isBlank(resourceType)) {
             return;
@@ -86,6 +106,16 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
         if (isQuarantined(resourceType, resourceId)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "资源已处于隔离状态");
         }
+        // 资源行锁：隔离与替换、删除共用同一把锁，破坏性动作按同一顺序串行化。
+        // 拿到锁后再确认目标仍然存在：并发的删除可能刚刚把资源处理掉，
+        // 这时不能再为已经不存在的资源留下处置记录。
+        // 顺序固定为"先资源行锁、后隔离行"，替换与删除用同样的顺序，
+        // 因此三者之间不会形成锁环，也不会有"隔离已生效但原内容仍被销毁"的窗口。
+        ThrowUtils.throwIf(!resourceLockManager.lockResourceRow(resourceType, resourceId),
+                ErrorCode.NOT_FOUND_ERROR, "资源不存在");
+        // 锁定读复核：别的处置可能刚刚完成隔离
+        ThrowUtils.throwIf(isQuarantinedForUpdate(resourceType, resourceId),
+                ErrorCode.OPERATION_ERROR, "资源已处于隔离状态");
         ResourceIsolation isolation = new ResourceIsolation();
         isolation.setResourceType(resourceType);
         isolation.setResourceId(resourceId);

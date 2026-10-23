@@ -4,15 +4,16 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuwen.visionspace.model.entity.Picture;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
 /**
-* @author 李鱼皮
-* @description 针对表【picture(图片)】的数据库操作Mapper
-* @createDate 2024-12-11 20:45:51
-* @Entity com.yuwen.visionspace.model.entity.Picture
-*/
+ * @author 李鱼皮
+ * @description 针对表【picture(图片)】的数据库操作Mapper
+ * @createDate 2024-12-11 20:45:51
+ * @Entity com.yuwen.visionspace.model.entity.Picture
+ */
 @Mapper
 public interface PictureMapper extends BaseMapper<Picture> {
 
@@ -59,4 +60,18 @@ public interface PictureMapper extends BaseMapper<Picture> {
      * @return 图片数
      */
     long countPublicCandidates();
+
+    /**
+     * 锁定图片行：SELECT ... FOR UPDATE。
+     *
+     * <p>隔离、替换、删除都先取这把行锁，破坏性动作按同一顺序串行化。
+     * 行锁由数据库提供，跨实例有效；锁在当前事务内一直持有到提交或回滚。
+     *
+     * <p>与业务查询一致地排除逻辑删除的记录：图片被删除后不再是可以被处置的目标。
+     *
+     * @param id 图片标识
+     * @return 图片存在时返回其标识，不存在时返回 null
+     */
+    @Select("SELECT `id` FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
+    Long selectIdForUpdate(@Param("id") Long id);
 }
