@@ -454,11 +454,11 @@ declare namespace API {
   }
 
   type IPageMcpServerDetail = {
-    size?: number
-    records?: McpServerDetail[]
-    current?: number
     total?: number
+    current?: number
+    records?: McpServerDetail[]
     pages?: number
+    size?: number
   }
 
   type listMcpServersUsingGetParams = {
@@ -783,8 +783,10 @@ declare namespace API {
 
   type RecommendPageVO = {
     records?: RecommendPictureVO[]
-    total?: number
+    /** 总数：十进制字符串，避免 JavaScript 数字精度丢失 */
+    total?: string
     context?: string
+    contextValid?: boolean
   }
 
   type RecommendPictureVO = {

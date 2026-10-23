@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.model.vo;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,8 +24,12 @@ public class RecommendPageVO implements Serializable {
     private List<RecommendPictureVO> records;
 
     /**
-     * 总数
+     * 总数。
+     *
+     * <p>序列化后是十进制字符串：平台的 JSON 规则把 Long 序列化成字符串，
+     * 避免 JavaScript 数字精度丢失。契约里也如实标成字符串，客户端按字符串解析。
      */
+    @Schema(type = "string", description = "总数：十进制字符串，避免 JavaScript 数字精度丢失")
     private Long total;
 
     /**
