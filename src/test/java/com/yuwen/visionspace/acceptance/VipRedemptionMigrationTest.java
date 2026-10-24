@@ -131,10 +131,15 @@ class VipRedemptionMigrationTest {
      * 继续走 {@link #run(Path)} 的连接池路径。
      */
     private void runOnSingleConnection(Path script) throws Exception {
-        String sql = statements(Files.readString(script, StandardCharsets.UTF_8)).stream()
-                .collect(java.util.stream.Collectors.joining(";\n", "", ";\n"));
-        org.springframework.jdbc.datasource.DataSourceUtils.getConnection(jdbc.getDataSource())
-                .createStatement().execute(sql);
+        // 单一连接上逐条执行：脚本使用会话级变量（SET @...）与 PREPARE/EXECUTE，
+        // 变量必须留在同一会话里；JDBC 默认不允许多语句一次 execute，所以逐条发。
+        var connection = org.springframework.jdbc.datasource.DataSourceUtils
+                .getConnection(jdbc.getDataSource());
+        try (var statement = connection.createStatement()) {
+            for (String sql : statements(Files.readString(script, StandardCharsets.UTF_8))) {
+                statement.execute(sql);
+            }
+        }
     }
 
     private String runTool(String... args) throws Exception {
