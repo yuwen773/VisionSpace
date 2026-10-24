@@ -29,6 +29,41 @@ spring:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
     dashscope:
       api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
+  # 连接池在启动窗口内重试而非无限阻塞：依赖延迟时应用可完成启动并经
+  # readiness 报告 DOWN；重试耗尽仍失败时以明确异常退出（退出码非 0）。
+  datasource:
+    hikari:
+      initialization-fail-timeout: 30000
+      validation-timeout: 5000
+management:
+  server:
+    # 管理端口与业务端口分离，且只绑定回环地址：容器内 127.0.0.1 之外的
+    # 接口不会监听管理端点，不为探活扩大攻击面。
+    port: 9081
+    address: 127.0.0.1
+  endpoint:
+    health:
+      # 健康明细只进日志/诊断入口，不通过探活端点对外输出，避免泄露组件拓扑
+      show-details: never
+      show-components: never
+      probes:
+        # 显式启用后 /actuator/health/readiness、/liveness 常驻可用，不依赖 K8s 环境探测
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis
+  endpoints:
+    web:
+      exposure:
+        # 只暴露健康端点；其余管理能力（env/heapdump/...）一律不开放
+        include: health
+  health:
+    redis:
+      # 探活超时短于容器健康检查间隔，避免检查堆积
+      timeout: 3s
+server:
+  # 业务端口之外的管理端口在容器内同样只对本进程暴露
+  port: 8081
 aliYunAi:
   apiKey: ${ALI_YUN_AI_API_KEY:}
 sa-token:

@@ -1,0 +1,9 @@
+services:
+  # 显式宿主访问覆盖：docker compose -f docker-compose.yml -f docker-compose.host-access.yml up
+  # 仅绑回环 + 非默认端口，绝不复刻默认全接口发布。
+  mysql:
+    ports:
+      - "127.0.0.1:${HOST_MYSQL_PORT:-13306}:3306"
+  redis:
+    ports:
+      - "127.0.0.1:${HOST_REDIS_PORT:-16379}:6379"
