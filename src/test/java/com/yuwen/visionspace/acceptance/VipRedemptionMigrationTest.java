@@ -157,6 +157,53 @@ class VipRedemptionMigrationTest {
         }
     }
 
+    @Test
+    void importToolRejectsDuplicateKeyFieldsAndDecodesJsonEscapes() throws Exception {
+        // P1 回归：重复关键字段（hasUsed:false 在前、true 在后）必须整体失败，
+        // 绝不取第一个或最后一个值出码。
+        Path legacy = Files.createTempFile("vip-legacy-dup", ".json");
+        Path issueOut = Files.createTempFile("vip-reissue-dup", ".txt");
+        try {
+            Files.writeString(legacy, """
+                    [{"hasUsed":false,"code":"DupKey01","hasUsed":true}]
+                    """, StandardCharsets.UTF_8);
+            String failed = runToolExpectingFailure(legacy.toString(), issueOut.toString());
+            assertTrue(failed.contains("关键字段重复：hasUsed"), failed);
+
+            // code 重复同样拒绝
+            Files.writeString(legacy, """
+                    [{"code":"DupA","code":"DupB","hasUsed":false}]
+                    """, StandardCharsets.UTF_8);
+            failed = runToolExpectingFailure(legacy.toString(), issueOut.toString());
+            assertTrue(failed.contains("关键字段重复：code"), failed);
+        } finally {
+            Files.deleteIfExists(legacy);
+            Files.deleteIfExists(issueOut);
+        }
+
+        // P2 回归：JSON 转义按 RFC 8259 解码后再参与摘要。
+        // javac 的 Unicode 预处理先于字符串转义处理，源码里写不出字面的
+        // 反斜杠u 序列（会被提前解码），用运行时拼接构造真正的转义形态。
+        String uEscapeA = "\\" + "u0041"; // 运行时六个字符：反斜杠 u 0 0 4 1
+        String uEscapeE = "\\" + "u0045";
+        Path escaped = Files.createTempFile("vip-legacy-esc", ".json");
+        try {
+            String json = "[{\"code\":\"Used" + uEscapeA + "BC01\",\"hasUsed\":true},"
+                    + "{\"code\":\"Fresh" + uEscapeE + "sc02\",\"hasUsed\":false}]";
+            Files.writeString(escaped, json, StandardCharsets.UTF_8);
+            String stdout = runTool(escaped.toString(), issueOut.toString());
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("UsedABC01") + "', 1"),
+                    "转义解码后必须与未转义字面量产出同一摘要:\n" + stdout);
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("FreshEsc02") + "', 2"), stdout);
+            // 旧实现的缺陷输出（丢弃反斜杠后按错误码值算摘要）不得出现
+            assertFalse(stdout.contains(VipTestHashes.sha256("Used" + "u0041" + "BC01")),
+                    "不得按丢弃反斜杠的错误方式计算摘要:\n" + stdout);
+        } finally {
+            Files.deleteIfExists(escaped);
+            Files.deleteIfExists(issueOut);
+        }
+    }
+
     private String runToolExpectingFailure(String... args) throws Exception {
         String javaBin = ProcessHandle.current().info().command().orElse("java");
         String cp = System.getProperty("java.class.path");

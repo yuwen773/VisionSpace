@@ -181,12 +181,20 @@ public final class VipCodeImportTool {
                     skipWhitespace();
                     expect(':');
                     skipWhitespace();
-                    if ("code".equals(key) && code == null) {
+                    if ("code".equals(key)) {
+                        // 关键字段重复说明文件状态可疑（可能是手改产物）：
+                        // 状态判定绝不取「第一个」或「最后一个」，整体失败交人工核查。
+                        if (code != null) {
+                            throw error("关键字段重复：code");
+                        }
                         code = parseString();
-                    } else if ("hasUsed".equals(key) && used == null) {
+                    } else if ("hasUsed".equals(key)) {
+                        if (used != null) {
+                            throw error("关键字段重复：hasUsed");
+                        }
                         used = parseBoolean();
                     } else {
-                        // 未知字段或重复字段：跳过其值即可，不参与判定
+                        // 未知字段：跳过其值，不参与判定
                         parseValue();
                     }
                     skipWhitespace();
@@ -205,6 +213,12 @@ public final class VipCodeImportTool {
             return new LegacyCode(code, used);
         }
 
+        /**
+         * 字符串值按 RFC 8259 转义规则解码后再返回：码值参与 sha-256 摘要，
+         * 语义相同的 {@code "A"} 与反斜杠u0041 写法的 {@code "A"} 必须产出同一摘要，
+         * 否则已用状态会关联到错误的码值。仅接受短转义与反斜杠uXXXX；
+         * 控制字符直接拒绝（旧文件是工具生成的紧凑 JSON，不该出现）。
+         */
         private String parseString() {
             expect('"');
             StringBuilder sb = new StringBuilder();
@@ -213,8 +227,34 @@ public final class VipCodeImportTool {
                 if (c == '"') {
                     return sb.toString();
                 }
+                if (c < 0x20) {
+                    throw error("字符串中含未转义控制字符");
+                }
                 if (c == '\\') {
-                    sb.append(next());
+                    char esc = next();
+                    switch (esc) {
+                        case '"' -> sb.append('"');
+                        case '\\' -> sb.append('\\');
+                        case '/' -> sb.append('/');
+                        case 'b' -> sb.append('\b');
+                        case 'f' -> sb.append('\f');
+                        case 'n' -> sb.append('\n');
+                        case 'r' -> sb.append('\r');
+                        case 't' -> sb.append('\t');
+                        case 'u' -> {
+                            if (pos + 4 > src.length()) {
+                                throw error("反斜杠u 转义不完整");
+                            }
+                            String hex = src.substring(pos, pos + 4);
+                            try {
+                                sb.append((char) Integer.parseInt(hex, 16));
+                            } catch (NumberFormatException e) {
+                                throw error("反斜杠u 后必须跟 4 位十六进制");
+                            }
+                            pos += 4;
+                        }
+                        default -> throw error("非法转义 \\" + esc);
+                    }
                 } else {
                     sb.append(c);
                 }

@@ -151,10 +151,19 @@ $ddl
             # PATH 里的 java 可能是 Oracle javapath 桩（无法独立运行）；优先取 JAVA_HOME
             $javaBin = if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/java.exe'))) {
                 (Join-Path $env:JAVA_HOME 'bin/java.exe')
+            } elseif ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/java'))) {
+                (Join-Path $env:JAVA_HOME 'bin/java')
             } else { 'java' }
-            $script:SecondProcess = Start-Process -FilePath $javaBin -ArgumentList @(
-                '-cp', "`"$cp`"", 'com.yuwen.visionspace.acceptance.VipSecondInstanceMain', $secondReadyFile
-            ) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'second-instance-out.log') -RedirectStandardError (Join-Path $runDir 'second-instance-error.log')
+            # -WindowStyle Hidden 仅 Windows 支持；Linux 没有窗口概念，直接启动
+            $startArgs = @{
+                FilePath               = $javaBin
+                ArgumentList           = @('-cp', "`"$cp`"", 'com.yuwen.visionspace.acceptance.VipSecondInstanceMain', $secondReadyFile)
+                PassThru               = $true
+                RedirectStandardOutput = (Join-Path $runDir 'second-instance-out.log')
+                RedirectStandardError  = (Join-Path $runDir 'second-instance-error.log')
+            }
+            if ($IsWindows) { $startArgs['WindowStyle'] = 'Hidden' }
+            $script:SecondProcess = Start-Process @startArgs
             $script:SecondOwned = $true
             # 就绪握手：端口文件最多等 120 秒
             $deadline = [DateTime]::UtcNow.AddSeconds(120)
@@ -205,8 +214,23 @@ $ddl
         $_ | Out-String | Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
     }
     try {
-        $stale = @(Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
-            Where-Object { $_.CommandLine -and $_.CommandLine.Contains('VipSecondInstanceMain') })
+        # 兜底扫描只针对本运行自己的第二实例：命令行里带着本轮就绪文件路径
+        # （runDir 含逐次生成的 nonce），不会命中其他验收运行或用户进程。
+        # 平台差异：Win32_Process 仅 Windows；Linux 用 /proc 扫描命令行。
+        $stale = @()
+        if ($IsWindows) {
+            $stale = @(Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
+                Where-Object { $_.CommandLine -and $_.CommandLine.Contains('VipSecondInstanceMain') -and $_.CommandLine.Contains($runDir) })
+        } else {
+            $stale = @()
+            foreach ($pidDir in (Get-ChildItem '/proc' -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^[0-9]+$' })) {
+                $cmdline = Get-Content -Raw -LiteralPath (Join-Path $pidDir.FullName 'cmdline') -ErrorAction SilentlyContinue
+                if ($cmdline -and $cmdline.Contains('VipSecondInstanceMain') -and $cmdline.Contains($runDir)) {
+                    $stale += [pscustomobject]@{ ProcessId = [int]$pidDir.Name }
+                }
+            }
+        }
         foreach ($process in $stale) {
             try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop } catch {}
             $results['cleanup'] = 'FAIL'
