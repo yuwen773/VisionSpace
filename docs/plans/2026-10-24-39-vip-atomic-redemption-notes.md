@@ -60,12 +60,35 @@
   无任何 vipCode 明文条目；VipRedemptionServiceImpl 打入 JAR。
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-ded601c2e3c3435fa48e0e5090811231`。
 
+### 评审返工（第二轮审查 513fb4f → 6105bd0，4 项）
+
+1. **[P1] 导入器已用状态判定**：原文本匹配依赖属性顺序与固定空白，
+   `hasUsed` 在 `code` 之前会把已用码误判为未用并计入补发。
+   改为手写最小 JSON 解析器（字段校验、顺序/空白无关、缺失即失败），
+   新增回归 `importToolKeepsUsedStatusRegardlessOfJsonPropertyOrderAndWhitespace`。
+2. **[P2] 第二实例清理失效**：`Run-Gate` scriptblock 是子作用域，
+   `$secondProcess`/`$ownedSecondInstance` 赋值传不回外层 finally，
+   run7 遗留 6 个 JVM（已手工清理）。改为 `$script:` 作用域变量 +
+   兜底按命令行扫描残留进程（命中即 cleanup FAIL）。run8 验证优雅退出零残留。
+3. **[P2] backend gate 丢失 clean**：恢复 `clean test-compile`，防旧 target
+   残留（已删除的 biz/vipCode.json、旧测试类）进构件或测试扫描。
+4. **[P2] API 客户端手工同步**：以专用隔离 MySQL/Redis（18306/18379，
+   一次性临时目录）启动活后端 18081，`OPENAPI_SCHEMA_PATH` 指向它重新生成；
+   `postgen-typings.mjs` 别名表补 `BaseResponseVipExchangeResult`。
+   净 diff 仅 typings/userController 两个文件，幂等重跑验证一致。
+   **修正**：临时后端用本机原生二进制，未使用 Docker。
+
 ### run7（评审修复后回归）
 - 修复提交 `2bdc2cb` 后全量重跑：runner-tests / secret-scan / isolation / backend /
   frontend-install / frontend-typecheck / frontend-tests / frontend-build / cleanup 全 PASS。
 - backend 464 tests / 0 errors / 0 failures（VIP 专项 13 个全过，含双实例真进程并发）。
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-5da06a15dff74b19b52c8c1dd4b93059`。
-- 最终提交链：ed31b6e（feat）→ 584fcb7（回滚脚本测试修复）→ 473f943（docs）→ 2bdc2cb（评审修复）。
+- 最终提交链：ed31b6e（feat）→ 584fcb7 → 473f943 → 2bdc2cb → 2d83df9（返工）。
+
+### run8（返工后回归）
+- 全门禁 PASS；backend 465 tests / 0 errors / 0 failures（新增解析回归 1 项）。
+- 第二实例优雅退出，无残留进程；stop 文件与端口文件正常生成。
+- 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-76382e7ff3e04c868765e7d37c019499`。
 
 ## 已发现并修复的实施问题
 
