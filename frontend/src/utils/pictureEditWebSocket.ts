@@ -32,7 +32,19 @@ export default class PictureEditWebSocket {
 
     // 监听消息事件
     this.socket.onmessage = (event) => {
-      const message = JSON.parse(event.data)
+      // 损坏消息不会抛到全局：解析失败按 ERROR 处理，连接保持可用
+      let message: any
+      try {
+        message = JSON.parse(event.data)
+      } catch {
+        console.error('收到无法解析的协作消息:', event.data)
+        this.triggerEvent('ERROR', { type: 'ERROR', message: '协作消息格式错误' })
+        return
+      }
+      if (!message || typeof message.type !== 'string') {
+        this.triggerEvent('ERROR', { type: 'ERROR', message: '协作消息类型缺失' })
+        return
+      }
       console.log('收到消息:', message)
 
       // 根据消息类型触发对应事件

@@ -97,6 +97,9 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
             attributes.put("user", loginUser);
             attributes.put("userId", loginUser.getId());
             attributes.put("pictureId", Long.valueOf(pictureId)); // 记得转换为 Long 类型
+            // 记录 HTTP 会话 id：每条消息复核登录态时用它定位 Redis 会话，
+            // 注销（会话失效）后即使 WebSocket 连接还在也不能继续编辑
+            attributes.put("httpSessionId", httpServletRequest.getSession().getId());
         }
         return true;
     }

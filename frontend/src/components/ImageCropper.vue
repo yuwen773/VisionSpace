@@ -365,7 +365,12 @@ const initWebsocket = () => {
   })
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (msg) => {
-    message.info(msg.message)
+    // 编辑权反馈：拿不到租约（他人正在编辑）或被拒绝（撤权/注销）时,
+    // 本端不处于编辑状态,清掉本地的编辑者标记避免 UI 误显示自己可编辑
+    message.error(msg.message)
+    if (editingUser.value?.id === loginUser.id) {
+      editingUser.value = undefined
+    }
   })
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (msg) => {
