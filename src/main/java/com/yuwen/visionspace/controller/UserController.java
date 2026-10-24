@@ -183,16 +183,16 @@ public class UserController {
     }
 
     /**
-     * 兑换会员
+     * 兑换会员。返回明确状态：success（含新到期时间）/ already_used / invalid。
      */
     @PostMapping("/exchange/vip")
-    public BaseResponse<Boolean> exchangeVip(@RequestBody VipExchangeRequest vipExchangeRequest,
-                                             HttpServletRequest httpServletRequest) {
+    public BaseResponse<VipExchangeResult> exchangeVip(@RequestBody VipExchangeRequest vipExchangeRequest,
+                                                       HttpServletRequest httpServletRequest) {
         ThrowUtils.throwIf(vipExchangeRequest == null, ErrorCode.PARAMS_ERROR);
         String vipCode = vipExchangeRequest.getVipCode();
         User loginUser = userService.getLoginUser(httpServletRequest);
         // 调用 service 层的方法进行会员兑换
-        boolean result = userService.exchangeVip(loginUser, vipCode);
+        VipExchangeResult result = userService.exchangeVip(loginUser, vipCode);
         return ResultUtils.success(result);
     }
 

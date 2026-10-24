@@ -16,7 +16,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
-import com.yuwen.visionspace.model.dto.user.VipCode;
+import com.yuwen.visionspace.model.dto.user.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.UserRoleEnum;
@@ -26,12 +26,11 @@ import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.PasswordHasher;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.UserService;
+import com.yuwen.visionspace.service.VipRedemptionService;
 import com.yuwen.visionspace.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import cn.dev33.satoken.stp.parameter.SaLogoutParameter;
@@ -39,12 +38,9 @@ import cn.dev33.satoken.stp.parameter.enums.SaLogoutMode;
 import cn.dev33.satoken.stp.parameter.enums.SaLogoutRange;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -319,113 +315,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     // region ------- 以下代码为用户兑换会员功能 --------
 
-    // 新增依赖注入
-    @Autowired
-    private ResourceLoader resourceLoader;
-
     @jakarta.annotation.Resource
     @Lazy
     private PictureService pictureService;
 
-    // 文件读写锁（确保并发安全）
-    private final ReentrantLock fileLock = new ReentrantLock();
-
-    // VIP 角色常量（根据你的需求自定义）
-    private static final String VIP_ROLE = "vip";
+    @jakarta.annotation.Resource
+    @Lazy
+    private VipRedemptionService vipRedemptionService;
 
     /**
-     * 兑换会员
+     * 兑换会员（#39）：核销、权益与流水在 VipRedemptionService 的同一事务内完成。
+     * 结果是明确状态（成功/已用/无效），不再依赖异常文案；不触碰 userRole。
      *
-     * @param user
-     * @param vipCode
-     * @return
+     * @param user    服务端确认的登录用户
+     * @param vipCode 用户提交的明文兑换码
+     * @return 兑换结果
      */
     @Override
-    public boolean exchangeVip(User user, String vipCode) {
-        // 1. 参数校验
+    public VipExchangeResult exchangeVip(User user, String vipCode) {
         if (user == null || StrUtil.isBlank(vipCode)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 2. 读取并校验兑换码
-        VipCode targetCode = validateAndMarkVipCode(vipCode);
-        // 3. 更新用户信息
-        updateUserVipInfo(user, targetCode.getCode());
-        return true;
-    }
-
-    /**
-     * 校验兑换码并标记为已使用
-     */
-    private VipCode validateAndMarkVipCode(String vipCode) {
-        fileLock.lock(); // 加锁保证文件操作原子性
-        try {
-            // 读取 JSON 文件
-            JSONArray jsonArray = readVipCodeFile();
-
-            // 查找匹配的未使用兑换码
-            List<VipCode> codes = JSONUtil.toList(jsonArray, VipCode.class);
-            VipCode target = codes.stream()
-                    .filter(code -> code.getCode().equals(vipCode) && !code.isHasUsed())
-                    .findFirst()
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PARAMS_ERROR, "无效的兑换码"));
-
-            // 标记为已使用
-            target.setHasUsed(true);
-
-            // 写回文件
-            writeVipCodeFile(JSONUtil.parseArray(codes));
-            return target;
-        } finally {
-            fileLock.unlock();
+        String status = vipRedemptionService.redeem(user, vipCode);
+        if (VipExchangeResult.STATUS_SUCCESS.equals(status)) {
+            // 回读权益，前端无需二次请求即可展示新到期时间
+            return VipExchangeResult.success(this.getById(user.getId()).getVipExpireTime());
         }
-    }
-
-    /**
-     * 读取兑换码文件
-     */
-    private JSONArray readVipCodeFile() {
-        try {
-            Resource resource = resourceLoader.getResource("classpath:biz/vipCode.json");
-            String content = FileUtil.readString(resource.getFile(), StandardCharsets.UTF_8);
-            return JSONUtil.parseArray(content);
-        } catch (IOException e) {
-            log.error("读取兑换码文件失败", e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙");
-        }
-    }
-
-    /**
-     * 写入兑换码文件
-     */
-    private void writeVipCodeFile(JSONArray jsonArray) {
-        try {
-            Resource resource = resourceLoader.getResource("classpath:biz/vipCode.json");
-            FileUtil.writeString(jsonArray.toStringPretty(), resource.getFile(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            log.error("更新兑换码文件失败", e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙");
-        }
-    }
-
-    /**
-     * 更新用户会员信息
-     */
-    private void updateUserVipInfo(User user, String usedVipCode) {
-        // 计算过期时间（当前时间 + 1 年）
-        Date expireTime = DateUtil.offsetMonth(new Date(), 12); // 计算当前时间加 1 年后的时间
-
-        // 构建更新对象
-        User updateUser = new User();
-        updateUser.setId(user.getId());
-        updateUser.setVipExpireTime(expireTime); // 设置过期时间
-        // 兑换码只作为核销凭据留在兑换码记录中，不再写入用户行，避免回读明文码
-        updateUser.setUserRole(VIP_ROLE);       // 修改用户角色
-
-        // 执行更新
-        boolean updated = this.updateById(updateUser);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "开通会员失败，操作数据库失败");
-        }
+        return VipExchangeResult.of(status);
     }
 
     // endregion ------- 以下代码为用户兑换会员功能 --------

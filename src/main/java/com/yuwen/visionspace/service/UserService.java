@@ -2,6 +2,7 @@ package com.yuwen.visionspace.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
+import com.yuwen.visionspace.model.dto.user.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
@@ -111,8 +112,10 @@ public interface UserService extends IService<User> {
 
     /**
      * 用户兑换会员（会员码兑换）
+     *
+     * @return 兑换结果：成功带新到期时间；已用/无效为明确状态，不抛业务异常
      */
-    boolean exchangeVip(User user, String vipCode);
+    VipExchangeResult exchangeVip(User user, String vipCode);
 
     /**
      * 获取用户图片统计

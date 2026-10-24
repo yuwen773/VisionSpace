@@ -69,8 +69,9 @@ try {
         $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
         $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
         # 表数量变化必须人工复核：#38 新增幂等台账 picture_action_event_dedupe，
-        # #41 新增 agent_run_state / agent_action_record，表数由 12 变为 15。
-        if ($tables.Count -ne 15) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+        # #41 新增 agent_run_state / agent_action_record，#39 新增 vip_redemption_code /
+        # vip_redemption_record，表数由 12 变为 17。
+        if ($tables.Count -ne 17) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
         $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
         $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -129,7 +130,40 @@ $ddl
         $env:VS_ACCEPTANCE_MYSQL_PORT = "$mysqlPort"
         $env:VS_ACCEPTANCE_REDIS_PORT = "$redisPort"
         $results['isolation'] = 'PASS'
-        Run-Gate 'backend' { mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/surefire" clean verify }
+
+        # #39 双实例验收：先编译测试类，再以真实第二 JVM 启动共享同一隔离
+        # MySQL/Redis 的应用进程；第二实例端口经就绪文件握手后传给 surefire。
+        $secondReadyFile = Join-Path $runDir 'second-instance.port'
+        $secondStopFile = "$secondReadyFile.stop"
+        $secondProcess = $null
+        $ownedSecondInstance = $false
+        Run-Gate 'backend' {
+            mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/surefire" test-compile
+            if ($LASTEXITCODE -ne 0) { throw "test-compile exit $LASTEXITCODE" }
+            $testClasspath = mvn -B --no-transfer-progress -q dependency:build-classpath "-Dmdep.outputFile=$runDir/test-cp.txt" -DincludeScope=test
+            if ($LASTEXITCODE -ne 0) { throw "build-classpath exit $LASTEXITCODE" }
+            $cp = (Resolve-Path (Join-Path $repo 'target/classes')).Path + [IO.Path]::PathSeparator +
+                  (Resolve-Path (Join-Path $repo 'target/test-classes')).Path + [IO.Path]::PathSeparator +
+                  (Get-Content -Raw (Join-Path $runDir 'test-cp.txt')).Trim()
+            # PATH 里的 java 可能是 Oracle javapath 桩（无法独立运行）；优先取 JAVA_HOME
+            $javaBin = if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/java.exe'))) {
+                (Join-Path $env:JAVA_HOME 'bin/java.exe')
+            } else { 'java' }
+            $secondProcess = Start-Process -FilePath $javaBin -ArgumentList @(
+                '-cp', "`"$cp`"", 'com.yuwen.visionspace.acceptance.VipSecondInstanceMain', $secondReadyFile
+            ) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'second-instance-out.log') -RedirectStandardError (Join-Path $runDir 'second-instance-error.log')
+            $ownedSecondInstance = $true
+            # 就绪握手：端口文件最多等 120 秒
+            $deadline = [DateTime]::UtcNow.AddSeconds(120)
+            while ([DateTime]::UtcNow -lt $deadline) {
+                if ($secondProcess.HasExited) { throw "second instance exited early (code $($secondProcess.ExitCode)); see second-instance-error.log" }
+                if (Test-Path $secondReadyFile) { break }
+                Start-Sleep -Milliseconds 500
+            }
+            if (-not (Test-Path $secondReadyFile)) { throw 'BLOCKED_ENV: second instance did not become ready in 120s' }
+            $secondPort = (Get-Content -Raw $secondReadyFile).Trim()
+            mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/surefire" "-Dvs.acceptance.second-port=$secondPort" verify
+        }
     } catch {
         $results['isolation'] = if ($_.Exception.Message.StartsWith('FAIL:')) { 'FAIL' } else { 'BLOCKED_ENV' }
         $results['backend'] = 'BLOCKED_ENV'
@@ -151,6 +185,21 @@ $ddl
     } finally { Pop-Location }
 } finally {
     $results['cleanup'] = 'PASS'
+    # #39 第二实例：写 stop 文件让其自行退出，再兜底强杀
+    if ($ownedSecondInstance) {
+        try { New-Item -ItemType File -Path $secondStopFile -Force | Out-Null } catch {}
+        try {
+            if ($secondProcess -and -not $secondProcess.HasExited) {
+                if (-not $secondProcess.WaitForExit(10000)) {
+                    Stop-Process -Id $secondProcess.Id -ErrorAction Stop
+                    $secondProcess.WaitForExit(5000) | Out-Null
+                }
+            }
+        } catch {
+            $results['cleanup'] = 'FAIL'
+            $_ | Out-String | Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
+        }
+    }
     # Windows MySQL can spawn a server child. Stop the verified server, not just its launcher.
     if ($MySqlBin -and $ownedProcesses.Count -gt 0) {
         try {

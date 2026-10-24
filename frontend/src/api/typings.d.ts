@@ -494,6 +494,7 @@ declare namespace API {
     userAvatar?: string
     userProfile?: string
     userRole?: string
+    vipExpireTime?: string
     editTime?: string
     createTime?: string
     updateTime?: string
@@ -1180,6 +1181,19 @@ declare namespace API {
     vipCode?: string
   }
 
+  type VipExchangeResult = {
+    /** 结果状态：success / already_used / invalid */
+    status?: string
+    /** 兑换后的会员到期时间；仅 success 时有值 */
+    vipExpireTime?: string
+  }
+
+  type BaseResponseVipExchangeResult = {
+    code?: number
+    data?: VipExchangeResult
+    message?: string
+  }
+
   // === 生成后补丁：尾下划线别名（scripts/postgen-typings.mjs） ===
   type BaseResponseAdminDashboardStatsVO_ = BaseResponseAdminDashboardStatsVO
   type BaseResponseBoolean_ = BaseResponseBoolean
@@ -1204,6 +1218,7 @@ declare namespace API {
   type BaseResponsePageSpace_ = BaseResponsePageSpace
   type BaseResponsePageSpaceVO_ = BaseResponsePageSpaceVO
   type BaseResponsePageUserVO_ = BaseResponsePageUserVO
+  type BaseResponseVipExchangeResult_ = BaseResponseVipExchangeResult
   type BaseResponsePicture_ = BaseResponsePicture
   type BaseResponsePictureTagCategory_ = BaseResponsePictureTagCategory
   type BaseResponsePictureVO_ = BaseResponsePictureVO

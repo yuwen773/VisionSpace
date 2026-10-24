@@ -65,12 +65,12 @@ export async function deleteUserUsingPost(
   })
 }
 
-/** 此处后端没有提供注释 POST /user/exchange/vip */
+/** 兑换会员：返回明确状态 success / already_used / invalid (#39) */
 export async function exchangeVipUsingPost(
   body: API.VipExchangeRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean>('/user/exchange/vip', {
+  return request<API.BaseResponseVipExchangeResult>('/user/exchange/vip', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
