@@ -20,11 +20,12 @@
           <a-select-option value="picture">图片</a-select-option>
           <a-select-option value="feedback-attachment">反馈附件</a-select-option>
         </a-select>
-        <a-input-number
+        <!-- 资源标识按十进制字符串输入：雪花值超出 JS 安全整数范围，
+             用数字控件会丢精度，处置动作会落到别的资源上 -->
+        <a-input
           v-model:value="form.resourceId"
-          :min="1"
-          :precision="0"
-          placeholder="资源 ID"
+          :maxlength="20"
+          placeholder="资源 ID（十进制数字）"
           class="form-item"
         />
         <a-textarea
@@ -129,9 +130,12 @@ const releaseTarget = ref<API.ModerationResourceVO | null>(null)
 
 const form = reactive({
   resourceType: 'picture' as string,
-  resourceId: undefined as number | undefined,
+  resourceId: '' as string,
   reason: '',
 })
+
+/** 只接受十进制数字的标识；空串与非法输入都在提交前拒绝 */
+const isValidResourceId = (value: string) => /^[1-9]\d*$/.test(value.trim())
 
 const recordKey = (record: API.ModerationResourceVO) =>
   `${record.resourceType ?? ''}-${record.resourceId ?? ''}-${record.createTime ?? ''}`
@@ -153,8 +157,8 @@ const loadList = async () => {
 }
 
 const doQuarantine = async () => {
-  if (!form.resourceId || form.resourceId <= 0) {
-    message.warning('请填写资源 ID')
+  if (!isValidResourceId(form.resourceId)) {
+    message.warning('请填写正确的资源 ID')
     return
   }
   if (!form.reason.trim()) {
@@ -165,12 +169,12 @@ const doQuarantine = async () => {
   try {
     const res = await quarantineUsingPost({
       resourceType: form.resourceType,
-      resourceId: form.resourceId,
+      resourceId: form.resourceId.trim(),
       reason: form.reason.trim(),
     })
     if (res.data.code === 0) {
       message.success('资源已隔离')
-      form.resourceId = undefined
+      form.resourceId = ''
       form.reason = ''
       await loadList()
     } else {
@@ -200,7 +204,7 @@ const doRelease = async () => {
   try {
     const res = await releaseUsingPost({
       resourceType: target.resourceType ?? 'picture',
-      resourceId: target.resourceId as number,
+      resourceId: target.resourceId,
       reason: releaseReason.value.trim(),
     })
     if (res.data.code === 0) {

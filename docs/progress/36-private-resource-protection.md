@@ -36,7 +36,7 @@
 | 14.1 匿名/其他用户/创建者/管理员的允许-拒绝矩阵，管理职责不扩展 | `HttpFeedbackProtectionTest#detailIsReadableOnlyByCreatorAndAdminWithFeedbackDuty`、`#adminRoleDoesNotExtendToOtherPrivateResources`、`#anonymousDetailRequestIsRejectedWithoutServerError`；`HttpResourceQuarantineTest#adminContentReadOfPrivateSpaceIsDeniedButReviewDutyRemains` | 已覆盖 |
 | 14.2 响应只返回必要用户信息与受控附件标识，无原始 URL 旁路 | `HttpFeedbackProtectionTest#responseIsMinimizedAndAttachmentsHaveNoOriginAddress`（`FeedbackVO` 只含 `userName`/`userId`，`FeedbackAttachmentVO` 只含 `id`/`url`/`status`）、`#rawUrlsCannotBeUsedAsAttachments`；`HttpResourceQuarantineTest#moderationViewsExposeMetadataOnly` | 已覆盖 |
 | 14.3 附件实际请求按反馈权限判定，客户端能正常展示 | `HttpFeedbackProtectionTest#attachmentContentFollowsCurrentFeedbackPermission`、`#unboundAttachmentIsOnlyReadableByItsUploader`；前端 `FeedbackSection.vue` 走 `contentSrc()` 渲染 `contentSrc` 受控入口，后台详情走 `getFeedbackById` 取带入口的附件；附件标识按十进制字符串提交（`api-custom/resourceProtection.ts#attachmentIdsOf`），后端 `HttpFeedbackProtectionTest#attachmentIdsBindWhetherTheyArriveAsStringOrNumber` 覆盖字符串与非法标识 | 已覆盖（HTTP + 前端代码层 + 前端单测） |
-| 14.4 旧附件归属从可信记录核对，不能确认时阻断，不自动公开或丢弃 | 迁移脚本把旧附件登记为 BLOCKED（保留原文在 `user_feedback.pictureUrls`），已受控登记的引用不重复登记；`HttpFeedbackProtectionTest#legacyAttachmentWithUnconfirmedOwnershipIsBlockedAndNotPublic`；`sql/migrations/2026-10-23-private-resource-protection-blocklist.sql` 输出脱敏阻断清单 | 已覆盖 |
+| 14.4 旧附件归属从可信记录核对，不能确认时阻断，不自动公开或丢弃 | 迁移按「提交者 + 服务端写入的 `/temp/{userId}/` 前缀」交叉核对归属：一致的登记为 LEGACY_VERIFIED（可读），其余登记为 BLOCKED（不可读），原文保留在 `user_feedback.pictureUrls`，已受控登记的引用不重复登记；`PrivateResourceMigrationTest#legacyAttachmentsAreRegisteredAsBlockedAndNeverClaimed`（三种地址各归各类）、`HttpFeedbackProtectionTest#legacyAttachmentWithUnconfirmedOwnershipIsBlockedAndNotPublic`、`#verifiedLegacyAttachmentIsReadableThroughTheControlledEntry`（核对后的旧附件真的读得出内容，走存量分支）；`sql/migrations/2026-10-23-private-resource-protection-blocklist.sql` 输出脱敏阻断清单 | 已覆盖 |
 | 15.1 个人资源仅所有者、团队资源仅有权团队管理员可授权，查看者/资源/到期受校验 | `HttpPictureGrantTest#onlyOwnerOrTeamAdminMayGrant`、`#expiryIsMandatoryAndBounded`（到期必填、不得超过 30 天、不得早于当前时间）、`#teamMemberRemovalAlsoCancelsGrantBasedRead`、`#platformAdminKeepsTeamAdminAuthorityButNotStrangersAuthority`（平台管理员独立持有的团队管理员身份照常生效，平台身份本身不构成授权依据） | 已覆盖 |
 | 15.2 UI 打通授予、列表、撤销与到期提示，不默认整空间或无限期 | `frontend/src/components/picture/PictureGrantPanel.vue`：默认 7 天、上限 30 天、必须显式到期；`api-custom/resourceProtection.ts#grantExpiresTime` 夹紧范围；`#grantExpiresSoon` 给出临近到期提示；授予与撤销入口按服务端返回的管理资格（`#canManageGrants`）显示，不再按平台角色一律排除 | 已覆盖（前端代码层 + 单测） |
 | 15.3 每次读取校验当前授权，跨资源/过期/撤销/身份错误立即拒绝，两个实例一致 | `HttpPictureGrantTest#ownerGrantsAndGranteeReadsUntilExpiry`、`#revocationTakesEffectOnTheNextRequest`、`#grantCannotReviveQuarantinedResource`、`#expiredGrantReleasesItsSlotSoTheResourceCanBeGrantedAgain`（到期即失效并释放唯一键，可以重新授权）；判定只查库、不做进程内缓存 | 已覆盖（单实例进程；双实例见「人工关卡」） |
@@ -85,6 +85,39 @@
 
 顺带修正既有回归的失真：`HttpResourceQuarantineTest` 的团队空间所有者此前没有 `space_user` 成员行，请求在空间权限校验处就被拒，两条隔离回归实际没有走到隔离判定。补上成员行后，两条断言收紧为业务错误码 50001，确认拒绝来自隔离而不是权限。
 
+## 第三轮评审返工
+
+第三轮评审（Standards 轴 + Spec 轴）提出 10 条问题，逐条修复如下。前两条是 P1。
+
+### P1-1 处置台无法输入正确的雪花标识
+
+`ModerationPage.vue` 用 `a-input-number` 绑定 `resourceId`，`MiniDecimal` 会把 19 位整数转成 double。处置员粘贴真实图片 ID 后，请求里的标识已经丢了精度：要么查不到目标（报「图片不存在」），要么舍入值恰好命中同毫秒的另一张图片——**隔离错图**。验收夹具用的是 87910 这类小 id，覆盖不到。
+
+修复：接口层与控件层同时改。
+
+- `ResourceModerationRequest.resourceId`、`ModerationResourceVO.resourceId`/`operatorId`/`releaseOperatorId` 改为 `String`，与 `ResourceGrantVO` 已有的十进制字符串约定一致；控制器用 `IdentifierUtils.parseId` 解析，非法输入按参数错误拒绝。
+- `/moderation/history` 的 `resourceId` 查询参数同样改为字符串。
+- 前端换成 `a-input`，提交前用 `/^[1-9]\d*$/` 校验，不再经过任何数值转换。
+- 重新生成前端客户端：`ResourceModerationRequest.resourceId` 与 `ModerationResourceVO` 的三个标识字段在生成的类型里都是 `string`。
+
+### P1-2 平台管理员可以读任意私人图片的授权名单
+
+`ResourceAccessGrantServiceImpl#listByPicture` 里 `platformAdminAudit` 直接绕过了 `canGrant`：管理员能看到别人私人图片的**被授权人、理由、有效期**。这与「管理职责不扩展到其他私人资源」冲突。
+
+修复：删掉管理员旁路，授权名单与授予资格走同一判定（个人资源所有者 / 该团队空间的团队管理员）。`HttpPictureGrantTest` 相应收紧：管理员读私人图片与他人团队图片的授权名单都断言被拒。
+
+### 其余八条
+
+| 问题 | 修复 |
+| --- | --- |
+| 核对过的旧附件仍读不出内容 | `loadContent` 增加存量分支：`platform='legacy'` 走 `readLegacyObject`，与图片侧一致；新增回归断言实际走的是 `READ-LEGACY` |
+| 能确认归属的旧附件也被一律阻断 | 迁移按 `/temp/{提交者}/` 前缀区分 LEGACY_VERIFIED 与 BLOCKED |
+| `excludeQuarantined` 的 javadoc 与实现相反 | 改为说明为什么必须用 `NOT IN`（`NOT EXISTS` 会让外层列被遮蔽、条件恒假） |
+| 列名裸拼进 SQL | 只接受简单标识符，其余按参数错误拒绝 |
+| 处置列表绕过服务层且 N+1 | 新增 `ResourceIsolationService#listQuarantined`；控制器改为批量取图片名与用户名 |
+| 授权状态两套语义 | 状态推导收敛到 `ResourceAccessGrantService#toVO` 一处，列表、授予、撤销共用 |
+| 术语表与 CLAUDE.md 过期 | CONTEXT.md 补「违规处置员」，平台管理员词条明确不含查看授权名单与处置；CLAUDE.md 控制器数改为 16 |
+
 ## 本次实际执行的验证
 
 2026-10-23，Windows + JDK 23 / Maven / Node / PowerShell 7，原生隔离 MySQL 8.0.26 + Redis 3.2.100（本机 Docker 不可用，因此不是容器实测）：
@@ -93,6 +126,8 @@
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>'
 ```
+
+第三轮返工后的完整重跑（提交 `abac42f`）：九个结果分类全部 PASS，后端 489 条测试 0 失败，前端 18 个测试文件全通过。
 
 结果见 `target/acceptance/summary.json`：九个结果分类全部 PASS（`runner-tests`、`secret-scan`、`isolation`、`backend`、`frontend-install`、`frontend-typecheck`、`frontend-tests`、`frontend-build`、`cleanup`），退出 0。
 

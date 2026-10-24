@@ -15,8 +15,13 @@ public class ResourceModerationRequest implements Serializable {
     /** 资源类型，目前支持 picture / feedback-attachment */
     private String resourceType;
 
-    /** 资源标识 */
-    private Long resourceId;
+    /**
+     * 资源标识，按十进制字符串传输。
+     *
+     * <p>标识是雪花值，超出 JavaScript 的安全整数范围；客户端转成 number 会丢精度，
+     * 处置动作会落到别的资源上。
+     */
+    private String resourceId;
 
     /** 处置理由，必填 */
     private String reason;

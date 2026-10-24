@@ -219,6 +219,47 @@ class HttpFeedbackProtectionTest {
     }
 
     @Test
+    void verifiedLegacyAttachmentIsReadableThroughTheControlledEntry() throws Exception {
+        // 归属已核对的旧附件：迁移按服务端写入的 /temp/{提交者}/ 前缀登记为 LEGACY_VERIFIED
+        String legacyUrl = "/temp/" + creatorId + "/verified.png";
+        jdbc.update("""
+                INSERT INTO user_feedback (id, userId, type, title, content, pictureUrls, status, isDelete)
+                VALUES (?, ?, 2, '旧反馈', '旧正文', ?, 0, 0)
+                """, LEGACY_FEEDBACK, creatorId, "[\"" + legacyUrl + "\"]");
+        jdbc.update("""
+                INSERT INTO feedback_attachment (ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash)
+                VALUES (?, ?, 'legacy', ?, ?, 2, SHA2(?, 256))
+                """, creatorId, LEGACY_FEEDBACK, legacyUrl, legacyUrl, legacyUrl);
+
+        Long attachmentId = jdbc.queryForObject(
+                "SELECT id FROM feedback_attachment WHERE legacyUrlHash = SHA2(?, 256)",
+                Long.class, legacyUrl);
+        try (var creator = client()) {
+            login(creator, creatorId);
+            var detail = get(creator, "/feedback/get/" + LEGACY_FEEDBACK);
+            assertEquals(0, detail.path("code").asInt(), detail.toString());
+            JsonNode attachment = detail.path("data").path("attachments").get(0);
+            assertEquals("LEGACY_VERIFIED", attachment.path("status").asText(), detail.toString());
+            assertEquals("/feedback/attachment/" + attachmentId, attachment.path("url").asText(),
+                    "a verified legacy attachment must be reachable through the controlled entry: " + detail);
+            // 旧附件没有存储平台，内容必须按存量分支读取，而不是拿 "legacy" 当平台名去查
+            int before = recorder.calls().size();
+            var content = send(creator, HttpRequest.newBuilder(
+                    uri("/feedback/attachment/" + attachmentId)).GET().build());
+            assertEquals(200, content.statusCode(), content.body());
+            assertEquals("acceptance-image-bytes", content.body());
+            assertEquals(1, recorder.calls().subList(before, recorder.calls().size()).stream()
+                    .filter(call -> "READ-LEGACY".equals(call.method())).count(),
+                    "a legacy attachment must be read through the legacy branch");
+        }
+        // 归属核对不改变原文，也不删除反馈
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_feedback WHERE id = ?", Integer.class, LEGACY_FEEDBACK));
+        assertEquals(legacyUrl, jdbc.queryForObject(
+                "SELECT objectKey FROM feedback_attachment WHERE id = ?", String.class, attachmentId));
+    }
+
+    @Test
     void anonymousDetailRequestIsRejectedWithoutServerError() throws Exception {
         long feedbackId = submitFeedbackWithAttachment();
         try (var anonymous = client()) {

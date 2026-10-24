@@ -238,14 +238,12 @@ class HttpPictureGrantTest {
             assertFalse(grants.toString().contains("acceptance.invalid"), "grant list must not expose storage keys");
             assertEquals("ACTIVE", grant.path("status").asText());
         }
-        // 审计只读：平台管理员可以查看授权记录，但读不到内容
+        // 平台管理员身份不构成查看授权名单的依据：名单属于资源方与被授权人的关系，
+        // 管理职责不扩展到其他私人资源
         long adminId = registerAdmin("grant_admin_" + System.nanoTime());
         try (var admin = client()) {
             login(admin, adminId);
-            var grants = get(admin, "/picture/grant/list?pictureId=" + PRIVATE_PICTURE);
-            assertEquals(0, grants.path("code").asInt(), grants.toString());
-            assertFalse(grants.path("data").path("canManage").asBoolean(),
-                    "platform admin must not manage grants of a resource it does not own: " + grants);
+            assertRejected(get(admin, "/picture/grant/list?pictureId=" + PRIVATE_PICTURE));
             assertDenied(admin, "/picture/content/" + PRIVATE_PICTURE + "/original");
         }
     }
@@ -296,9 +294,7 @@ class HttpPictureGrantTest {
         }
         try (var otherAdmin = client()) {
             login(otherAdmin, otherAdminId);
-            var grants = get(otherAdmin, "/picture/grant/list?pictureId=" + TEAM_PICTURE);
-            assertEquals(0, grants.path("code").asInt(), grants.toString());
-            assertFalse(grants.path("data").path("canManage").asBoolean(), grants.toString());
+            assertRejected(get(otherAdmin, "/picture/grant/list?pictureId=" + TEAM_PICTURE));
         }
     }
 

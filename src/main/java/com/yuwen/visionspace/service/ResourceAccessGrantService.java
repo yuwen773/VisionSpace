@@ -46,9 +46,17 @@ public interface ResourceAccessGrantService extends IService<ResourceAccessGrant
 
     /**
      * 列出某资源的授权记录（含已撤销与已到期），按创建时间倒序。
-     * 仅资源所有者、该团队空间的团队管理员或平台管理员（只读审计）可见。
+     * 仅资源所有者与该团队空间的团队管理员可见；平台管理员身份不构成查看依据。
      */
     List<ResourceGrantVO> listByPicture(Picture picture, User viewer);
+
+    /**
+     * 把一条授权记录转成对外的视图。
+     *
+     * <p>状态按当前时间推导：库里的 ACTIVE 一旦到期就是 EXPIRED，
+     * 各入口（列表、授予、撤销）都走这一处，避免同一份授权在不同响应里状态不同。
+     */
+    ResourceGrantVO toVO(ResourceAccessGrant grant, Picture picture);
 
     /**
      * 列出指定查看者的有效授权，供"我的授权"视图。

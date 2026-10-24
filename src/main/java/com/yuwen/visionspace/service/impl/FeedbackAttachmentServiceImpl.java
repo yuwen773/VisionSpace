@@ -31,6 +31,9 @@ public class FeedbackAttachmentServiceImpl extends ServiceImpl<FeedbackAttachmen
 
     static final String CONTENT_PATH = "/feedback/attachment/";
 
+    /** 旧附件的平台标识：这些记录没有可用的存储平台，objectKey 保存的是原地址 */
+    static final String LEGACY_PLATFORM = "legacy";
+
     @Resource
     private FeedbackAccessPolicy feedbackAccessPolicy;
 
@@ -121,7 +124,11 @@ public class FeedbackAttachmentServiceImpl extends ServiceImpl<FeedbackAttachmen
         ThrowUtils.throwIf(attachment == null, ErrorCode.NOT_FOUND_ERROR, "附件不存在");
         // 每次新请求都按当前反馈权限与隔离状态判定
         ThrowUtils.throwIf(!canRead(attachment, viewer), ErrorCode.NO_AUTH_ERROR, "无权读取该附件");
-        byte[] bytes = pictureStorageService.readObject(attachment.getPlatform(), attachment.getObjectKey());
+        // 旧附件没有存储平台，objectKey 保存的是原地址：按存量分支读取，
+        // 与图片侧的存量兼容一致，否则人工核对过的旧附件仍然读不出内容。
+        byte[] bytes = LEGACY_PLATFORM.equals(attachment.getPlatform())
+                ? pictureStorageService.readLegacyObject(attachment.getObjectKey())
+                : pictureStorageService.readObject(attachment.getPlatform(), attachment.getObjectKey());
         return new AttachmentContent(bytes,
                 PictureStorageService.contentTypeOf(attachment.getObjectKey()),
                 downloadName(attachment));

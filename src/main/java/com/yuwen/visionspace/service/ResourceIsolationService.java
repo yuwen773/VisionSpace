@@ -47,11 +47,15 @@ public interface ResourceIsolationService extends IService<ResourceIsolation> {
     /**
      * 在查询条件里排除隔离中的资源。
      *
-     * <p>用 {@code NOT EXISTS} 子查询而不是先查 id 再拼 {@code NOT IN}：
-     * 列表查询需要跨实例生效，且不能因为隔离记录变多而让参数无限增长。
+     * <p>用子查询按库实时判定，隔离与恢复立即对所有实例的列表查询生效，
+     * 不依赖进程内状态，也不会因为隔离记录变多而让参数无限增长。
+     *
+     * <p>实现必须用 {@code NOT IN} 而不是 {@code NOT EXISTS}：写成 NOT EXISTS 时
+     * 外层列会被子查询里的 {@code resource_isolation.resourceId} 遮蔽，条件恒假，
+     * 隔离中的资源反而全部返回。
      *
      * @param wrapper      目标查询条件
-     * @param column       资源 id 列名
+     * @param column       资源 id 列名，调用方只能传常量列名
      * @param resourceType 资源类型
      */
     void excludeQuarantined(QueryWrapper<?> wrapper, String column, String resourceType);
@@ -78,4 +82,9 @@ public interface ResourceIsolationService extends IService<ResourceIsolation> {
      * 资源的隔离历史，按时间倒序（含已恢复记录）。
      */
     List<ResourceIsolation> history(String resourceType, Long resourceId);
+
+    /**
+     * 当前处于隔离状态的资源，按处置时间倒序。
+     */
+    List<ResourceIsolation> listQuarantined();
 }

@@ -9,10 +9,11 @@
 --                         就会丢掉平台、对象键、归属与绑定记录；归档表保留这些记录，
 --                         再次执行本脚本时把记录搬回 feedback_attachment 并消费掉。
 --
--- 旧反馈附件（user_feedback.pictureUrls）无法从可信资源记录确认归属：
--- 上传时写入 /temp/{userId}/ 前缀，但前缀不是归属证据，因此旧附件先登记为
--- BLOCKED（status=3）并保留原 JSON 原文在 user_feedback 中，不公开、不自动认领、
--- 不删除。确认归属需要人工核对，核对后可用 LEGACY_VERIFIED（status=2）单独登记。
+-- 旧反馈附件（user_feedback.pictureUrls）没有资源记录，只能按服务端写入的路径核对归属：
+-- 地址里带 `/temp/{提交者 userId}/` 的登记为 LEGACY_VERIFIED（status=2，可读取），
+-- 其余（前缀缺失或指向别的用户）登记为 BLOCKED（status=3，不可读取）。
+-- 两种情况都保留原 JSON 原文在 user_feedback 中，不公开、不删除；
+-- 被阻断的那部分需要人工核对，核对后按同样方式改成 LEGACY_VERIFIED。
 --
 -- 授权与隔离都用 activeKey 唯一约束表达"同一资源同一对象最多一条有效记录"，
 -- 该约束由数据库跨实例生效，不依赖应用进程内状态。
@@ -116,11 +117,21 @@ CREATE TABLE IF NOT EXISTS `resource_isolation` (
   INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '违规资源隔离与恢复';
 
--- 旧反馈附件：仅登记为 BLOCKED（不可读取），保留原文并在重复执行时幂等跳过。
+-- 旧反馈附件：按能否确认归属分别登记，保留原文并在重复执行时幂等跳过。
+--
+-- 归属确认用两条互相独立的服务端事实交叉核对：
+--   1. `user_feedback.userId` —— 提交该反馈的登录用户；
+--   2. 附件地址里的 `/temp/{userId}/` 前缀 —— 上传时由服务端按登录用户写入的路径。
+-- 两者一致时归属成立，登记为 LEGACY_VERIFIED（status=2，可读取）；
+-- 地址里的前缀缺失、或不指向该反馈的提交者（客户端可以在 pictureUrls 里塞任意地址），
+-- 归属无法确认，登记为 BLOCKED（status=3，不可读取），等人工核对。
+--
 -- 已经是受控附件记录的引用（attachment:{id} 且该附件存在）不登记为旧附件：
 -- 它的归属已经确认，重复登记只会让附件列表出现重复条目。
 INSERT INTO `feedback_attachment` (`ownerUserId`, `feedbackId`, `platform`, `objectKey`, `url`, `status`, `legacyUrlHash`)
-SELECT f.`userId`, f.`id`, 'legacy', LEFT(j.`url`, 768), LEFT(j.`url`, 1024), 3, SHA2(j.`url`, 256)
+SELECT f.`userId`, f.`id`, 'legacy', LEFT(j.`url`, 768), LEFT(j.`url`, 1024),
+       CASE WHEN j.`url` LIKE CONCAT('%', '/temp/', f.`userId`, '/%') THEN 2 ELSE 3 END,
+       SHA2(j.`url`, 256)
 FROM `user_feedback` f
 JOIN JSON_TABLE(f.`pictureUrls`, '$[*]' COLUMNS (`url` varchar(1024) PATH '$')) j
 WHERE f.`isDelete` = 0

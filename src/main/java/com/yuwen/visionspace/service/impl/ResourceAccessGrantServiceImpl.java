@@ -158,8 +158,9 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
     public List<ResourceGrantVO> listByPicture(Picture picture, User viewer) {
         ThrowUtils.throwIf(picture == null || picture.getId() == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(viewer == null || viewer.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
-        boolean platformAdminAudit = userService.isAdmin(viewer);
-        ThrowUtils.throwIf(!platformAdminAudit && !canGrant(picture, viewer),
+        // 授权名单属于资源方与被授权人的关系：平台管理员身份不构成查看依据。
+        // 只有资源所有者与有权团队管理员能看，与授予资格同一判定。
+        ThrowUtils.throwIf(!canGrant(picture, viewer),
                 ErrorCode.NO_AUTH_ERROR, "无权查看该资源的授权");
         List<ResourceAccessGrant> grants = this.lambdaQuery()
                 .eq(ResourceAccessGrant::getResourceType, ResourceTypeEnum.PICTURE.getValue())
@@ -278,6 +279,21 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
         return resourceIsolationService.isQuarantined(ResourceTypeEnum.PICTURE.getValue(), picture.getId());
     }
 
+    @Override
+    public ResourceGrantVO toVO(ResourceAccessGrant grant, Picture picture) {
+        ThrowUtils.throwIf(grant == null, ErrorCode.PARAMS_ERROR);
+        Set<Long> userIds = new java.util.HashSet<>();
+        userIds.add(grant.getGranteeUserId());
+        userIds.add(grant.getGrantedByUserId());
+        userIds.remove(null);
+        Map<Long, User> users = userIds.isEmpty() ? Map.of() : userService.listByIds(userIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+        Map<Long, String> resourceNames = picture == null || picture.getName() == null
+                ? Map.of()
+                : Map.of(grant.getResourceId(), picture.getName());
+        return toVO(grant, resourceNames, users, new Date());
+    }
+
     private List<ResourceGrantVO> toVOs(Collection<ResourceAccessGrant> grants, Map<Long, String> resourceNames) {
         if (grants == null || grants.isEmpty()) {
             return List.of();
@@ -293,25 +309,33 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
         Date now = new Date();
         List<ResourceGrantVO> result = new ArrayList<>();
         for (ResourceAccessGrant grant : grants) {
-            ResourceGrantVO vo = new ResourceGrantVO();
-            vo.setId(asId(grant.getId()));
-            vo.setResourceType(grant.getResourceType());
-            vo.setResourceId(asId(grant.getResourceId()));
-            vo.setResourceName(resourceNames.get(grant.getResourceId()));
-            vo.setGranteeUserId(asId(grant.getGranteeUserId()));
-            vo.setGranteeUserName(displayName(users.get(grant.getGranteeUserId())));
-            vo.setGrantedByUserId(asId(grant.getGrantedByUserId()));
-            vo.setGrantedByUserName(displayName(users.get(grant.getGrantedByUserId())));
-            vo.setReason(grant.getReason());
-            vo.setExpiresTime(grant.getExpiresTime());
-            vo.setStatus(currentStatus(grant, now));
-            vo.setRevokedByUserId(asId(grant.getRevokedByUserId()));
-            vo.setRevokeReason(grant.getRevokeReason());
-            vo.setRevokeTime(grant.getRevokeTime());
-            vo.setCreateTime(grant.getCreateTime());
-            result.add(vo);
+            result.add(toVO(grant, resourceNames, users, now));
         }
         return result;
+    }
+
+    /**
+     * 单一的状态推导入口：各视图都用它，避免同一份授权在不同响应里状态不同。
+     */
+    private ResourceGrantVO toVO(ResourceAccessGrant grant, Map<Long, String> resourceNames,
+                                 Map<Long, User> users, Date now) {
+        ResourceGrantVO vo = new ResourceGrantVO();
+        vo.setId(asId(grant.getId()));
+        vo.setResourceType(grant.getResourceType());
+        vo.setResourceId(asId(grant.getResourceId()));
+        vo.setResourceName(resourceNames.get(grant.getResourceId()));
+        vo.setGranteeUserId(asId(grant.getGranteeUserId()));
+        vo.setGranteeUserName(displayName(users.get(grant.getGranteeUserId())));
+        vo.setGrantedByUserId(asId(grant.getGrantedByUserId()));
+        vo.setGrantedByUserName(displayName(users.get(grant.getGrantedByUserId())));
+        vo.setReason(grant.getReason());
+        vo.setExpiresTime(grant.getExpiresTime());
+        vo.setStatus(currentStatus(grant, now));
+        vo.setRevokedByUserId(asId(grant.getRevokedByUserId()));
+        vo.setRevokeReason(grant.getRevokeReason());
+        vo.setRevokeTime(grant.getRevokeTime());
+        vo.setCreateTime(grant.getCreateTime());
+        return vo;
     }
 
     /** 标识按十进制字符串给出，避免客户端丢失精度 */

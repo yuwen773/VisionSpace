@@ -25,11 +25,15 @@ import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationMapper, ResourceIsolation>
         implements ResourceIsolationService {
+
+    /** 允许拼进 SQL 的列名形态：简单标识符，不接受任何标点或空格 */
+    private static final Pattern SIMPLE_COLUMN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,63}");
 
     @Resource
     private UserService userService;
@@ -87,6 +91,10 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
         if (wrapper == null || StrUtil.isBlank(column) || StrUtil.isBlank(resourceType)) {
             return;
         }
+        // 列名会直接拼进 SQL，只接受简单标识符：调用方传常量列名，
+        // 一旦有人把外部输入传进来，这里立刻拒绝而不是让它成为注入面。
+        ThrowUtils.throwIf(!SIMPLE_COLUMN.matcher(column).matches(),
+                ErrorCode.PARAMS_ERROR, "资源 id 列名不合法");
         // 子查询按库实时判定：隔离/恢复立即对所有实例的列表查询生效，且不依赖进程内状态。
         // 必须用 NOT IN：若写成 NOT EXISTS 并把外层列裸写进子查询，
         // 该列会被 resource_isolation.id 遮蔽，条件恒假，隔离行反而全部返回。
@@ -179,6 +187,14 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
         return this.lambdaQuery()
                 .eq(ResourceIsolation::getResourceType, resourceType)
                 .eq(ResourceIsolation::getResourceId, resourceId)
+                .orderByDesc(ResourceIsolation::getId)
+                .list();
+    }
+
+    @Override
+    public List<ResourceIsolation> listQuarantined() {
+        return this.lambdaQuery()
+                .eq(ResourceIsolation::getStatus, ResourceIsolationStatusEnum.QUARANTINED.getValue())
                 .orderByDesc(ResourceIsolation::getId)
                 .list();
     }

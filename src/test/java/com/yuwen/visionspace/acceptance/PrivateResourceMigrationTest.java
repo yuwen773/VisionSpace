@@ -75,7 +75,7 @@ class PrivateResourceMigrationTest {
             jdbc.update("INSERT INTO `" + USER_FEEDBACK + "`"
                     + " (id, userId, type, title, content, pictureUrls, status, isDelete)"
                     + " VALUES (1, 7, 2, 't', 'c', ?, 0, 0)",
-                    "[\"/temp/7/a.png\",\"https://cdn.example/b.png\"]");
+                    "[\"/temp/7/a.png\",\"https://cdn.example/b.png\",\"/temp/99/c.png\"]");
             // 非 JSON 与空附件不能中断迁移
             jdbc.update("INSERT INTO `" + USER_FEEDBACK + "`"
                     + " (id, userId, type, title, content, pictureUrls, status, isDelete)"
@@ -85,13 +85,20 @@ class PrivateResourceMigrationTest {
                     + " VALUES (3, 7, 2, 't', 'c', NULL, 0, 0)");
 
             run(FORWARD);
-            assertEquals(2, count(FEEDBACK), "only valid JSON entries are registered");
+            assertEquals(3, count(FEEDBACK), "only valid JSON entries are registered");
             List<java.util.Map<String, Object>> rows = jdbc.queryForList(
                     "SELECT ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash"
                             + " FROM `" + FEEDBACK + "` ORDER BY id");
+            // 归属按服务端写入的 /temp/{提交者}/ 前缀核对：
+            // /temp/7/ 指向反馈提交者 → 可读；其余（外站地址、指向别人的前缀）→ 阻断
+            Map<String, Integer> expectedStatus = Map.of(
+                    "/temp/7/a.png", 2,
+                    "https://cdn.example/b.png", 3,
+                    "/temp/99/c.png", 3);
             for (var row : rows) {
-                assertEquals(3, ((Number) row.get("status")).intValue(),
-                        "unconfirmed legacy attachments must be BLOCKED");
+                String objectKey = (String) row.get("objectKey");
+                assertEquals(expectedStatus.get(objectKey), ((Number) row.get("status")).intValue(),
+                        "legacy attachment ownership must follow the server-written temp prefix: " + objectKey);
                 assertEquals("legacy", row.get("platform"));
                 assertEquals(7L, ((Number) row.get("ownerUserId")).longValue());
                 assertTrue(row.get("legacyUrlHash") != null, "idempotency hash must be stored");

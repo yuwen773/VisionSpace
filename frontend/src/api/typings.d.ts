@@ -521,7 +521,7 @@ declare namespace API {
 
   type historyUsingGetParams = {
     resourceType: string
-    resourceId: number
+    resourceId: string
   }
 
   type ImageSearchResult = {
@@ -536,11 +536,11 @@ declare namespace API {
   }
 
   type IPageMcpServerDetail = {
-    total?: number
-    current?: number
-    records?: McpServerDetail[]
-    pages?: number
     size?: number
+    total?: number
+    records?: McpServerDetail[]
+    current?: number
+    pages?: number
   }
 
   type listGrantsUsingGetParams = {
@@ -602,14 +602,14 @@ declare namespace API {
 
   type ModerationResourceVO = {
     resourceType?: string
-    resourceId?: number
+    resourceId?: string
     resourceName?: string
     status?: string
-    operatorId?: number
+    operatorId?: string
     operatorUserName?: string
     reason?: string
     createTime?: string
-    releaseOperatorId?: number
+    releaseOperatorId?: string
     releaseOperatorUserName?: string
     releaseReason?: string
     releaseTime?: string
@@ -941,13 +941,6 @@ declare namespace API {
     actions?: RecoveryActionVO[]
   }
 
-  type resumeUsingPostParams = {
-    threadId: string
-    expectedVersion?: number
-    message?: string
-    message?: string
-  }
-
   type ResourceGrantListVO = {
     canManage?: boolean
     grants?: ResourceGrantVO[]
@@ -973,8 +966,13 @@ declare namespace API {
 
   type ResourceModerationRequest = {
     resourceType?: string
-    resourceId?: number
+    resourceId?: string
     reason?: string
+  }
+
+  type resumeUsingPostParams = {
+    threadId: string
+    expectedVersion?: number
   }
 
   type SearchPictureByColorRequest = {

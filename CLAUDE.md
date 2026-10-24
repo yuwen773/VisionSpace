@@ -43,7 +43,7 @@ docker-compose up -d         # MySQL 8.0 + Redis 7 + backend
 
 Multi-layered architecture with cross-cutting managers:
 
-- `controller/` — 13 REST controllers. **Do NOT add `/api` prefix** — it's in `server.servlet.context-path: /api`
+- `controller/` — 16 REST controllers. **Do NOT add `/api` prefix** — it's in `server.servlet.context-path: /api`
 - `service/` — Interface + Impl pattern. Business logic and transactions.
 - `mapper/` — MyBatis Plus mappers. XML in `resources/mapper/`.
 - `manager/` — Cross-cutting concerns:

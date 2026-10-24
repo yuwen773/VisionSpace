@@ -17,7 +17,8 @@ public class ModerationResourceVO implements Serializable {
 
     private String resourceType;
 
-    private Long resourceId;
+    /** 资源标识按十进制字符串给出：雪花值超出 JavaScript 安全整数范围 */
+    private String resourceId;
 
     /** 资源展示名（仅名称，不含内容地址） */
     private String resourceName;
@@ -25,7 +26,7 @@ public class ModerationResourceVO implements Serializable {
     /** QUARANTINED / RELEASED */
     private String status;
 
-    private Long operatorId;
+    private String operatorId;
 
     private String operatorUserName;
 
@@ -33,7 +34,7 @@ public class ModerationResourceVO implements Serializable {
 
     private Date createTime;
 
-    private Long releaseOperatorId;
+    private String releaseOperatorId;
 
     private String releaseOperatorUserName;
 

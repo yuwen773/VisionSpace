@@ -9,7 +9,6 @@ import com.yuwen.visionspace.model.dto.picture.PictureGrantRevokeRequest;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.ResourceAccessGrant;
 import com.yuwen.visionspace.model.entity.User;
-import com.yuwen.visionspace.model.enums.ResourceGrantStatusEnum;
 import com.yuwen.visionspace.model.vo.ResourceGrantListVO;
 import com.yuwen.visionspace.model.vo.ResourceGrantVO;
 import com.yuwen.visionspace.service.PictureService;
@@ -60,7 +59,7 @@ public class PictureGrantController {
                 IdentifierUtils.parseId(request.getGranteeUserId(), "被授权用户标识"),
                 request.getExpiresTime(), request.getReason());
         // 响应只返回授权元数据，不返回图片内容或存储地址
-        return ResultUtils.success(toVO(grant, picture));
+        return ResultUtils.success(resourceAccessGrantService.toVO(grant, picture));
     }
 
     /**
@@ -74,7 +73,7 @@ public class PictureGrantController {
         ResourceAccessGrant grant = resourceAccessGrantService.revoke(
                 IdentifierUtils.parseId(request.getGrantId(), "授权标识"), loginUser, request.getReason());
         Picture picture = requirePicture(grant.getResourceId());
-        return ResultUtils.success(toVO(grant, picture));
+        return ResultUtils.success(resourceAccessGrantService.toVO(grant, picture));
     }
 
     /**
@@ -111,38 +110,4 @@ public class PictureGrantController {
         return picture;
     }
 
-    private ResourceGrantVO toVO(ResourceAccessGrant grant, Picture picture) {
-        ResourceGrantVO vo = new ResourceGrantVO();
-        vo.setId(asId(grant.getId()));
-        vo.setResourceType(grant.getResourceType());
-        vo.setResourceId(asId(grant.getResourceId()));
-        vo.setResourceName(picture == null ? null : picture.getName());
-        vo.setGranteeUserId(asId(grant.getGranteeUserId()));
-        vo.setGranteeUserName(displayName(grant.getGranteeUserId()));
-        vo.setGrantedByUserId(asId(grant.getGrantedByUserId()));
-        vo.setGrantedByUserName(displayName(grant.getGrantedByUserId()));
-        vo.setReason(grant.getReason());
-        vo.setExpiresTime(grant.getExpiresTime());
-        ResourceGrantStatusEnum status = ResourceGrantStatusEnum.getEnumByValue(grant.getStatus());
-        vo.setStatus(status == null ? null : status.name());
-        vo.setRevokedByUserId(asId(grant.getRevokedByUserId()));
-        vo.setRevokeReason(grant.getRevokeReason());
-        vo.setRevokeTime(grant.getRevokeTime());
-        vo.setCreateTime(grant.getCreateTime());
-        return vo;
-    }
-
-    /** 标识按十进制字符串给出，避免客户端丢失精度 */
-    private String asId(Long id) {
-        return id == null ? null : String.valueOf(id);
-    }
-
-    /** 只返回名称，不返回账号、头像、角色等资料 */
-    private String displayName(Long userId) {
-        if (userId == null) {
-            return null;
-        }
-        User user = userService.getById(userId);
-        return user == null ? null : user.getUserName();
-    }
 }
