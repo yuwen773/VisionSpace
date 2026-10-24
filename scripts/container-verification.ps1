@@ -82,6 +82,44 @@ function Wait-BackendHttp([int]$TimeoutSeconds) {
     return $false
 }
 
+function Get-ContainerInspection([string]$Service) {
+    $raw = & docker inspect --format '{"State":{{json .State}},"RestartCount":{{.RestartCount}}}' "$project-$Service-1" 2>$null
+    if ($LASTEXITCODE -ne 0) { throw "docker inspect failed for $Service (exit $LASTEXITCODE)" }
+    $inspection = $raw | ConvertFrom-Json
+    if (-not $inspection.State.Status -or -not $inspection.State.StartedAt -or
+        $null -eq $inspection.State.Running -or $null -eq $inspection.State.Restarting -or
+        $null -eq $inspection.State.ExitCode -or $null -eq $inspection.RestartCount) {
+        throw "docker inspect returned incomplete state for $Service"
+    }
+    return $inspection
+}
+
+function Wait-BackendConnectionAttempt($Initial, [int]$TimeoutSeconds) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $current = Get-ContainerInspection 'backend'
+        if (-not $current.State.Running -or $current.State.StartedAt -ne $Initial.State.StartedAt -or
+            $current.RestartCount -ne $Initial.RestartCount) { return $false }
+        # 只看本次进程的日志，不能用上一次启动的 Hikari 消息证明已进入连接阶段。
+        $since = ([DateTimeOffset]$Initial.State.StartedAt).ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+        $log = & docker logs --since $since "$project-backend-1" 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw 'docker logs failed while waiting for the connection attempt' }
+        if ($log -match 'HikariPool-\d+\s+-\s+Starting') { return $true }
+        Start-Sleep -Seconds 1
+    }
+    return $false
+}
+
+function Wait-BackendExit([int]$TimeoutSeconds) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $inspection = Get-ContainerInspection 'backend'
+        if ($inspection.State.Status -eq 'exited') { return $inspection }
+        Start-Sleep -Seconds 3
+    }
+    return $null
+}
+
 $results = [ordered]@{}
 $backendPort = Free-Port
 
@@ -233,24 +271,48 @@ try {
     Invoke-Compose @('start', 'redis') *> (Join-Path $runDir 'redis-start.log')
     Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-redis-restart' 'readiness must return healthy after redis restarts'
 
-    # 依赖延迟启动：backend 在依赖缺失时被拉起，应用在重试窗口内等待，
-    # 依赖恢复后仍能到达 healthy（而非立即永久失败）
+    # 依赖延迟启动：仅对这两个隔离启动实验关闭 Docker 自动重启，核对同一
+    # 应用进程进入连接阶段、等待依赖并恢复，避免崩溃重启替代应用重试。
+    & docker update --restart=no "$project-backend-1" *> (Join-Path $runDir 'backend-restart-policy.log')
+    if ($LASTEXITCODE -ne 0) { throw 'could not disable automatic restarts for the startup experiments' }
     Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop.log')
-    Invoke-Compose @('restart', 'backend') *> (Join-Path $runDir 'backend-restart.log')
-    Start-Sleep -Seconds 20   # 让 backend 越过快速启动阶段、进入依赖等待窗口
+    Invoke-Compose @('restart', '--no-deps', 'backend') *> (Join-Path $runDir 'backend-restart.log')
+    $delayedStart = Get-ContainerInspection 'backend'
+    $connectionObserved = Wait-BackendConnectionAttempt $delayedStart 60
+    Assert $connectionObserved 'A4-late-connection-attempt-observed' 'this process must enter the Hikari connection stage'
+    if ($connectionObserved) { Start-Sleep -Seconds 10 }
+    $waiting = Get-ContainerInspection 'backend'
+    $sameWaitingProcess = $waiting.State.Running -and
+        $waiting.State.StartedAt -eq $delayedStart.State.StartedAt -and $waiting.RestartCount -eq $delayedStart.RestartCount
+    Assert $sameWaitingProcess 'A4-late-same-process-waiting' 'backend must remain in the same process while dependencies are absent'
+    foreach ($service in @('mysql', 'redis')) {
+        $dependency = Get-ContainerInspection $service
+        Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) "A4-late-$service-stopped" 'dependency must remain stopped during the delay'
+    }
     Invoke-Compose @('start', 'mysql', 'redis') *> (Join-Path $runDir 'deps-restart.log')
     Assert (Wait-Health 'healthy' 240) 'A4-late-dependency-recovers' 'backend must reach healthy once dependencies start late'
+    $recovered = Get-ContainerInspection 'backend'
+    $sameRecoveredProcess = $recovered.State.Running -and
+        $recovered.State.StartedAt -eq $delayedStart.State.StartedAt -and $recovered.RestartCount -eq $delayedStart.RestartCount
+    Assert $sameRecoveredProcess 'A4-late-same-process-recovered' 'dependency recovery must not replace the application process'
 
     # 重试耗尽：依赖持续缺失时应用必须明确失败退出（退出码非 0），而非带病运行
     Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop2.log')
     Invoke-Compose @('stop', 'backend') *> (Join-Path $runDir 'backend-stop2.log')
-    Invoke-Compose @('up', '-d', '--wait', '--wait-timeout', '150', 'backend') *> (Join-Path $runDir 'backend-exhaust.log') 2>&1
-    $exhausted = $LASTEXITCODE -ne 0
-    $exitCode = (& docker inspect --format '{{.State.ExitCode}}' "$project-backend-1" 2>$null)
-    $restarted = (& docker inspect --format '{{.State.Restarting}}' "$project-backend-1" 2>$null)
-    # 明确失败 = 进程以非 0 退出，或处于崩溃循环（restart 策略下）
-    $clearFailure = $exhausted -or ("$exitCode" -ne '0') -or ("$restarted" -eq 'true')
-    Assert $clearFailure 'A4-exhausted-retries-fail-clearly' "exit=$exitCode restarting=$restarted composeWaitExit=$LASTEXITCODE"
+    $beforeExhaustion = Get-ContainerInspection 'backend'
+    # 直接启动既有容器，绝不由 compose up 重新拉起依赖；启动命令本身必须成功。
+    # 应用的预期非 0 退出通过后续 inspect 观察，不以 Compose 超时作为退出证据。
+    & docker start "$project-backend-1" *> (Join-Path $runDir 'backend-exhaust.log')
+    if ($LASTEXITCODE -ne 0) { throw 'could not start backend for retry exhaustion' }
+    $exited = Wait-BackendExit 150
+    $clearFailure = $null -ne $exited -and -not $exited.State.Running -and -not $exited.State.Restarting -and
+        $exited.State.ExitCode -ne 0 -and $exited.State.StartedAt -ne $beforeExhaustion.State.StartedAt -and
+        $exited.RestartCount -eq $beforeExhaustion.RestartCount
+    Assert $clearFailure 'A4-exhausted-retries-fail-clearly' 'backend must exit nonzero within 150s; timeout, zero exit and missing inspect evidence cannot pass'
+    foreach ($service in @('mysql', 'redis')) {
+        $dependency = Get-ContainerInspection $service
+        Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) "A4-exhausted-$service-stopped" 'dependency must remain stopped throughout retry exhaustion'
+    }
 
     Write-Host "=== summary (artifacts: $runDir) ==="
     $failed = @($results.GetEnumerator() | Where-Object { $_.Value -ne 'PASS' })
