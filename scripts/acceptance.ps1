@@ -131,15 +131,18 @@ $ddl
         $env:VS_ACCEPTANCE_REDIS_PORT = "$redisPort"
         $results['isolation'] = 'PASS'
 
-        # #39 双实例验收：先编译测试类，再以真实第二 JVM 启动共享同一隔离
+        # #39 双实例验收：先 clean test-compile（复用旧 target 时，已删除的
+        # 资源/测试类可能残留进构件），再以真实第二 JVM 启动共享同一隔离
         # MySQL/Redis 的应用进程；第二实例端口经就绪文件握手后传给 surefire。
+        # 进程句柄用脚本作用域变量传递：Run-Gate 的 scriptblock 是子作用域，
+        # 普通赋值不会传回外层 finally，会让清理逻辑永远看不见该进程。
+        $script:SecondProcess = $null
+        $script:SecondOwned = $false
         $secondReadyFile = Join-Path $runDir 'second-instance.port'
         $secondStopFile = "$secondReadyFile.stop"
-        $secondProcess = $null
-        $ownedSecondInstance = $false
         Run-Gate 'backend' {
-            mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/surefire" test-compile
-            if ($LASTEXITCODE -ne 0) { throw "test-compile exit $LASTEXITCODE" }
+            mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/surefire" clean test-compile
+            if ($LASTEXITCODE -ne 0) { throw "clean test-compile exit $LASTEXITCODE" }
             $testClasspath = mvn -B --no-transfer-progress -q dependency:build-classpath "-Dmdep.outputFile=$runDir/test-cp.txt" -DincludeScope=test
             if ($LASTEXITCODE -ne 0) { throw "build-classpath exit $LASTEXITCODE" }
             $cp = (Resolve-Path (Join-Path $repo 'target/classes')).Path + [IO.Path]::PathSeparator +
@@ -149,14 +152,14 @@ $ddl
             $javaBin = if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/java.exe'))) {
                 (Join-Path $env:JAVA_HOME 'bin/java.exe')
             } else { 'java' }
-            $secondProcess = Start-Process -FilePath $javaBin -ArgumentList @(
+            $script:SecondProcess = Start-Process -FilePath $javaBin -ArgumentList @(
                 '-cp', "`"$cp`"", 'com.yuwen.visionspace.acceptance.VipSecondInstanceMain', $secondReadyFile
             ) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'second-instance-out.log') -RedirectStandardError (Join-Path $runDir 'second-instance-error.log')
-            $ownedSecondInstance = $true
+            $script:SecondOwned = $true
             # 就绪握手：端口文件最多等 120 秒
             $deadline = [DateTime]::UtcNow.AddSeconds(120)
             while ([DateTime]::UtcNow -lt $deadline) {
-                if ($secondProcess.HasExited) { throw "second instance exited early (code $($secondProcess.ExitCode)); see second-instance-error.log" }
+                if ($script:SecondProcess.HasExited) { throw "second instance exited early (code $($script:SecondProcess.ExitCode)); see second-instance-error.log" }
                 if (Test-Path $secondReadyFile) { break }
                 Start-Sleep -Milliseconds 500
             }
@@ -185,20 +188,34 @@ $ddl
     } finally { Pop-Location }
 } finally {
     $results['cleanup'] = 'PASS'
-    # #39 第二实例：写 stop 文件让其自行退出，再兜底强杀
-    if ($ownedSecondInstance) {
-        try { New-Item -ItemType File -Path $secondStopFile -Force | Out-Null } catch {}
-        try {
-            if ($secondProcess -and -not $secondProcess.HasExited) {
-                if (-not $secondProcess.WaitForExit(10000)) {
-                    Stop-Process -Id $secondProcess.Id -ErrorAction Stop
-                    $secondProcess.WaitForExit(5000) | Out-Null
+    # #39 第二实例：写 stop 文件让其自行退出，再兜底强杀；
+    # 成功与失败路径都必须没有残留进程——最后再按命令行特征兜底扫描一次。
+    try {
+        if ($script:SecondOwned) {
+            try { New-Item -ItemType File -Path $secondStopFile -Force | Out-Null } catch {}
+            if ($script:SecondProcess -and -not $script:SecondProcess.HasExited) {
+                if (-not $script:SecondProcess.WaitForExit(10000)) {
+                    Stop-Process -Id $script:SecondProcess.Id -ErrorAction Stop
+                    $script:SecondProcess.WaitForExit(5000) | Out-Null
                 }
             }
-        } catch {
-            $results['cleanup'] = 'FAIL'
-            $_ | Out-String | Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
         }
+    } catch {
+        $results['cleanup'] = 'FAIL'
+        $_ | Out-String | Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
+    }
+    try {
+        $stale = @(Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
+            Where-Object { $_.CommandLine -and $_.CommandLine.Contains('VipSecondInstanceMain') })
+        foreach ($process in $stale) {
+            try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop } catch {}
+            $results['cleanup'] = 'FAIL'
+            "swept stale second instance PID $($process.ProcessId)" |
+                Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
+        }
+    } catch {
+        $results['cleanup'] = 'FAIL'
+        $_ | Out-String | Add-Content (Join-Path $runDir 'second-instance-cleanup.log')
     }
     # Windows MySQL can spawn a server child. Stop the verified server, not just its launcher.
     if ($MySqlBin -and $ownedProcesses.Count -gt 0) {

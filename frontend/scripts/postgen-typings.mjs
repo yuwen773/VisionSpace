@@ -48,6 +48,7 @@ const ALIAS_TARGETS = [
   'BaseResponseUser',
   'BaseResponseUserPictureStatsResponse',
   'BaseResponseUserVO',
+  'BaseResponseVipExchangeResult',
   'PageFeedbackVO',
   'PagePicture',
   'PagePictureVO',

@@ -294,6 +294,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseVipExchangeResult = {
+    code?: number
+    data?: VipExchangeResult
+    message?: string
+  }
+
   type BaseResponseVoid = {
     code?: number
     data?: any
@@ -470,11 +476,11 @@ declare namespace API {
   }
 
   type IPageMcpServerDetail = {
+    size?: number
     total?: number
     current?: number
     records?: McpServerDetail[]
     pages?: number
-    size?: number
   }
 
   type listMcpServersUsingGetParams = {
@@ -1182,16 +1188,8 @@ declare namespace API {
   }
 
   type VipExchangeResult = {
-    /** 结果状态：success / already_used / invalid */
     status?: string
-    /** 兑换后的会员到期时间；仅 success 时有值 */
     vipExpireTime?: string
-  }
-
-  type BaseResponseVipExchangeResult = {
-    code?: number
-    data?: VipExchangeResult
-    message?: string
   }
 
   // === 生成后补丁：尾下划线别名（scripts/postgen-typings.mjs） ===
@@ -1218,7 +1216,6 @@ declare namespace API {
   type BaseResponsePageSpace_ = BaseResponsePageSpace
   type BaseResponsePageSpaceVO_ = BaseResponsePageSpaceVO
   type BaseResponsePageUserVO_ = BaseResponsePageUserVO
-  type BaseResponseVipExchangeResult_ = BaseResponseVipExchangeResult
   type BaseResponsePicture_ = BaseResponsePicture
   type BaseResponsePictureTagCategory_ = BaseResponsePictureTagCategory
   type BaseResponsePictureVO_ = BaseResponsePictureVO
@@ -1229,6 +1226,7 @@ declare namespace API {
   type BaseResponseString_ = BaseResponseString
   type BaseResponseUserPictureStatsResponse_ = BaseResponseUserPictureStatsResponse
   type BaseResponseUserVO_ = BaseResponseUserVO
+  type BaseResponseVipExchangeResult_ = BaseResponseVipExchangeResult
   type PageFeedbackVO_ = PageFeedbackVO
   type PagePicture_ = PagePicture
   type PagePictureVO_ = PagePictureVO

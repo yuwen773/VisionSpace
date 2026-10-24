@@ -113,28 +113,181 @@ public final class VipCodeImportTool {
     }
 
     /**
-     * 旧文件格式固定为 {@code [{"code":"..","hasUsed":false}]}；
-     * 只提取 code 与 hasUsed，避免引入 JSON 依赖。
+     * 结构化解析历史文件 {@code [{"code":"..","hasUsed":false}, ...]}。
+     *
+     * <p>已用状态是回滚安全与补发范围的关键输入，绝不能靠文本匹配猜：
+     * 属性顺序、空白或字段缺失都会把已用码误判为未用并错误列入补发。
+     * 这里用一个极小的 JSON 解析器做字段校验，要求每个元素是对象且
+     * 同时含有字符串 {@code code} 与布尔 {@code hasUsed}，否则整个导入失败——
+     * 宁可让人工重查输入，也不能带着错误状态出码。
      */
     private static List<LegacyCode> parseLegacy(Path input) throws Exception {
         String content = Files.readString(input, StandardCharsets.UTF_8);
-        List<LegacyCode> result = new ArrayList<>();
-        int index = 0;
-        while ((index = content.indexOf("\"code\"", index)) >= 0) {
-            int colon = content.indexOf(':', index);
-            int open = content.indexOf('"', colon);
-            int close = content.indexOf('"', open + 1);
-            String code = content.substring(open + 1, close);
-            int objEnd = content.indexOf('}', index);
-            boolean used = content.substring(index, objEnd).contains("\"hasUsed\": true")
-                    || content.substring(index, objEnd).contains("\"hasUsed\":true");
-            result.add(new LegacyCode(code, used));
-            index = objEnd;
-        }
+        LegacyJsonParser parser = new LegacyJsonParser(content);
+        List<LegacyCode> result = parser.parseArray();
         if (result.isEmpty()) {
             throw new IllegalArgumentException("输入文件不是历史 vipCode.json：未找到任何兑换码");
         }
         return result;
+    }
+
+    /**
+     * 手写的最小 JSON 解析器（对象数组，字符串/布尔两种值）。
+     * 工具以独立 main 运行，不引入运行时 JSON 依赖；解析错误一律抛出，
+     * 不做任何静默回退。
+     */
+    private static final class LegacyJsonParser {
+        private final String src;
+        private int pos;
+
+        LegacyJsonParser(String src) {
+            this.src = src;
+        }
+
+        List<LegacyCode> parseArray() {
+            List<LegacyCode> result = new ArrayList<>();
+            skipWhitespace();
+            expect('[');
+            skipWhitespace();
+            if (peek() == ']') {
+                pos++;
+                return result;
+            }
+            while (true) {
+                result.add(parseObject());
+                skipWhitespace();
+                char c = next();
+                if (c == ']') {
+                    return result;
+                }
+                if (c != ',') {
+                    throw error("数组元素之间应为 ',' 或 ']'");
+                }
+            }
+        }
+
+        private LegacyCode parseObject() {
+            skipWhitespace();
+            expect('{');
+            String code = null;
+            Boolean used = null;
+            skipWhitespace();
+            if (peek() == '}') {
+                pos++;
+            } else {
+                while (true) {
+                    skipWhitespace();
+                    String key = parseString();
+                    skipWhitespace();
+                    expect(':');
+                    skipWhitespace();
+                    if ("code".equals(key) && code == null) {
+                        code = parseString();
+                    } else if ("hasUsed".equals(key) && used == null) {
+                        used = parseBoolean();
+                    } else {
+                        // 未知字段或重复字段：跳过其值即可，不参与判定
+                        parseValue();
+                    }
+                    skipWhitespace();
+                    char c = next();
+                    if (c == '}') {
+                        break;
+                    }
+                    if (c != ',') {
+                        throw error("对象成员之间应为 ',' 或 '}'");
+                    }
+                }
+            }
+            if (code == null || used == null) {
+                throw error("每个元素必须同时含有字符串 code 与布尔 hasUsed");
+            }
+            return new LegacyCode(code, used);
+        }
+
+        private String parseString() {
+            expect('"');
+            StringBuilder sb = new StringBuilder();
+            while (true) {
+                char c = next();
+                if (c == '"') {
+                    return sb.toString();
+                }
+                if (c == '\\') {
+                    sb.append(next());
+                } else {
+                    sb.append(c);
+                }
+            }
+        }
+
+        private boolean parseBoolean() {
+            if (match("true")) {
+                return true;
+            }
+            if (match("false")) {
+                return false;
+            }
+            throw error("hasUsed 必须是布尔值");
+        }
+
+        /** 未知字段的值：字符串/布尔/数字/null，逐一消费。 */
+        private void parseValue() {
+            skipWhitespace();
+            char c = peek();
+            if (c == '"') {
+                parseString();
+            } else if (c == 't' || c == 'f') {
+                parseBoolean();
+            } else if (c == 'n') {
+                if (!match("null")) {
+                    throw error("非法字面量");
+                }
+            } else if (c == '-' || Character.isDigit(c)) {
+                while (pos < src.length() && (Character.isDigit(peek()) || "+-.eE".indexOf(peek()) >= 0)) {
+                    pos++;
+                }
+            } else {
+                throw error("不支持的值类型");
+            }
+        }
+
+        private void skipWhitespace() {
+            while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        private char peek() {
+            if (pos >= src.length()) {
+                throw error("意外的输入结束");
+            }
+            return src.charAt(pos);
+        }
+
+        private char next() {
+            char c = peek();
+            pos++;
+            return c;
+        }
+
+        private void expect(char c) {
+            if (next() != c) {
+                throw error("期望 '" + c + "'");
+            }
+        }
+
+        private boolean match(String word) {
+            if (src.startsWith(word, pos)) {
+                pos += word.length();
+                return true;
+            }
+            return false;
+        }
+
+        private IllegalArgumentException error(String message) {
+            return new IllegalArgumentException("输入文件解析失败（位置 " + pos + "）：" + message);
+        }
     }
 
     /** 无易混字符的 16 位码：2 的 79 次方组合空间，离线暴力枚举不可行。 */

@@ -119,6 +119,57 @@ class VipRedemptionMigrationTest {
         }
     }
 
+    @Test
+    void importToolKeepsUsedStatusRegardlessOfJsonPropertyOrderAndWhitespace() throws Exception {
+        // P1 回归：属性顺序、空白与字段校验不得改变已用状态判定——
+        // hasUsed 在 code 之前、无空格、多余字段混合出现时，
+        // 已用码必须仍然输出 status=1 且不计入补发数量。
+        Path legacy = Files.createTempFile("vip-legacy-order", ".json");
+        Path issueOut = Files.createTempFile("vip-reissue-order", ".txt");
+        try {
+            Files.writeString(legacy, """
+                    [{"hasUsed":true,"code":"UsedFirst01"},
+                     {"hasUsed"   :   false ,  "code":"FreshOrder02"},
+                     {"code":"UsedMixed03" , "hasUsed":true, "note":"stale"},
+                     {"code":"FreshMixed04", "hasUsed":false, "note":null, "weight": 1.5e2}]
+                    """, StandardCharsets.UTF_8);
+
+            String stdout = runTool(legacy.toString(), issueOut.toString());
+
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("UsedFirst01") + "', 1"),
+                    "hasUsed 在前的已用码必须仍是 status=1:\n" + stdout);
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("UsedMixed03") + "', 1"),
+                    "带额外字段的已用码必须仍是 status=1:\n" + stdout);
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("FreshOrder02") + "', 2"), stdout);
+            assertTrue(stdout.contains("'" + VipTestHashes.sha256("FreshMixed04") + "', 2"), stdout);
+            // 已用码绝不能进入补发清单：恰好 2 个未用码
+            assertTrue(stdout.contains("待补发数量: 2"),
+                    "补发数量必须只统计未用码:\n" + stdout);
+            // 字段缺失必须整体失败，不得静默按未用处理
+            Files.writeString(legacy, """
+                    [{"code":"MissingHasUsed"}]
+                    """, StandardCharsets.UTF_8);
+            String failed = runToolExpectingFailure(legacy.toString(), issueOut.toString());
+            assertTrue(failed.contains("code 与布尔 hasUsed"), failed);
+        } finally {
+            Files.deleteIfExists(legacy);
+            Files.deleteIfExists(issueOut);
+        }
+    }
+
+    private String runToolExpectingFailure(String... args) throws Exception {
+        String javaBin = ProcessHandle.current().info().command().orElse("java");
+        String cp = System.getProperty("java.class.path");
+        List<String> command = new ArrayList<>(List.of(javaBin, "-cp", cp,
+                "com.yuwen.visionspace.tools.vip.VipCodeImportTool"));
+        command.addAll(List.of(args));
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exit = process.waitFor();
+        assertTrue(exit != 0, "字段缺失时导入必须失败:\n" + output);
+        return output;
+    }
+
     private void run(Path script) throws IOException {
         for (String statement : statements(Files.readString(script, StandardCharsets.UTF_8))) {
             jdbc.execute(statement);
