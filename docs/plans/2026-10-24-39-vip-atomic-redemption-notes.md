@@ -61,7 +61,11 @@
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-ded601c2e3c3435fa48e0e5090811231`。
 
 ### run7（评审修复后回归）
-（执行后回填）
+- 修复提交 `2bdc2cb` 后全量重跑：runner-tests / secret-scan / isolation / backend /
+  frontend-install / frontend-typecheck / frontend-tests / frontend-build / cleanup 全 PASS。
+- backend 464 tests / 0 errors / 0 failures（VIP 专项 13 个全过，含双实例真进程并发）。
+- 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-5da06a15dff74b19b52c8c1dd4b93059`。
+- 最终提交链：ed31b6e（feat）→ 584fcb7（回滚脚本测试修复）→ 473f943（docs）→ 2bdc2cb（评审修复）。
 
 ## 已发现并修复的实施问题
 
