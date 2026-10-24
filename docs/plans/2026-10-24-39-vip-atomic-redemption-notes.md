@@ -1,0 +1,70 @@
+# #39 VIP 权益独立与原子兑换 — 实施与验收记录
+
+工单：[39](https://github.com/yuwen773/VisionSpace/issues/39)，父规格：[26](https://github.com/yuwen773/VisionSpace/issues/26) D13/T15/A25。
+分支：`codex/39-vip-atomic-redemption`，基线：`513fb4f0af5434aab450467b866a10c37d4f0013`。
+
+## 实现
+
+### 后端
+
+- `vip_redemption_code`（sha-256 摘要 + status 0可用/1已用/2作废，`uk_codeHash`）与
+  `vip_redemption_record`（流水，`uk_codeId`）两张新表（`sql/create_vision_space.sql`、
+  `sql/migrations/2026-10-24-vip-redemption.sql`）。
+- `VipRedemptionServiceImpl.redeem`：
+  - 核销 = 单条 `UPDATE vip_redemption_code SET status=1 WHERE codeHash=? AND status=0`
+    （`VipRedemptionMapper.xml markUsed`）。行锁 + 条件更新 ⇒ 双实例同码恰好一次成功。
+  - 核销、用户行 `SELECT ... FOR UPDATE`、权益更新、流水写入同一 `@Transactional`；
+    任一步失败整体回滚 ⇒ 失败不吞码。
+  - 到期时间 = max(now, 原到期) + 365 天；同人并发多码串行加时不丢。
+  - 不写 `userRole`；VIP 独立于管理角色。
+- 响应 `VipExchangeResult{status: success|already_used|invalid, vipExpireTime}`；
+  `LoginUserVO` 增加 `vipExpireTime`；日志只带摘要前 8 位，禁止输出明文码。
+- 删除 `VipCode.java` DTO 与 `biz/vipCode.json`（JAR 内不可写、依赖修改 Classpath 的旧实现）。
+- `VipCodeImportTool`（独立 main，不连库）：历史 JSON → 摘要 INSERT；已用→1、
+  未用→2（作废）+ 脱敏补发清单（无码值）；`--issue N --issue-out` 生成补发新码
+  （明文仅写指定文件）。
+
+### 前端
+
+- `VipSection.vue`：真实登录态（`vipExpireTime > now` 判定 VIP，不再用 userRole）、
+  兑换表单、success/already_used/invalid 三态反馈；成功后刷新登录态。
+- 生成客户端手工同步（`typings.d.ts` / `userController.ts`）：合并前应跑 `npm run openapi2ts`
+  校验（需活后端，见「未验证范围」）。
+
+### 迁移与回滚
+
+- 前向 `2026-10-24-vip-redemption.sql`：仅建两表；码值/摘要不回填，存量码由导入工具处理。
+- 回滚 `...-rollback.sql`：幂等补回 `user.vipCode` 兼容列（恒 NULL），**不删表、不改状态行**；
+  切换流程要求运行时 `vipCode.json` 置 `[]` ⇒ 旧版本回滚后无可用码，不重新开放已作废码。
+- 回滚不推定管理员身份：兑换实现已不再写 `userRole`；旧实现写入的 `vip` 角色行不自动改动，
+  `userRole` 的修复属 #63 范围，本票仅保证不再制造。
+
+## 共享文件最小 diff 说明
+
+- `sql/create_vision_space.sql`：追加两张表（+37 行），无既有行改动。
+- `scripts/acceptance.ps1`：表计数 15→17（1 行）；新增双实例启动/握手/清理块
+  （backend gate 由 `verify` 改为 `test-compile + build-classpath + 启动第二 JVM + verify`）。
+- `frontend/src/api/typings.d.ts`、`userController.ts`：生成文件的手工同步，建议合并前重生成。
+
+## 验收证据
+
+（执行后回填）
+
+## 已发现并修复的实施问题
+
+1. **Oracle javapath 桩**：PATH 首位的 `java.exe` 是无法独立运行的桩（退出码 127），
+   第二实例启动静默失败。修复：`acceptance.ps1` 优先用 `JAVA_HOME/bin/java.exe`。
+2. **VipSecondInstanceApp 污染测试上下文**：`@SpringBootApplication` 测试入口类位于
+   acceptance 包内，被 `@SpringBootTest` 当作配置类发现，导致全部隔离测试
+   `ApplicationContext failure threshold exceeded`（178 errors）。修复：删除该类，
+   第二实例 main 直接以 `VisionSpaceApplication.class` 为 source，
+   web 类型与随机端口经 default properties 注入。
+
+
+- `UserService.exchangeVip` 签名由 `boolean` 改为 `VipExchangeResult`；`UserServiceImpl`
+  的 VIP 区段已重写。#63 改角色逻辑时请勿恢复 `userRole='vip'` 写入——VIP 由
+  `vipExpireTime` 表达；`UserRoleEnum.VIP`/`UserConstant.VIP_ROLE` 已无业务含义。
+- `UserMapper` 新增两个方法（`selectVipExpireTimeForUpdate`/`updateVipExpireTime`），
+  XML 在 `mapper/UserVipMapper.xml`——#63 若迁移 UserMapper XML 请保留。
+- `HttpAccountSecurityTest` 若引用 exchangeVip 旧签名需在合并时对齐。
+- 第二实例入口 `VipSecondInstanceApp` 与主应用同包扫描层级，测试源码不进生产构件。
