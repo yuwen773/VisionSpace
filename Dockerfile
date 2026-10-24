@@ -19,13 +19,14 @@ WORKDIR /app
 # 从构建阶段复制 jar 包
 COPY --from=builder /app/target/*.jar app.jar
 
-# 运行身份：非 root 专用 UID/GID。镜像内可写范围只有应用临时目录。
+# 运行身份：非 root 专用 UID/GID。属主 root 但全员可读/可遍历（755），
+# 运行用户读得到 jar 却写不了；镜像内可写范围只有应用临时目录。
 RUN addgroup -g 10001 app && adduser -u 10001 -G app -D -H -s /sbin/nologin app \
     && mkdir -p /app/tmp \
     && chown -R app:app /app/tmp \
-    && chmod 750 /app/tmp \
+    && chmod 770 /app/tmp \
     && chown root:root /app /app/app.jar \
-    && chmod 750 /app /app/app.jar
+    && chmod 755 /app && chmod 755 /app/app.jar
 
 USER 10001:10001
 
