@@ -15,18 +15,12 @@ import lombok.Data;
 public class VipRedemptionCode implements Serializable {
 
     /**
-     * 状态：可用
+     * 状态域：0-可用 1-已用 2-已作废（历史暴露码）。
+     * 状态值由 SQL 字面量写入（见 VipRedemptionMapper.xml 与迁移脚本）；
+     * 这里定义完整状态域供读取侧比对（status == STATUS_USED）与文档。
      */
     public static final int STATUS_AVAILABLE = 0;
-
-    /**
-     * 状态：已用
-     */
     public static final int STATUS_USED = 1;
-
-    /**
-     * 状态：已作废（历史暴露码）
-     */
     public static final int STATUS_VOIDED = 2;
 
     /**

@@ -12,6 +12,7 @@ import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.storage.FileUploadService;
 import com.yuwen.visionspace.model.dto.user.*;
+import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.vo.LoginUserVO;
 import com.yuwen.visionspace.model.vo.PictureVO;

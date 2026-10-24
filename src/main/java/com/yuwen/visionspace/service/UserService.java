@@ -2,7 +2,7 @@ package com.yuwen.visionspace.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
-import com.yuwen.visionspace.model.dto.user.VipExchangeResult;
+import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.LoginUserVO;

@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.service;
 
 import com.yuwen.visionspace.model.entity.User;
+import com.yuwen.visionspace.model.vo.VipExchangeResult;
 
 /**
  * VIP 兑换核销服务（#39）。
@@ -19,7 +20,7 @@ public interface VipRedemptionService {
      *
      * @param user    服务端确认的当前登录用户
      * @param vipCode 用户提交的明文兑换码
-     * @return success / already_used / invalid
+     * @return 兑换结果（status + success 时的到期时间）
      */
-    String redeem(User user, String vipCode);
+    VipExchangeResult redeem(User user, String vipCode);
 }

@@ -1,4 +1,4 @@
-package com.yuwen.visionspace.model.dto.user;
+package com.yuwen.visionspace.model.vo;
 
 import java.io.Serializable;
 import java.util.Date;

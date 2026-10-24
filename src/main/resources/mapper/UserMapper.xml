@@ -17,8 +17,7 @@
     -->
     <update id="updateVipExpireTime">
         UPDATE user
-        SET vipExpireTime = #{expireTime},
-            editTime = NOW()
+        SET vipExpireTime = #{expireTime}
         WHERE id = #{userId}
           AND isDelete = 0
     </update>

@@ -1,15 +1,14 @@
 package com.yuwen.visionspace.tools.vip;
 
+import com.yuwen.visionspace.common.CodeHashes;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -70,11 +69,11 @@ public final class VipCodeImportTool {
         for (LegacyCode code : legacy) {
             if (code.used()) {
                 System.out.println("INSERT INTO `vip_redemption_code` (`codeHash`, `status`) VALUES ('"
-                        + sha256(code.maskedKey()) + "', 1); -- used: " + code.mask());
+                        + CodeHashes.sha256(code.rawCode()) + "', 1); -- used: " + code.mask());
             } else {
                 invalidated.add(code);
                 System.out.println("INSERT INTO `vip_redemption_code` (`codeHash`, `status`) VALUES ('"
-                        + sha256(code.maskedKey()) + "', 2); -- voided: exposed-in-history");
+                        + CodeHashes.sha256(code.rawCode()) + "', 2); -- voided: exposed-in-history");
             }
         }
 
@@ -83,7 +82,7 @@ public final class VipCodeImportTool {
         System.out.println("-- 脱敏补发清单（不含码值）：以下历史未用码已作废，需人工核验后补发。");
         System.out.println("-- 待补发数量: " + invalidated.size());
         for (LegacyCode code : invalidated) {
-            System.out.println("-- voided " + code.mask() + " (摘要 " + sha256(code.maskedKey()) + ")");
+            System.out.println("-- voided " + code.mask() + " (摘要 " + CodeHashes.sha256(code.rawCode()) + ")");
         }
 
         // --- 补发新码 ---
@@ -94,7 +93,7 @@ public final class VipCodeImportTool {
             for (int i = 0; i < issueCount; i++) {
                 String code = generateCode(random);
                 fresh.add(code);
-                freshHashes.add(sha256(code));
+                freshHashes.add(CodeHashes.sha256(code));
             }
             Files.write(issueOut, fresh, StandardCharsets.UTF_8);
             System.out.println();
@@ -106,10 +105,10 @@ public final class VipCodeImportTool {
         }
     }
 
-    private record LegacyCode(String maskedKey, boolean used) {
-        /** 短前缀 + 长度线索：足够人工对账，不足以还原或碰撞明文。 */
+    private record LegacyCode(String rawCode, boolean used) {
+        /** 短前缀 + 长度线索：足够人工对账，不足以还原或碰撞明文。rawCode 只用于哈希，不得输出。 */
         String mask() {
-            return maskedKey.substring(0, Math.min(3, maskedKey.length())) + "***(" + maskedKey.length() + ")";
+            return rawCode.substring(0, Math.min(3, rawCode.length())) + "***(" + rawCode.length() + ")";
         }
     }
 
@@ -136,15 +135,6 @@ public final class VipCodeImportTool {
             throw new IllegalArgumentException("输入文件不是历史 vipCode.json：未找到任何兑换码");
         }
         return result;
-    }
-
-    private static String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 
     /** 无易混字符的 16 位码：2 的 79 次方组合空间，离线暴力枚举不可行。 */

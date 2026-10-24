@@ -1,14 +1,16 @@
 package com.yuwen.visionspace.service.impl;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.yuwen.visionspace.common.CodeHashes;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.mapper.UserMapper;
 import com.yuwen.visionspace.mapper.VipRedemptionCodeMapper;
 import com.yuwen.visionspace.mapper.VipRedemptionRecordMapper;
-import com.yuwen.visionspace.model.dto.user.VipExchangeResult;
+import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.entity.VipRedemptionCode;
 import com.yuwen.visionspace.model.entity.VipRedemptionRecord;
@@ -17,10 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.HexFormat;
 
@@ -61,11 +59,11 @@ public class VipRedemptionServiceImpl extends ServiceImpl<VipRedemptionCodeMappe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String redeem(User user, String vipCode) {
+    public VipExchangeResult redeem(User user, String vipCode) {
         if (user == null || user.getId() == null || StrUtil.isBlank(vipCode)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String codeHash = sha256(vipCode);
+        String codeHash = CodeHashes.sha256(vipCode);
 
         // 1. 单语句原子核销：跨实例只成功一次
         int claimed = codeMapper.markUsed(codeHash, user.getId(), new Date());
@@ -76,18 +74,19 @@ public class VipRedemptionServiceImpl extends ServiceImpl<VipRedemptionCodeMappe
             if (existing != null && existing.getStatus() != null
                     && existing.getStatus() == VipRedemptionCode.STATUS_USED) {
                 log.info("vip code already redeemed, userId={}, codeHash={}", user.getId(), shortHash(codeHash));
-                return VipExchangeResult.STATUS_ALREADY_USED;
+                return VipExchangeResult.of(VipExchangeResult.STATUS_ALREADY_USED);
             }
             log.info("vip code invalid, userId={}, codeHash={}", user.getId(), shortHash(codeHash));
-            return VipExchangeResult.STATUS_INVALID;
+            return VipExchangeResult.of(VipExchangeResult.STATUS_INVALID);
         }
 
         // 2. 锁定用户行：同用户并发兑换不同码时加时串行生效，不丢加时
         Date previousExpire = userMapper.selectVipExpireTimeForUpdate(user.getId());
-        Date now = Date.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
-        // 从当前时间与原到期时间中较晚者起算延长十二个月
+        // 从当前时间与原到期时间中较晚者起算延长十二个日历月（与旧实现 offsetMonth(now,12) 同语义；
+        // 365 天在闰年会逐年损失约一天，连续兑换时累计偏差）
+        Date now = new Date();
         Date base = previousExpire != null && previousExpire.after(now) ? previousExpire : now;
-        Date newExpire = Date.from(base.toInstant().plus(365, ChronoUnit.DAYS));
+        Date newExpire = DateUtil.offsetMonth(base, 12);
 
         // 3. 权益更新：只改到期时间，不触碰 userRole（VIP 独立于管理角色）
         int updated = userMapper.updateVipExpireTime(user.getId(), newExpire);
@@ -108,16 +107,7 @@ public class VipRedemptionServiceImpl extends ServiceImpl<VipRedemptionCodeMappe
         }
 
         log.info("vip redeemed, userId={}, codeHash={}, expireTime={}", user.getId(), shortHash(codeHash), newExpire);
-        return VipExchangeResult.STATUS_SUCCESS;
-    }
-
-    private static String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return VipExchangeResult.success(newExpire);
     }
 
     /** 日志只带摘要前缀，禁止输出明文码或完整摘要（摘要仍可用于撞库弱码）。 */

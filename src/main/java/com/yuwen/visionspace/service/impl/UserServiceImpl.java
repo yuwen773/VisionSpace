@@ -16,7 +16,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
-import com.yuwen.visionspace.model.dto.user.VipExchangeResult;
+import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.UserRoleEnum;
@@ -336,12 +336,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (user == null || StrUtil.isBlank(vipCode)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String status = vipRedemptionService.redeem(user, vipCode);
-        if (VipExchangeResult.STATUS_SUCCESS.equals(status)) {
-            // 回读权益，前端无需二次请求即可展示新到期时间
-            return VipExchangeResult.success(this.getById(user.getId()).getVipExpireTime());
-        }
-        return VipExchangeResult.of(status);
+        // 核销服务已在事务内完成权益更新并带上新到期时间，无需回读
+        return vipRedemptionService.redeem(user, vipCode);
     }
 
     // endregion ------- 以下代码为用户兑换会员功能 --------

@@ -48,6 +48,19 @@
 
 ## 验收证据
 
+### run6（评审修复前，基线证据）
+- 基础设施：native-explicit（MySQL 8.0.26 + Redis 3.2.100 本机二进制，
+  `-MySqlBin` / `-RedisBin` 模式；本机无 Docker）。
+- 门禁：runner-tests / secret-scan / isolation / backend / frontend-install /
+  frontend-typecheck / frontend-tests / frontend-build / cleanup 全 PASS
+  （backend = 464 tests, 0 errors, 0 failures；VIP 专项 13 个全过）。
+- 双实例：VipSecondInstanceMain 以真实第二 JVM 启动，端口经就绪文件握手；
+  并发同码恰好一次成功、同人双码并发完整加时（HttpVipRedemptionDualInstanceTest 2 项）。
+- JAR 证据：`mvn package` 后 `vision-space-0.0.1-SNAPSHOT.jar` 内无 `biz/`、
+  无任何 vipCode 明文条目；VipRedemptionServiceImpl 打入 JAR。
+- 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-ded601c2e3c3435fa48e0e5090811231`。
+
+### run7（评审修复后回归）
 （执行后回填）
 
 ## 已发现并修复的实施问题

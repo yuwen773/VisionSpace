@@ -45,8 +45,8 @@
           </a-button>
         </a-input-group>
         <p v-if="redeemMessage" class="redeem-message" :class="redeemStatus">
-          <CheckCircleOutlined v-if="redeemStatus === 'success'" />
-          <CloseCircleOutlined v-else />
+          <CircleCheck v-if="redeemStatus === 'success'" class="redeem-icon" />
+          <CircleX v-else class="redeem-icon" />
           {{ redeemMessage }}
         </p>
       </div>
@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons-vue'
+import { CircleCheck, CircleX } from 'lucide-vue-next'
 import { exchangeVipUsingPost } from '@/api/userController.ts'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import dayjs from 'dayjs'
@@ -209,6 +209,12 @@ async function onRedeem() {
 
 .redeem-input {
   flex: 1;
+}
+
+.redeem-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .redeem-message {
