@@ -29,8 +29,8 @@ spring:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
     dashscope:
       api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
-  # 连接池在启动窗口内重试而非无限阻塞：依赖延迟时应用可完成启动并经
-  # readiness 报告 DOWN；重试耗尽仍失败时以明确异常退出（退出码非 0）。
+  # 连接池启动窗口有限重试（30 秒）：依赖延迟时给启动留出缓冲；重试耗尽仍
+  # 连不上则以明确异常快速失败（退出码非 0），而不是无限阻塞或带病启动。
   datasource:
     hikari:
       initialization-fail-timeout: 30000
@@ -61,9 +61,6 @@ management:
     redis:
       # 探活超时短于容器健康检查间隔，避免检查堆积
       timeout: 3s
-server:
-  # 业务端口之外的管理端口在容器内同样只对本进程暴露
-  port: 8081
 aliYunAi:
   apiKey: ${ALI_YUN_AI_API_KEY:}
 sa-token:

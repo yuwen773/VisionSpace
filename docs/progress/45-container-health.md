@@ -7,11 +7,11 @@
 
 | 位置 | 作用 |
 | --- | --- |
-| `Dockerfile` | 非 root 专用 UID 10001 运行；可写目录仅 `/app/tmp`（750，属主 app）；`/app` 与 jar 属主 root 且不可写；HEALTHCHECK 走管理端口的 readiness；EXPOSE 只声明业务端口 |
-| `docker-compose.yml` | MySQL/Redis 不再发布任何宿主端口，只留在 `internal: true` 网络（无外联出口）；backend 端口只绑 `127.0.0.1`；三方 healthcheck + `depends_on: service_healthy`；应用改用受限账号 `vision_app`（非 root）；必需秘密全部 `:?required` 显式失败；profile 默认 `prod` |
-| `docker/mysql/init/01-create-app-user.sh` | 首次初始化创建 `vision_app`（业务 DML 权限）与 `healthcheck`（localhost 探活）账号；口令来自容器环境变量，不落盘 |
+| `Dockerfile` | 非 root 专用 UID 10001 运行；可写目录仅 `/app/tmp`（750，属主 app）；`/app` 与 jar 属主 root 且不可写；HEALTHCHECK 走管理端口的 readiness；EXPOSE 只声明业务端口；`-XX:MaxRAMPercentage=75`（容器内存边界，工单未要求，属部署稳健性默认，可按需移除） |
+| `docker-compose.yml` | MySQL/Redis 不再发布任何宿主端口，只留在 `internal: true` 网络（无外联出口）；backend 端口只绑 `127.0.0.1`（LAN 不能再直连应用，放宽须运维显式改）；三方 healthcheck + `depends_on: service_healthy`；应用改用受限账号 `vision_app`（非 root）；必需秘密全部 `:?required` 显式失败；profile 默认 `prod`；移除 `--default-authentication-plugin=mysql_native_password`（MySQL 8 默认 caching_sha2_password 即新账号所用插件；JDBC URL 相应加 `allowPublicKeyRetrieval=true`） |
+| `docker/mysql/init/01-create-app-user.sh` | 首次初始化创建 `vision_app`（业务 DML 权限）与 `healthcheck`（仅连接权，`mysqladmin ping` 无需库表授权）账号；口令来自容器环境变量，不落盘 |
 | `docker-compose.host-access.yml` | 显式宿主访问覆盖文件：仅 `127.0.0.1` + 非默认端口；默认栈不含任何宿主 DB/Redis 发布 |
-| `application-prod.yml` | 管理端点独立端口 9081 且只绑 127.0.0.1；只暴露 health；`show-details/show-components: never`；readiness 组纳入 `db,redis`；Hikari `initialization-fail-timeout: 30000` 提供有限启动重试窗口 |
+| `application-prod.yml` | 管理端点独立端口 9081 且只绑 127.0.0.1；只暴露 health；`show-details/show-components: never`；readiness 组纳入 `db,redis`；Hikari `initialization-fail-timeout: 30000` 提供有限启动重试窗口：依赖延迟最多等 30 秒，耗尽即明确异常退出（不无限阻塞、不带病启动） |
 | `pom.xml` | 新增 `spring-boot-starter-actuator`（唯一依赖变更） |
 | `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密，逐条产出验收证据，只清理本轮资源 |
 | `HttpHealthEndpointTest` | 健康端点契约回归：业务健康不含依赖细节；actuator health 状态 UP 且不泄露组件与连接信息 |

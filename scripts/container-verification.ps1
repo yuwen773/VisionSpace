@@ -39,10 +39,11 @@ function Free-Port {
     try { return $listener.LocalEndpoint.Port } finally { $listener.Stop() }
 }
 
-# 所有 compose 调用统一走这里：固定 -f / -p / --env-file，避免漏带
-function Compose([string[]]$ExtraArgs) {
+# 所有 compose 调用统一走这里：固定 -f / -p / --env-file，避免漏带。
+# 只负责执行与退出码判断，不返回输出；需要输出时直接调 docker compose。
+function Invoke-Compose([string[]]$ExtraArgs) {
     & docker compose -f $composeYml -p $project --env-file $envFile @ExtraArgs
-    return $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) { throw "compose $($ExtraArgs -join ' ') failed (exit $LASTEXITCODE)" }
 }
 
 function Assert([bool]$Condition, [string]$Name, [string]$Detail) {
@@ -98,29 +99,27 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 try {
     Write-Host "=== [1/4] build & up (project $project) ==="
     if (-not $SkipBuild) {
-        Compose @('build', '--pull=false') *> (Join-Path $runDir 'build.log')
-        if ($LASTEXITCODE -ne 0) { throw "image build failed (see build.log)" }
+        Invoke-Compose @('build', '--pull=false') *> (Join-Path $runDir 'build.log')
     }
-    Compose @('up', '-d') *> (Join-Path $runDir 'up.log')
-    if ($LASTEXITCODE -ne 0) { throw "compose up failed (see up.log)" }
+    Invoke-Compose @('up', '-d') *> (Join-Path $runDir 'up.log')
 
     # ---- 验收 1：容器实际 UID 与写权限 ----
     Write-Host '=== [2/4] identity & writable paths ==='
-    $uid = (Compose @('exec', '-T', 'backend', 'sh', '-c', 'id -u') | Out-String).Trim()
+    $uid = (Invoke-Compose @('exec', '-T', 'backend', 'sh', '-c', 'id -u') | Out-String).Trim()
     Assert ($uid -eq '10001') 'A1-backend-nonroot-uid' "uid=$uid"
 
-    $writeTmp = Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /app/tmp/probe && rm /app/tmp/probe && echo OK') 2>$null
+    $writeTmp = Invoke-Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /app/tmp/probe && rm /app/tmp/probe && echo OK') 2>$null
     Assert ("$writeTmp".Trim() -eq 'OK') 'A1-tmp-writable' 'write to /app/tmp'
 
-    $writeApp = Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /app/forbidden 2>/dev/null && echo WROTE || echo DENIED') 2>$null
+    $writeApp = Invoke-Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /app/forbidden 2>/dev/null && echo WROTE || echo DENIED') 2>$null
     Assert ("$writeApp".Trim() -eq 'DENIED') 'A1-app-readonly' 'write to /app must be denied'
 
-    $writeRoot = Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /forbidden 2>/dev/null && echo WROTE || echo DENIED') 2>$null
+    $writeRoot = Invoke-Compose @('exec', '-T', 'backend', 'sh', '-c', 'touch /forbidden 2>/dev/null && echo WROTE || echo DENIED') 2>$null
     Assert ("$writeRoot".Trim() -eq 'DENIED') 'A1-root-readonly' 'write to / must be denied'
 
     # ---- 验收 2：端口发布与网络可达范围 ----
     Write-Host '=== [3/4] port publishing & network reach ==='
-    $portsRaw = Compose @('ps', '--format', 'json') | Out-String
+    $portsRaw = Invoke-Compose @('ps', '--format', 'json') | Out-String
     $portsJson = $portsRaw | ConvertFrom-Json
     $published = @($portsJson | ForEach-Object { $_.Publishers } | Where-Object { $_ })
     $mysqlPublished = @($published | Where-Object { $_.TargetPort -eq 3306 -or $_.PublishedPort -eq 3306 })
@@ -138,7 +137,7 @@ try {
 
     # ---- 验收 3：健康端点不泄露秘密 + profile 与日志卫生 ----
     Write-Host '=== [4/4] profile, log hygiene & health ==='
-    $activeProfile = (Compose @('exec', '-T', 'backend', 'sh', '-c', 'echo $SPRING_PROFILES_ACTIVE') | Out-String).Trim()
+    $activeProfile = (Invoke-Compose @('exec', '-T', 'backend', 'sh', '-c', 'echo $SPRING_PROFILES_ACTIVE') | Out-String).Trim()
     Assert ("$activeProfile" -eq 'prod') 'A3-prod-profile-active' "SPRING_PROFILES_ACTIVE=$activeProfile"
 
     $healthBody = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/health" -TimeoutSec 10).Content
@@ -151,7 +150,7 @@ try {
         Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/user/register" -Method Post -Body $regBody -ContentType 'application/json' -TimeoutSec 15 *> $null
     } catch { }
     Start-Sleep -Seconds 2
-    $backendLog = Compose @('logs', 'backend') 2>&1 | Out-String
+    $backendLog = Invoke-Compose @('logs', 'backend') 2>&1 | Out-String
     $sqlLeak = ($backendLog -match 'Parameters:') -or ($backendLog -match 'Preparing:')
     Assert (-not $sqlLeak) 'A3-no-sql-param-logging' 'backend log must not contain MyBatis SQL parameter lines'
     $secretLeak = $backendLog.Contains($dbPassword) -or $backendLog.Contains($redisPassword)
@@ -162,7 +161,7 @@ try {
     $healthyBefore = Wait-Readiness 5
     Assert $healthyBefore 'A4-healthy-before-failure' 'readiness healthy before failure'
 
-    Compose @('stop', 'mysql') *> (Join-Path $runDir 'mysql-stop.log')
+    Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'mysql-stop.log')
     $unhealthyAfter = $false
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     while ([DateTime]::UtcNow -lt $deadline) {
@@ -172,7 +171,7 @@ try {
     }
     Assert $unhealthyAfter 'A4-readiness-down-on-mysql-stop' 'readiness must report unhealthy after mysql stops'
 
-    Compose @('start', 'mysql') *> (Join-Path $runDir 'mysql-start.log')
+    Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'mysql-start.log')
     $recovered = Wait-Readiness 120
     Assert $recovered 'A4-recovers-after-mysql-restart' 'readiness must return healthy after mysql restarts'
 

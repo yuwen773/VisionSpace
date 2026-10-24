@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -26,7 +27,7 @@ class HttpHealthEndpointTest {
     private int port;
 
     @Autowired
-    private com.fasterxml.jackson.databind.ObjectMapper json;
+    private ObjectMapper json;
 
     @Test
     void businessHealthStaysMinimalWithoutDependencyDetails() throws Exception {
