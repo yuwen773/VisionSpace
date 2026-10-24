@@ -85,10 +85,32 @@
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-5da06a15dff74b19b52c8c1dd4b93059`。
 - 最终提交链：ed31b6e（feat）→ 584fcb7 → 473f943 → 2bdc2cb → 2d83df9（返工）。
 
+### 第三轮评审返工（4 项，572d0e2）
+
+1. **[P1 规范] Ubuntu CI 平台兼容**：CI 工作流跑 ubuntu-24.04（docker 模式）。
+   清理兜底的 `Get-CimInstance Win32_Process` 与 `-WindowStyle Hidden` 都是
+   Windows 专用——分别按 `$IsWindows` 分流（Linux 扫 `/proc/*/cmdline`、
+   不传窗口参数），java 二进制兼容 `JAVA_HOME/bin/java`。静态确认，未跑远程 CI。
+2. **[P2 规范] 兜底扫描归属限定**：匹配条件收紧为命令行同时含
+   `VipSecondInstanceMain` 与本轮就绪文件路径（runDir 含逐次 nonce），
+   不会误杀其他验收运行。
+3. **[P1 规格] 重复关键字段**：`code`/`hasUsed` 出现两次即整体失败
+   （此前取第一个值，已用码会误判未用并计入补发）。
+4. **[P2 规格] JSON 转义解码**：字符串按 RFC 8259 解码（短转义与 uXXXX）
+   后再参与摘要；实现与测试都用运行时拼接构造转义形态——javac 的 Unicode
+   预处理先于字符串转义处理，源码字面反斜杠u 序列会被提前解码（探针实测确认）。
+
 ### run8（返工后回归）
 - 全门禁 PASS；backend 465 tests / 0 errors / 0 failures（新增解析回归 1 项）。
 - 第二实例优雅退出，无残留进程；stop 文件与端口文件正常生成。
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-76382e7ff3e04c868765e7d37c019499`。
+
+### run9（第三轮返工后回归）
+- 全门禁 PASS；backend 466 tests / 0 errors / 0 failures（迁移测试 5 项，
+  含重复字段失败与转义解码两条新回归）。
+- 第二实例优雅退出（stop 文件生成），套件结束后残留进程计数 0。
+- 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-66434cd3fa22427097e2c8eb9919188c`。
+- 提交链追加：2d83df9（第二轮返工）→ 572d0e2（第三轮返工）。
 
 ## 已发现并修复的实施问题
 
