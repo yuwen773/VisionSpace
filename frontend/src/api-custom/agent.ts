@@ -9,12 +9,22 @@ import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
 // 走原生 fetch 而非 axios：上传需要 FormData，且要读原始 JSON 拿 data 字段。
 
 /**
- * 上传结果：资源标识用于后续删除，url 用于对话展示。
+ * 上传结果：资源标识用于后续绑定与删除。
+ *
+ * `resourceId` 是十进制字符串：服务端把 Long 按字符串序列化，雪花标识超出
+ * JavaScript 安全整数范围，转成 number 会丢精度，绑定到别的资源上。
  */
 export interface AgentImage {
-  resourceId: number
+  resourceId: string
   url: string
-  size?: number
+  size?: number | string
+}
+
+/**
+ * 附件内容入口。会话与资源双重授权，浏览器不接触源站地址。
+ */
+export function attachmentContentUrl(resourceId: string | number, sessionId: string): string {
+  return `${API_ROOT}/agent/attachment/${resourceId}/content?sessionId=${encodeURIComponent(sessionId)}`
 }
 
 /**
@@ -42,7 +52,7 @@ export async function uploadAgentImage(file: File): Promise<AgentImage> {
  * 不提交 URL：删除只依据服务端归属记录，重复删除按成功处理。
  * POST /api/agent/image/upload/delete
  */
-export async function deleteAgentImage(resourceId: number): Promise<void> {
+export async function deleteAgentImage(resourceId: string | number): Promise<void> {
   const res = await fetch(`${API_ROOT}/agent/image/upload/delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', [CSRF_HEADER]: readCsrfToken() },
@@ -64,6 +74,8 @@ export interface HistoryMessage {
   content: string
   isSummary: boolean
   createdTime: string
+  /** 这条消息携带的图片资源标识；历史按它渲染受控入口 */
+  attachmentIds?: string[]
 }
 
 export interface ChatHistoryResponse {

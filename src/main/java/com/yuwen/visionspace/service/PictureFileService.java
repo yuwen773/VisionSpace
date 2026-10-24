@@ -84,4 +84,38 @@ public interface PictureFileService extends IService<PictureFile> {
      * 用户当前保留（未删除）的资源总字节数，用于用户级额度判定。
      */
     long usedBytes(Long ownerUserId);
+
+    /**
+     * 锁定读一条资源记录。绑定、删除与回收都先拿这条行锁，
+     * 让「判定」与「写入」之间不留窗口；锁由数据库提供，跨实例有效。
+     */
+    PictureFile lockById(Long id);
+
+    /**
+     * 回收候选：Agent 会话用途、仍是临时状态、且创建时间早于保留期截止点。
+     * 是否真的可回收由调用方锁定后复核绑定状态决定。
+     *
+     * <p>保留期以小时数传入，由数据库自己的时钟计算截止点。
+     */
+    List<PictureFile> listReclaimCandidates(int retentionHours, int limit);
+
+    /**
+     * 待重试的删除任务：对象存储删除未确认的资源。
+     */
+    List<PictureFile> listPendingDeletes(int limit);
+
+    /**
+     * 标记删除未确认，保留可重试状态与下次重试时间（退避时长由数据库时钟推算）。
+     */
+    void markDeletePending(Long id, int retryCount, long retryDelaySeconds);
+
+    /**
+     * 标记删除已确认：资源不再占用存储。
+     */
+    void markDeleteConfirmed(Long id, int retryCount);
+
+    /**
+     * 标记资源为有效（已绑定到会话或图片）。
+     */
+    void markActive(Long id);
 }

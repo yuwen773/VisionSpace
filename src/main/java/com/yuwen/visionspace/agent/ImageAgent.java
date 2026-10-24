@@ -28,6 +28,7 @@ import com.yuwen.visionspace.agent.hook.SummarizationHook;
 import com.yuwen.visionspace.agent.interceptor.TextMcpModelInterceptor;
 import com.yuwen.visionspace.agent.model.ActionType;
 import com.yuwen.visionspace.agent.model.AgentPhase;
+import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.agent.tools.ImageSearchTool;
@@ -259,11 +260,12 @@ public class ImageAgent {
      * 同步对话入口（带会话隔离）
      *
      * @param userMessage 用户消息
-     * @param imageUrls   图片URL列表
+     * @param attachments 已绑定到会话的附件；地址来自服务端记录，不来自客户端
      * @param threadId    会话ID，用于隔离不同对话的上下文
      * @param userId      服务端登录用户；会话归属只认它，不认请求体里的 userId
      */
-    public String chat(String userMessage, List<String> imageUrls, String threadId, Long userId) {
+    public String chat(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments,
+                       String threadId, Long userId) {
         // 归属在进入模型之前判定：绑定/核对失败直接抛出，不产生任何执行
         sessionGuard.bindOwner(threadId, userId, userMessage);
         // 有结果未知的动作时，任何入口都不得继续跑
@@ -271,9 +273,9 @@ public class ImageAgent {
         // 内置入口不使用 MCP：环境随执行配置声明为「空环境」，与检查点同版本落库
         RunnableConfig config = configFor(threadId, userId, List.of());
         try {
-            String fullMessage = buildUserMessage(userMessage, imageUrls);
+            String fullMessage = buildUserMessage(userMessage, attachments);
             AssistantMessage response = agent.call(fullMessage, config);
-            chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
+            chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
             chatHistoryService.saveAssistantMessage(threadId, userId, response.getText(), "text");
             return response.getText();
         } catch (PendingReviewException e) {
@@ -293,21 +295,23 @@ public class ImageAgent {
     /**
      * 流式对话入口（无 MCP）
      */
-    public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId) {
-        return stream(userMessage, imageUrls, threadId, userId, null, false);
+    public Flux<MessageDTO> stream(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments,
+                                   String threadId, Long userId) {
+        return stream(userMessage, attachments, threadId, userId, null, false);
     }
 
     /**
      * 流式对话入口（支持 MCP）
      *
      * @param userMessage 用户消息
-     * @param imageUrls 图片URL列表
+     * @param attachments 已绑定到会话的附件；地址来自服务端记录，不来自客户端
      * @param threadId 会话ID
      * @param userId 服务端登录用户；会话归属只认它
      * @param enabledMcpServers 启用的 MCP 服务器代码列表（可选）
      * @param disableMcpDefault 是否禁用默认 MCP
      */
-    public Flux<MessageDTO> stream(String userMessage, List<String> imageUrls, String threadId, Long userId,
+    public Flux<MessageDTO> stream(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments,
+                                   String threadId, Long userId,
                                    List<String> enabledMcpServers, Boolean disableMcpDefault) {
         // 归属已由调用方（AgentController）在建立流之前核对；这里再核对一次，
         // 保证任何直接调用方也无法把状态写进别人的会话。
@@ -319,8 +323,8 @@ public class ImageAgent {
         // 收敛之后仍有待核对动作：本次执行必须停在原地
         recoveryService.requireNoPendingReview(threadId, userId);
 
-        String fullMessage = buildUserMessage(userMessage, imageUrls);
-        chatHistoryService.saveUserMessage(threadId, userId, fullMessage);
+        String fullMessage = buildUserMessage(userMessage, attachments);
+        chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
 
         // 解析 MCP 回调
         AgentChatRequest chatRequest = new AgentChatRequest();
@@ -693,18 +697,34 @@ public class ImageAgent {
     }
 
     /**
-     * 构建带有图片分析标签的用户消息
+     * 构建带有图片分析标签的用户消息。
+     *
+     * <p>地址来自服务端绑定记录：客户端只能提交资源标识，模型看到的地址由
+     * 服务端按归属核对后的记录解析。
      */
-    private String buildUserMessage(String userMessage, List<String> imageUrls) {
-        if (imageUrls == null || imageUrls.isEmpty()) {
+    private String buildUserMessage(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
             return userMessage != null ? userMessage : "";
         }
         StringBuilder sb = new StringBuilder();
-        for (String url : imageUrls) {
-            sb.append("<image-analysis>").append(url).append("</image-analysis>\n");
+        for (AgentAttachmentService.BoundAttachment attachment : attachments) {
+            sb.append("<image-analysis>").append(attachment.url()).append("</image-analysis>\n");
         }
         sb.append("\n").append(userMessage != null ? userMessage : "");
         return sb.toString();
+    }
+
+    /**
+     * 附件的资源标识列表，用于在消息上登记它携带了哪些图片。
+     */
+    private List<Long> attachmentIdsOf(List<AgentAttachmentService.BoundAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return List.of();
+        }
+        return attachments.stream()
+                .map(AgentAttachmentService.BoundAttachment::resourceId)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     /**
@@ -713,16 +733,21 @@ public class ImageAgent {
      * <p>同步入口同样先绑定/核对归属，并在进入模型前落一条用户消息；
      * 归属不成立时抛出业务异常，不产生任何模型或工具执行。
      *
+     * @param attachments 已绑定到会话的附件；地址来自服务端记录，不来自客户端
      * @return 执行输出；执行期异常返回空
      */
-    public Optional<NodeOutput> invokeAndGetOutput(String message, String threadId, Long userId) {
-        sessionGuard.bindOwner(threadId, userId, message);
+    public Optional<NodeOutput> invokeAndGetOutput(String userMessage, String threadId, Long userId) {
+        return invokeAndGetOutput(userMessage, threadId, userId, List.of());
+    }
+
+    public Optional<NodeOutput> invokeAndGetOutput(String userMessage, String threadId, Long userId,
+                                                   List<AgentAttachmentService.BoundAttachment> attachments) {        sessionGuard.bindOwner(threadId, userId, userMessage);
         // 普通对话入口同样受待核对暂停约束：否则用户再发一条消息就能绕过暂停
         recoveryService.requireNoPendingReview(threadId, userId);
         RunnableConfig config = configFor(threadId, userId, List.of());
-        chatHistoryService.saveUserMessage(threadId, userId, message);
+        chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
         try {
-            return agent.invokeAndGetOutput(message, config);
+            return agent.invokeAndGetOutput(buildUserMessage(userMessage, attachments), config);
         } catch (PendingReviewException e) {
             // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
             // 与其它入口的暂停语义不一致

@@ -94,7 +94,13 @@
       <!-- Messages -->
       <template v-for="(msg, index) in messages" :key="index">
         <div class="msg-animate">
-          <UserMessage v-if="msg.type === 'user'" :content="msg.content" :time="msg.time" />
+          <UserMessage
+            v-if="msg.type === 'user'"
+            :content="msg.content"
+            :time="msg.time"
+            :attachment-ids="msg.attachmentIds"
+            :session-id="sessionId"
+          />
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
   v-else-if="msg.type === 'assistant'"
@@ -161,16 +167,21 @@ interface Message {
   isLoading?: boolean
   time?: string
   images?: string[]
+  /** 这条消息携带的图片资源标识 */
+  attachmentIds?: string[]
 }
 
 interface Props {
   messages: Message[]
   loading?: boolean
+  /** 当前会话标识：附件按会话与资源双重授权后读取 */
+  sessionId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
+  sessionId: '',
 })
 
 const emit = defineEmits<{

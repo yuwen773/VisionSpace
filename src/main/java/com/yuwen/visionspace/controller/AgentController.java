@@ -8,7 +8,7 @@ import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
-import com.yuwen.visionspace.agent.service.AgentImageUploadService;
+import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
 import com.yuwen.visionspace.common.BaseResponse;
@@ -68,7 +68,7 @@ public class AgentController {
     private UserService userService;
 
     @Resource
-    private AgentImageUploadService agentImageUploadService;
+    private AgentAttachmentService agentAttachmentService;
 
     /**
      * 图片助手对话
@@ -77,15 +77,22 @@ public class AgentController {
     public BaseResponse<String> chat(@RequestBody AgentChatRequest request,
                                       HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
-        // 附件必须属于当前用户，未登记或他人的地址在进入模型前拒绝
-        agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
+        Long userId = loginUser.getId();
         String threadId = resolveThreadId(request.getThreadId());
 
-        log.info("Agent 对话请求, threadId={}, userId={}", threadId, loginUser.getId());
+        // 附件归属先判定：拒绝时不创建会话、不产生绑定、不进入模型
+        List<Long> resourceIds = agentAttachmentService.resolveOwnedIds(
+                request.getAttachmentIds(), request.getImageUrls(), userId);
+        // 归属在 ImageAgent 进入模型前判定；会话不属于当前用户时这里就拒绝
+        sessionGuard.bindOwner(threadId, userId, request.getMessage());
+        // 绑定到会话：重复提交同一批资源标识是幂等的
+        List<AgentAttachmentService.BoundAttachment> attachments =
+                agentAttachmentService.bind(threadId, userId, resourceIds);
+
+        log.info("Agent 对话请求, threadId={}, userId={}", threadId, userId);
 
         // 使用 invokeAndGetOutput 支持中断；归属在 ImageAgent 进入模型前判定
-        String fullMessage = buildUserMessage(request.getMessage(), request.getImageUrls());
-        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(fullMessage, threadId, loginUser.getId());
+        Optional<NodeOutput> result = imageAgent.invokeAndGetOutput(request.getMessage(), threadId, userId, attachments);
 
         // 检查是否返回了中断
         if (result.isPresent() && result.get() instanceof InterruptionMetadata) {
@@ -139,15 +146,19 @@ public class AgentController {
                                         HttpServletRequest httpRequest) {
         Long userId;
         String threadId;
+        List<AgentAttachmentService.BoundAttachment> attachments;
         try {
             // 未登录的流式请求不建立连接：userId 只来自服务端会话
             User loginUser = userService.getLoginUser(httpRequest);
             userId = loginUser.getId();
-            // 流式入口同样在进入模型前校验附件归属
-            agentImageUploadService.assertOwnedAttachments(request.getImageUrls(), loginUser);
             threadId = resolveThreadId(request.getThreadId());
+            // 附件归属先判定：拒绝的请求不会建立会话、不会产生绑定
+            List<Long> resourceIds = agentAttachmentService.resolveOwnedIds(
+                    request.getAttachmentIds(), request.getImageUrls(), userId);
             // 归属判定发生在返回 Flux 之前：拒绝的请求不会建立流、不会插入消息、不会调用模型
             sessionGuard.bindOwner(threadId, userId, request.getMessage());
+            // 绑定到会话：图片此后保留到会话或图片被明确删除，流结束不删除
+            attachments = agentAttachmentService.bind(threadId, userId, resourceIds);
         } catch (BusinessException e) {
             return writeJsonError(e);
         }
@@ -156,7 +167,7 @@ public class AgentController {
                 threadId, userId, request.getEnabledMcpServers(), request.getDisableMcpDefault());
 
         Flux<ServerSentEvent<String>> stream =
-                imageAgent.stream(request.getMessage(), request.getImageUrls(), threadId, userId,
+                imageAgent.stream(request.getMessage(), attachments, threadId, userId,
                 request.getEnabledMcpServers(), request.getDisableMcpDefault())
                 .filter(Objects::nonNull)
                 .map(data -> ServerSentEvent.<String>builder()
@@ -217,21 +228,6 @@ public class AgentController {
         }
 
         sb.append("\n请选择是否满意上述结果，或提供改进建议。");
-        return sb.toString();
-    }
-
-    /**
-     * 构建用户消息，支持图片URL
-     */
-    private String buildUserMessage(String userMessage, List<String> imageUrls) {
-        if (imageUrls == null || imageUrls.isEmpty()) {
-            return userMessage != null ? userMessage : "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String url : imageUrls) {
-            sb.append("<image-analysis>").append(url).append("</image-analysis>\n");
-        }
-        sb.append("\n").append(userMessage != null ? userMessage : "");
         return sb.toString();
     }
 
@@ -329,6 +325,22 @@ public class AgentController {
             HttpServletRequest httpRequest) {
         User loginUser = userService.getLoginUser(httpRequest);
         return ResultUtils.success(chatHistoryService.getUserSessions(loginUser.getId(), beforeId, Math.min(limit, 100)));
+    }
+
+    /**
+     * 删除会话。
+     *
+     * <p>会话被删除后历史与附件都不再可访问：先解除该会话对图片的引用，
+     * 再清理没有其他会话引用的图片对象；被别的会话共享的图片保留。
+     *
+     * @return 受影响的图片数量
+     */
+    @DeleteMapping("/session/{threadId}")
+    public BaseResponse<Integer> deleteSession(@PathVariable String threadId,
+                                               HttpServletRequest httpRequest) {
+        User loginUser = userService.getLoginUser(httpRequest);
+        // 归属不成立时拒绝；不区分「不存在」与「属于他人」
+        return ResultUtils.success(agentAttachmentService.deleteSession(threadId, loginUser.getId()));
     }
 
     /**
