@@ -110,6 +110,11 @@ public interface UserService extends IService<User> {
     boolean isAdmin(User user);
 
     /**
+     * 是否具备违规处置权限。该权限独立于平台管理员角色，用于隔离与恢复资源。
+     */
+    boolean isModerator(User user);
+
+    /**
      * 用户兑换会员（会员码兑换）
      */
     boolean exchangeVip(User user, String vipCode);

@@ -10,7 +10,9 @@ import * as spaceController from './spaceController'
 import * as spaceAnalyzeController from './spaceAnalyzeController'
 import * as pictureController from './pictureController'
 import * as pictureRecommend from './pictureRecommend'
+import * as pictureGrantController from './pictureGrantController'
 import * as pictureAction from './pictureAction'
+import * as resourceModerationController from './resourceModerationController'
 import * as feedbackController from './feedbackController'
 import * as agentController from './agentController'
 import * as agentImageUploadController from './agentImageUploadController'
@@ -27,7 +29,9 @@ export default {
   spaceAnalyzeController,
   pictureController,
   pictureRecommend,
+  pictureGrantController,
   pictureAction,
+  resourceModerationController,
   feedbackController,
   agentController,
   agentImageUploadController,

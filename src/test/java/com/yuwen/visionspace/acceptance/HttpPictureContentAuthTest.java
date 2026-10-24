@@ -183,7 +183,7 @@ class HttpPictureContentAuthTest {
                 assertTrue(record.path("previewUrl").isNull(), "admin listing must not expose preview");
             }
 
-            // 审核需要看图：管理员走受控入口读未审核内容，而不是拿源站地址
+            // 审核需要看图：管理员走受控入口读未审核的公共图库内容，而不是拿源站地址
             seedResource(PENDING_PICTURE, ownerId, null, "original", "pending/original.jpg");
             assertContent(admin, "/picture/content/" + PENDING_PICTURE + "/original",
                     "/pending/original.jpg");

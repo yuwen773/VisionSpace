@@ -17,6 +17,7 @@ import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
+import com.yuwen.visionspace.manager.lock.ResourceLockManager;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.storage.UploadQuotaManager;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
@@ -33,6 +34,7 @@ import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
+import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
@@ -41,6 +43,7 @@ import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
@@ -117,6 +120,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
 
+    @Resource
+    private ResourceIsolationService resourceIsolationService;
+
+    @Resource
+    private ResourceLockManager resourceLockManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -165,6 +174,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
             // 重新上传会覆盖原图，业务边界必须复核归属
             checkPictureAuth(loginUser, oldPicture);
+            // 预检：请求开始前就已隔离的资源直接拒绝，不进入对象存储
+            // 事务内还有一次权威判定（行锁 + 锁定读），覆盖预检之后隔离才生效的竞态
+            ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
             // 校验空间是否一致
             // 没传 spaceId，则复用原有图片的 spaceId（这样也兼容了公共图库）
             if (spaceId == null) {
@@ -246,8 +258,20 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         // 开启事务
         Long finalSpaceId = spaceId;
+        Long finalPictureId = pictureId;
         try {
             transactionTemplate.execute(status -> {
+                if (finalPictureId != null) {
+                    // 替换已有资源：先取资源行锁，再按最新状态复核隔离。
+                    // 隔离与替换共用同一把行锁：谁先取到谁先提交，后取到的一方
+                    // 在锁释放后重新判定，因此"隔离已生效但原图仍被替换销毁"的窗口不存在。
+                    ThrowUtils.throwIf(!resourceLockManager.lockResourceRow(
+                                    ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
+                            ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+                    ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
+                                    ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
+                            ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
+                }
                 // 插入数据
                 boolean result = this.saveOrUpdate(picture);
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
@@ -262,6 +286,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 }
                 // 资源记录与图片记录在同一事务内绑定，避免出现无主对象
                 pictureFileService.bindToPicture(picture.getId(), loginUser.getId(), uploadedFiles);
+                // 被替换的旧资源在同一事务内标记并清理：数据提交与对象清理属于同一次替换，
+                // 不会出现"数据已经换掉、对象清理落在隔离生效之后"的空档
+                List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
+                        uploadedFiles.stream().map(PictureFile::getId).toList());
+                if (!superseded.isEmpty()) {
+                    this.cleanupReplacedFiles(superseded);
+                }
                 return picture;
             });
         } catch (RuntimeException e) {
@@ -269,18 +300,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             discardRegisteredFiles(loginUser.getId(), uploadedFiles, uploadPictureResult);
             throw e;
         }
-        // 重新上传：旧资源被替换，清理其对象；失败只记录，不回滚已生效的新图
-        List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
-                uploadedFiles.stream().map(PictureFile::getId).toList());
-        if (!superseded.isEmpty()) {
-            this.cleanupReplacedFiles(superseded);
-        }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         PictureVO pictureVO = PictureVO.objToVo(picture);
         // 上传响应同样只返回受控内容入口
-        pictureContentService.fillContentUrls(pictureVO, picture);
+        fillControlledContentUrls(pictureVO, picture);
         return pictureVO;
     }
 
@@ -323,7 +348,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 对象转封装类
         PictureVO pictureVO = PictureVO.objToVo(picture);
         // 内容地址一律换成本服务的受控入口，不返回源站长期地址
-        pictureContentService.fillContentUrls(pictureVO, picture);
+        fillControlledContentUrls(pictureVO, picture);
         // 关联查询用户信息
         Long userId = picture.getUserId();
         if (userId != null && userId > 0) {
@@ -359,8 +384,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<PictureVO> pictureVOList = pictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
-        // 列表与详情使用同一套内容入口
+        // 列表与详情使用同一套内容入口；隔离中的图片不返回内容地址
+        Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
+        Set<Long> quarantined = resourceIsolationService.quarantinedIds(
+                ResourceTypeEnum.PICTURE.getValue(), pictureIdSet);
         pictureContentService.fillContentUrls(pictureVOList, pictureList);
+        if (!quarantined.isEmpty()) {
+            for (int i = 0; i < pictureVOList.size(); i++) {
+                if (quarantined.contains(pictureList.get(i).getId())) {
+                    clearContentUrls(pictureVOList.get(i));
+                }
+            }
+        }
         // 1. 关联查询用户信息
         // 1,2,3,4
         Set<Long> userIdSet = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
@@ -368,7 +403,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
                 .collect(Collectors.groupingBy(User::getId));
         // 2. 关联查询统计信息（一律按 pictureId 关联；统计行自己的主键与图片 ID 无关）
-        Set<Long> pictureIdSet = pictureList.stream().map(Picture::getId).collect(Collectors.toSet());
         Map<Long, PictureStats> pictureIdStatsMap = pictureStatsService.mapByPictureIds(pictureIdSet);
         // 3. 填充信息
         pictureVOList.forEach(pictureVO -> {
@@ -641,8 +675,19 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
         checkPictureAuth(loginUser, oldPicture);
+        // 预检：请求开始前就已隔离的资源直接拒绝
+        ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
         // 开启事务
         transactionTemplate.execute(status -> {
+            // 资源行锁：与隔离、替换共用同一把锁。
+            // 拿到锁之后复核隔离状态，隔离若在预检之后生效，这里直接拒绝：
+            // 谁先取到锁谁先提交，破坏性动作不会落在隔离生效之后。
+            ThrowUtils.throwIf(!resourceLockManager.lockResourceRow(
+                            ResourceTypeEnum.PICTURE.getValue(), pictureId),
+                    ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+            ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
+                            ResourceTypeEnum.PICTURE.getValue(), pictureId),
+                    ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
             // 操作数据库
             boolean result = this.removeById(pictureId);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -657,7 +702,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return true;
         });
-        // 异步清理文件
+        // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
+        // 因此不会与处置流程抢同一份内容
         this.clearPictureFile(oldPicture);
     }
 
@@ -721,6 +767,40 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         view.setThumbnailUrl(null);
         view.setPreviewUrl(null);
         return view;
+    }
+
+    /**
+     * 图片当前是否处于隔离状态。
+     */
+    private boolean isQuarantined(Long pictureId) {
+        return pictureId != null
+                && resourceIsolationService.isQuarantined(ResourceTypeEnum.PICTURE.getValue(), pictureId);
+    }
+
+    /**
+     * 填充受控内容入口，并清掉隔离中图片的入口。
+     *
+     * <p>隔离不删除内容，但在任何视图中都不再给出可读取的地址；
+     * 恢复后按原有归属规则重新可用，不扩大任何人的访问范围。
+     */
+    private void fillControlledContentUrls(PictureVO pictureVO, Picture picture) {
+        pictureContentService.fillContentUrls(pictureVO, picture);
+        if (picture != null && picture.getId() != null
+                && resourceIsolationService.isQuarantined(
+                        ResourceTypeEnum.PICTURE.getValue(), picture.getId())) {
+            clearContentUrls(pictureVO);
+        }
+    }
+
+    private void clearContentUrls(PictureVO pictureVO) {
+        if (pictureVO == null) {
+            return;
+        }
+        pictureVO.setUrl(null);
+        pictureVO.setThumbnailUrl(null);
+        pictureVO.setPreviewUrl(null);
+        // 状态本身是元数据：告知已隔离，而不是让客户端以为内容丢失
+        pictureVO.setQuarantined(true);
     }
 
     @Override

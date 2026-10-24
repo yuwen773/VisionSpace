@@ -7,11 +7,13 @@ import com.yuwen.visionspace.manager.cache.RecommendCandidateList;
 import com.yuwen.visionspace.mapper.PictureMapper;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.PictureStats;
+import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.model.vo.RecommendPageVO;
 import com.yuwen.visionspace.model.vo.RecommendPictureVO;
 import com.yuwen.visionspace.service.PictureContentService;
 import com.yuwen.visionspace.service.PictureRecommendService;
 import com.yuwen.visionspace.service.PictureStatsService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.utils.HomeRecommendScoreCalculator;
 import com.yuwen.visionspace.utils.PictureReorderUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,6 +70,9 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
     /** 候选池上限：候选获取与评分都保持有界 */
     @Value("${vision-space.recommend.candidate-limit:300}")
     private int candidateLimit;
+
+    @Resource
+    private ResourceIsolationService resourceIsolationService;
 
     /** 热门候选池里按互动量预选的名额占比，其余名额留给新内容 */
     @Value("${vision-space.recommend.engagement-candidate-ratio:0.7}")
@@ -287,6 +292,7 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         }
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda().in(Picture::getId, ids);
+        resourceIsolationService.excludeQuarantined(queryWrapper, "id", ResourceTypeEnum.PICTURE.getValue());
         List<Picture> pictures = pictureMapper.selectList(queryWrapper);
 
         // 按ID顺序排序

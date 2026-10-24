@@ -133,6 +133,13 @@
                       </div>
                       <div class="menu-item-shine"></div>
                     </a-menu-item>
+                    <a-menu-item v-if="isModerator" key="moderation" class="menu-item">
+                      <div class="menu-item-inner">
+                        <span class="menu-icon"><ShieldCheck :size="16" /></span>
+                        <span class="menu-text">内容处置</span>
+                      </div>
+                      <div class="menu-item-shine"></div>
+                    </a-menu-item>
                     <a-menu-divider class="menu-divider" />
                     <a-menu-item key="logout" class="menu-item logout-item">
                       <div class="menu-item-inner">
@@ -207,7 +214,7 @@ import { ref, computed, watchEffect, onMounted, onUnmounted, h } from 'vue'
 import type { MenuProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { Sun, Moon, Crown, User, Home, MessageSquare, Settings, LogOut, KeyRound, Sparkles, Camera, Cloud, Users, Rocket, Compass } from 'lucide-vue-next'
+import { Sun, Moon, Crown, User, Home, MessageSquare, Settings, LogOut, KeyRound, Sparkles, Camera, Cloud, Users, Rocket, Compass, ShieldCheck } from 'lucide-vue-next'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLogoutUsingPost } from '@/api/userController.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
@@ -360,12 +367,16 @@ const handleUserMenuClick = ({ key }: { key: string }) => {
     router.push('/user/center')
   } else if (key === 'admin') {
     router.push('/admin')
+  } else if (key === 'moderation') {
+    router.push('/moderation')
   } else if (key === 'logout') {
     doLogout()
   }
 }
 
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
+// 处置角色独立于平台管理员：管理身份本身不构成对私人内容的处置权
+const isModerator = computed(() => loginUserStore.loginUser.userRole === 'moderator')
 
 const doLogout = async () => {
   const res = await userLogoutUsingPost()
@@ -381,6 +392,7 @@ const doLogout = async () => {
 const getRoleText = (role?: string) => {
   const roleMap: Record<string, string> = {
     admin: '管理员',
+    moderator: '内容处置员',
     user: '用户',
   }
   return roleMap[role ?? ''] || '用户'

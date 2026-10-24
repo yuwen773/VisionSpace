@@ -50,8 +50,8 @@
     <div class="form-group">
       <label class="form-label">附件截图（可选，最多5张）</label>
       <div class="upload-list">
-        <div v-for="(url, index) in feedbackForm.pictureUrls" :key="index" class="upload-item">
-          <img :src="url" alt="附件" />
+        <div v-for="(attachment, index) in feedbackForm.attachments" :key="attachment.id ?? index" class="upload-item">
+          <img :src="contentSrc(attachment.url)" alt="附件" />
           <span class="upload-remove" @click="removeFeedbackPicture(index)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -59,7 +59,7 @@
             </svg>
           </span>
         </div>
-        <div v-if="feedbackForm.pictureUrls.length < 5" class="upload-trigger" @click="triggerFeedbackUpload">
+        <div v-if="feedbackForm.attachments.length < 5" class="upload-trigger" @click="triggerFeedbackUpload">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -96,6 +96,8 @@ import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
 import { addFeedbackUsingPost, uploadFeedbackAttachmentUsingPost } from '@/api/feedbackController'
+import { attachmentIdsOf } from '@/api-custom/resourceProtection'
+import { contentSrc } from '@/utils'
 
 const feedbackTypeOptions = [
   { value: 1, label: '产品建议', icon: Lightbulb },
@@ -107,7 +109,8 @@ const feedbackForm = ref({
   type: 1,
   title: '',
   content: '',
-  pictureUrls: [] as string[],
+  // 附件只保存服务端登记的标识与受控入口：源站地址不进入表单
+  attachments: [] as API.FeedbackAttachmentVO[],
 })
 
 const feedbackSubmitting = ref(false)
@@ -121,7 +124,7 @@ const handleFeedbackFileChange = async (e: Event) => {
   const files = (e.target as HTMLInputElement).files
   if (!files) return
 
-  const maxUploads = Math.min(files.length, 5 - feedbackForm.value.pictureUrls.length)
+  const maxUploads = Math.min(files.length, 5 - feedbackForm.value.attachments.length)
   const uploadPromises: Promise<void>[] = []
 
   for (let i = 0; i < maxUploads; i++) {
@@ -138,9 +141,12 @@ const handleFeedbackFileChange = async (e: Event) => {
       (async () => {
         try {
           const res = await uploadFeedbackAttachmentUsingPost({}, file)
-          // 后端返回 BaseResponse<String>，data 即上传后的 URL
-          if (res.data.data) {
-            feedbackForm.value.pictureUrls.push(res.data.data)
+          // 上传接口返回附件标识与受控入口，不返回源站地址
+          const attachment = res.data.data
+          if (res.data.code === 0 && attachment?.id) {
+            feedbackForm.value.attachments.push(attachment)
+          } else {
+            message.error(res.data.message || '图片上传失败')
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : '图片上传失败'
@@ -155,7 +161,7 @@ const handleFeedbackFileChange = async (e: Event) => {
 }
 
 const removeFeedbackPicture = (index: number) => {
-  feedbackForm.value.pictureUrls.splice(index, 1)
+  feedbackForm.value.attachments.splice(index, 1)
 }
 
 const doFeedbackSubmit = async () => {
@@ -174,11 +180,13 @@ const doFeedbackSubmit = async () => {
       type: feedbackForm.value.type,
       title: feedbackForm.value.title,
       content: feedbackForm.value.content,
-      pictureUrls: feedbackForm.value.pictureUrls,
+      // 附件标识原样提交：服务端按十进制字符串给出，转成 number 会丢精度，
+      // 按类型过滤会让附件静默丢失
+      attachmentIds: attachmentIdsOf(feedbackForm.value.attachments),
     })
     if (res.data.code === 0) {
       message.success('反馈提交成功！感谢您的宝贵意见')
-      feedbackForm.value = { type: 1, title: '', content: '', pictureUrls: [] }
+      feedbackForm.value = { type: 1, title: '', content: '', attachments: [] }
     } else {
       message.error(res.data.message || '提交失败')
     }

@@ -52,6 +52,7 @@
           allow-clear
         >
           <a-select-option value="admin">管理员</a-select-option>
+          <a-select-option value="moderator">内容处置员</a-select-option>
           <a-select-option value="user">普通用户</a-select-option>
         </a-select>
         <button class="toolbar-btn primary" @click="doSearch">
@@ -97,8 +98,8 @@
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'userRole'">
-            <a-tag :color="record.userRole === 'admin' ? 'blue' : 'default'" class="role-tag">
-              {{ record.userRole === 'admin' ? '管理员' : '普通用户' }}
+            <a-tag :color="roleTagColor(record.userRole)" class="role-tag">
+              {{ roleText(record.userRole) }}
             </a-tag>
           </template>
           <template v-else-if="column.dataIndex === 'vipNumber'">
@@ -179,6 +180,7 @@
           <label>用户角色</label>
           <a-select v-model:value="editForm.userRole" class="form-input">
             <a-select-option value="admin">管理员</a-select-option>
+            <a-select-option value="moderator">内容处置员</a-select-option>
             <a-select-option value="user">普通用户</a-select-option>
           </a-select>
         </div>
@@ -212,6 +214,21 @@ const columns = [
   { title: '注册时间', dataIndex: 'createTime', width: 140, sorter: true },
   { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
 ]
+
+/** 角色文案。处置角色独立于平台管理员，两者互不继承 */
+const roleText = (role?: string) => {
+  const map: Record<string, string> = {
+    admin: '管理员',
+    moderator: '内容处置员',
+    user: '普通用户',
+  }
+  return map[role ?? ''] || '普通用户'
+}
+
+const roleTagColor = (role?: string) => {
+  const map: Record<string, string> = { admin: 'blue', moderator: 'purple' }
+  return map[role ?? ''] || 'default'
+}
 
 const dataList = ref<API.UserVO[]>([])
 const total = ref<number>(0)
