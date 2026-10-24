@@ -13,7 +13,7 @@
 | `docker-compose.host-access.yml` | 显式宿主访问覆盖文件：仅 `127.0.0.1` + 非默认端口；默认栈不含任何宿主 DB/Redis 发布 |
 | `application-prod.yml` | 管理端点独立端口 9081 且只绑 127.0.0.1；只暴露 health；`show-details/show-components: never`；readiness 组纳入 `db,redis`；Hikari `initialization-fail-timeout: 30000` 提供有限启动重试窗口：依赖延迟最多等 30 秒，耗尽即明确异常退出（不无限阻塞、不带病启动） |
 | `pom.xml` | 新增 `spring-boot-starter-actuator`（唯一依赖变更） |
-| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密（字符集避开 SQL 特殊字符）；启动顺序为先 mysql/redis → 导入 15 张业务表（复用 #27 的 DDL 提取约定）→ 再启动 backend，避免 FileStorageInit 查询空库失败；HTTP 验收前有界等待业务端点就绪；恢复等待持续到 healthy 或超时（不把 unhealthy 过渡态当终态）；端口发布判定以本轮容器的 compose ps 为准（不扫描宿主全机）；compose ps JSON 逐行解析 |
+| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密（字符集避开 SQL 特殊字符）；启动顺序为先 mysql/redis → 以 root 导入 15 张业务表（复用 #27 的 DDL 提取约定；vision_app 仅业务 DML，无 CREATE）→ 再启动 backend，避免 FileStorageInit 查询空库失败；HTTP 验收前有界等待业务端点就绪；恢复等待持续到 healthy 或超时（不把 unhealthy 过渡态当终态）；端口发布判定以本轮容器的 compose ps 为准（字段结构对照 Docker 官方文档：服务级 `Service`、发布项级 `URL`，已离线样本验证回环断言与非默认端口漏检修复）；A4 覆盖 MySQL 停止/恢复、Redis 停止/恢复、依赖延迟启动（backend 重启后依赖恢复仍达 healthy）与重试耗尽明确失败（非 0 退出或崩溃循环）；compose ps JSON 逐行解析 |
 | `HttpHealthEndpointTest` | 健康端点契约回归：业务健康不含依赖细节；actuator health 状态 UP 且不泄露组件与连接信息 |
 | `.gitignore` | 追加 `.env.secrets*`（密码代理文件，含真实值，禁止提交） |
 
@@ -33,7 +33,7 @@
 | --- | --- | --- |
 | 45.1 数据库/Redis 默认内部网络 | `container-verification.ps1` A2 组（端口发布断言 + `network inspect Internal=true` + 宿主 netstat） | **BLOCKED_ENV** |
 | 45.2 非 root / 受限可写 / profile / SQL 日志 | A1 + A3 组（`id -u`、写入探针、profile 断言、日志扫描） | **BLOCKED_ENV** |
-| 45.3 健康可判断 + 有限重试 + 明确失败 | A4 组（stop/start mysql 健康迁移）+ Hikari 30s 重试窗口 | **BLOCKED_ENV** |
+| 45.3 健康可判断 + 有限重试 + 明确失败 | A4 组（mysql/redis 停止→unhealthy→恢复→healthy；依赖延迟启动；重试耗尽非 0 退出）+ Hikari 30s 重试窗口 | **BLOCKED_ENV** |
 | 45.4 以隔离候选运行证据验证 | 本脚本实际运行输出 | **BLOCKED_ENV** |
 
 ## 未验证范围（诚实清单）

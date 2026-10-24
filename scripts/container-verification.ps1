@@ -144,9 +144,10 @@ try {
     }
     if (-not $mysqlReady) { throw 'isolated MySQL did not become healthy within 120s' }
     # docker compose up -d mysql 已执行 init 脚本（vision_app/healthcheck 已建）；
+    # 表结构导入用初始化管理身份（root）：vision_app 只有业务 DML 权限，没有 CREATE。
     # 通过 stdin 灌入 DDL，不把 schema 文件挂进镜像或卷。
     Get-Content -Raw $schemaPath | docker compose -f $composeYml -p $project --env-file $envFile exec -T `
-        -e MYSQL_PWD="$dbPassword" mysql sh -c 'mysql -uvision_app' > (Join-Path $runDir 'schema-import.log')
+        -e MYSQL_PWD="$mysqlRoot" mysql sh -c 'mysql' > (Join-Path $runDir 'schema-import.log')
     if ($LASTEXITCODE -ne 0) { throw 'schema import failed (see schema-import.log)' }
     Write-Host "PASS: schema-bootstrap ($($tables.Count) tables)"
 
@@ -169,27 +170,27 @@ try {
     # ---- 验收 2：端口发布与网络可达范围 ----
     Write-Host '=== [3/4] port publishing & network reach ==='
     # compose ps --format json 为每个服务输出一行 JSON，逐行解析。
+    # 字段结构对照 Docker 官方文档：服务级 Service / 发布项级 URL（绑定地址）。
     $portsRaw = & docker compose -f $composeYml -p $project --env-file $envFile ps --format json 2>$null
     $portsJson = @($portsRaw | ForEach-Object { $_ | ConvertFrom-Json })
-    $published = @($portsJson | ForEach-Object { $_.Publishers } | Where-Object { $_ })
-    $mysqlPublished = @($published | Where-Object { $_.TargetPort -eq 3306 -or $_.PublishedPort -eq 3306 })
-    $redisPublished = @($published | Where-Object { $_.TargetPort -eq 6379 -or $_.PublishedPort -eq 6379 })
-    $backendPub = @($published | Where-Object { $_.TargetPort -eq 8081 })
+    $mysqlPublished = @($portsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
+    $redisPublished = @($portsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
+    $backendPub = @($portsJson | Where-Object { $_.Service -eq 'backend' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
     Assert (($mysqlPublished.Count -eq 0) -and ($redisPublished.Count -eq 0)) 'A2-db-redis-not-published' 'mysql/redis must publish no ports'
-    $backOk = ($backendPub.Count -eq 1) -and ($backendPub[0].PublishedPort -eq $backendPort) -and ("$($backendPub[0].HostIp)" -eq '127.0.0.1')
+    $backOk = ($backendPub.Count -eq 1) -and ($backendPub[0].PublishedPort -eq $backendPort) -and ("$($backendPub[0].URL)" -eq '127.0.0.1')
     Assert $backOk 'A2-backend-loopback-only' "backend published: $($backendPub | ConvertTo-Json -Compress)"
 
     $netInspect = & docker network inspect "$($project)_internal" --format '{{.Internal}}' 2>$null
     Assert ("$netInspect" -eq 'true') 'A2-internal-network-isolated' "internal network Internal=$netInspect"
 
-    # 可达性以本轮候选为对象：从宿主对已发布端口探测，DB/Redis 未发布即无从探测。
+    # 可达性以本轮候选为对象：DB/Redis 的任何宿主发布（含非默认端口）都算失败。
     # 宿主机上与候选无关的既有服务不在判定范围。
-    $hostListen = @()
+    $leaked = @()
     foreach ($svc in @('mysql', 'redis')) {
-        $anyPublish = @($published | Where-Object { $_.Service -eq $svc -and $_.PublishedPort -gt 0 })
-        if ($anyPublish.Count -gt 0) { $hostListen += $svc }
+        $anyPublish = @($portsJson | Where-Object { $_.Service -eq $svc } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+        if ($anyPublish.Count -gt 0) { $leaked += $svc }
     }
-    Assert ($hostListen.Count -eq 0) 'A2-db-redis-not-published-any' "services with host publishing: $($hostListen -join ',')"
+    Assert ($leaked.Count -eq 0) 'A2-db-redis-not-published-any' "services with host publishing: $($leaked -join ',')"
 
     # ---- 验收 3：健康端点不泄露秘密 + profile 与日志卫生 ----
     Write-Host '=== [4/4] profile, log hygiene & health ==='
@@ -214,8 +215,8 @@ try {
     $secretLeak = $backendLog.Contains($dbPassword) -or $backendLog.Contains($redisPassword)
     Assert (-not $secretLeak) 'A3-no-secret-in-logs' 'backend log must not contain injected secrets'
 
-    # ---- 验收 4：健康状态与依赖故障 ----
-    Write-Host '=== extra: dependency failure & recovery ==='
+    # ---- 验收 4：健康状态与依赖故障（MySQL/Redis 故障、恢复、延迟启动、重试耗尽）----
+    Write-Host '=== extra: dependency failure, recovery & retry exhaustion ==='
     Assert ((Get-BackendHealth) -eq 'healthy') 'A4-healthy-before-failure' 'readiness healthy before failure'
 
     Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'mysql-stop.log')
@@ -224,6 +225,32 @@ try {
     Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'mysql-start.log')
     # 恢复等待必须等到 healthy 或超时：unhealthy 是过渡态，不能一次判负
     Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-mysql-restart' 'readiness must return healthy after mysql restarts'
+
+    # Redis 故障同样必须反映到 readiness（redis 组件在 readiness 组内）
+    Invoke-Compose @('stop', 'redis') *> (Join-Path $runDir 'redis-stop.log')
+    Assert (Wait-Health 'unhealthy' 90) 'A4-readiness-down-on-redis-stop' 'readiness must report unhealthy after redis stops'
+
+    Invoke-Compose @('start', 'redis') *> (Join-Path $runDir 'redis-start.log')
+    Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-redis-restart' 'readiness must return healthy after redis restarts'
+
+    # 依赖延迟启动：backend 在依赖缺失时被拉起，应用在重试窗口内等待，
+    # 依赖恢复后仍能到达 healthy（而非立即永久失败）
+    Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop.log')
+    Invoke-Compose @('restart', 'backend') *> (Join-Path $runDir 'backend-restart.log')
+    Start-Sleep -Seconds 20   # 让 backend 越过快速启动阶段、进入依赖等待窗口
+    Invoke-Compose @('start', 'mysql', 'redis') *> (Join-Path $runDir 'deps-restart.log')
+    Assert (Wait-Health 'healthy' 240) 'A4-late-dependency-recovers' 'backend must reach healthy once dependencies start late'
+
+    # 重试耗尽：依赖持续缺失时应用必须明确失败退出（退出码非 0），而非带病运行
+    Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop2.log')
+    Invoke-Compose @('stop', 'backend') *> (Join-Path $runDir 'backend-stop2.log')
+    Invoke-Compose @('up', '-d', '--wait', '--wait-timeout', '150', 'backend') *> (Join-Path $runDir 'backend-exhaust.log') 2>&1
+    $exhausted = $LASTEXITCODE -ne 0
+    $exitCode = (& docker inspect --format '{{.State.ExitCode}}' "$project-backend-1" 2>$null)
+    $restarted = (& docker inspect --format '{{.State.Restarting}}' "$project-backend-1" 2>$null)
+    # 明确失败 = 进程以非 0 退出，或处于崩溃循环（restart 策略下）
+    $clearFailure = $exhausted -or ("$exitCode" -ne '0') -or ("$restarted" -eq 'true')
+    Assert $clearFailure 'A4-exhausted-retries-fail-clearly' "exit=$exitCode restarting=$restarted composeWaitExit=$LASTEXITCODE"
 
     Write-Host "=== summary (artifacts: $runDir) ==="
     $failed = @($results.GetEnumerator() | Where-Object { $_.Value -ne 'PASS' })
