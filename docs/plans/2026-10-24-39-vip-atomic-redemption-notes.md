@@ -112,6 +112,35 @@
 - 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-66434cd3fa22427097e2c8eb9919188c`。
 - 提交链追加：2d83df9（第二轮返工）→ 572d0e2（第三轮返工）。
 
+### 第四轮评审返工（1 项 P2）
+
+1. **[P2 规格] 跨记录重复码**：`[{"code":"SameCode01","hasUsed":false},
+   {"code":"SameCode01","hasUsed":true}]` 原实现退出码 0，输出同一摘要的
+   作废+已用两条 INSERT（执行时第二条撞 `uk_codeHash`，且默认自动提交下
+   先落库的一条状态随机，已用事实可能丢失），并把重复计入待补发数量。
+   修复：在输出任何 SQL / 生成补发码之前，对解码后的码值按摘要跨记录查重，
+   重复即整体失败（退出码 3、stderr 报告脱敏线索、stdout 零输出、不写补发文件），
+   交人工核查源文件。新增回归
+   `importToolFailsEntirelyOnCrossRecordDuplicateCodes`
+   （断言非零退出、含"重复码"提示、无任何 `INSERT INTO`、补发文件未写入）。
+
+### run10（第四轮返工后回归）
+- 全门禁 PASS：runner-tests / secret-scan / isolation / backend /
+  frontend-install / frontend-typecheck / frontend-tests / frontend-build / cleanup。
+- backend 467 tests / 0 errors / 0 failures（迁移测试 6 项，含跨记录重复码回归）。
+- 第二实例优雅退出，残留进程计数 0（cleanup PASS）。
+- 日志目录：`C:/Users/yuwen/AppData/Local/Temp/visionspace-acceptance-549a3912aebd4ec7a277d5f47c6d638f`。
+- 提交链追加：9927733（run9 文档）→ 第四轮返工 fix（本文档同批提交）。
+
+## 未验证范围（持续 NOT_RUN）
+
+- **远程 Ubuntu CI 实跑**：平台分流（/proc 扫描、条件 WindowStyle）仅静态确认，
+  CI 用 docker 模式，本地无 Docker 无法实跑。
+- **旧 JAR 回滚端到端演练**：回滚脚本幂等性已由测试覆盖（runOnSingleConnection
+  连续两次执行）；「跑导入工具 → 删除运行时 vipCode.json → 部署旧 JAR → 验证
+  旧版本不可兑换」的人工迁移关卡属生产操作，不在此环境执行。
+- **productionAcceptance**：生产迁移与真实兑换码操作不在本票授权范围内。
+
 ## 已发现并修复的实施问题
 
 1. **Oracle javapath 桩**：PATH 首位的 `java.exe` 是无法独立运行的桩（退出码 127），

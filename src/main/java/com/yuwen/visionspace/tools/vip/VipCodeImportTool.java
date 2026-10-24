@@ -62,6 +62,21 @@ public final class VipCodeImportTool {
 
         List<LegacyCode> legacy = parseLegacy(input);
 
+        // --- 跨记录重复检查（在任何 SQL / 补发码输出之前） ---
+        // 同一明文出现多次时，状态归属（已用/未用）无法自洽：按未用作废会同时
+        // 生成同摘要的已用 INSERT，执行时撞 uk_codeHash 且先落库的那条状态随机，
+        // 已用事实可能丢失。重复即整体失败，交人工核查源文件。
+        java.util.Set<String> seenHashes = new java.util.HashSet<>();
+        for (LegacyCode code : legacy) {
+            String hash = CodeHashes.sha256(code.rawCode());
+            if (!seenHashes.add(hash)) {
+                System.err.println("FAIL: 输入中存在重复码（脱敏 " + code.mask()
+                        + "，摘要 " + hash.substring(0, 8) + "...）；重复码的状态归属无法确定，"
+                        + "请人工核查源文件后去重再导入。未输出任何 SQL。");
+                System.exit(3);
+            }
+        }
+
         // --- 台账 INSERT（只有摘要与状态；已用码不带用户归属，不推定身份） ---
         System.out.println("-- #39 存量兑换码导入：只含摘要，不含明文。在维护窗口由人工执行。");
         System.out.println("-- 前提：vip_redemption_code 已由 2026-10-24-vip-redemption.sql 建表。");

@@ -204,6 +204,35 @@ class VipRedemptionMigrationTest {
         }
     }
 
+    @Test
+    void importToolFailsEntirelyOnCrossRecordDuplicateCodes() throws Exception {
+        // P2 回归：同一明文码跨记录出现两次（一条未用一条已用）时，
+        // 状态归属无法自洽——按未用作废会同时生成同摘要的已用 INSERT，
+        // 执行时撞 uk_codeHash 且已用事实可能丢失。必须整体失败，
+        // 且在输出任何 SQL / 补发码之前就失败（stdout 零输出）。
+        Path legacy = Files.createTempFile("vip-legacy-dup-code", ".json");
+        Path issueOut = Files.createTempFile("vip-reissue-dup-code", ".txt");
+        try {
+            Files.writeString(legacy, """
+                    [
+                      {"code": "SameCode01", "hasUsed": false},
+                      {"code": "SameCode01", "hasUsed": true}
+                    ]
+                    """, StandardCharsets.UTF_8);
+            String failed = runToolExpectingFailure(legacy.toString(), issueOut.toString(),
+                    "--issue", "1", "--issue-out", issueOut.toString());
+            assertTrue(failed.contains("重复码"), "必须报告重复码原因:\n" + failed);
+            assertFalse(failed.contains("INSERT INTO"),
+                    "失败运行不得输出任何 SQL（含补发码 INSERT）:\n" + failed);
+            // 补发明文文件不得被创建或写入（去重检查先于补发生成）
+            assertFalse(Files.exists(issueOut) && Files.size(issueOut) > 0,
+                    "失败运行不得生成补发明文");
+        } finally {
+            Files.deleteIfExists(legacy);
+            Files.deleteIfExists(issueOut);
+        }
+    }
+
     private String runToolExpectingFailure(String... args) throws Exception {
         String javaBin = ProcessHandle.current().info().command().orElse("java");
         String cp = System.getProperty("java.class.path");
