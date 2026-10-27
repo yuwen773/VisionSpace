@@ -379,6 +379,36 @@ CREATE TABLE `agent_action_record` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 外部动作台账';
 
 -- ----------------------------
+-- Table structure for vip_redemption_code (#39)
+-- ----------------------------
+CREATE TABLE `vip_redemption_code` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `codeHash` char(64) NOT NULL COMMENT '兑换码摘要（sha-256），不保存明文',
+  `status` tinyint(4) NOT NULL DEFAULT 0 COMMENT '状态: 0-可用 1-已用 2-已作废',
+  `usedBy` bigint(20) NULL DEFAULT NULL COMMENT '核销用户',
+  `usedTime` datetime NULL DEFAULT NULL COMMENT '核销时间',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_codeHash`(`codeHash`) USING BTREE,
+  INDEX `idx_status`(`status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'VIP 兑换码（只存摘要）';
+
+-- ----------------------------
+-- Table structure for vip_redemption_record (#39)
+-- ----------------------------
+CREATE TABLE `vip_redemption_record` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `userId` bigint(20) NOT NULL COMMENT '兑换用户',
+  `codeId` bigint(20) NOT NULL COMMENT '兑换码记录 id',
+  `codeHash` char(64) NOT NULL COMMENT '兑换码摘要（sha-256），不保存明文',
+  `previousExpireTime` datetime NULL DEFAULT NULL COMMENT '兑换前到期时间',
+  `expireTime` datetime NOT NULL COMMENT '兑换后到期时间',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_codeId`(`codeId`) USING BTREE,
+  INDEX `idx_userId`(`userId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'VIP 兑换流水';
 -- Table structure for agent_session_attachment (#35)
 -- ----------------------------
 CREATE TABLE `agent_session_attachment` (

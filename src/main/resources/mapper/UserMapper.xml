@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.UserMapper">
+
+    <!--
+      兑换事务内锁定用户行（#39）。
+      FOR UPDATE 让同一用户并发兑换不同码时，两次加时串行读改写，
+      后提交者基于先提交者写下的到期时间继续累加，不丢加时。
+    -->
+    <select id="selectVipExpireTimeForUpdate" resultType="java.util.Date">
+        SELECT vipExpireTime FROM user WHERE id = #{userId} FOR UPDATE
+    </select>
+
+    <!--
+      权益更新：只写到期时间。VIP 资格独立于 userRole，
+      这里永不触碰角色列（#39：管理员兑换不得改变管理角色）。
+    -->
+    <update id="updateVipExpireTime">
+        UPDATE user
+        SET vipExpireTime = #{expireTime}
+        WHERE id = #{userId}
+          AND isDelete = 0
+    </update>
+</mapper>

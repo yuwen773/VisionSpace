@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.VipRedemptionCodeMapper">
+
+    <!--
+      单语句原子核销（#39）。
+      WHERE status = 0 与行锁共同保证：两个实例同时提交同一码，
+      只有第一个提交的语句影响到 1 行，另一个影响 0 行——
+      跨实例恰好成功一次，不需要应用级锁。
+    -->
+    <update id="markUsed">
+        UPDATE vip_redemption_code
+        SET status = 1,
+            usedBy = #{userId},
+            usedTime = #{usedTime}
+        WHERE codeHash = #{codeHash}
+          AND status = 0
+    </update>
+
+    <select id="selectIdByHash" resultType="java.lang.Long">
+        SELECT id FROM vip_redemption_code WHERE codeHash = #{codeHash}
+    </select>
+</mapper>

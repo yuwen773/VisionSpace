@@ -331,6 +331,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseVipExchangeResult = {
+    code?: number
+    data?: VipExchangeResult
+    message?: string
+  }
+
   type BaseResponseVoid = {
     code?: number
     data?: any
@@ -567,6 +573,7 @@ declare namespace API {
     userName?: string
     userProfile?: string
     userRole?: string
+    vipExpireTime?: string
   }
 
   type McpCapabilities = {
@@ -1309,6 +1316,11 @@ declare namespace API {
     vipCode?: string
   }
 
+  type VipExchangeResult = {
+    status?: string
+    vipExpireTime?: string
+  }
+
   // === 生成后补丁：尾下划线别名（scripts/postgen-typings.mjs） ===
   type BaseResponseAdminDashboardStatsVO_ = BaseResponseAdminDashboardStatsVO
   type BaseResponseBoolean_ = BaseResponseBoolean
@@ -1343,6 +1355,7 @@ declare namespace API {
   type BaseResponseString_ = BaseResponseString
   type BaseResponseUserPictureStatsResponse_ = BaseResponseUserPictureStatsResponse
   type BaseResponseUserVO_ = BaseResponseUserVO
+  type BaseResponseVipExchangeResult_ = BaseResponseVipExchangeResult
   type PageFeedbackVO_ = PageFeedbackVO
   type PagePicture_ = PagePicture
   type PagePictureVO_ = PagePictureVO

@@ -70,7 +70,7 @@ export async function exchangeVipUsingPost(
   body: API.VipExchangeRequest,
   options?: { [key: string]: any },
 ) {
-  return request<API.BaseResponseBoolean>('/user/exchange/vip', {
+  return request<API.BaseResponseVipExchangeResult>('/user/exchange/vip', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
