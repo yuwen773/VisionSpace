@@ -15,7 +15,7 @@
     （`VipRedemptionMapper.xml markUsed`）。行锁 + 条件更新 ⇒ 双实例同码恰好一次成功。
   - 核销、用户行 `SELECT ... FOR UPDATE`、权益更新、流水写入同一 `@Transactional`；
     任一步失败整体回滚 ⇒ 失败不吞码。
-  - 到期时间 = max(now, 原到期) + 365 天；同人并发多码串行加时不丢。
+  - 到期时间 = max(now, 原到期) + 12 个日历月；同人并发多码串行加时不丢。
   - 不写 `userRole`；VIP 独立于管理角色。
 - 响应 `VipExchangeResult{status: success|already_used|invalid, vipExpireTime}`；
   `LoginUserVO` 增加 `vipExpireTime`；日志只带摘要前 8 位，禁止输出明文码。
@@ -159,3 +159,25 @@
   XML 在 `mapper/UserVipMapper.xml`——#63 若迁移 UserMapper XML 请保留。
 - `HttpAccountSecurityTest` 若引用 exchangeVip 旧签名需在合并时对齐。
 - 第二实例入口 `VipSecondInstanceApp` 与主应用同包扫描层级，测试源码不进生产构件。
+
+## 合并 main 后（2026-10-27）
+
+分支基线停在 `513fb4f`，合并前 main 已推进到 `39c4d2a`（含 #35、#36）。合并内容与结论：
+
+| 项 | 处理 |
+| --- | --- |
+| `sql/create_vision_space.sql` | 两侧新增表全部保留：本票 2 张 + #35 2 张 + #36 3 张，合并后共 22 张 |
+| `scripts/acceptance.ps1` | 表数守卫 20 → 22；保留本票的双实例启动/握手/清理块与 main 的 #35/#36 变更 |
+| `scripts/browser-acceptance.ps1` | 表数守卫 20 → 22（main 新增的守卫，本票原分支未覆盖到） |
+| `frontend/src/api/typings.d.ts` | 合并分页字段顺序与 #36 新增的 `listGrantsUsingGetParams` |
+
+合并后验证（本机隔离环境）：
+
+- `mvn compile`、`mvn test-compile`、`npm run type-check` 全部通过。
+- `npm run openapi2ts` 对着**合并后的后端**重新生成（隔离 MySQL 8.0.26 + Redis 3.2.100，
+  占位 AI 凭据，未调用任何付费服务）：`VipExchangeResult` / `vipExpireTime` 与手写同步一致，
+  唯一差异是 `IPageMcpServerDetail` 的字段顺序（已随生成结果提交）。
+  此前「生成客户端手工同步，未校验」一项由此关闭。
+- 全量验收矩阵（`scripts/acceptance.ps1` 九类门禁 + 双实例）在合并后未在本机重跑，
+  改由 PR 的远程 CI（Acceptance baseline，真实执行九类门禁）验证；结论以 CI 为准。
+- 「未验证范围」其余条目（生产迁移、真实兑换码、远程 CI 之外的 Ubuntu 环境差异）不变。
