@@ -59,7 +59,7 @@ defineEmits<{
 const pictureStats = ref<API.UserPictureStatsResponse>({
   uploadCount: 0,
   likeCount: 0,
-  reviewPassRate: 0
+  reviewPassRate: 0,
 })
 
 const recentPictures = ref<API.PictureVO[]>([])
@@ -70,7 +70,7 @@ const loadData = async () => {
   try {
     const [statsRes, picturesRes] = await Promise.all([
       getUserPictureStatsUsingGet(),
-      getUserRecentPicturesUsingGet({ count: 6 })
+      getUserRecentPicturesUsingGet({ count: 6 }),
     ])
     if (statsRes.data.code === 0) {
       pictureStats.value = statsRes.data.data ?? pictureStats.value

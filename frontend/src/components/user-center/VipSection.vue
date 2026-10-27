@@ -6,7 +6,14 @@
       <!-- Badge -->
       <div class="vip-badge-wrap">
         <div class="vip-badge" :class="{ active: isVip }">
-          <svg v-if="isVip" class="vip-crown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            v-if="isVip"
+            class="vip-crown"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M2 20h20M5 20V9l4 3 3-6 3 6 4-3v11" />
           </svg>
           <span>{{ isVip ? 'VIP' : '普通用户' }}</span>
@@ -252,7 +259,11 @@ async function onRedeem() {
 }
 
 @keyframes vip-shimmer-slide {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(50%); }
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(50%);
+  }
 }
 </style>

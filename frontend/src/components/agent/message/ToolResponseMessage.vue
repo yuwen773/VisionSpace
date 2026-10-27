@@ -6,7 +6,16 @@
         <span class="tool-name">{{ toolName }}</span>
       </div>
       <span class="expand-icon" :class="{ expanded: isExpanded }" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </span>
@@ -156,12 +165,28 @@ const highlightedContent = computed(() => {
 }
 
 /* JSON Syntax Colors */
-:deep(.json-key) { color: #7dd3fc; }
-:deep(.json-str) { color: #86efac; }
-:deep(.json-num) { color: #c4b5fd; }
-:deep(.json-bool) { color: #f9a8d4; }
-:deep(.json-null) { color: #f87171; }
-:deep(.json-bracket) { color: #94a3b8; }
-:deep(.json-comma) { color: #94a3b8; }
-:deep(.json-sep) { color: #94a3b8; }
+:deep(.json-key) {
+  color: #7dd3fc;
+}
+:deep(.json-str) {
+  color: #86efac;
+}
+:deep(.json-num) {
+  color: #c4b5fd;
+}
+:deep(.json-bool) {
+  color: #f9a8d4;
+}
+:deep(.json-null) {
+  color: #f87171;
+}
+:deep(.json-bracket) {
+  color: #94a3b8;
+}
+:deep(.json-comma) {
+  color: #94a3b8;
+}
+:deep(.json-sep) {
+  color: #94a3b8;
+}
 </style>

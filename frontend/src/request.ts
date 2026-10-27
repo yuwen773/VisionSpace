@@ -77,10 +77,7 @@ export interface GeneratedRequestConfig extends AxiosRequestConfig {
   requestType?: 'form' | 'json'
 }
 
-function request<T = any>(
-  url: string,
-  config?: GeneratedRequestConfig,
-): Promise<AxiosResponse<T>> {
+function request<T = any>(url: string, config?: GeneratedRequestConfig): Promise<AxiosResponse<T>> {
   const { requestType, ...axiosConfig } = config ?? {}
   void requestType
   return myAxios.request<T>({ url, ...axiosConfig })

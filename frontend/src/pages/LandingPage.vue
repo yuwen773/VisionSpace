@@ -55,20 +55,32 @@
             </span>
           </h1>
 
-          <p class="hero-subtitle">
-            在光影之间，寻找共鸣<br />探索无限视觉灵感
-          </p>
+          <p class="hero-subtitle">在光影之间，寻找共鸣<br />探索无限视觉灵感</p>
 
           <div class="hero-cta-group">
             <button class="cta-btn cta-primary cursor-target" @click="router.push('/explore')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
               <span>进入探索</span>
             </button>
             <button class="cta-btn cta-secondary cursor-target" @click="router.push('/agent')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v6l4 2" />
               </svg>
@@ -76,10 +88,13 @@
             </button>
           </div>
         </div>
-
       </section>
 
-      <section id="essence" class="brand-essence-section" :class="{ 'is-visible': visibleSections['essence'] }">
+      <section
+        id="essence"
+        class="brand-essence-section"
+        :class="{ 'is-visible': visibleSections['essence'] }"
+      >
         <div class="section-inner editorial-layout">
           <div class="deco-ring deco-ring-1" aria-hidden="true"></div>
           <div class="deco-ring deco-ring-2" aria-hidden="true"></div>
@@ -98,11 +113,12 @@
               </h3>
               <div class="editorial-body">
                 <p class="editorial-paragraph">
-                  VisionSpace 诞生于一个简单的信念：每个人心中都有一个视觉宇宙，等待被唤醒。我们用 AI
-                  技术搭建一座桥梁，连接灵感与表达、想象与现实。
+                  VisionSpace 诞生于一个简单的信念：每个人心中都有一个视觉宇宙，等待被唤醒。我们用
+                  AI 技术搭建一座桥梁，连接灵感与表达、想象与现实。
                 </p>
                 <p class="editorial-paragraph">
-                  在这里，SpaceMind 不仅理解你的语言，更懂得你的审美。它能在海量视觉资源中精准捕捉你想要的那一抹色彩、那一瞬光影、那一种氛围。
+                  在这里，SpaceMind
+                  不仅理解你的语言，更懂得你的审美。它能在海量视觉资源中精准捕捉你想要的那一抹色彩、那一瞬光影、那一种氛围。
                 </p>
                 <p class="editorial-paragraph">
                   我们相信协作的力量。无论是个人灵感收集还是团队创意协作，VisionSpace
@@ -136,7 +152,11 @@
         </div>
       </section>
 
-      <section id="experiences" class="experiences-section" :class="{ 'is-visible': visibleSections['experiences'] }">
+      <section
+        id="experiences"
+        class="experiences-section"
+        :class="{ 'is-visible': visibleSections['experiences'] }"
+      >
         <div class="section-inner">
           <h2 class="section-label">核心体验</h2>
           <h3 class="section-heading">重新定义视觉发现的方式</h3>
@@ -145,7 +165,8 @@
               <p class="split-eyebrow">每一次灵感</p>
               <h3 class="split-heading">从这里<br />开始探索</h3>
               <p class="split-body">
-                VisionSpace 重新定义视觉发现的方式——用颜色找到完美图片，用自然语言描述你的灵感，AI 在秒级为你精准匹配。
+                VisionSpace 重新定义视觉发现的方式——用颜色找到完美图片，用自然语言描述你的灵感，AI
+                在秒级为你精准匹配。
               </p>
               <div class="split-stats">
                 <div class="stat-item">
@@ -207,7 +228,11 @@
         </div>
       </section>
 
-      <section id="universe" class="visual-universe-section" :class="{ 'is-visible': visibleSections['universe'] }">
+      <section
+        id="universe"
+        class="visual-universe-section"
+        :class="{ 'is-visible': visibleSections['universe'] }"
+      >
         <div class="universe-ambient" aria-hidden="true">
           <div class="universe-dust"></div>
           <div class="universe-glow universe-glow-1"></div>
@@ -229,8 +254,15 @@
               灵感时刻
             </h3>
             <p class="universe-hint">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
               拖拽穹顶，探索无限视觉灵感
             </p>
@@ -262,7 +294,11 @@
         </div>
       </section>
 
-      <section id="ai-magic" class="ai-magic-section" :class="{ 'is-visible': visibleSections['ai-magic'] }">
+      <section
+        id="ai-magic"
+        class="ai-magic-section"
+        :class="{ 'is-visible': visibleSections['ai-magic'] }"
+      >
         <div class="section-inner">
           <h2 class="section-label">AI 魔力</h2>
           <h3 class="section-heading">感受 AI 带来的视觉革命</h3>
@@ -270,7 +306,14 @@
             <div class="ai-chat-preview">
               <div class="chat-header">
                 <div class="chat-avatar">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 6v6l4 2" />
                   </svg>
@@ -311,18 +354,35 @@
                 <div class="compare-item compare-before">
                   <div class="compare-label">Before</div>
                   <div class="compare-image">
-                    <img src="https://picsum.photos/400/300?random=77" alt="Before outpainting" loading="lazy" decoding="async" />
+                    <img
+                      src="https://picsum.photos/400/300?random=77"
+                      alt="Before outpainting"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
                 </div>
                 <div class="compare-arrow">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </div>
                 <div class="compare-item compare-after">
                   <div class="compare-label compare-label-accent">After</div>
                   <div class="compare-image">
-                    <img src="https://picsum.photos/600/400?random=78" alt="After outpainting" loading="lazy" decoding="async" />
+                    <img
+                      src="https://picsum.photos/600/400?random=78"
+                      alt="After outpainting"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
                 </div>
               </div>
@@ -337,15 +397,35 @@
           <h2 class="cta-title">准备好开启你的<br />视觉之旅了吗？</h2>
           <p class="cta-subtitle">加入 VisionSpace，在无限灵感中找到属于你的那一束光</p>
           <div class="cta-buttons">
-            <button class="cta-btn cta-final-primary cursor-target" @click="router.push('/explore')">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button
+              class="cta-btn cta-final-primary cursor-target"
+              @click="router.push('/explore')"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
               <span>立即探索</span>
             </button>
-            <button class="cta-btn cta-final-secondary cursor-target" @click="router.push('/agent')">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button
+              class="cta-btn cta-final-secondary cursor-target"
+              @click="router.push('/agent')"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v6l4 2" />
               </svg>
@@ -355,7 +435,11 @@
         </div>
       </section>
 
-      <section id="footer" class="footer-section-wrap" :class="{ 'is-visible': visibleSections['footer'] }">
+      <section
+        id="footer"
+        class="footer-section-wrap"
+        :class="{ 'is-visible': visibleSections['footer'] }"
+      >
         <GlobalFooter />
       </section>
     </div>
@@ -378,13 +462,16 @@ const visibleSections = ref<Record<string, boolean>>({})
 let sectionObserver: IntersectionObserver | null = null
 
 onMounted(() => {
-  sectionObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        visibleSections.value[entry.target.id] = true
-      }
-    })
-  }, { threshold: 0.2 })
+  sectionObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          visibleSections.value[entry.target.id] = true
+        }
+      })
+    },
+    { threshold: 0.2 },
+  )
 
   document.querySelectorAll('section').forEach((section) => {
     sectionObserver!.observe(section)
@@ -431,8 +518,7 @@ const features = [
   {
     title: '智能色彩搜索',
     desc: '用颜色找到完美图片',
-    longDesc:
-      '不再局限于关键词。描述你想要的氛围或选择颜色，AI 帮你找到最匹配的图片。',
+    longDesc: '不再局限于关键词。描述你想要的氛围或选择颜色，AI 帮你找到最匹配的图片。',
     icon: () =>
       h(
         'svg',
@@ -455,8 +541,7 @@ const features = [
   {
     title: 'AI Agent',
     desc: 'SpaceMind 读懂你的想法',
-    longDesc:
-      '用自然语言描述你的需求，SpaceMind 会在秒级时间内为你找到最合适的图片资源。',
+    longDesc: '用自然语言描述你的需求，SpaceMind 会在秒级时间内为你找到最合适的图片资源。',
     icon: () =>
       h(
         'svg',
@@ -468,17 +553,13 @@ const features = [
           stroke: 'currentColor',
           'stroke-width': 2,
         },
-        [
-          h('circle', { cx: '12', cy: '12', r: '10' }),
-          h('path', { d: 'M12 6v6l4 2' }),
-        ],
+        [h('circle', { cx: '12', cy: '12', r: '10' }), h('path', { d: 'M12 6v6l4 2' })],
       ),
   },
   {
     title: '空间实时协作',
     desc: '与团队共享视觉灵感',
-    longDesc:
-      '创建私有画布，邀请团队成员，共同管理和整理视觉资源，实时同步更新。',
+    longDesc: '创建私有画布，邀请团队成员，共同管理和整理视觉资源，实时同步更新。',
     icon: () =>
       h(
         'svg',
@@ -500,8 +581,7 @@ const features = [
   {
     title: 'AI 扩图',
     desc: '无限延展你的创作边界',
-    longDesc:
-      '上传任意图片，AI 帮你智能扩展画面边界，完美衔接原图风格与内容。',
+    longDesc: '上传任意图片，AI 帮你智能扩展画面边界，完美衔接原图风格与内容。',
     icon: () =>
       h(
         'svg',
@@ -547,7 +627,8 @@ const features = [
 .starfield {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(1px 1px at 10% 15%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
     radial-gradient(1px 1px at 25% 40%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 40% 10%, rgba(255, 255, 255, 0.8) 0%, transparent 100%),
     radial-gradient(1px 1px at 55% 60%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
@@ -566,7 +647,8 @@ const features = [
 }
 
 .starfield-2 {
-  background-image: radial-gradient(1px 1px at 18% 28%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+  background-image:
+    radial-gradient(1px 1px at 18% 28%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
     radial-gradient(1px 1px at 33% 72%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 62% 18%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
     radial-gradient(1px 1px at 80% 48%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
@@ -790,10 +872,18 @@ section.is-visible {
   .editorial-paragraph {
     opacity: 1;
     transform: translateY(0);
-    &:nth-of-type(1) { transition-delay: 0.6s; }
-    &:nth-of-type(2) { transition-delay: 0.7s; }
-    &:nth-of-type(3) { transition-delay: 0.8s; }
-    &:nth-of-type(4) { transition-delay: 0.9s; }
+    &:nth-of-type(1) {
+      transition-delay: 0.6s;
+    }
+    &:nth-of-type(2) {
+      transition-delay: 0.7s;
+    }
+    &:nth-of-type(3) {
+      transition-delay: 0.8s;
+    }
+    &:nth-of-type(4) {
+      transition-delay: 0.9s;
+    }
   }
   .split-body {
     opacity: 1;
@@ -818,9 +908,15 @@ section.is-visible {
   .cta-content > * {
     opacity: 1;
     transform: translateY(0);
-    &:nth-child(1) { transition-delay: 0.2s; }
-    &:nth-child(2) { transition-delay: 0.4s; }
-    &:nth-child(3) { transition-delay: 0.6s; }
+    &:nth-child(1) {
+      transition-delay: 0.2s;
+    }
+    &:nth-child(2) {
+      transition-delay: 0.4s;
+    }
+    &:nth-child(3) {
+      transition-delay: 0.6s;
+    }
   }
 }
 
@@ -1064,7 +1160,9 @@ section#hero.is-visible .brand-section {
 
   &:hover {
     transform: translateY(-3px) scale(1.04);
-    box-shadow: 0 8px 40px rgba(168, 85, 247, 0.55), 0 0 24px rgba(168, 85, 247, 0.3);
+    box-shadow:
+      0 8px 40px rgba(168, 85, 247, 0.55),
+      0 0 24px rgba(168, 85, 247, 0.3);
   }
 
   &:active {
@@ -1237,7 +1335,9 @@ section#hero.is-visible .brand-section {
   padding: 48px 44px;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+  transition:
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
   opacity: 0;
   transform: translateX(-30px);
   transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
@@ -1507,7 +1607,8 @@ section#hero.is-visible .brand-section {
 
 /* ---- Keyframe animations ---- */
 @keyframes float-ring {
-  0%, 100% {
+  0%,
+  100% {
     transform: translate(0, 0) rotate(0deg);
     opacity: 0.6;
   }
@@ -1522,7 +1623,8 @@ section#hero.is-visible .brand-section {
 }
 
 @keyframes float-dot {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
     opacity: 0.7;
   }
@@ -1551,7 +1653,8 @@ section#hero.is-visible .brand-section {
 }
 
 @keyframes glow-breathe {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     transform: translate(-50%, -50%) scale(1);
   }
@@ -1562,7 +1665,8 @@ section#hero.is-visible .brand-section {
 }
 
 @keyframes accent-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.4;
   }
   50% {
@@ -1635,7 +1739,9 @@ section#hero.is-visible .brand-section {
   &:hover {
     transform: translateY(-8px) scale(1.02);
     border-color: rgba(168, 85, 247, 0.3);
-    box-shadow: 0 20px 60px rgba(168, 85, 247, 0.15), 0 0 40px rgba(168, 85, 247, 0.08);
+    box-shadow:
+      0 20px 60px rgba(168, 85, 247, 0.15),
+      0 0 40px rgba(168, 85, 247, 0.08);
 
     &::before {
       opacity: 1;
@@ -1654,7 +1760,9 @@ section#hero.is-visible .brand-section {
   border-radius: 16px;
   color: white;
   opacity: 0.9;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.35s ease;
 
   .feature-card:hover & {
     transform: scale(1.1);
@@ -1844,8 +1952,12 @@ section#hero.is-visible .brand-section {
 }
 
 @keyframes dust-drift {
-  from { transform: translateY(0) translateX(0); }
-  to { transform: translateY(-150px) translateX(30px); }
+  from {
+    transform: translateY(0) translateX(0);
+  }
+  to {
+    transform: translateY(-150px) translateX(30px);
+  }
 }
 
 .universe-glow {
@@ -1967,8 +2079,15 @@ section#hero.is-visible .brand-section {
 }
 
 @keyframes star-twinkle {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.3); }
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
 }
 
 /* ---- Content layout ---- */
@@ -2291,7 +2410,8 @@ section#hero.is-visible .brand-section {
 .cta-radial-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, rgba(147, 51, 234, 0.15) 0%, transparent 50%),
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(147, 51, 234, 0.15) 0%, transparent 50%),
     radial-gradient(ellipse at 30% 60%, rgba(244, 114, 182, 0.1) 0%, transparent 40%),
     radial-gradient(ellipse at 70% 40%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
   pointer-events: none;
@@ -2340,7 +2460,9 @@ section#hero.is-visible .brand-section {
 
   &:hover {
     transform: translateY(-4px) scale(1.05);
-    box-shadow: 0 12px 48px rgba(244, 114, 182, 0.5), 0 0 32px rgba(168, 85, 247, 0.3);
+    box-shadow:
+      0 12px 48px rgba(244, 114, 182, 0.5),
+      0 0 32px rgba(168, 85, 247, 0.3);
   }
 }
 
@@ -2404,10 +2526,18 @@ section#hero.is-visible .brand-section {
     height: 280px;
   }
 
-  .ring-dot-1 { margin-top: -170px; }
-  .ring-dot-2 { margin-top: 165px; }
-  .ring-dot-3 { margin-left: 165px; }
-  .ring-dot-4 { margin-left: -168px; }
+  .ring-dot-1 {
+    margin-top: -170px;
+  }
+  .ring-dot-2 {
+    margin-top: 165px;
+  }
+  .ring-dot-3 {
+    margin-left: 165px;
+  }
+  .ring-dot-4 {
+    margin-left: -168px;
+  }
 
   .deco-ring-1 {
     width: 200px;
@@ -2441,9 +2571,18 @@ section#hero.is-visible .brand-section {
     height: 500px;
   }
 
-  .orbit-deco-1 { width: 480px; height: 480px; }
-  .orbit-deco-2 { width: 400px; height: 400px; }
-  .orbit-deco-3 { width: 560px; height: 560px; }
+  .orbit-deco-1 {
+    width: 480px;
+    height: 480px;
+  }
+  .orbit-deco-2 {
+    width: 400px;
+    height: 400px;
+  }
+  .orbit-deco-3 {
+    width: 560px;
+    height: 560px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2540,9 +2679,18 @@ section#hero.is-visible .brand-section {
     height: 420px;
   }
 
-  .orbit-deco-1 { width: 380px; height: 380px; }
-  .orbit-deco-2 { width: 320px; height: 320px; }
-  .orbit-deco-3 { width: 460px; height: 460px; }
+  .orbit-deco-1 {
+    width: 380px;
+    height: 380px;
+  }
+  .orbit-deco-2 {
+    width: 320px;
+    height: 320px;
+  }
+  .orbit-deco-3 {
+    width: 460px;
+    height: 460px;
+  }
 
   .outpaint-compare {
     flex-direction: column;
@@ -2712,9 +2860,18 @@ section#hero.is-visible .brand-section {
     height: 300px;
   }
 
-  .orbit-deco-1 { width: 260px; height: 260px; }
-  .orbit-deco-2 { width: 220px; height: 220px; }
-  .orbit-deco-3 { width: 320px; height: 320px; }
+  .orbit-deco-1 {
+    width: 260px;
+    height: 260px;
+  }
+  .orbit-deco-2 {
+    width: 220px;
+    height: 220px;
+  }
+  .orbit-deco-3 {
+    width: 320px;
+    height: 320px;
+  }
 
   /* AI Magic */
   .ai-magic-section {

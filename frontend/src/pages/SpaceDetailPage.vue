@@ -19,38 +19,88 @@
       <!-- 顶部导航栏 -->
       <header class="detail-header">
         <button @click="goBack" class="back-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           <span>返回</span>
         </button>
 
         <div class="header-actions">
           <button v-if="canUploadPicture" class="action-btn primary" @click="goToUpload">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 5v14M5 12h14" />
             </svg>
             <span>创建图片</span>
           </button>
-          <button v-if="canManageSpaceUsers" class="action-icon-btn" @click="goToUserManage" title="成员管理">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          <button
+            v-if="canManageSpaceUsers"
+            class="action-icon-btn"
+            @click="goToUserManage"
+            title="成员管理"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </button>
-          <button v-if="canManageSpaceUsers" class="action-icon-btn" @click="goToAnalyze" title="空间分析">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10"/>
-              <line x1="12" y1="20" x2="12" y2="4"/>
-              <line x1="6" y1="20" x2="6" y2="14"/>
+          <button
+            v-if="canManageSpaceUsers"
+            class="action-icon-btn"
+            @click="goToAnalyze"
+            title="空间分析"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
             </svg>
           </button>
-          <button v-if="canEditPicture" class="action-icon-btn" @click="doBatchEdit" title="批量编辑">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          <button
+            v-if="canEditPicture"
+            class="action-icon-btn"
+            @click="doBatchEdit"
+            title="批量编辑"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
         </div>
@@ -64,15 +114,22 @@
         <div class="space-hero-content">
           <div class="space-icon">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="22" stroke="url(#spaceGradZiyan)" stroke-width="2" stroke-dasharray="6 3"/>
-              <circle cx="24" cy="24" r="14" fill="url(#spaceGradZiyan)" opacity="0.2"/>
-              <circle cx="24" cy="24" r="8" fill="url(#spaceGradZiyan)" opacity="0.4"/>
-              <circle cx="24" cy="24" r="3" fill="url(#spaceGradZiyan)"/>
+              <circle
+                cx="24"
+                cy="24"
+                r="22"
+                stroke="url(#spaceGradZiyan)"
+                stroke-width="2"
+                stroke-dasharray="6 3"
+              />
+              <circle cx="24" cy="24" r="14" fill="url(#spaceGradZiyan)" opacity="0.2" />
+              <circle cx="24" cy="24" r="8" fill="url(#spaceGradZiyan)" opacity="0.4" />
+              <circle cx="24" cy="24" r="3" fill="url(#spaceGradZiyan)" />
               <defs>
                 <linearGradient id="spaceGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#a855f7"/>
-                  <stop offset="50%" stop-color="#ec4899"/>
-                  <stop offset="100%" stop-color="#f472b6"/>
+                  <stop offset="0%" stop-color="#a855f7" />
+                  <stop offset="50%" stop-color="#ec4899" />
+                  <stop offset="100%" stop-color="#f472b6" />
                 </linearGradient>
               </defs>
             </svg>
@@ -83,7 +140,6 @@
               <span class="space-type-badge" :class="space.spaceType === 1 ? 'team' : 'private'">
                 {{ space.spaceType !== undefined ? SPACE_TYPE_MAP[space.spaceType] : '' }}
               </span>
-              
             </div>
           </div>
         </div>
@@ -94,10 +150,17 @@
         <div class="stats-grid">
           <div class="stat-card" :style="{ animationDelay: '0.1s' }">
             <div class="stat-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
               </svg>
             </div>
             <div class="stat-content">
@@ -111,8 +174,17 @@
 
           <div class="stat-card" :style="{ animationDelay: '0.2s' }">
             <div class="stat-icon purple">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                />
               </svg>
             </div>
             <div class="stat-content">
@@ -126,10 +198,17 @@
 
           <div class="stat-card" :style="{ animationDelay: '0.3s' }">
             <div class="stat-icon cyan">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
             <div class="stat-content">
@@ -144,7 +223,7 @@
           <div class="stat-card capacity-card" :style="{ animationDelay: '0.4s' }">
             <div class="capacity-ring">
               <svg viewBox="0 0 100 100" class="ring-svg">
-                <circle cx="50" cy="50" r="42" class="ring-bg"/>
+                <circle cx="50" cy="50" r="42" class="ring-bg" />
                 <circle
                   cx="50"
                   cy="50"
@@ -166,9 +245,16 @@
       <section class="search-section" :class="{ visible: isLoaded }">
         <div class="search-bar">
           <div class="search-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
           </div>
           <input
@@ -189,9 +275,16 @@
             <color-picker format="hex" @pureColorChange="onColorChange" size="small" />
           </div>
           <button v-if="hasActiveFilters" class="clear-filters-btn" @click="clearFilters">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
             <span>清除筛选</span>
           </button>
@@ -212,11 +305,18 @@
               @click="viewMode = 'grid'"
               title="网格视图"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7"/>
-                <rect x="14" y="3" width="7" height="7"/>
-                <rect x="14" y="14" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
               </svg>
             </button>
             <button
@@ -225,13 +325,20 @@
               @click="viewMode = 'masonry'"
               title="瀑布流视图"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="8" y1="6" x2="21" y2="6"/>
-                <line x1="8" y1="12" x2="21" y2="12"/>
-                <line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/>
-                <line x1="3" y1="12" x2="3.01" y2="12"/>
-                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
               </svg>
             </button>
           </div>
@@ -275,25 +382,63 @@
                   </div>
                 </div>
                 <div class="overlay-actions" v-if="canEditPicture || canDeletePicture">
-                  <button class="action-btn-icon" @click.stop="doShare(picture)" v-if="showOp" title="分享">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="18" cy="5" r="3"/>
-                      <circle cx="6" cy="12" r="3"/>
-                      <circle cx="18" cy="19" r="3"/>
-                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  <button
+                    class="action-btn-icon"
+                    @click.stop="doShare(picture)"
+                    v-if="showOp"
+                    title="分享"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                     </svg>
                   </button>
-                  <button class="action-btn-icon" @click.stop="doEdit(picture)" v-if="showOp && canEditPicture" title="编辑">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  <button
+                    class="action-btn-icon"
+                    @click.stop="doEdit(picture)"
+                    v-if="showOp && canEditPicture"
+                    title="编辑"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                     </svg>
                   </button>
-                  <button class="action-btn-icon delete" @click.stop="doDelete(picture)" v-if="showOp && canDeletePicture" title="删除">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <button
+                    class="action-btn-icon delete"
+                    @click.stop="doDelete(picture)"
+                    v-if="showOp && canDeletePicture"
+                    title="删除"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -312,7 +457,10 @@
               @click="handlePictureClick(picture)"
             >
               <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
-                <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
+                <div
+                  class="item-skeleton"
+                  v-if="!picture.id || !loadedImages.has(picture.id)"
+                ></div>
                 <img
                   :src="contentSrc(picture.thumbnailUrl || picture.url)"
                   :alt="picture.name"
@@ -334,17 +482,44 @@
         <div v-if="!loading && dataList.length === 0" class="empty-state">
           <div class="empty-illustration">
             <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-              <circle cx="60" cy="60" r="50" stroke="var(--color-primary-light)" stroke-width="2" stroke-dasharray="8 4"/>
-              <rect x="35" y="35" width="50" height="50" rx="8" stroke="var(--color-primary)" stroke-width="2"/>
-              <circle cx="50" cy="50" r="6" fill="var(--color-primary)"/>
-              <path d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z" fill="var(--bg-tertiary)" stroke="var(--color-primary)" stroke-width="2"/>
+              <circle
+                cx="60"
+                cy="60"
+                r="50"
+                stroke="var(--color-primary-light)"
+                stroke-width="2"
+                stroke-dasharray="8 4"
+              />
+              <rect
+                x="35"
+                y="35"
+                width="50"
+                height="50"
+                rx="8"
+                stroke="var(--color-primary)"
+                stroke-width="2"
+              />
+              <circle cx="50" cy="50" r="6" fill="var(--color-primary)" />
+              <path
+                d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z"
+                fill="var(--bg-tertiary)"
+                stroke="var(--color-primary)"
+                stroke-width="2"
+              />
             </svg>
           </div>
           <h3 class="empty-title">暂无图片</h3>
           <p class="empty-desc">这个空间还没有上传任何图片，开始你的创作吧 ✨</p>
           <button v-if="canUploadPicture" class="empty-action" @click="goToUpload">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 5v14M5 12h14" />
             </svg>
             <span>上传图片</span>
           </button>
@@ -354,8 +529,15 @@
         <div v-if="total > pageSize" class="pagination-wrapper">
           <div class="pagination">
             <button class="page-btn" :disabled="currentPage <= 1" @click="prevPage">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M15 18l-6-6 6-6"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M15 18l-6-6 6-6" />
               </svg>
             </button>
             <div class="page-numbers">
@@ -371,8 +553,15 @@
               </button>
             </div>
             <button class="page-btn" :disabled="currentPage >= getTotalPages()" @click="nextPage">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
           </div>
@@ -397,7 +586,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { deletePictureUsingPost, searchPictureByColorUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
+import {
+  deletePictureUsingPost,
+  searchPictureByColorUsingPost,
+  listPictureVoByPageUsingPost,
+} from '@/api/pictureController.ts'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import { contentSrc, formatSize, toId } from '@/utils'
 import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
@@ -503,7 +696,9 @@ const fetchData = async () => {
 
 // Column distribution for masonry
 const getColumnPictures = (colIndex: number) => {
-  return dataList.value.filter(picture => picture.id !== undefined && columnAssignment.value.get(picture.id) === colIndex)
+  return dataList.value.filter(
+    (picture) => picture.id !== undefined && columnAssignment.value.get(picture.id) === colIndex,
+  )
 }
 
 const getShortestColumn = () => {
@@ -524,7 +719,7 @@ const calculatePictureHeight = (picture: any): number => {
 
 const assignPicturesToColumns = (pictures: any[]) => {
   if (viewMode.value !== 'masonry') return
-  pictures.forEach(picture => {
+  pictures.forEach((picture) => {
     if (picture.id === undefined) return
     const shortestCol = getShortestColumn()
     columnAssignment.value.set(picture.id, shortestCol)
@@ -678,10 +873,13 @@ onMounted(async () => {
   fetchData()
 })
 
-watch(() => props.id, () => {
-  fetchDetailSpace()
-  fetchData()
-})
+watch(
+  () => props.id,
+  () => {
+    fetchDetailSpace()
+    fetchData()
+  },
+)
 </script>
 
 <style scoped lang="less">
@@ -770,10 +968,19 @@ watch(() => props.id, () => {
 }
 
 @keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(40px, -40px) scale(1.05); }
-  50% { transform: translate(-30px, 30px) scale(0.95); }
-  75% { transform: translate(25px, 15px) scale(1.03); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(40px, -40px) scale(1.05);
+  }
+  50% {
+    transform: translate(-30px, 30px) scale(0.95);
+  }
+  75% {
+    transform: translate(25px, 15px) scale(1.03);
+  }
 }
 
 /* 浮动装饰点 */
@@ -835,10 +1042,19 @@ watch(() => props.id, () => {
 }
 
 @keyframes float-dot {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(10px, -15px) rotate(90deg); }
-  50% { transform: translate(-5px, 10px) rotate(180deg); }
-  75% { transform: translate(15px, 5px) rotate(270deg); }
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(10px, -15px) rotate(90deg);
+  }
+  50% {
+    transform: translate(-5px, 10px) rotate(180deg);
+  }
+  75% {
+    transform: translate(15px, 5px) rotate(270deg);
+  }
 }
 
 /* ========== 主内容区 ========== */
@@ -961,7 +1177,12 @@ watch(() => props.id, () => {
   transform: translate(-50%, -50%);
   width: 600px;
   height: 300px;
-  background: radial-gradient(ellipse, rgba(168, 85, 247, 0.15) 0%, rgba(236, 72, 153, 0.08) 40%, transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    rgba(168, 85, 247, 0.15) 0%,
+    rgba(236, 72, 153, 0.08) 40%,
+    transparent 70%
+  );
   filter: blur(40px);
 }
 
@@ -991,8 +1212,15 @@ watch(() => props.id, () => {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { transform: scale(1); box-shadow: var(--shadow-card); }
-  50% { transform: scale(1.03); box-shadow: var(--shadow-glow-purple); }
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: var(--shadow-card);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: var(--shadow-glow-purple);
+  }
 }
 
 .space-info {
@@ -1004,7 +1232,12 @@ watch(() => props.id, () => {
   font-size: 36px;
   font-weight: 800;
   margin: 0 0 12px 0;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 50%, var(--color-pink) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-secondary) 50%,
+    var(--color-pink) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1427,12 +1660,21 @@ watch(() => props.id, () => {
 }
 
 @keyframes pulse-orb {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.8); opacity: 0.6; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
 }
 
 @keyframes spin-ring {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loader-text {
@@ -1487,14 +1729,23 @@ watch(() => props.id, () => {
 .item-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--bg-tertiary) 0%, var(--bg-hover) 50%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-hover) 50%,
+    var(--bg-tertiary) 100%
+  );
   background-size: 200% 100%;
   animation: skeleton 1.5s infinite;
 }
 
 @keyframes skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .item-image {
@@ -1504,7 +1755,9 @@ watch(() => props.id, () => {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 
   &.loaded {
     opacity: 1;
@@ -1514,7 +1767,12 @@ watch(() => props.id, () => {
 .item-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 0.6) 40%, rgba(30, 27, 75, 0.2) 100%);
+  background: linear-gradient(
+    to top,
+    rgba(30, 27, 75, 0.95) 0%,
+    rgba(30, 27, 75, 0.6) 40%,
+    rgba(30, 27, 75, 0.2) 100%
+  );
   opacity: 0;
   transition: opacity 0.3s ease;
   display: flex;
@@ -1617,8 +1875,13 @@ watch(() => props.id, () => {
 }
 
 @keyframes float-illustration {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .empty-title {

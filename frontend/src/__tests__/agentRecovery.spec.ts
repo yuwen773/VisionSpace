@@ -59,7 +59,7 @@ describe('RecoveryBanner', () => {
     expect(wrapper.text()).not.toContain('继续执行')
 
     const links = wrapper.findAll('.link-btn')
-    expect(links.map(l => l.text())).toEqual(['已执行', '未执行'])
+    expect(links.map((l) => l.text())).toEqual(['已执行', '未执行'])
     await links[0].trigger('click')
     await links[1].trigger('click')
     expect(wrapper.emitted('review')).toEqual([
@@ -126,7 +126,14 @@ describe('RecoveryBanner', () => {
 
   it('never offers resume for a completed run', () => {
     const wrapper = mount(RecoveryBanner, {
-      props: { state: state({ resumable: false, pendingReviewCount: 0, actions: [], runStatus: 'COMPLETED' }) },
+      props: {
+        state: state({
+          resumable: false,
+          pendingReviewCount: 0,
+          actions: [],
+          runStatus: 'COMPLETED',
+        }),
+      },
     })
 
     expect(wrapper.find('.recovery-banner').exists()).toBe(false)
@@ -266,16 +273,20 @@ describe('useAgentStream action-unknown', () => {
     await nextTick()
 
     handlers.opts.onmessage({
-      data: JSON.stringify({ messageType: 'action-unknown', content: '结果未知', toolName: 'generateImages' }),
+      data: JSON.stringify({
+        messageType: 'action-unknown',
+        content: '结果未知',
+        toolName: 'generateImages',
+      }),
     })
     await pending
 
-    const unknown = stream.messages.value.find(m => m.type === 'action-unknown')
+    const unknown = stream.messages.value.find((m) => m.type === 'action-unknown')
     expect(unknown).toBeDefined()
     expect(unknown?.toolName).toBe('generateImages')
     expect(unknown?.content).toBe('结果未知')
     // 与普通助手消息分开：不会被合并进上一条流式回答
-    expect(stream.messages.value.filter(m => m.type === 'assistant')).toHaveLength(0)
+    expect(stream.messages.value.filter((m) => m.type === 'assistant')).toHaveLength(0)
     expect(stream.isStreaming.value).toBe(false)
   })
 

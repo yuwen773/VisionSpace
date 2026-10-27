@@ -6,7 +6,7 @@ import request from '@/request'
 export async function historyUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.historyUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListModerationResourceVO>('/moderation/history', {
     method: 'GET',
@@ -28,7 +28,7 @@ export async function listQuarantinedUsingGet(options?: { [key: string]: any }) 
 /** 此处后端没有提供注释 POST /moderation/quarantine */
 export async function quarantineUsingPost(
   body: API.ResourceModerationRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseModerationResourceVO>('/moderation/quarantine', {
     method: 'POST',
@@ -43,7 +43,7 @@ export async function quarantineUsingPost(
 /** 此处后端没有提供注释 POST /moderation/release */
 export async function releaseUsingPost(
   body: API.ResourceModerationRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseModerationResourceVO>('/moderation/release', {
     method: 'POST',

@@ -30,7 +30,6 @@
         </router-link>
       </div>
     </nav>
-
   </aside>
 </template>
 
@@ -60,7 +59,6 @@ const isActive = (path: string) => {
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
-
 </script>
 
 <style lang="less" scoped>
@@ -98,7 +96,6 @@ const toggleCollapse = () => {
       justify-content: center;
       padding: 12px;
     }
-
   }
 }
 
@@ -214,5 +211,4 @@ const toggleCollapse = () => {
     white-space: nowrap;
   }
 }
-
 </style>

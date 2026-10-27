@@ -9,11 +9,13 @@ application-prod.yml
 !/docs/agents/issue-tracker.md
 !/docs/agents/triage-labels.md
 !/docs/agents/domain.md
+!/docs/adr/
 /.claude/
 CLAUDE.md
 !/CLAUDE.md
 ### Maven ###
-.mvn/
+.mvn/*
+!.mvn/jvm.config
 *.jar
 !**/mvn/wrapper/maven-wrapper.jar
 

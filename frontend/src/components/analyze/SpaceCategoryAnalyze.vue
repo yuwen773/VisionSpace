@@ -3,8 +3,15 @@
     <div class="analyze-card">
       <div class="card-header">
         <div class="header-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
         </div>
         <h3 class="card-title">分类分布分析</h3>
@@ -15,16 +22,20 @@
           <div class="loader-spinner"></div>
         </div>
         <div v-else-if="!hasData" class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
           <span>暂无数据</span>
         </div>
         <div v-else class="chart-container">
-          <v-chart
-            :option="options"
-            style="height: 280px; width: 100%"
-          />
+          <v-chart :option="options" style="height: 280px; width: 100%" />
         </div>
       </div>
     </div>
@@ -82,7 +93,8 @@ watchEffect(() => {
 const options = computed(() => {
   const categories = dataList.value?.map((item: any) => item.category) || []
   const countData = dataList.value?.map((item: any) => item.count) || []
-  const sizeData = dataList.value?.map((item: any) => Number((item.totalSize / (1024 * 1024)).toFixed(2))) || []
+  const sizeData =
+    dataList.value?.map((item: any) => Number((item.totalSize / (1024 * 1024)).toFixed(2))) || []
 
   return {
     tooltip: {
@@ -135,7 +147,10 @@ const options = computed(() => {
         itemStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: '#a855f7' },
               { offset: 1, color: '#7c3aed' },
@@ -153,7 +168,10 @@ const options = computed(() => {
         itemStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: '#ec4899' },
               { offset: 1, color: '#db2777' },
@@ -236,7 +254,9 @@ const options = computed(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {

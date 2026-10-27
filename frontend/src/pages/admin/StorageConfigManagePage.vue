@@ -4,8 +4,16 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <svg
+            class="title-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+            ></path>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
@@ -76,17 +84,43 @@
         <div class="card-header">
           <div class="platform-info">
             <div class="platform-icon" :class="getPlatformClass(item.platform)">
-              <svg v-if="item.platform === 'minio'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <svg
+                v-if="item.platform === 'minio'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
               </svg>
-              <svg v-else-if="item.platform === 'cos'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <svg
+                v-else-if="item.platform === 'cos'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
               </svg>
-              <svg v-else-if="item.platform === 'oss'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <svg
+                v-else-if="item.platform === 'oss'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
               </svg>
               <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
               </svg>
             </div>
             <div class="platform-name">
@@ -157,7 +191,9 @@
             title="设为默认"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+              ></polygon>
             </svg>
           </button>
           <a-popconfirm
@@ -170,7 +206,9 @@
             <button class="action-btn danger" title="删除">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <path
+                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                ></path>
               </svg>
             </button>
           </a-popconfirm>
@@ -181,7 +219,9 @@
     <!-- 空状态 -->
     <div class="empty-state" v-else>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+        <path
+          d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+        ></path>
         <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
         <line x1="12" y1="22.08" x2="12" y2="12"></line>
       </svg>
@@ -238,7 +278,9 @@
               </label>
               <a-input
                 v-model:value="formData.accessKey"
-                :placeholder="editingConfig && formData.hasAccessKey ? '已配置，留空表示不修改' : 'AccessKey'"
+                :placeholder="
+                  editingConfig && formData.hasAccessKey ? '已配置，留空表示不修改' : 'AccessKey'
+                "
                 class="form-input"
               />
               <span v-if="editingConfig && formData.hasAccessKey" class="form-hint">
@@ -251,7 +293,9 @@
               </label>
               <a-input-password
                 v-model:value="formData.secretKey"
-                :placeholder="editingConfig && formData.hasSecretKey ? '已配置，留空表示不修改' : 'SecretKey'"
+                :placeholder="
+                  editingConfig && formData.hasSecretKey ? '已配置，留空表示不修改' : 'SecretKey'
+                "
                 class="form-input"
               />
               <span v-if="editingConfig && formData.hasSecretKey" class="form-hint">
@@ -358,7 +402,7 @@ const modalVisible = ref(false)
 const editingConfig = ref<StorageConfigVO | null>(null)
 const submitLoading = ref(false)
 
-const activeCount = computed(() => configList.value.filter(item => item.isActive === 1).length)
+const activeCount = computed(() => configList.value.filter((item) => item.isActive === 1).length)
 
 const formData = reactive<
   StorageConfigAddRequest & {
@@ -465,7 +509,13 @@ const handleSubmit = async () => {
   const editing = Boolean(editingConfig.value?.id)
   const accessKeyMissing = !editing && !formData.accessKey
   const secretKeyMissing = !editing && !formData.secretKey
-  if (!formData.platformName || !formData.platform || !formData.bucket || accessKeyMissing || secretKeyMissing) {
+  if (
+    !formData.platformName ||
+    !formData.platform ||
+    !formData.bucket ||
+    accessKeyMissing ||
+    secretKeyMissing
+  ) {
     message.error('请填写必填项')
     return
   }
@@ -1048,7 +1098,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--admin-space-2);
-
 }
 
 .form-label {
@@ -1137,8 +1186,12 @@ onMounted(() => {
 
 /* ========== 动画 ========== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {

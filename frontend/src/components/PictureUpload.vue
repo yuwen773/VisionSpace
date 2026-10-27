@@ -10,7 +10,9 @@
       <div v-if="picture?.url" class="uploaded-image">
         <img :src="picture?.url" alt="avatar" />
         <div class="image-overlay">
-          <span class="overlay-text"><Camera :size="20" style="vertical-align: middle; margin-right: 4px;" /> 点击更换</span>
+          <span class="overlay-text"
+            ><Camera :size="20" style="vertical-align: middle; margin-right: 4px" /> 点击更换</span
+          >
         </div>
       </div>
       <div v-else class="upload-placeholder">

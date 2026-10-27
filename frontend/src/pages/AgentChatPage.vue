@@ -1,9 +1,6 @@
 <template>
   <div class="agent-chat-page">
-    <AgentChatLayout
-      :left-collapsed="leftCollapsed"
-      :right-expanded="resourcePanelVisible"
-    >
+    <AgentChatLayout :left-collapsed="leftCollapsed" :right-expanded="resourcePanelVisible">
       <!-- 左栏 -->
       <template #left>
         <LeftSidebar
@@ -26,7 +23,15 @@
             aria-label="展开侧边栏"
             title="展开侧边栏"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="18" x2="21" y2="18" />
@@ -38,7 +43,15 @@
             aria-label="新对话"
             title="新对话"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -53,7 +66,16 @@
           aria-label="切换资源面板"
           title="资源面板"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
             <circle cx="8.5" cy="8.5" r="1.5" />
             <polyline points="21 15 16 10 5 21" />
@@ -89,11 +111,7 @@
             :current-step="currentTodoStep"
             @toggle="toggleTodoListExpanded"
           />
-          <AgentChatInput
-            :loading="streaming"
-            @send="handleSend"
-            @stop="abort"
-          />
+          <AgentChatInput :loading="streaming" @send="handleSend" @stop="abort" />
         </div>
       </template>
 
@@ -118,10 +136,10 @@
 </template>
 
 <script setup lang="ts">
-import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import {message} from 'ant-design-vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import AgentChatLayout from '@/components/agent/AgentChatLayout.vue'
-import type {HistoryItem} from '@/components/agent/LeftSidebar.vue'
+import type { HistoryItem } from '@/components/agent/LeftSidebar.vue'
 import LeftSidebar from '@/components/agent/LeftSidebar.vue'
 import AgentMessageList from '@/components/agent/AgentMessageList.vue'
 import AgentChatInput from '@/components/agent/AgentChatInput.vue'
@@ -178,7 +196,6 @@ const todoListExpanded = ref(false)
 const showTodoList = ref(false)
 const historyLoading = ref(false)
 
-
 // Sessions
 const sessions = ref<SessionItem[]>([])
 
@@ -192,11 +209,11 @@ const loadSessions = async () => {
 }
 
 const histories = computed<HistoryItem[]>(() =>
-  sessions.value.map(s => ({
+  sessions.value.map((s) => ({
     id: s.sessionId,
     title: s.title || '新对话',
     time: s.updatedTime ? new Date(s.updatedTime).toLocaleString(DATE_LOCALE) : '',
-  }))
+  })),
 )
 
 const loadHistoryMessages = async (sessionId: string) => {
@@ -220,32 +237,41 @@ const loadHistoryMessages = async (sessionId: string) => {
       return
     }
 
-    messages.value = data.messages
-      .map(m => {
-        let type: string
-        if (m.role === 'USER') {
-          type = 'user'
-        } else {
-          switch (m.subType) {
-            case 'reasoning': type = 'reasoning'; break
-            case 'tool-call': type = 'tool-request'; break
-            case 'tool-result': type = 'tool-response'; break
-            default: type = 'assistant'
-          }
+    messages.value = data.messages.map((m) => {
+      let type: string
+      if (m.role === 'USER') {
+        type = 'user'
+      } else {
+        switch (m.subType) {
+          case 'reasoning':
+            type = 'reasoning'
+            break
+          case 'tool-call':
+            type = 'tool-request'
+            break
+          case 'tool-result':
+            type = 'tool-response'
+            break
+          default:
+            type = 'assistant'
         }
-        return {
-          type,
-          content: m.content,
-          // 历史图片按受控入口渲染：正文里不再保留源站地址
-          attachmentIds: m.attachmentIds ?? [],
-          toolName: (m.subType === 'tool-call' || m.subType === 'tool-result') ? m.content.split(':')[0] || '工具' : undefined,
-          node: 'agent',
-          isLoading: false,
-          time: m.createdTime
-            ? new Date(m.createdTime).toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS)
-            : '',
-        }
-      })
+      }
+      return {
+        type,
+        content: m.content,
+        // 历史图片按受控入口渲染：正文里不再保留源站地址
+        attachmentIds: m.attachmentIds ?? [],
+        toolName:
+          m.subType === 'tool-call' || m.subType === 'tool-result'
+            ? m.content.split(':')[0] || '工具'
+            : undefined,
+        node: 'agent',
+        isLoading: false,
+        time: m.createdTime
+          ? new Date(m.createdTime).toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS)
+          : '',
+      }
+    })
   } catch (e) {
     console.warn('加载历史消息失败:', e)
     message.warning('历史消息加载失败')
@@ -306,9 +332,7 @@ const handleReviewAction = async (actionId: string, decision: 'confirm' | 'dismi
   recoveryBusy.value = true
   try {
     const res =
-      decision === 'confirm'
-        ? await confirmAction(id, actionId)
-        : await dismissAction(id, actionId)
+      decision === 'confirm' ? await confirmAction(id, actionId) : await dismissAction(id, actionId)
     if (res.data?.code !== 0) {
       message.warning(res.data?.message || '核对失败，请刷新后重试')
       return
@@ -442,7 +466,9 @@ const handlePreviewImage = (url: string) => {
   previewVisible.value = true
 }
 
-const handleDownloadImage = (url: string) => { window.open(url, '_blank') }
+const handleDownloadImage = (url: string) => {
+  window.open(url, '_blank')
+}
 </script>
 
 <style scoped>

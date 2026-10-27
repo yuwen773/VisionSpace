@@ -10,7 +10,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const typingsPath = path.resolve(here, '../src/api/typings.d.ts')
+// OPENAPI_SERVERS_PATH 让契约检查脚本把别名补丁也写到临时目录，与正式生成走同一套规则。
+const serversRoot = process.env.OPENAPI_SERVERS_PATH
+  ? path.resolve(process.env.OPENAPI_SERVERS_PATH)
+  : path.resolve(here, '../src')
+const typingsPath = path.join(serversRoot, 'api/typings.d.ts')
 
 /** 需要补尾下划线别名的基础类型（旧生成器会产出带下划线的名字） */
 const ALIAS_TARGETS = [

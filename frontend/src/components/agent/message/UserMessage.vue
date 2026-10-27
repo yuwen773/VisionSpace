@@ -6,12 +6,31 @@
     </div>
 
     <!-- 图片网格：气泡下方，右对齐 -->
-    <div v-if="displayImages.length > 0" class="message-images" :class="`grid-${Math.min(displayImages.length, 4)}`">
-      <div v-for="(img, i) in displayImages" :key="i" class="img-thumb" @click="openPreview(img.url)">
+    <div
+      v-if="displayImages.length > 0"
+      class="message-images"
+      :class="`grid-${Math.min(displayImages.length, 4)}`"
+    >
+      <div
+        v-for="(img, i) in displayImages"
+        :key="i"
+        class="img-thumb"
+        @click="openPreview(img.url)"
+      >
         <img :src="img.url" alt="附件图片" />
         <div class="img-zoom-hint">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </div>
       </div>
@@ -166,10 +185,14 @@ const displayTime = computed(() => {
   overflow: hidden;
 }
 
-.message-images.grid-1 { grid-template-columns: 48px; }
+.message-images.grid-1 {
+  grid-template-columns: 48px;
+}
 .message-images.grid-2,
 .message-images.grid-3,
-.message-images.grid-4 { grid-template-columns: 48px 48px; }
+.message-images.grid-4 {
+  grid-template-columns: 48px 48px;
+}
 
 .img-thumb {
   position: relative;
@@ -185,7 +208,9 @@ const displayTime = computed(() => {
 
 .img-thumb:hover {
   border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 0 0 2px rgba(168, 85, 247, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.1);
   transform: scale(1.05);
 }
 
@@ -217,8 +242,6 @@ const displayTime = computed(() => {
   transition: opacity 0.15s ease;
 }
 
-
-
 .img-more {
   position: absolute;
   bottom: 4px;
@@ -234,5 +257,4 @@ const displayTime = computed(() => {
 .message-images:has(.img-more) {
   position: relative;
 }
-
 </style>

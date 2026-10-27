@@ -5,11 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Run Commands
 
 ```bash
+# Verification — the only entry point that can run the backend tests.
+# `mvn test` alone aborts with BLOCKED_ENV: the test suite refuses to start
+# without the isolated MySQL/Redis instances this script provisions.
+pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1   # ~5-15 min; see ACCEPTANCE.md
+
 # Backend (Spring Boot 3.5.8 + Java 21)
 mvn spring-boot:run          # Run application (port 8081, context-path /api)
 mvn compile                  # Compile
-mvn test                     # Run all tests
-mvn test -Dtest=ClassName    # Run specific test class
+mvn test -Dtest=ClassName    # Run one test class (still needs the acceptance env above)
 
 # Frontend (Vue 3 + Vite)
 cd frontend
@@ -84,11 +88,11 @@ Multi-layered architecture with cross-cutting managers:
 
 ## Conventions
 
+- **Shell paths** — Git Bash `/tmp` is `%TEMP%`. Tools that are not Git Bash (gh, pwsh, docker) need the Windows path: pass `$TEMP/x.md`, not `/tmp/x.md`.
 - **Jakarta EE imports** — Use `jakarta.*` not `javax.*` (Spring Boot 3)
 - **Commit style** — Use `git-commit-cn` skill for Chinese conventional commits
 - **Feature development** — Create a worktree, PR to `main`, never commit directly
 - **Design docs** — Plans saved to `docs/plans/` (gitignored, use `git add -f`)
-- **Prettier** — `semi: false`, `singleQuote: true`, `printWidth: 100`
 - **API regeneration** — After backend endpoint changes, run `npm run openapi2ts` in frontend
 
 ## Agent skills

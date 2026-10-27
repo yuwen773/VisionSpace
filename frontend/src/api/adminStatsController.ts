@@ -17,7 +17,7 @@ export async function getPictureActionMetricsUsingPost(options?: { [key: string]
     {
       method: 'POST',
       ...(options || {}),
-    }
+    },
   )
 }
 

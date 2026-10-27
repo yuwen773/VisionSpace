@@ -6,7 +6,7 @@ import request from '@/request'
 export async function getHistoryUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getHistoryUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { threadId: param0, ...queryParams } = params
   return request<API.BaseResponseChatHistoryVO>(`/agent/history/${param0}`, {
@@ -35,7 +35,7 @@ export async function chatUsingPost(body: API.AgentChatRequest, options?: { [key
 /** 此处后端没有提供注释 POST /agent/image/chat/stream */
 export async function chatStreamUsingPost(
   body: API.AgentChatRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<Record<string, any>>('/agent/image/chat/stream', {
     method: 'POST',
@@ -50,7 +50,7 @@ export async function chatStreamUsingPost(
 /** 此处后端没有提供注释 POST /agent/image/feedback */
 export async function feedbackUsingPost(
   body: API.FeedbackRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseString>('/agent/image/feedback', {
     method: 'POST',
@@ -66,7 +66,7 @@ export async function feedbackUsingPost(
 export async function getRecoveryStateUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getRecoveryStateUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { threadId: param0, ...queryParams } = params
   return request<API.BaseResponseRecoveryStateVO>(`/agent/recovery/${param0}`, {
@@ -80,7 +80,7 @@ export async function getRecoveryStateUsingGet(
 export async function resumeUsingPost(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.resumeUsingPostParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { threadId: param0, ...queryParams } = params
   return request<API.BaseResponseString>(`/agent/recovery/${param0}/resume`, {
@@ -95,7 +95,7 @@ export async function resumeUsingPost(
 /** 此处后端没有提供注释 POST /agent/recovery/action/confirm */
 export async function confirmActionUsingPost(
   body: API.ActionReviewRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseRecoveryStateVO>('/agent/recovery/action/confirm', {
     method: 'POST',
@@ -110,7 +110,7 @@ export async function confirmActionUsingPost(
 /** 此处后端没有提供注释 POST /agent/recovery/action/dismiss */
 export async function dismissActionUsingPost(
   body: API.ActionReviewRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseRecoveryStateVO>('/agent/recovery/action/dismiss', {
     method: 'POST',
@@ -126,7 +126,7 @@ export async function dismissActionUsingPost(
 export async function deleteSessionUsingDelete(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.deleteSessionUsingDeleteParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { threadId: param0, ...queryParams } = params
   return request<API.BaseResponseInteger>(`/agent/session/${param0}`, {
@@ -140,7 +140,7 @@ export async function deleteSessionUsingDelete(
 export async function getSessionsUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getSessionsUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSessionVO>('/agent/sessions', {
     method: 'GET',

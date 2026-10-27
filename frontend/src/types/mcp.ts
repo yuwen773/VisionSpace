@@ -50,7 +50,7 @@ export const getServerTypeLabel = (type?: string): string => {
   const labels: Record<string, string> = {
     stdio: 'STDIO',
     http: 'HTTP',
-    sse: 'SSE'
+    sse: 'SSE',
   }
   return labels[type || ''] || '未知'
 }

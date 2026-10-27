@@ -1,5 +1,8 @@
 <template>
-  <div class="agent-chat-input" :class="{ focused: isFocused, 'has-content': inputText.length > 0 || attachments.length > 0 }">
+  <div
+    class="agent-chat-input"
+    :class="{ focused: isFocused, 'has-content': inputText.length > 0 || attachments.length > 0 }"
+  >
     <div class="input-container">
       <!-- Attachment preview strip -->
       <div v-if="attachments.length > 0" class="attachment-strip">
@@ -9,23 +12,46 @@
             <div class="img-preview" @click="openPreview(att.previewUrl!)">
               <img :src="att.previewUrl" :alt="att.name" />
               <div class="img-zoom-hint">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
               </div>
             </div>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
+            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">
+              &times;
+            </button>
           </template>
           <!-- File chip -->
           <template v-else>
             <div class="file-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
                 <polyline points="13 2 13 9 20 9" />
               </svg>
             </div>
             <span class="file-name" :title="att.name">{{ truncateName(att.name) }}</span>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">&times;</button>
+            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">
+              &times;
+            </button>
           </template>
         </div>
       </div>
@@ -34,20 +60,47 @@
       <div class="input-row">
         <!-- Left toolbar -->
         <div class="toolbar-left">
-          <button class="toolbar-btn attach-btn" @click="triggerFilePicker" aria-label="添加附件" title="上传图片或文件">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          <button
+            class="toolbar-btn attach-btn"
+            @click="triggerFilePicker"
+            aria-label="添加附件"
+            title="上传图片或文件"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+              />
             </svg>
           </button>
         </div>
-        <input ref="fileInputRef" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" class="hidden-input" @change="handleFileSelect" />
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          accept="image/*,.pdf,.doc,.docx,.txt"
+          class="hidden-input"
+          @change="handleFileSelect"
+        />
 
         <!-- Textarea -->
         <div class="textarea-wrap">
           <textarea
             ref="textareaRef"
             v-model="inputText"
-            :placeholder="inputText.length === 0 && attachments.length === 0 ? 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片' : ''"
+            :placeholder="
+              inputText.length === 0 && attachments.length === 0
+                ? 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片'
+                : ''
+            "
             :rows="1"
             class="chat-textarea"
             @input="autoResize"
@@ -71,7 +124,16 @@
             @click="handleSend"
             aria-label="发送"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
@@ -207,11 +269,13 @@ const handleFileSelect = (e: Event) => {
 
 const handleSend = () => {
   if (!canSend.value) return
-  const files = attachments.value.map(a => a.file)
+  const files = attachments.value.map((a) => a.file)
   emit('send', inputText.value.trim(), files)
   inputText.value = ''
   // Revoke preview URLs
-  attachments.value.forEach(a => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl) })
+  attachments.value.forEach((a) => {
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
+  })
   attachments.value = []
   nextTick(() => {
     if (textareaRef.value) textareaRef.value.style.height = 'auto'
@@ -223,7 +287,9 @@ const handleStop = () => {
 }
 
 onUnmounted(() => {
-  attachments.value.forEach(a => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl) })
+  attachments.value.forEach((a) => {
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
+  })
 })
 </script>
 
@@ -247,18 +313,24 @@ onUnmounted(() => {
 
 .agent-chat-input.focused .input-container {
   border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.12), 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 3px rgba(168, 85, 247, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
 }
 
-[data-theme="aurora"] .agent-chat-input.focused .input-container {
+[data-theme='aurora'] .agent-chat-input.focused .input-container {
   border-color: #2268f5;
-  box-shadow: 0 0 0 3px rgba(34, 104, 245, 0.15), 0 4px 16px rgba(34, 104, 245, 0.08);
+  box-shadow:
+    0 0 0 3px rgba(34, 104, 245, 0.15),
+    0 4px 16px rgba(34, 104, 245, 0.08);
 }
 
-[data-theme="pop"] .agent-chat-input.focused .input-container {
+[data-theme='pop'] .agent-chat-input.focused .input-container {
   border-color: #a855f7;
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15), 0 4px 16px rgba(168, 85, 247, 0.06);
+  box-shadow:
+    0 0 0 3px rgba(168, 85, 247, 0.15),
+    0 4px 16px rgba(168, 85, 247, 0.06);
 }
 
 /* ============ Attachment Strip ============ */
@@ -275,8 +347,14 @@ onUnmounted(() => {
 }
 
 @keyframes cardIn {
-  from { opacity: 0; transform: scale(0.85) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 /* -- Image preview (larger) -- */
@@ -294,7 +372,9 @@ onUnmounted(() => {
 
 .img-preview:hover {
   border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 0 0 2px rgba(168, 85, 247, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.1);
   transform: scale(1.05);
 }
 
@@ -441,12 +521,12 @@ onUnmounted(() => {
   background: rgba(168, 85, 247, 0.08);
 }
 
-[data-theme="aurora"] .attach-btn:hover {
+[data-theme='aurora'] .attach-btn:hover {
   color: #2268f5;
   background: rgba(34, 104, 245, 0.08);
 }
 
-[data-theme="pop"] .attach-btn:hover {
+[data-theme='pop'] .attach-btn:hover {
   color: #a855f7;
   background: rgba(168, 85, 247, 0.06);
 }
@@ -558,22 +638,26 @@ onUnmounted(() => {
 }
 
 /* Theme variants */
-[data-theme="aurora"] .send-btn:not(:disabled) {
+[data-theme='aurora'] .send-btn:not(:disabled) {
   background: linear-gradient(135deg, #2268f5, #4f46e5);
   box-shadow: 0 2px 8px rgba(34, 104, 245, 0.25);
 }
 
-[data-theme="aurora"] .send-btn:not(:disabled):hover {
-  box-shadow: 0 4px 20px rgba(34, 104, 245, 0.4), 0 0 40px rgba(79, 70, 229, 0.15);
+[data-theme='aurora'] .send-btn:not(:disabled):hover {
+  box-shadow:
+    0 4px 20px rgba(34, 104, 245, 0.4),
+    0 0 40px rgba(79, 70, 229, 0.15);
 }
 
-[data-theme="pop"] .send-btn:not(:disabled) {
+[data-theme='pop'] .send-btn:not(:disabled) {
   background: linear-gradient(135deg, #a855f7, #ec4899);
   box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
 }
 
-[data-theme="pop"] .send-btn:not(:disabled):hover {
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(236, 72, 153, 0.12);
+[data-theme='pop'] .send-btn:not(:disabled):hover {
+  box-shadow:
+    0 4px 20px rgba(168, 85, 247, 0.4),
+    0 0 40px rgba(236, 72, 153, 0.12);
 }
 
 /* Animated glow ring */
@@ -587,13 +671,27 @@ onUnmounted(() => {
   z-index: -1;
 }
 
-[data-theme="aurora"] .send-btn:not(:disabled)::after {
-  background: conic-gradient(from 0deg, transparent, rgba(34, 104, 245, 0.25), transparent, rgba(79, 70, 229, 0.25), transparent);
+[data-theme='aurora'] .send-btn:not(:disabled)::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(34, 104, 245, 0.25),
+    transparent,
+    rgba(79, 70, 229, 0.25),
+    transparent
+  );
   animation: glowSpin 3s linear infinite;
 }
 
-[data-theme="pop"] .send-btn:not(:disabled)::after {
-  background: conic-gradient(from 0deg, transparent, rgba(168, 85, 247, 0.25), transparent, rgba(236, 72, 153, 0.25), transparent);
+[data-theme='pop'] .send-btn:not(:disabled)::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(168, 85, 247, 0.25),
+    transparent,
+    rgba(236, 72, 153, 0.25),
+    transparent
+  );
   animation: glowSpin 3s linear infinite;
 }
 
@@ -602,8 +700,12 @@ onUnmounted(() => {
 }
 
 @keyframes glowSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* -- Stop button: urgent red -- */
@@ -625,8 +727,13 @@ onUnmounted(() => {
 }
 
 @keyframes stopPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
-  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
 }
 
 /* Button swap transition */

@@ -50,7 +50,11 @@
     <div class="form-group">
       <label class="form-label">附件截图（可选，最多5张）</label>
       <div class="upload-list">
-        <div v-for="(attachment, index) in feedbackForm.attachments" :key="attachment.id ?? index" class="upload-item">
+        <div
+          v-for="(attachment, index) in feedbackForm.attachments"
+          :key="attachment.id ?? index"
+          class="upload-item"
+        >
           <img :src="contentSrc(attachment.url)" alt="附件" />
           <span class="upload-remove" @click="removeFeedbackPicture(index)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -59,7 +63,11 @@
             </svg>
           </span>
         </div>
-        <div v-if="feedbackForm.attachments.length < 5" class="upload-trigger" @click="triggerFeedbackUpload">
+        <div
+          v-if="feedbackForm.attachments.length < 5"
+          class="upload-trigger"
+          @click="triggerFeedbackUpload"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -152,7 +160,7 @@ const handleFeedbackFileChange = async (e: Event) => {
           const msg = err instanceof Error ? err.message : '图片上传失败'
           message.error(msg)
         }
-      })()
+      })(),
     )
   }
 

@@ -2,7 +2,14 @@
   <div class="reasoning-message">
     <button class="reasoning-header" @click="collapsed = !collapsed">
       <span class="reasoning-icon" :class="{ collapsed }">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </span>
@@ -34,7 +41,9 @@ const renderedContent = computed(() => render(props.content))
 const onContentClick = (e: MouseEvent) => {
   handleContentClick(e)
 }
-const preview = computed(() => props.content.slice(0, 50) + (props.content.length > 50 ? '...' : ''))
+const preview = computed(
+  () => props.content.slice(0, 50) + (props.content.length > 50 ? '...' : ''),
+)
 </script>
 
 <style scoped>
