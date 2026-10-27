@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /picture/grant/add */
 export async function createGrantUsingPost(
   body: API.PictureGrantCreateRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseResourceGrantVO>('/picture/grant/add', {
     method: 'POST',
@@ -21,7 +21,7 @@ export async function createGrantUsingPost(
 export async function listGrantsUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.listGrantsUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseResourceGrantListVO>('/picture/grant/list', {
     method: 'GET',
@@ -43,7 +43,7 @@ export async function listMyGrantsUsingGet(options?: { [key: string]: any }) {
 /** 此处后端没有提供注释 POST /picture/grant/revoke */
 export async function revokeGrantUsingPost(
   body: API.PictureGrantRevokeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseResourceGrantVO>('/picture/grant/revoke', {
     method: 'POST',

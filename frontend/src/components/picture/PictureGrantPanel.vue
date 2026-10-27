@@ -28,7 +28,9 @@
           <span v-if="grant.grantedByUserName">授权人：{{ grant.grantedByUserName }}</span>
           <span v-if="grant.reason">理由：{{ grant.reason }}</span>
           <span v-if="grant.status === 'REVOKED'">
-            已于 {{ formatDateTime(grant.revokeTime) }} 撤销<template v-if="grant.revokeReason">（{{ grant.revokeReason }}）</template>
+            已于 {{ formatDateTime(grant.revokeTime) }} 撤销<template v-if="grant.revokeReason"
+              >（{{ grant.revokeReason }}）</template
+            >
           </span>
         </div>
         <a-button
@@ -46,11 +48,7 @@
 
     <!-- 授予表单 -->
     <div v-if="canManage" class="grant-form">
-      <a-input
-        v-model:value="form.granteeUserId"
-        placeholder="被授权用户 ID"
-        class="form-field"
-      />
+      <a-input v-model:value="form.granteeUserId" placeholder="被授权用户 ID" class="form-field" />
       <a-input-number
         v-model:value="form.validityDays"
         :min="1"
@@ -82,7 +80,9 @@
       @ok="doRevoke"
     >
       <p class="revoke-target">
-        即将撤销：{{ revokeTarget?.granteeUserName || `用户 ${revokeTarget?.granteeUserId ?? '-'}` }}
+        即将撤销：{{
+          revokeTarget?.granteeUserName || `用户 ${revokeTarget?.granteeUserId ?? '-'}`
+        }}
       </p>
       <a-textarea
         v-model:value="revokeReason"

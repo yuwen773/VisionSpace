@@ -10,7 +10,15 @@
           :class="getStepClass(index)"
         >
           <span class="step-icon">
-            <svg v-if="step.status === 'completed'" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <svg
+              v-if="step.status === 'completed'"
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             <span v-else-if="step.status === 'processing'" class="spin-dot"></span>
@@ -21,7 +29,15 @@
         </span>
       </div>
       <button class="expand-btn" aria-label="展开详情">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="{ transform: expanded ? 'rotate(180deg)' : '' }">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          :style="{ transform: expanded ? 'rotate(180deg)' : '' }"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
@@ -30,12 +46,7 @@
     <!-- 展开详情 -->
     <transition name="slide-down">
       <div v-if="expanded" class="todo-expanded">
-        <div
-          v-for="(step, index) in steps"
-          :key="index"
-          class="todo-item"
-          :class="step.status"
-        >
+        <div v-for="(step, index) in steps" :key="index" class="todo-item" :class="step.status">
           <span class="item-dot"></span>
           <span class="item-title">{{ step.title }}</span>
           <span class="item-desc">{{ step.description }}</span>
@@ -153,8 +164,15 @@ const getStatusLabel = (status: string) => {
 }
 
 @keyframes dotPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
 }
 
 .step-arrow {

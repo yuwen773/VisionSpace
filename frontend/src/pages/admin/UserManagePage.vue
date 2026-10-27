@@ -4,7 +4,13 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="title-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -19,7 +25,13 @@
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
       <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          class="search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
@@ -32,7 +44,13 @@
         />
       </div>
       <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          class="search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
@@ -105,7 +123,9 @@
           <template v-else-if="column.dataIndex === 'vipNumber'">
             <span class="vip-info" v-if="record.vipNumber">
               <svg class="vip-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                <path
+                  d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
+                />
               </svg>
               VIP {{ record.vipNumber }}
             </span>
@@ -138,7 +158,9 @@
                   <button class="action-btn danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      ></path>
                     </svg>
                   </button>
                 </a-tooltip>
@@ -170,11 +192,20 @@
         </div>
         <div class="form-item">
           <label>用户名</label>
-          <a-input v-model:value="editForm.userName" placeholder="请输入用户名" class="form-input" />
+          <a-input
+            v-model:value="editForm.userName"
+            placeholder="请输入用户名"
+            class="form-input"
+          />
         </div>
         <div class="form-item">
           <label>用户简介</label>
-          <a-textarea v-model:value="editForm.userProfile" placeholder="请输入用户简介" :rows="3" class="form-input" />
+          <a-textarea
+            v-model:value="editForm.userProfile"
+            placeholder="请输入用户简介"
+            :rows="3"
+            class="form-input"
+          />
         </div>
         <div class="form-item">
           <label>用户角色</label>
@@ -202,7 +233,11 @@
 
 <script lang="ts" setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { deleteUserUsingPost, listUserVoByPageUsingPost, updateUserUsingPost } from '@/api/userController.ts'
+import {
+  deleteUserUsingPost,
+  listUserVoByPageUsingPost,
+  updateUserUsingPost,
+} from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import { UserOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
@@ -818,8 +853,12 @@ const doDelete = async (id: number | undefined) => {
 
 /* ========== 动画 ========== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {

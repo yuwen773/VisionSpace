@@ -3,10 +3,17 @@
     <div class="analyze-card">
       <div class="card-header">
         <div class="header-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
           </svg>
         </div>
         <h3 class="card-title">图片大小分布</h3>
@@ -17,18 +24,22 @@
           <div class="loader-spinner"></div>
         </div>
         <div v-else-if="!hasData" class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
           </svg>
           <span>暂无数据</span>
         </div>
         <div v-else class="chart-container">
-          <v-chart
-            :option="options"
-            style="height: 280px; width: 100%"
-          />
+          <v-chart :option="options" style="height: 280px; width: 100%" />
         </div>
       </div>
     </div>
@@ -86,13 +97,14 @@ watchEffect(() => {
 const pieColors = ['#a855f7', '#ec4899', '#f472b6', '#10b981', '#f59e0b']
 
 const options = computed(() => {
-  const pieData = dataList.value?.map((item: any, index: number) => ({
-    name: item.sizeRange || '未知',
-    value: item.count || 0,
-    itemStyle: {
-      color: pieColors[index % pieColors.length],
-    },
-  })) || []
+  const pieData =
+    dataList.value?.map((item: any, index: number) => ({
+      name: item.sizeRange || '未知',
+      value: item.count || 0,
+      itemStyle: {
+        color: pieColors[index % pieColors.length],
+      },
+    })) || []
 
   const total = pieData.reduce((sum, item) => sum + item.value, 0)
 
@@ -233,7 +245,9 @@ const options = computed(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {

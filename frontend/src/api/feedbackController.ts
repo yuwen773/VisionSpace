@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /feedback/add */
 export async function addFeedbackUsingPost(
   body: API.FeedbackAddRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLong>('/feedback/add', {
     method: 'POST',
@@ -21,7 +21,7 @@ export async function addFeedbackUsingPost(
 export async function getAttachmentUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getAttachmentUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { id: param0, ...queryParams } = params
   return request<string>(`/feedback/attachment/${param0}`, {
@@ -35,7 +35,7 @@ export async function getAttachmentUsingGet(
 export async function getFeedbackByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getFeedbackByIdUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { id: param0, ...queryParams } = params
   return request<API.BaseResponseFeedbackVO>(`/feedback/get/${param0}`, {
@@ -48,7 +48,7 @@ export async function getFeedbackByIdUsingGet(
 /** 此处后端没有提供注释 POST /feedback/list/page */
 export async function listFeedbackByPageUsingPost(
   body: API.FeedbackQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponsePageFeedbackVO>('/feedback/list/page', {
     method: 'POST',
@@ -63,7 +63,7 @@ export async function listFeedbackByPageUsingPost(
 /** 此处后端没有提供注释 POST /feedback/update/status */
 export async function updateFeedbackStatusUsingPost(
   body: API.FeedbackUpdateStatusRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/feedback/update/status', {
     method: 'POST',
@@ -79,7 +79,7 @@ export async function updateFeedbackStatusUsingPost(
 export async function uploadFeedbackAttachmentUsingPost(
   body: {},
   file?: File,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const formData = new FormData()
 

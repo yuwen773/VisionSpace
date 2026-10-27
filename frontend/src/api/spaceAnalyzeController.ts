@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /space/analyze/category */
 export async function getSpaceCategoryAnalyzeUsingPost(
   body: API.SpaceCategoryAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpaceCategoryAnalyzeResponse>('/space/analyze/category', {
     method: 'POST',
@@ -20,7 +20,7 @@ export async function getSpaceCategoryAnalyzeUsingPost(
 /** 此处后端没有提供注释 POST /space/analyze/rank */
 export async function getSpaceRankAnalyzeUsingPost(
   body: API.SpaceRankAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpace>('/space/analyze/rank', {
     method: 'POST',
@@ -35,7 +35,7 @@ export async function getSpaceRankAnalyzeUsingPost(
 /** 此处后端没有提供注释 POST /space/analyze/size */
 export async function getSpaceSizeAnalyzeUsingPost(
   body: API.SpaceSizeAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpaceSizeAnalyzeResponse>('/space/analyze/size', {
     method: 'POST',
@@ -50,7 +50,7 @@ export async function getSpaceSizeAnalyzeUsingPost(
 /** 此处后端没有提供注释 POST /space/analyze/tag */
 export async function getSpaceTagAnalyzeUsingPost(
   body: API.SpaceTagAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpaceTagAnalyzeResponse>('/space/analyze/tag', {
     method: 'POST',
@@ -65,7 +65,7 @@ export async function getSpaceTagAnalyzeUsingPost(
 /** 此处后端没有提供注释 POST /space/analyze/usage */
 export async function getSpaceUsageAnalyzeUsingPost(
   body: API.SpaceUsageAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseSpaceUsageAnalyzeResponse>('/space/analyze/usage', {
     method: 'POST',
@@ -80,7 +80,7 @@ export async function getSpaceUsageAnalyzeUsingPost(
 /** 此处后端没有提供注释 POST /space/analyze/user */
 export async function getSpaceUserAnalyzeUsingPost(
   body: API.SpaceUserAnalyzeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpaceUserAnalyzeResponse>('/space/analyze/user', {
     method: 'POST',

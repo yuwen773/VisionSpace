@@ -32,9 +32,17 @@
 
     <!-- 波浪装饰 -->
     <div class="wave-bottom wave-decoration">
-      <svg viewBox="0 0 1440 200" preserveAspectRatio="none" style="width: 100%; height: 100px;">
-        <path d="M0,96L48,112L96,96L144,64L192,48L240,64L288,96L336,112L384,96L432,64L480,48L528,64L576,96L624,112L672,96L720,64L768,48L816,64L864,96L912,112L960,96L1008,64L1056,48L1104,64L1152,96L1200,112L1248,96L1296,64L1344,48L1392,64L1440,96V200H0V96Z" fill="var(--color-mint)" opacity="0.4"/>
-        <path d="M0,128L48,144L96,128L144,96L192,80L240,96L288,128L336,144L384,128L432,96L480,80L528,96L576,128L624,144L672,128L720,96L768,80L816,96L864,128L912,144L960,128L1008,96L1056,80L1104,96L1152,128L1200,144L1248,128L1296,96L1344,80L1392,96L1440,128V200H0V128Z" fill="var(--color-sky)" opacity="0.3"/>
+      <svg viewBox="0 0 1440 200" preserveAspectRatio="none" style="width: 100%; height: 100px">
+        <path
+          d="M0,96L48,112L96,96L144,64L192,48L240,64L288,96L336,112L384,96L432,64L480,48L528,64L576,96L624,112L672,96L720,64L768,48L816,64L864,96L912,112L960,96L1008,64L1056,48L1104,64L1152,96L1200,112L1248,96L1296,64L1344,48L1392,64L1440,96V200H0V96Z"
+          fill="var(--color-mint)"
+          opacity="0.4"
+        />
+        <path
+          d="M0,128L48,144L96,128L144,96L192,80L240,96L288,128L336,144L384,128L432,96L480,80L528,96L576,128L624,144L672,128L720,96L768,80L816,96L864,128L912,144L960,128L1008,96L1056,80L1104,96L1152,128L1200,144L1248,128L1296,96L1344,80L1392,96L1440,128V200H0V128Z"
+          fill="var(--color-sky)"
+          opacity="0.3"
+        />
       </svg>
     </div>
   </div>
@@ -182,7 +190,8 @@ onMounted(() => {
 }
 
 @keyframes cloudFloat {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -239,7 +248,9 @@ onMounted(() => {
 }
 
 @keyframes dotBounce {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
@@ -297,7 +308,8 @@ onMounted(() => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {

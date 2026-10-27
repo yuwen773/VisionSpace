@@ -3,9 +3,18 @@
     <div class="analyze-card">
       <div class="card-header">
         <div class="header-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+            />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
           </svg>
         </div>
         <h3 class="card-title">标签云分析</h3>
@@ -17,9 +26,18 @@
           <div class="loader-spinner"></div>
         </div>
         <div v-else-if="!hasData" class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+            />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
           </svg>
           <span>暂无标签</span>
         </div>
@@ -213,7 +231,9 @@ const getColor = (count: number) => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {

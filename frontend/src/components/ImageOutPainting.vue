@@ -9,17 +9,31 @@
           <!-- 头部 -->
           <div class="modal-header">
             <div class="header-title">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/>
-                <path d="M12 8v4l2 2"/>
-                <path d="M2.5 12a9.5 9.5 0 0 1 1.5-3"/>
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12" />
+                <path d="M12 8v4l2 2" />
+                <path d="M2.5 12a9.5 9.5 0 0 1 1.5-3" />
               </svg>
               <span>AI 扩图</span>
             </div>
             <button class="close-btn" @click="closeModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
@@ -28,10 +42,17 @@
           <div class="comparison-container">
             <div class="comparison-panel">
               <div class="panel-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
                 </svg>
                 <span>原始图片</span>
               </div>
@@ -41,16 +62,30 @@
             </div>
 
             <div class="comparison-arrow">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </div>
 
             <div class="comparison-panel">
               <div class="panel-label result">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/>
-                  <path d="M12 8v4l2 2"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12" />
+                  <path d="M12 8v4l2 2" />
                 </svg>
                 <span>扩图结果</span>
               </div>
@@ -61,10 +96,17 @@
                   <span>AI 正在扩展图片...</span>
                 </div>
                 <div v-else class="empty-placeholder">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
                   </svg>
                   <span>点击下方按钮开始扩图</span>
                 </div>
@@ -74,10 +116,17 @@
 
           <!-- 扩图参数提示 -->
           <div class="parameters-hint">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
             <span>扩图参数：水平 2x，垂直 2x</span>
           </div>
@@ -85,20 +134,30 @@
           <!-- 操作按钮 -->
           <div class="modal-footer">
             <button class="action-btn outline" @click="closeModal">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
               <span>取消</span>
             </button>
-            <button
-              class="action-btn secondary"
-              @click="createTask"
-              :disabled="!!taskId"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/>
-                <path d="M12 8v4l2 2"/>
+            <button class="action-btn secondary" @click="createTask" :disabled="!!taskId">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12" />
+                <path d="M12 8v4l2 2" />
               </svg>
               <span>{{ taskId ? '扩图中...' : 'AI 扩图' }}</span>
             </button>
@@ -108,12 +167,29 @@
               @click="handleUpload"
               :disabled="uploadLoading"
             >
-              <svg v-if="!uploadLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12"/>
+              <svg
+                v-if="!uploadLoading"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
               </svg>
-              <svg v-else class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-opacity="0.3"/>
-                <path d="M12 2a10 10 0 0 1 10 10"/>
+              <svg
+                v-else
+                class="spinner"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.3" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
               </svg>
               <span>{{ uploadLoading ? '应用中...' : '应用结果' }}</span>
             </button>
@@ -263,7 +339,7 @@ onUnmounted(() => {
 
 <style scoped lang="less">
 /* ========== Aurora (Dark) Theme ========== */
-[data-theme="aurora"] {
+[data-theme='aurora'] {
   --modal-bg: rgba(15, 23, 42, 0.95);
   --modal-border: rgba(255, 255, 255, 0.1);
   --modal-glow-color: rgba(168, 85, 247, 0.12);
@@ -280,11 +356,13 @@ onUnmounted(() => {
   --accent-secondary: #f472b6;
   --accent-info: #60a5fa;
   --accent-danger: #f87171;
-  --shadow-modal: 0 0 0 1px rgba(168, 85, 247, 0.2), 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 100px rgba(168, 85, 247, 0.15);
+  --shadow-modal:
+    0 0 0 1px rgba(168, 85, 247, 0.2), 0 25px 80px rgba(0, 0, 0, 0.6),
+    0 0 100px rgba(168, 85, 247, 0.15);
 }
 
 /* ========== Pop (Light) Theme ========== */
-[data-theme="pop"] {
+[data-theme='pop'] {
   --modal-bg: #ffffff;
   --modal-border: var(--border-light);
   --modal-glow-color: rgba(155, 93, 229, 0.08);
@@ -467,7 +545,9 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-placeholder {

@@ -6,7 +6,7 @@ import request from '@/request'
 export async function listMcpServersUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.listMcpServersUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseIPageMcpServerDetail>('/mcp-server', {
     method: 'GET',
@@ -24,7 +24,7 @@ export async function listMcpServersUsingGet(
 /** 此处后端没有提供注释 PUT /mcp-server */
 export async function updateMcpServerUsingPut(
   body: API.McpServerDetail,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseVoid>('/mcp-server', {
     method: 'PUT',
@@ -39,7 +39,7 @@ export async function updateMcpServerUsingPut(
 /** 此处后端没有提供注释 POST /mcp-server */
 export async function createMcpServerUsingPost(
   body: API.McpServerDetail,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseString>('/mcp-server', {
     method: 'POST',
@@ -55,7 +55,7 @@ export async function createMcpServerUsingPost(
 export async function getMcpServerUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getMcpServerUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { mcpServerCode: param0, ...queryParams } = params
   return request<API.BaseResponseMcpServerDetail>(`/mcp-server/${param0}`, {
@@ -71,7 +71,7 @@ export async function getMcpServerUsingGet(
 export async function deleteMcpServerUsingDelete(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.deleteMcpServerUsingDeleteParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const { mcpServerCode: param0, ...queryParams } = params
   return request<API.BaseResponseVoid>(`/mcp-server/${param0}`, {

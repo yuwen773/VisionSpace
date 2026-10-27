@@ -32,10 +32,7 @@
           @finish="handleSubmit"
           class="register-form"
         >
-          <a-form-item
-            name="userAccount"
-            :rules="[{ required: true, message: '请输入账号' }]"
-          >
+          <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
             <a-input
               v-model:value="formState.userAccount"
               placeholder="用户账号"
@@ -88,9 +85,7 @@
 
           <div class="form-tips">
             <span>已有账号？</span>
-            <router-link to="/user/login" class="tips-link">
-              立即登录
-            </router-link>
+            <router-link to="/user/login" class="tips-link"> 立即登录 </router-link>
           </div>
 
           <a-form-item>
@@ -616,7 +611,8 @@ const handleSubmit = async (values: any) => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
   }
   50% {

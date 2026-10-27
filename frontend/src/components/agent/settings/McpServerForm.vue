@@ -6,7 +6,7 @@
         v-model:value="configMode"
         :options="[
           { label: '表单模式', value: 'form' },
-          { label: 'JSON 模式', value: 'json' }
+          { label: 'JSON 模式', value: 'json' },
         ]"
       />
     </div>
@@ -14,11 +14,7 @@
     <!-- JSON 模式 -->
     <div v-if="configMode === 'json'" class="json-config-area">
       <p class="json-hint">可直接修改下方默认模板：</p>
-      <a-textarea
-        v-model:value="jsonConfig"
-        :rows="10"
-        class="json-textarea"
-      />
+      <a-textarea v-model:value="jsonConfig" :rows="10" class="json-textarea" />
       <div v-if="jsonError" class="json-error">{{ jsonError }}</div>
     </div>
 
@@ -37,7 +33,11 @@
       </a-form-item>
 
       <a-form-item label="服务描述" name="description">
-        <a-textarea v-model:value="formData.description" placeholder="请输入服务描述（可选）" :rows="2" />
+        <a-textarea
+          v-model:value="formData.description"
+          placeholder="请输入服务描述（可选）"
+          :rows="2"
+        />
       </a-form-item>
 
       <a-form-item label="服务类型" name="type">
@@ -139,7 +139,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   initMode: 'form',
-  stdioDisabled: false
+  stdioDisabled: false,
 })
 const emit = defineEmits<Emits>()
 
@@ -163,7 +163,7 @@ const defaultFormData: McpServerFormData = {
   envText: '',
   url: '',
   headersText: '',
-  timeout: 60000
+  timeout: 60000,
 }
 
 const formData = reactive<McpServerFormData>({ ...defaultFormData })
@@ -173,7 +173,7 @@ const formRules = {
   name: [{ required: true, message: '请输入服务名称', trigger: 'blur' }],
   type: [{ required: true, message: '请选择服务类型', trigger: 'change' }],
   command: [{ required: true, message: '请输入命令', trigger: 'blur' }],
-  url: [{ required: true, message: '请输入 URL', trigger: 'blur' }]
+  url: [{ required: true, message: '请输入 URL', trigger: 'blur' }],
 }
 
 // JSON 模式默认模板：STDIO 被禁用时给出远程模板，不展示无法使用的示例
@@ -183,9 +183,9 @@ const defaultJsonTemplate = props.stdioDisabled
         'my-server': {
           name: 'my-mcp-server',
           type: 'sse',
-          url: 'https://your-mcp-server/sse'
-        }
-      }
+          url: 'https://your-mcp-server/sse',
+        },
+      },
     }
   : {
       mcpServers: {
@@ -194,9 +194,9 @@ const defaultJsonTemplate = props.stdioDisabled
           type: 'stdio',
           command: 'npx',
           args: ['-y', '@example/mcp-server'],
-          env: {}
-        }
-      }
+          env: {},
+        },
+      },
     }
 
 // 监听配置模式切换
@@ -237,7 +237,7 @@ onMounted(() => {
       envText: envText,
       url: props.server.url || '',
       headersText: '',
-      timeout: props.server.timeout || 60000
+      timeout: props.server.timeout || 60000,
     })
   } else {
     // 创建模式默认显示 JSON 模板
@@ -250,7 +250,7 @@ const buildJsonFromForm = (): string => {
   const config: Record<string, any> = {
     name: formData.name,
     type: formData.type,
-    enabled: formData.enabled
+    enabled: formData.enabled,
   }
 
   if (formData.description) {
@@ -288,11 +288,15 @@ const buildJsonFromForm = (): string => {
     config.timeout = formData.timeout
   }
 
-  return JSON.stringify({
-    mcpServers: {
-      [formData.name || 'my-server']: config
-    }
-  }, null, 2)
+  return JSON.stringify(
+    {
+      mcpServers: {
+        [formData.name || 'my-server']: config,
+      },
+    },
+    null,
+    2,
+  )
 }
 
 // 解析 JSON 到表单数据
@@ -365,13 +369,13 @@ const handleSubmit = async () => {
         const jsonName = extractNameFromJson(config)
         deployConfigJson = JSON.stringify({
           mcpServers: {
-            [jsonName || 'my-server']: config
-          }
+            [jsonName || 'my-server']: config,
+          },
         })
       }
 
       const submitData: Record<string, any> = {
-        deployConfig: deployConfigJson
+        deployConfig: deployConfigJson,
       }
 
       const jsonName = extractNameFromJson(config)
@@ -415,7 +419,7 @@ const handleSubmit = async () => {
       const serverConfig: Record<string, any> = {
         name: formData.name,
         type: formData.type,
-        enabled: formData.enabled
+        enabled: formData.enabled,
       }
 
       if (formData.description) {
@@ -455,14 +459,14 @@ const handleSubmit = async () => {
 
       const deployConfig = {
         mcpServers: {
-          [formData.name]: serverConfig
-        }
+          [formData.name]: serverConfig,
+        },
       }
 
       const submitData: Record<string, any> = {
         name: formData.name,
         deployConfig: JSON.stringify(deployConfig),
-        installType: formData.type.toUpperCase()
+        installType: formData.type.toUpperCase(),
       }
 
       if (formData.description) {

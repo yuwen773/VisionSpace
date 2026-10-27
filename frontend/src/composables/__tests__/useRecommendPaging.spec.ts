@@ -65,7 +65,10 @@ describe('recommend paging', () => {
         data: { code: 0, data: { records: [{ id: 1 }, { id: 2 }], total: '12', context: 'ctx-1' } },
       })
       .mockResolvedValueOnce({
-        data: { code: 0, data: { records: [{ id: 11 }, { id: 12 }], total: '12', context: 'ctx-1' } },
+        data: {
+          code: 0,
+          data: { records: [{ id: 11 }, { id: 12 }], total: '12', context: 'ctx-1' },
+        },
       })
       .mockResolvedValueOnce({
         data: { code: 0, data: { records: [], total: '0', context: 'ctx-2' } },

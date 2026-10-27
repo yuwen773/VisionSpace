@@ -164,13 +164,21 @@ $ddl
     try {
         Run-Gate 'frontend-install' { npm ci --no-audit --no-fund }
         if ($results['frontend-install'] -eq 'PASS') {
+            Run-Gate 'frontend-lint' { npm run lint:check }
+            Run-Gate 'frontend-format' { npm run format:check }
             Run-Gate 'frontend-typecheck' { npm run type-check }
             Run-Gate 'frontend-tests' { npm test }
             Run-Gate 'frontend-build' { npm run build-only }
+            # 后端接口变更后未重新生成客户端，是反复出现的 review 发现；这里用契约自动对账。
+            if ($results['backend'] -eq 'PASS') {
+                Run-Gate 'frontend-api-contract' { & pwsh -NoLogo -NoProfile -File (Join-Path $repo 'scripts/openapi-contract.ps1') }
+            } else {
+                $results['frontend-api-contract'] = 'BLOCKED_ENV'
+            }
         } else {
-            $results['frontend-typecheck'] = 'BLOCKED_ENV'
-            $results['frontend-tests'] = 'BLOCKED_ENV'
-            $results['frontend-build'] = 'BLOCKED_ENV'
+            foreach ($gate in @('frontend-lint', 'frontend-format', 'frontend-typecheck', 'frontend-tests', 'frontend-build', 'frontend-api-contract')) {
+                $results[$gate] = 'BLOCKED_ENV'
+            }
         }
     } finally { Pop-Location }
 } finally {

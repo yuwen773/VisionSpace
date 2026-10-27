@@ -7,7 +7,14 @@
         <h3 class="panel-title">MCP 服务配置</h3>
         <a-button type="primary" @click="viewMode = 'create'">
           <template #icon>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="14"
+              height="14"
+            >
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
@@ -23,7 +30,14 @@
           <!-- 空状态 -->
           <div v-if="!loading && mcpServerList.length === 0" class="empty-state">
             <div class="empty-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                width="48"
+                height="48"
+              >
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
@@ -35,11 +49,7 @@
 
           <!-- 服务列表 -->
           <div v-else class="server-list">
-            <div
-              v-for="server in mcpServerList"
-              :key="server.mcpServerCode"
-              class="server-card"
-            >
+            <div v-for="server in mcpServerList" :key="server.mcpServerCode" class="server-card">
               <!-- 服务信息 -->
               <div class="server-info">
                 <div class="server-header">
@@ -80,7 +90,14 @@
       <div class="panel-header">
         <a-button @click="viewMode = 'list'">
           <template #icon>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="14"
+              height="14"
+            >
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
@@ -105,7 +122,14 @@
       <div class="panel-header">
         <a-button @click="viewMode = 'list'">
           <template #icon>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              width="14"
+              height="14"
+            >
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
@@ -160,10 +184,12 @@ const parseDeployConfig = (deployConfig: string) => {
     return {
       type: serverConfig.type || 'stdio',
       command: serverConfig.command || '',
-      args: Array.isArray(serverConfig.args) ? serverConfig.args.join('\n') : (serverConfig.args || ''),
+      args: Array.isArray(serverConfig.args)
+        ? serverConfig.args.join('\n')
+        : serverConfig.args || '',
       env: serverConfig.env || {},
       url: serverConfig.url || '',
-      headers: serverConfig.headers || {}
+      headers: serverConfig.headers || {},
     }
   } catch (e) {
     console.error('解析 deployConfig 失败:', e)
@@ -173,7 +199,7 @@ const parseDeployConfig = (deployConfig: string) => {
       args: '',
       env: {},
       url: '',
-      headers: {}
+      headers: {},
     }
   }
 }
@@ -195,7 +221,7 @@ const loadMcpServerList = async () => {
           args: parsed?.args || '',
           env: parsed?.env || {},
           url: parsed?.url || '',
-          headers: parsed?.headers || {}
+          headers: parsed?.headers || {},
         }
       })
     } else {
@@ -210,7 +236,7 @@ const loadMcpServerList = async () => {
 
 // 根据 code 获取服务
 const getServerByCode = (code: string) => {
-  return mcpServerList.value.find(s => s.mcpServerCode === code)
+  return mcpServerList.value.find((s) => s.mcpServerCode === code)
 }
 
 // 切换启用状态
@@ -220,7 +246,7 @@ const handleToggleEnabled = async (server: McpServerVO, checked: boolean) => {
       mcpServerCode: server.mcpServerCode,
       name: server.name,
       deployConfig: server.deployConfig,
-      status: checked ? 1 : 0
+      status: checked ? 1 : 0,
     })
     if (res.data.code === 0) {
       message.success(checked ? '已启用' : '已禁用')

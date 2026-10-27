@@ -10,7 +10,8 @@ export default [
 
   {
     name: 'app/files-to-ignore',
-    ignores: ['**/dist/**', '**/dist-ssr/**', '**/coverage/**'],
+    // src/api 由 npm run openapi2ts 生成，手写客户端在 src/api-custom/。
+    ignores: ['**/dist/**', '**/dist-ssr/**', '**/coverage/**', 'src/api/**'],
   },
 
   ...pluginVue.configs['flat/essential'],

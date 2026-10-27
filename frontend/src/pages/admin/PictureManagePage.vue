@@ -4,7 +4,13 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="title-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             <circle cx="8.5" cy="8.5" r="1.5"></circle>
             <polyline points="21 15 16 10 5 21"></polyline>
@@ -18,7 +24,13 @@
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
       <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          class="search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
@@ -88,7 +100,9 @@
           <polyline points="9 11 12 14 22 4"></polyline>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
         </svg>
-        <span>已选择 <strong>{{ selectedIds.length }}</strong> 项</span>
+        <span
+          >已选择 <strong>{{ selectedIds.length }}</strong> 项</span
+        >
       </div>
       <div class="batch-actions">
         <button class="batch-btn success" @click="batchApprove">
@@ -118,7 +132,9 @@
         <div class="card-checkbox">
           <a-checkbox
             :checked="record.id !== undefined && selectedIds.includes(record.id)"
-            @change="(e: any) => record.id !== undefined && toggleSelect(record.id, e.target.checked)"
+            @change="
+              (e: any) => record.id !== undefined && toggleSelect(record.id, e.target.checked)
+            "
           />
         </div>
 
@@ -143,7 +159,9 @@
           />
           <div class="format-badge">{{ record.picFormat?.toUpperCase() }}</div>
           <div class="status-badge" :class="getStatusClass(record.reviewStatus ?? 0)">
-            {{ record.reviewStatus !== undefined ? PIC_REVIEW_STATUS_MAP[record.reviewStatus] : '' }}
+            {{
+              record.reviewStatus !== undefined ? PIC_REVIEW_STATUS_MAP[record.reviewStatus] : ''
+            }}
           </div>
         </div>
 
@@ -155,9 +173,15 @@
           <p class="picture-intro" v-if="record.introduction">{{ record.introduction }}</p>
 
           <div class="info-tags" v-if="record.category || (record.tags?.length ?? 0)">
-            <a-tag v-if="record.category" color="blue" class="category-tag">{{ record.category }}</a-tag>
-            <a-tag v-for="tag in (record.tags ?? []).slice(0, 2)" :key="tag" class="tag-item">{{ tag }}</a-tag>
-            <span v-if="(record.tags?.length ?? 0) > 2" class="tag-more">+{{ (record.tags?.length ?? 0) - 2 }}</span>
+            <a-tag v-if="record.category" color="blue" class="category-tag">{{
+              record.category
+            }}</a-tag>
+            <a-tag v-for="tag in (record.tags ?? []).slice(0, 2)" :key="tag" class="tag-item">{{
+              tag
+            }}</a-tag>
+            <span v-if="(record.tags?.length ?? 0) > 2" class="tag-more"
+              >+{{ (record.tags?.length ?? 0) - 2 }}</span
+            >
           </div>
 
           <div class="specs-row">
@@ -180,13 +204,17 @@
           <div class="stats-row">
             <span class="stat-item" title="点赞">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                <path
+                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+                ></path>
               </svg>
               {{ record.likeCount || 0 }}
             </span>
             <span class="stat-item" title="收藏">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                ></polygon>
               </svg>
               {{ record.collectCount || 0 }}
             </span>
@@ -208,9 +236,13 @@
           </div>
 
           <div class="card-actions">
-            <span class="create-time">{{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm') }}</span>
+            <span class="create-time">{{
+              dayjs(record.createTime).format('YYYY-MM-DD HH:mm')
+            }}</span>
             <div class="action-btns">
-              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '编辑'">
+              <a-tooltip
+                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '编辑'"
+              >
                 <button
                   class="action-btn"
                   :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
@@ -223,7 +255,9 @@
                   </svg>
                 </button>
               </a-tooltip>
-              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '通过'">
+              <a-tooltip
+                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '通过'"
+              >
                 <button
                   class="action-btn success"
                   :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
@@ -235,11 +269,20 @@
                   </svg>
                 </button>
               </a-tooltip>
-              <a-tooltip :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ? '已拒绝' : '拒绝'">
+              <a-tooltip
+                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ? '已拒绝' : '拒绝'"
+              >
                 <button
                   class="action-btn danger"
-                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT || record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
-                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT || record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                  :class="{
+                    disabled:
+                      record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
+                      record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS,
+                  }"
+                  :disabled="
+                    record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
+                    record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS
+                  "
                   @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.REJECT)"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -259,7 +302,9 @@
                   <button class="action-btn danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      ></path>
                     </svg>
                   </button>
                 </a-tooltip>
@@ -305,10 +350,7 @@ import { listSpaceByPageUsingPost } from '@/api/spaceController.ts'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import {
-  PIC_REVIEW_STATUS_ENUM,
-  PIC_REVIEW_STATUS_MAP,
-} from '@/constants/picture.ts'
+import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture.ts'
 import { contentSrc, formatSize } from '@/utils'
 
 // 内容入口可能对无资源记录的存量图片返回 404，用占位图兜底
@@ -411,7 +453,7 @@ const toggleSelect = (id: number, checked: boolean) => {
   if (checked) {
     selectedIds.value.push(id)
   } else {
-    selectedIds.value = selectedIds.value.filter(k => k !== id)
+    selectedIds.value = selectedIds.value.filter((k) => k !== id)
   }
 }
 
@@ -421,7 +463,7 @@ const doDelete = async (id: number | undefined) => {
     const res = await deletePictureUsingPost({ id })
     if (res.data.code === 0) {
       message.success('图片已删除')
-      selectedIds.value = selectedIds.value.filter(k => k !== id)
+      selectedIds.value = selectedIds.value.filter((k) => k !== id)
       await fetchData()
     } else {
       message.error('删除失败：' + res.data.message)
@@ -454,17 +496,15 @@ const handleReview = async (record: API.Picture, reviewStatus: number) => {
 const batchReview = async (reviewStatus: number, reviewMessage: string) => {
   if (!selectedIds.value.length) return
   try {
-    const promises = selectedIds.value.map(id =>
+    const promises = selectedIds.value.map((id) =>
       doPictureReviewUsingPost({
         id,
         reviewStatus,
         reviewMessage,
-      })
+      }),
     )
     const results = await Promise.allSettled(promises)
-    const failed = results.filter(
-      r => r.status === 'rejected' || r.value?.data?.code !== 0
-    )
+    const failed = results.filter((r) => r.status === 'rejected' || r.value?.data?.code !== 0)
     if (failed.length === 0) {
       message.success(`已审核 ${selectedIds.value.length} 张图片`)
       selectedIds.value = []
@@ -1023,8 +1063,12 @@ const goToEdit = (id: number) => {
 
 /* ========== 动画 ========== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {

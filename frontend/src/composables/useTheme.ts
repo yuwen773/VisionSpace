@@ -15,14 +15,14 @@ export const THEMES: Record<ThemeType, ThemeInfo> = {
     id: 'aurora',
     name: '极光主题',
     icon: '🌌',
-    description: '暗色科技风格'
+    description: '暗色科技风格',
   },
   pop: {
     id: 'pop',
     name: '紫漾主题',
     icon: '💜',
-    description: '梦幻紫粉风格'
-  }
+    description: '梦幻紫粉风格',
+  },
 }
 
 const STORAGE_KEY = 'ycloud-theme'
@@ -108,6 +108,6 @@ export const useTheme = () => {
     applyTheme,
     toggleTheme,
     setTheme,
-    getCurrentThemeInfo
+    getCurrentThemeInfo,
   }
 }

@@ -18,7 +18,7 @@ export async function addUserUsingPost(body: API.UserAddRequest, options?: { [ke
 export async function uploadAvatarUsingPost(
   body: {},
   file?: File,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   const formData = new FormData()
 
@@ -53,7 +53,7 @@ export async function uploadAvatarUsingPost(
 /** 此处后端没有提供注释 POST /user/delete */
 export async function deleteUserUsingPost(
   body: API.DeleteRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/user/delete', {
     method: 'POST',
@@ -68,7 +68,7 @@ export async function deleteUserUsingPost(
 /** 此处后端没有提供注释 POST /user/exchange/vip */
 export async function exchangeVipUsingPost(
   body: API.VipExchangeRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/user/exchange/vip', {
     method: 'POST',
@@ -84,7 +84,7 @@ export async function exchangeVipUsingPost(
 export async function getUserByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getUserByIdUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseUserVO>('/user/get', {
     method: 'GET',
@@ -107,7 +107,7 @@ export async function getLoginUserUsingGet(options?: { [key: string]: any }) {
 export async function getUserVoByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getUserVoByIdUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseUserVO>('/user/get/vo', {
     method: 'GET',
@@ -121,7 +121,7 @@ export async function getUserVoByIdUsingGet(
 /** 此处后端没有提供注释 POST /user/list/page/vo */
 export async function listUserVoByPageUsingPost(
   body: API.UserQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponsePageUserVO>('/user/list/page/vo', {
     method: 'POST',
@@ -136,7 +136,7 @@ export async function listUserVoByPageUsingPost(
 /** 此处后端没有提供注释 POST /user/login */
 export async function userLoginUsingPost(
   body: API.UserLoginRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLoginUserVO>('/user/login', {
     method: 'POST',
@@ -160,7 +160,7 @@ export async function userLogoutUsingPost(options?: { [key: string]: any }) {
 export async function getUserRecentPicturesUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getUserRecentPicturesUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListPictureVO>('/user/picture/recent', {
     method: 'GET',
@@ -184,7 +184,7 @@ export async function getUserPictureStatsUsingGet(options?: { [key: string]: any
 /** 此处后端没有提供注释 POST /user/register */
 export async function userRegisterUsingPost(
   body: API.UserRegisterRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLong>('/user/register', {
     method: 'POST',
@@ -199,7 +199,7 @@ export async function userRegisterUsingPost(
 /** 此处后端没有提供注释 POST /user/update */
 export async function updateUserUsingPost(
   body: API.UserUpdateRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/user/update', {
     method: 'POST',

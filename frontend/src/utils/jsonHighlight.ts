@@ -40,7 +40,7 @@ export const syntaxHighlightJson = (obj: any, depth = 0): string => {
     if (depth > 2) {
       return `<span class="json-bracket">{${keys.length} keys}</span>`
     }
-    const pairs = keys.map(k => {
+    const pairs = keys.map((k) => {
       const v = obj[k]
       const vStr = syntaxHighlightJson(v, depth + 1)
       return `${nextIndent}<span class="json-key">"${escapeHtml(k)}"</span><span class="json-sep">: </span>${vStr}`
@@ -73,14 +73,16 @@ export const highlightJsonValue = (value: any): string => {
     }
     if (value.length <= 3 && value.every((v: any) => typeof v !== 'object')) {
       const items = value.map((v: any) => {
-        if (typeof v === 'string') return `<span class="json-str">"${escapeHtml(v.length > 30 ? v.slice(0, 30) + '…' : v)}"</span>`
+        if (typeof v === 'string')
+          return `<span class="json-str">"${escapeHtml(v.length > 30 ? v.slice(0, 30) + '…' : v)}"</span>`
         if (typeof v === 'number') return `<span class="json-num">${v}</span>`
         return String(v)
       })
       return `<span class="json-bracket">[</span>${items.join('<span class="json-comma">, </span>')}<span class="json-bracket">]</span>`
     }
     const items = value.slice(0, 2).map((v: any) => {
-      if (typeof v === 'string') return `<span class="json-str">"${escapeHtml(v.length > 40 ? v.slice(0, 40) + '…' : v)}"</span>`
+      if (typeof v === 'string')
+        return `<span class="json-str">"${escapeHtml(v.length > 40 ? v.slice(0, 40) + '…' : v)}"</span>`
       if (typeof v === 'number') return `<span class="json-num">${v}</span>`
       if (typeof v === 'object' && v !== null) return summaryJsonObj(v)
       return String(v)
@@ -93,23 +95,28 @@ export const highlightJsonValue = (value: any): string => {
     const keys = Object.keys(value)
     if (keys.length === 0) return '<span class="json-bracket">{}</span>'
     if (keys.length <= 2) {
-      const parts = keys.map(k => {
+      const parts = keys.map((k) => {
         const v = value[k]
-        const vStr = typeof v === 'string'
-          ? `<span class="json-str">"${escapeHtml(v)}"</span>`
-          : typeof v === 'number' ? `<span class="json-num">${v}</span>`
-          : typeof v === 'boolean' ? `<span class="json-bool">${v}</span>`
-          : summaryJsonObj(v)
+        const vStr =
+          typeof v === 'string'
+            ? `<span class="json-str">"${escapeHtml(v)}"</span>`
+            : typeof v === 'number'
+              ? `<span class="json-num">${v}</span>`
+              : typeof v === 'boolean'
+                ? `<span class="json-bool">${v}</span>`
+                : summaryJsonObj(v)
         return `<span class="json-key">"${escapeHtml(k)}"</span><span class="json-sep">: </span>${vStr}`
       })
       return `<span class="json-bracket">{</span>${parts.join('<span class="json-comma">, </span>')}<span class="json-bracket">}</span>`
     }
     const first = keys[0]
     const firstVal = value[first]
-    const firstStr = typeof firstVal === 'string'
-      ? `<span class="json-str">"${escapeHtml(firstVal)}"</span>`
-      : typeof firstVal === 'number' ? `<span class="json-num">${firstVal}</span>`
-      : summaryJsonObj(firstVal)
+    const firstStr =
+      typeof firstVal === 'string'
+        ? `<span class="json-str">"${escapeHtml(firstVal)}"</span>`
+        : typeof firstVal === 'number'
+          ? `<span class="json-num">${firstVal}</span>`
+          : summaryJsonObj(firstVal)
     return `<span class="json-key">"${escapeHtml(first)}"</span><span class="json-sep">: </span>${firstStr}<span class="json-more"> +${keys.length - 1} more</span>`
   }
   return escapeHtml(String(value))

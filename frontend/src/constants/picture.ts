@@ -30,7 +30,7 @@ export const PICTURE_EDIT_MESSAGE_TYPE_ENUM = {
   ENTER_EDIT: 'ENTER_EDIT',
   EXIT_EDIT: 'EXIT_EDIT',
   EDIT_ACTION: 'EDIT_ACTION',
-};
+}
 
 // 图片编辑消息类型映射
 export const PICTURE_EDIT_MESSAGE_TYPE_MAP = {
@@ -39,7 +39,7 @@ export const PICTURE_EDIT_MESSAGE_TYPE_MAP = {
   ENTER_EDIT: '进入编辑状态',
   EXIT_EDIT: '退出编辑状态',
   EDIT_ACTION: '执行编辑操作',
-};
+}
 
 // 图片编辑消息操作枚举
 export const PICTURE_EDIT_ACTION_ENUM = {
@@ -47,7 +47,7 @@ export const PICTURE_EDIT_ACTION_ENUM = {
   ZOOM_OUT: 'ZOOM_OUT',
   ROTATE_LEFT: 'ROTATE_LEFT',
   ROTATE_RIGHT: 'ROTATE_RIGHT',
-};
+}
 
 // 图片编辑消息操作映射
 export const PICTURE_EDIT_ACTION_MAP = {
@@ -55,5 +55,4 @@ export const PICTURE_EDIT_ACTION_MAP = {
   ZOOM_OUT: '缩小操作',
   ROTATE_LEFT: '左旋操作',
   ROTATE_RIGHT: '右旋操作',
-};
-
+}

@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /space/add */
 export async function addSpaceUsingPost(
   body: API.SpaceAddRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLong>('/space/add', {
     method: 'POST',
@@ -20,7 +20,7 @@ export async function addSpaceUsingPost(
 /** 此处后端没有提供注释 POST /space/delete */
 export async function deleteSpaceUsingPost(
   body: API.DeleteRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/space/delete', {
     method: 'POST',
@@ -35,7 +35,7 @@ export async function deleteSpaceUsingPost(
 /** 此处后端没有提供注释 POST /space/edit */
 export async function editSpaceUsingPost(
   body: API.SpaceEditRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/space/edit', {
     method: 'POST',
@@ -51,7 +51,7 @@ export async function editSpaceUsingPost(
 export async function getSpaceByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getSpaceByIdUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseSpace>('/space/get', {
     method: 'GET',
@@ -66,7 +66,7 @@ export async function getSpaceByIdUsingGet(
 export async function getSpaceVoByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getSpaceVoByIdUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseSpaceVO>('/space/get/vo', {
     method: 'GET',
@@ -88,7 +88,7 @@ export async function listSpaceLevelUsingGet(options?: { [key: string]: any }) {
 /** 此处后端没有提供注释 POST /space/list/page */
 export async function listSpaceByPageUsingPost(
   body: API.SpaceQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponsePageSpace>('/space/list/page', {
     method: 'POST',
@@ -103,7 +103,7 @@ export async function listSpaceByPageUsingPost(
 /** 此处后端没有提供注释 POST /space/list/page/vo */
 export async function listSpaceVoByPageUsingPost(
   body: API.SpaceQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponsePageSpaceVO>('/space/list/page/vo', {
     method: 'POST',
@@ -118,7 +118,7 @@ export async function listSpaceVoByPageUsingPost(
 /** 此处后端没有提供注释 POST /space/update */
 export async function updateSpaceUsingPost(
   body: API.SpaceUpdateRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/space/update', {
     method: 'POST',

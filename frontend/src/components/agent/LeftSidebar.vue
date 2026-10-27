@@ -19,14 +19,36 @@
           </svg>
         </div>
         <span class="brand-name">SpaceMind</span>
-        <button class="collapse-btn" @click="emit('collapse')" aria-label="收起侧边栏" title="收起侧边栏">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          class="collapse-btn"
+          @click="emit('collapse')"
+          aria-label="收起侧边栏"
+          title="收起侧边栏"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
       </div>
       <button class="new-chat-btn" @click="emit('newChat')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+        >
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -38,7 +60,16 @@
     <div class="sidebar-body">
       <div v-if="histories.length === 0" class="empty-state">
         <div class="empty-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </div>
@@ -68,9 +99,20 @@
     <!-- Footer -->
     <div class="sidebar-footer">
       <button class="footer-btn" title="设置" aria-label="设置" @click="emit('settings')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+          />
         </svg>
       </button>
     </div>
@@ -129,7 +171,7 @@ const groupedHistories = computed(() => {
     }
   }
 
-  return groups.filter(g => g.items.length > 0)
+  return groups.filter((g) => g.items.length > 0)
 })
 </script>
 
@@ -186,32 +228,59 @@ const groupedHistories = computed(() => {
   animation: nodeBreath 3s ease-in-out infinite;
 }
 
-[data-theme="aurora"] .mark-node-core {
+[data-theme='aurora'] .mark-node-core {
   filter: drop-shadow(0 0 4px rgba(34, 104, 245, 0.5));
 }
 
-[data-theme="pop"] .mark-node-core {
+[data-theme='pop'] .mark-node-core {
   filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.5));
 }
 
-.mark-line-1 { animation: lineFade 4s ease-in-out 0s infinite; }
-.mark-line-2 { animation: lineFade 4s ease-in-out 0.5s infinite; }
-.mark-line-3 { animation: lineFade 4s ease-in-out 1s infinite; }
-.mark-line-4 { animation: lineFade 4s ease-in-out 1.5s infinite; }
-.mark-line-5 { animation: lineFade 4s ease-in-out 2s infinite; }
+.mark-line-1 {
+  animation: lineFade 4s ease-in-out 0s infinite;
+}
+.mark-line-2 {
+  animation: lineFade 4s ease-in-out 0.5s infinite;
+}
+.mark-line-3 {
+  animation: lineFade 4s ease-in-out 1s infinite;
+}
+.mark-line-4 {
+  animation: lineFade 4s ease-in-out 1.5s infinite;
+}
+.mark-line-5 {
+  animation: lineFade 4s ease-in-out 2s infinite;
+}
 
-.mark-node-top { animation: nodeBreath 3s ease-in-out 0s infinite; }
-.mark-node-left { animation: nodeBreath 3s ease-in-out 0.4s infinite; }
-.mark-node-right { animation: nodeBreath 3s ease-in-out 0.8s infinite; }
+.mark-node-top {
+  animation: nodeBreath 3s ease-in-out 0s infinite;
+}
+.mark-node-left {
+  animation: nodeBreath 3s ease-in-out 0.4s infinite;
+}
+.mark-node-right {
+  animation: nodeBreath 3s ease-in-out 0.8s infinite;
+}
 
 @keyframes nodeBreath {
-  0%, 100% { opacity: 0.7; transform-origin: center; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.7;
+    transform-origin: center;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes lineFade {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .brand-name {
@@ -244,11 +313,11 @@ const groupedHistories = computed(() => {
   color: var(--color-text-secondary);
 }
 
-[data-theme="aurora"] .collapse-btn:hover {
+[data-theme='aurora'] .collapse-btn:hover {
   color: rgba(34, 104, 245, 0.7);
 }
 
-[data-theme="pop"] .collapse-btn:hover {
+[data-theme='pop'] .collapse-btn:hover {
   color: rgba(168, 85, 247, 0.7);
 }
 
@@ -282,11 +351,11 @@ const groupedHistories = computed(() => {
   border-radius: inherit;
 }
 
-[data-theme="aurora"] .new-chat-btn::before {
+[data-theme='aurora'] .new-chat-btn::before {
   background: linear-gradient(135deg, rgba(34, 104, 245, 0.06) 0%, rgba(110, 53, 235, 0.03) 100%);
 }
 
-[data-theme="pop"] .new-chat-btn::before {
+[data-theme='pop'] .new-chat-btn::before {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(236, 72, 153, 0.03) 100%);
 }
 
@@ -304,12 +373,16 @@ const groupedHistories = computed(() => {
   transform: translateY(0) scale(0.98);
 }
 
-[data-theme="aurora"] .new-chat-btn:hover {
-  box-shadow: 0 0 0 1px rgba(34, 104, 245, 0.15), 0 2px 8px rgba(34, 104, 245, 0.08);
+[data-theme='aurora'] .new-chat-btn:hover {
+  box-shadow:
+    0 0 0 1px rgba(34, 104, 245, 0.15),
+    0 2px 8px rgba(34, 104, 245, 0.08);
 }
 
-[data-theme="pop"] .new-chat-btn:hover {
-  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.12), 0 2px 8px rgba(168, 85, 247, 0.06);
+[data-theme='pop'] .new-chat-btn:hover {
+  box-shadow:
+    0 0 0 1px rgba(168, 85, 247, 0.12),
+    0 2px 8px rgba(168, 85, 247, 0.06);
 }
 
 .new-chat-btn svg,
@@ -427,11 +500,11 @@ const groupedHistories = computed(() => {
   color: var(--color-primary-500);
 }
 
-[data-theme="aurora"] .history-item.active {
+[data-theme='aurora'] .history-item.active {
   box-shadow: inset 0 0 0 1px rgba(34, 104, 245, 0.08);
 }
 
-[data-theme="pop"] .history-item.active {
+[data-theme='pop'] .history-item.active {
   box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.06);
 }
 

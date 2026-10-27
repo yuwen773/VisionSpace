@@ -104,10 +104,7 @@ export interface ApiResponse<T> {
  * 获取会话下的聊天历史（分页）
  * GET /api/agent/history/{threadId}
  */
-export async function getHistory(
-  threadId: string,
-  params?: { beforeId?: number; limit?: number }
-) {
+export async function getHistory(threadId: string, params?: { beforeId?: number; limit?: number }) {
   return request<ApiResponse<ChatHistoryResponse>>(`/api/agent/history/${threadId}`, {
     method: 'GET',
     params,
@@ -180,11 +177,7 @@ export async function resumeSession(threadId: string, expectedVersion?: number |
  * 人工核对：确认外部动作已经发生
  * POST /api/agent/recovery/action/confirm
  */
-export async function confirmAction(
-  threadId: string,
-  actionId: string,
-  note?: string,
-) {
+export async function confirmAction(threadId: string, actionId: string, note?: string) {
   return request<ApiResponse<RecoveryState>>('/api/agent/recovery/action/confirm', {
     method: 'POST',
     data: { threadId, actionId, note },
@@ -195,11 +188,7 @@ export async function confirmAction(
  * 人工核对：确认外部动作没有发生
  * POST /api/agent/recovery/action/dismiss
  */
-export async function dismissAction(
-  threadId: string,
-  actionId: string,
-  note?: string,
-) {
+export async function dismissAction(threadId: string, actionId: string, note?: string) {
   return request<ApiResponse<RecoveryState>>('/api/agent/recovery/action/dismiss', {
     method: 'POST',
     data: { threadId, actionId, note },

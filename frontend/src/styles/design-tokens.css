@@ -50,19 +50,19 @@
   /* ========== 深空黑中性色 ========== */
 
   /* 背景 - 深邃星空黑 */
-  --color-bg-primary: #030712;        /* 最深的星空背景 */
-  --color-bg-secondary: #0a0f1a;        /* 次级背景 - 深蓝黑 */
-  --color-bg-tertiary: #111827;        /* 第三级背景 */
-  --color-bg-elevated: #1a2332;        /* 提升的卡片背景 */
-  --color-bg-hover: #243044;           /* 悬停状态 */
-  --color-bg-active: #2d3b52;          /* 激活状态 */
+  --color-bg-primary: #030712; /* 最深的星空背景 */
+  --color-bg-secondary: #0a0f1a; /* 次级背景 - 深蓝黑 */
+  --color-bg-tertiary: #111827; /* 第三级背景 */
+  --color-bg-elevated: #1a2332; /* 提升的卡片背景 */
+  --color-bg-hover: #243044; /* 悬停状态 */
+  --color-bg-active: #2d3b52; /* 激活状态 */
 
   /* 文字颜色 - 调整以提高对比度 */
-  --color-text-primary: #f8fafc;        /* 主文字 - 更亮 */
-  --color-text-secondary: #cbd5e1;     /* 次级文字 */
-  --color-text-tertiary: #94a3b8;       /* 第三级文字 */
-  --color-text-disabled: #64748b;       /* 禁用文字 */
-  --color-text-inverse: #030712;        /* 反色文字 */
+  --color-text-primary: #f8fafc; /* 主文字 - 更亮 */
+  --color-text-secondary: #cbd5e1; /* 次级文字 */
+  --color-text-tertiary: #94a3b8; /* 第三级文字 */
+  --color-text-disabled: #64748b; /* 禁用文字 */
+  --color-text-inverse: #030712; /* 反色文字 */
 
   /* 边框 - 更加微妙 */
   --color-border-subtle: rgba(148, 163, 184, 0.08);
@@ -103,59 +103,86 @@
 
   /* 极光渐变 - 调整为更柔和的深空版本 */
   --gradient-aurora: linear-gradient(135deg, #2268f5 0%, #6e35eb 50%, #a855f7 100%);
-  --gradient-aurora-subtle: linear-gradient(135deg, rgba(34, 104, 245, 0.15) 0%, rgba(110, 53, 235, 0.15) 50%, rgba(168, 85, 247, 0.15) 100%);
+  --gradient-aurora-subtle: linear-gradient(
+    135deg,
+    rgba(34, 104, 245, 0.15) 0%,
+    rgba(110, 53, 235, 0.15) 50%,
+    rgba(168, 85, 247, 0.15) 100%
+  );
 
   /* 深空渐变 - 星空背景 */
   --gradient-deep-space: radial-gradient(ellipse at top, #0a0f1a 0%, #030712 50%, #000000 100%);
-  --gradient-cosmic: radial-gradient(ellipse at 50% 0%, rgba(30, 58, 95, 0.4) 0%, transparent 60%),
-                     radial-gradient(ellipse at 80% 50%, rgba(49, 46, 129, 0.2) 0%, transparent 50%),
-                     radial-gradient(ellipse at 20% 80%, rgba(76, 29, 78, 0.15) 0%, transparent 50%),
-                     radial-gradient(ellipse at 0% 0%, rgba(22, 78, 99, 0.1) 0%, transparent 40%);
+  --gradient-cosmic:
+    radial-gradient(ellipse at 50% 0%, rgba(30, 58, 95, 0.4) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 50%, rgba(49, 46, 129, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(76, 29, 78, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 0% 0%, rgba(22, 78, 99, 0.1) 0%, transparent 40%);
 
   /* 网格渐变 - 深空网格效果 */
-  --gradient-mesh: radial-gradient(at 40% 20%, rgba(34, 104, 245, 0.2) 0px, transparent 50%),
-                    radial-gradient(at 80% 0%, rgba(110, 53, 235, 0.15) 0px, transparent 50%),
-                    radial-gradient(at 0% 50%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
-                    radial-gradient(at 80% 50%, rgba(34, 104, 245, 0.1) 0px, transparent 50%),
-                    radial-gradient(at 0% 100%, rgba(110, 53, 235, 0.1) 0px, transparent 50%),
-                    radial-gradient(at 80% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
+  --gradient-mesh:
+    radial-gradient(at 40% 20%, rgba(34, 104, 245, 0.2) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(110, 53, 235, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, rgba(34, 104, 245, 0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(110, 53, 235, 0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
 
   /* 卡片渐变 - 深空风格 */
   --gradient-card: linear-gradient(145deg, rgba(26, 35, 50, 0.9) 0%, rgba(10, 15, 26, 0.95) 100%);
-  --gradient-card-hover: linear-gradient(145deg, rgba(36, 48, 68, 0.95) 0%, rgba(15, 22, 36, 0.98) 100%);
+  --gradient-card-hover: linear-gradient(
+    145deg,
+    rgba(36, 48, 68, 0.95) 0%,
+    rgba(15, 22, 36, 0.98) 100%
+  );
 
   /* 玻璃效果 - 深空版 */
-  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  --gradient-glass: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
 
   /* 光晕效果 */
-  --gradient-glow-primary: radial-gradient(circle at 50% 50%, rgba(34, 104, 245, 0.15) 0%, transparent 70%);
-  --gradient-glow-purple: radial-gradient(circle at 50% 50%, rgba(110, 53, 235, 0.12) 0%, transparent 70%);
-  --gradient-glow-cyan: radial-gradient(circle at 50% 50%, rgba(0, 212, 170, 0.1) 0%, transparent 60%);
+  --gradient-glow-primary: radial-gradient(
+    circle at 50% 50%,
+    rgba(34, 104, 245, 0.15) 0%,
+    transparent 70%
+  );
+  --gradient-glow-purple: radial-gradient(
+    circle at 50% 50%,
+    rgba(110, 53, 235, 0.12) 0%,
+    transparent 70%
+  );
+  --gradient-glow-cyan: radial-gradient(
+    circle at 50% 50%,
+    rgba(0, 212, 170, 0.1) 0%,
+    transparent 60%
+  );
 
   /* ========== 间距系统 ========== */
   --space-0: 0;
-  --space-1: 0.25rem;    /* 4px */
-  --space-2: 0.5rem;     /* 8px */
-  --space-3: 0.75rem;    /* 12px */
-  --space-4: 1rem;       /* 16px */
-  --space-5: 1.25rem;    /* 20px */
-  --space-6: 1.5rem;     /* 24px */
-  --space-8: 2rem;       /* 32px */
-  --space-10: 2.5rem;    /* 40px */
-  --space-12: 3rem;      /* 48px */
-  --space-16: 4rem;      /* 64px */
-  --space-20: 5rem;      /* 80px */
-  --space-24: 6rem;      /* 96px */
-  --space-32: 8rem;      /* 128px */
+  --space-1: 0.25rem; /* 4px */
+  --space-2: 0.5rem; /* 8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+  --space-16: 4rem; /* 64px */
+  --space-20: 5rem; /* 80px */
+  --space-24: 6rem; /* 96px */
+  --space-32: 8rem; /* 128px */
 
   /* ========== 圆角 ========== */
-  --radius-xs: 0.25rem;   /* 4px */
-  --radius-sm: 0.375rem;  /* 6px */
-  --radius-md: 0.5rem;    /* 8px */
-  --radius-lg: 0.75rem;   /* 12px */
-  --radius-xl: 1rem;      /* 16px */
-  --radius-2xl: 1.5rem;   /* 24px */
-  --radius-3xl: 2rem;     /* 32px */
+  --radius-xs: 0.25rem; /* 4px */
+  --radius-sm: 0.375rem; /* 6px */
+  --radius-md: 0.5rem; /* 8px */
+  --radius-lg: 0.75rem; /* 12px */
+  --radius-xl: 1rem; /* 16px */
+  --radius-2xl: 1.5rem; /* 24px */
+  --radius-3xl: 2rem; /* 32px */
   --radius-full: 9999px;
 
   /* ========== 深空阴影系统 ========== */
@@ -181,17 +208,17 @@
   --font-brand: 'KaushanScript', cursive;
 
   /* 字体大小 */
-  --text-xs: 0.75rem;     /* 12px */
-  --text-sm: 0.875rem;    /* 14px */
-  --text-base: 1rem;      /* 16px */
-  --text-lg: 1.125rem;    /* 18px */
-  --text-xl: 1.25rem;     /* 20px */
-  --text-2xl: 1.5rem;     /* 24px */
-  --text-3xl: 1.875rem;   /* 30px */
-  --text-4xl: 2.25rem;    /* 36px */
-  --text-5xl: 3rem;       /* 48px */
-  --text-6xl: 3.75rem;    /* 60px */
-  --text-7xl: 4.5rem;     /* 72px */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-base: 1rem; /* 16px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.25rem; /* 20px */
+  --text-2xl: 1.5rem; /* 24px */
+  --text-3xl: 1.875rem; /* 30px */
+  --text-4xl: 2.25rem; /* 36px */
+  --text-5xl: 3rem; /* 48px */
+  --text-6xl: 3.75rem; /* 60px */
+  --text-7xl: 4.5rem; /* 72px */
 
   /* 字重 */
   --font-light: 300;
@@ -244,4 +271,3 @@
   --container-xl: 1280px;
   --container-2xl: 1536px;
 }
-

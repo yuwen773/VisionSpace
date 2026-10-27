@@ -3,8 +3,17 @@
     <div class="analyze-card">
       <div class="card-header">
         <div class="header-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+            />
           </svg>
         </div>
         <h3 class="card-title">空间存储分析</h3>
@@ -18,11 +27,11 @@
               <svg viewBox="0 0 200 200" class="gauge-svg">
                 <defs>
                   <linearGradient id="storageGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#a855f7"/>
-                    <stop offset="100%" stop-color="#ec4899"/>
+                    <stop offset="0%" stop-color="#a855f7" />
+                    <stop offset="100%" stop-color="#ec4899" />
                   </linearGradient>
                 </defs>
-                <circle cx="100" cy="100" r="85" class="gauge-bg"/>
+                <circle cx="100" cy="100" r="85" class="gauge-bg" />
                 <circle
                   cx="100"
                   cy="100"
@@ -49,11 +58,11 @@
               <svg viewBox="0 0 200 200" class="gauge-svg">
                 <defs>
                   <linearGradient id="countGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#ec4899"/>
-                    <stop offset="100%" stop-color="#f472b6"/>
+                    <stop offset="0%" stop-color="#ec4899" />
+                    <stop offset="100%" stop-color="#f472b6" />
                   </linearGradient>
                 </defs>
-                <circle cx="100" cy="100" r="85" class="gauge-bg"/>
+                <circle cx="100" cy="100" r="85" class="gauge-bg" />
                 <circle
                   cx="100"
                   cy="100"
@@ -79,10 +88,17 @@
         <div class="detail-stats">
           <div class="stat-row">
             <span class="stat-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
               </svg>
               图片数量
             </span>
@@ -90,8 +106,17 @@
           </div>
           <div class="stat-row">
             <span class="stat-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                />
               </svg>
               已用空间
             </span>
@@ -99,9 +124,16 @@
           </div>
           <div class="stat-row">
             <span class="stat-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
               </svg>
               平均每张
             </span>
