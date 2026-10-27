@@ -25,6 +25,7 @@ import com.yuwen.visionspace.mapper.SpaceMapper;
 import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -88,21 +89,18 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         if (SpaceLevelEnum.COMMON.getValue() != space.getSpaceLevel() && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限创建指定级别的空间");
         }
-        // 4. 控制同一用户只能创建一个私有空间、以及一个团队空间
-        String lock = String.valueOf(userId).intern();
-        synchronized (lock) {
+        // 4. 同一用户每种类型最多一个有效空间。
+        //    唯一性由数据库的 activeKey 唯一索引保证，而不是进程内锁：
+        //    进程内锁只在单个 JVM 内生效，两个实例同时创建时都会看到"不存在"。
+        //    冲突时唯一索引让后提交的一方失败，事务整体回滚，不会留下半条记录。
+        space.setActiveKey(activeKeyOf(userId, space.getSpaceType()));
+        try {
             Long newSpaceId = transactionTemplate.execute(status -> {
-                // 判断是否已有空间
-                boolean exists = this.lambdaQuery()
-                        .eq(Space::getUserId, userId)
-                        .eq(Space::getSpaceType, space.getSpaceType())
-                        .exists();
-                // 如果已有空间，就不能再创建
-                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每个用户每类空间只能创建一个");
                 // 创建
                 boolean result = this.save(space);
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "保存空间到数据库失败");
-                // 创建成功后，如果是团队空间，关联新增团队成员记录
+                // 创建成功后，如果是团队空间，关联新增团队成员记录。
+                // 成员记录与空间在同一事务内提交：任何一步失败都不会留下无主空间。
                 if (SpaceTypeEnum.TEAM.getValue() == space.getSpaceType()) {
                     SpaceUser spaceUser = new SpaceUser();
                     spaceUser.setSpaceId(space.getId());
@@ -117,7 +115,34 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 return space.getId();
             });
             return Optional.ofNullable(newSpaceId).orElse(-1L);
+        } catch (DuplicateKeyException e) {
+            // 唯一索引冲突是明确的业务结果：同类空间已经存在，而不是系统错误
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "每个用户每类空间只能创建一个");
         }
+    }
+
+    /**
+     * 有效空间唯一占位键：同一创建者的同一空间类型只允许一条有效记录。
+     */
+    private static String activeKeyOf(Long userId, Integer spaceType) {
+        return userId + ":" + spaceType;
+    }
+
+    /**
+     * 删除空间：逻辑删除并释放唯一占位，之后可以重新创建。
+     *
+     * <p>两步在同一条语句里完成：只删不释放会让该用户此后永远无法再建同类空间；
+     * 只释放不删会留下两条有效记录。条件里的 {@code isDelete = 0} 让重复删除
+     * 只影响 0 行，不会覆盖别的空间。
+     *
+     * @return 是否删除了这条空间（已删除或不存在时返回 false）
+     */
+    @Override
+    public boolean deleteSpace(Long spaceId) {
+        if (spaceId == null || spaceId <= 0) {
+            return false;
+        }
+        return baseMapper.softDeleteAndReleaseActiveKey(spaceId) > 0;
     }
 
     @Override

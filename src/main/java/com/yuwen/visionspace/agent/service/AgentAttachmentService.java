@@ -10,6 +10,7 @@ import com.yuwen.visionspace.model.entity.PictureFile;
 import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
 import com.yuwen.visionspace.model.enums.PictureFileStatusEnum;
 import com.yuwen.visionspace.service.PictureFileService;
+import com.yuwen.visionspace.service.StorageCleanupService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +63,9 @@ public class AgentAttachmentService {
 
     @Resource
     private AgentSessionGuard sessionGuard;
+
+    @Resource
+    private StorageCleanupService storageCleanupService;
 
     /**
      * 绑定后的附件引用。
@@ -352,11 +356,15 @@ public class AgentAttachmentService {
      * <p>删除未确认时保留记录与可重试状态：既不谎报成功，也不静默丢弃。
      */
     private boolean removeObject(PictureFile file) {
-        boolean removed = pictureStorageService.deleteObject(file.getPlatform(), file.getObjectKey());
-        if (!removed) {
+        // 复用资源记录的删除入口：它先核对同一对象键是否仍被其他记录引用，
+        // 对已删除的记录直接返回，避免同一个对象被两条路径删两次。
+        if (!pictureFileService.deleteFile(file)) {
             int retryCount = (file.getDeleteRetryCount() == null ? 0 : file.getDeleteRetryCount()) + 1;
             // 下次重试时间由数据库时钟推算，与应用侧时钟无关
             pictureFileService.markDeletePending(file.getId(), retryCount, retryDelay(retryCount).toSeconds());
+            // 同时登记到统一的清理任务表：附件自己的重试与图库清理共用一份对象事实，
+            // 谁先确认删除，另一个在重试前的引用核对里都会看到并停下
+            storageCleanupService.enqueue(file, file.getObjectKey(), "附件对象删除未确认");
             log.warn("附件对象删除未确认，保留重试状态: id={}, retry={}", file.getId(), retryCount);
             return false;
         }

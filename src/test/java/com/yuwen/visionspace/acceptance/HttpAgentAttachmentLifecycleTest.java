@@ -77,6 +77,10 @@ class HttpAgentAttachmentLifecycleTest {
             jdbc.update("DELETE FROM agent_message WHERE sessionId = ?", threadId);
             jdbc.update("DELETE FROM agent_session WHERE sessionId = ?", threadId);
         }
+        // 附件删除未确认时也会登记统一的清理任务：按本人资源记录的对象键清理，
+        // 否则任务会留到别的用例里被当成自己的残留
+        jdbc.update("DELETE FROM storage_cleanup_task WHERE reason = '附件对象删除未确认' "
+                + "AND objectKey LIKE 'https://acceptance.invalid/agent-chat/%'");
         jdbc.update("DELETE FROM picture_file WHERE purpose = 'agent-chat' AND ownerUserId IN (?, ?)",
                 ownerId, strangerId);
     }

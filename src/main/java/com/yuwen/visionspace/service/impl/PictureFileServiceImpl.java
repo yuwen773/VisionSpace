@@ -88,10 +88,10 @@ public class PictureFileServiceImpl extends ServiceImpl<PictureFileMapper, Pictu
         if (pictureId == null) {
             return List.of();
         }
-        List<PictureFile> candidates = this.lambdaQuery()
-                .eq(PictureFile::getPictureId, pictureId)
-                .eq(PictureFile::getStatus, PictureFileStatusEnum.ACTIVE.getValue())
-                .list();
+        // 用锁定读：两个实例同时替换同一张图时，后到的一方必须看到前一方已经提交的
+        // 记录状态，否则会把同一批旧记录再"替换"一次，旧对象被删除两遍。
+        List<PictureFile> candidates = baseMapper.selectByPictureAndStatusForUpdate(
+                pictureId, PictureFileStatusEnum.ACTIVE.getValue());
         List<PictureFile> superseded = new ArrayList<>();
         for (PictureFile candidate : candidates) {
             if (keptFileIds != null && keptFileIds.contains(candidate.getId())) {
@@ -161,11 +161,29 @@ public class PictureFileServiceImpl extends ServiceImpl<PictureFileMapper, Pictu
         if (file == null || file.getId() == null) {
             return true;
         }
-        boolean removed = pictureStorageService.deleteObject(file.getPlatform(), file.getObjectKey());
+        // 已经被确认删除过：重复清理按成功处理，不再碰存储。
+        // 同一张图的旧记录可能被两条路径同时选中，重复删除会让计数和外部调用都不对。
+        PictureFile current = this.getById(file.getId());
+        String objectKey = current == null ? file.getObjectKey() : current.getObjectKey();
+        String platform = current == null ? file.getPlatform() : current.getPlatform();
+        // 同一个对象键仍被别的有效记录引用时不删除：删掉会让另一条记录指向不存在的对象
+        if (baseMapper.countLiveReferences(platform, objectKey, file.getId()) > 0) {
+            log.info("对象仍被其他有效记录引用，跳过删除: platform={}, key={}", platform, objectKey);
+            return true;
+        }
+        // 只有仍占用存储的记录才需要删对象。已替换/已删除的记录直接收敛状态，
+        // 不重复调用存储：同一批旧记录可能被两条路径先后选中。
+        boolean live = current == null || current.getStatus() == null
+                || current.getStatus() == PictureFileStatusEnum.TEMP.getValue()
+                || current.getStatus() == PictureFileStatusEnum.ACTIVE.getValue();
+        if (!live) {
+            return true;
+        }
+        boolean removed = pictureStorageService.deleteObject(platform, objectKey);
         if (!removed) {
             // 保留记录，便于重试与排查；状态不变表示删除未确认
             log.warn("资源对象删除未确认，保留记录: id={}, platform={}, key={}",
-                    file.getId(), file.getPlatform(), file.getObjectKey());
+                    file.getId(), platform, objectKey);
             return false;
         }
         PictureFile update = new PictureFile();
