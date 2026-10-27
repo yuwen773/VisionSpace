@@ -1,17 +1,22 @@
 package com.yuwen.visionspace.manager.storage;
 
+import cn.hutool.core.io.FileUtil;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.dromara.x.file.storage.core.FileStorageService;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.Resource;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 统一存储服务，底层使用 x-file-storage
@@ -25,6 +30,12 @@ public class PictureStorageService {
      * 避免异常对象或错误键把服务端内存打满。
      */
     static final long MAX_CONTENT_BYTES = 20L * 1024 * 1024;
+
+    /** 反馈附件单文件上限（与前端提示一致） */
+    static final long MAX_FEEDBACK_ATTACHMENT_BYTES = 5L * 1024 * 1024;
+
+    /** 反馈附件允许的图片格式 */
+    static final Set<String> FEEDBACK_ATTACHMENT_FORMATS = Set.of("jpeg", "png", "jpg", "webp");
 
     @Resource
     private FileStorageService fileStorageService;
@@ -67,6 +78,50 @@ public class PictureStorageService {
         } catch (Exception e) {
             log.error("文件上传失败: uploadPathPrefix={}", uploadPathPrefix, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败");
+        }
+    }
+
+    /**
+     * 上传反馈附件。
+     *
+     * <p>与图库和 Agent 上传共用同一存储边界，但返回的服务端定位信息单独登记，
+     * 浏览器只拿到附件标识，不接触源站地址。大小与格式沿用图片上传的限制。
+     */
+    public UploadPictureResult uploadFeedbackAttachment(MultipartFile file, Long ownerUserId) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件不能为空");
+        }
+        if (file.getSize() > MAX_FEEDBACK_ATTACHMENT_BYTES) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "附件不能超过 5MB");
+        }
+        String originalName = file.getOriginalFilename();
+        String suffix = FileUtil.getSuffix(originalName);
+        if (suffix == null || !FEEDBACK_ATTACHMENT_FORMATS.contains(suffix.toLowerCase())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "仅支持 jpeg/png/jpg/webp 图片");
+        }
+        String filename = UUID.randomUUID() + "." + suffix.toLowerCase();
+        String pathPrefix = "temp/feedback/" + ownerUserId + "/";
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile("feedback-", "." + suffix.toLowerCase());
+            file.transferTo(tempFile);
+            FileInfo info = putObject(tempFile, pathPrefix, filename);
+            UploadPictureResult result = new UploadPictureResult();
+            result.setPlatform(info.getPlatform());
+            result.setStoragePath(objectKey(info));
+            result.setUrl(info.getUrl());
+            result.setPicSize(info.getSize());
+            result.setPicName(filename);
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("反馈附件上传失败: userId={}", ownerUserId, e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件上传失败");
+        } finally {
+            if (tempFile != null && !tempFile.delete()) {
+                log.warn("临时文件删除失败: {}", tempFile.getAbsolutePath());
+            }
         }
     }
 

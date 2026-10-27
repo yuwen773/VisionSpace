@@ -111,6 +111,11 @@ public interface UserService extends IService<User> {
     boolean isAdmin(User user);
 
     /**
+     * 是否具备违规处置权限。该权限独立于平台管理员角色，用于隔离与恢复资源。
+     */
+    boolean isModerator(User user);
+
+    /**
      * 用户兑换会员（会员码兑换）
      *
      * @return 兑换结果：成功带新到期时间；已用/无效为明确状态，不抛业务异常

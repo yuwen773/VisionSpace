@@ -23,6 +23,7 @@ import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.StpKit;
 import com.yuwen.visionspace.manager.auth.annotation.SaSpaceCheckPermission;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuwen.visionspace.model.dto.picture.*;
 import org.springframework.http.MediaType;
 import com.yuwen.visionspace.model.entity.Picture;
@@ -31,8 +32,10 @@ import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.vo.PictureTagCategory;
 import com.yuwen.visionspace.model.vo.PictureVO;
+import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.service.PictureContentService;
 import com.yuwen.visionspace.service.PictureService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -83,6 +86,9 @@ public class PictureController {
     private PictureContentService pictureContentService;
 
     @Resource
+    private ResourceIsolationService resourceIsolationService;
+
+    @Resource
     private Cache<String, String> pictureListCache;
 
     /**
@@ -128,6 +134,8 @@ public class PictureController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
+        // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径。
+        // 判定放在服务层，直接调用服务的入口同样受约束。
         pictureService.deletePicture(deleteRequest.getId(), loginUser);
         return ResultUtils.success(true);
     }
@@ -189,8 +197,16 @@ public class PictureController {
         // 查询数据库
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 元数据可见性与内容鉴权共用同一判定，避免"能看到记录却读不到内容"的不一致
+        // 元数据可见性与内容鉴权共用同一判定，避免"能看到记录却读不到内容"的不一致。
+        // 隔离中的资源只对违规处置人员保留元数据，其余一律按不存在处理。
         User viewer = userService.getLoginUserIfPresent(request);
+        if (pictureContentAuthManager.isQuarantined(picture)) {
+            boolean moderator = viewer != null && userService.isModerator(viewer);
+            ThrowUtils.throwIf(!moderator, ErrorCode.NOT_FOUND_ERROR);
+            PictureVO quarantinedView = pictureService.getPictureVO(picture, request);
+            quarantinedView.setPermissionList(List.of());
+            return ResultUtils.success(quarantinedView);
+        }
         ThrowUtils.throwIf(!pictureContentAuthManager.canReadContent(picture, viewer), ErrorCode.NO_AUTH_ERROR);
         // 空间权限校验
         Long spaceId = picture.getSpaceId();
@@ -263,9 +279,13 @@ public class PictureController {
             boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
             ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
         }
+        QueryWrapper<Picture> queryWrapper = pictureService.getQueryWrapper(pictureQueryRequest);
+        if (spaceId == null) {
+            // 公开图库不展示隔离中的内容：隔离后公开读取按隔离规则拒绝
+            resourceIsolationService.excludeQuarantined(queryWrapper, "id", ResourceTypeEnum.PICTURE.getValue());
+        }
         // 查询数据库
-        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
-                pictureService.getQueryWrapper(pictureQueryRequest));
+        Page<Picture> picturePage = pictureService.page(new Page<>(current, size), queryWrapper);
         // 获取封装类
         return ResultUtils.success(pictureService.getPictureVOPage(picturePage, request));
     }
@@ -310,8 +330,9 @@ public class PictureController {
             return ResultUtils.success(cachedPage);
         }
         // 3. 查询数据库
-        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
-                pictureService.getQueryWrapper(pictureQueryRequest));
+        QueryWrapper<Picture> queryWrapper = pictureService.getQueryWrapper(pictureQueryRequest);
+        resourceIsolationService.excludeQuarantined(queryWrapper, "id", ResourceTypeEnum.PICTURE.getValue());
+        Page<Picture> picturePage = pictureService.page(new Page<>(current, size), queryWrapper);
         Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
         // 4. 更新缓存
         // 更新 Redis 缓存

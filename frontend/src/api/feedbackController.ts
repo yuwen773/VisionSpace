@@ -17,6 +17,20 @@ export async function addFeedbackUsingPost(
   })
 }
 
+/** 此处后端没有提供注释 GET /feedback/attachment/${param0} */
+export async function getAttachmentUsingGet(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getAttachmentUsingGetParams,
+  options?: { [key: string]: any }
+) {
+  const { id: param0, ...queryParams } = params
+  return request<string>(`/feedback/attachment/${param0}`, {
+    method: 'GET',
+    params: { ...queryParams },
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /feedback/get/${param0} */
 export async function getFeedbackByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -89,7 +103,7 @@ export async function uploadFeedbackAttachmentUsingPost(
     }
   })
 
-  return request<API.BaseResponseString>('/feedback/upload', {
+  return request<API.BaseResponseFeedbackAttachmentVO>('/feedback/upload', {
     method: 'POST',
     data: formData,
     requestType: 'form',

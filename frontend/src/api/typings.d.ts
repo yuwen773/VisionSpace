@@ -19,6 +19,7 @@ declare namespace API {
   type AgentChatRequest = {
     message?: string
     threadId?: string
+    attachmentIds?: string[]
     imageUrls?: string[]
     enabledMcpServers?: string[]
     disableMcpDefault?: boolean
@@ -60,6 +61,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseFeedbackAttachmentVO = {
+    code?: number
+    data?: FeedbackAttachmentVO
+    message?: string
+  }
+
   type BaseResponseFeedbackVO = {
     code?: number
     data?: FeedbackVO
@@ -90,9 +97,21 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseListModerationResourceVO = {
+    code?: number
+    data?: ModerationResourceVO[]
+    message?: string
+  }
+
   type BaseResponseListPictureVO = {
     code?: number
     data?: PictureVO[]
+    message?: string
+  }
+
+  type BaseResponseListResourceGrantVO = {
+    code?: number
+    data?: ResourceGrantVO[]
     message?: string
   }
 
@@ -174,6 +193,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseModerationResourceVO = {
+    code?: number
+    data?: ModerationResourceVO
+    message?: string
+  }
+
   type BaseResponsePageFeedbackVO = {
     code?: number
     data?: PageFeedbackVO
@@ -252,6 +277,18 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseResourceGrantListVO = {
+    code?: number
+    data?: ResourceGrantListVO
+    message?: string
+  }
+
+  type BaseResponseResourceGrantVO = {
+    code?: number
+    data?: ResourceGrantVO
+    message?: string
+  }
+
   type BaseResponseSpace = {
     code?: number
     data?: Space
@@ -312,6 +349,11 @@ declare namespace API {
     nextCursor?: number
   }
 
+  type contentUsingGetParams = {
+    resourceId: number
+    sessionId: string
+  }
+
   type CreateOutPaintingTaskOutput = {
     taskId?: string
     taskStatus?: string
@@ -329,6 +371,10 @@ declare namespace API {
     parameters?: Parameters
   }
 
+  type deleteAttachmentUsingPostParams = {
+    resourceId: number
+  }
+
   type deleteMcpServerUsingDeleteParams = {
     mcpServerCode: string
   }
@@ -337,11 +383,22 @@ declare namespace API {
     id?: number
   }
 
+  type deleteSessionUsingDeleteParams = {
+    threadId: string
+  }
+
   type FeedbackAddRequest = {
     type?: number
     title?: string
     content?: string
+    attachmentIds?: string[]
     pictureUrls?: string[]
+  }
+
+  type FeedbackAttachmentVO = {
+    id?: string
+    url?: string
+    status?: string
   }
 
   type FeedbackQueryRequest = {
@@ -371,17 +428,21 @@ declare namespace API {
   type FeedbackVO = {
     id?: number
     userId?: number
-    userVO?: UserVO
+    userName?: string
     type?: number
     title?: string
     content?: string
-    pictureUrls?: string[]
+    attachments?: FeedbackAttachmentVO[]
     status?: number
     handlerId?: number
-    handlerVO?: UserVO
+    handlerName?: string
     handlerNote?: string
     handleTime?: string
     createTime?: string
+  }
+
+  type getAttachmentUsingGetParams = {
+    id: number
   }
 
   type getFeedbackByIdUsingGetParams = {
@@ -464,6 +525,11 @@ declare namespace API {
     id: number
   }
 
+  type historyUsingGetParams = {
+    resourceType: string
+    resourceId: string
+  }
+
   type ImageSearchResult = {
     thumbUrl?: string
     fromUrl?: string
@@ -478,9 +544,13 @@ declare namespace API {
   type IPageMcpServerDetail = {
     size?: number
     total?: number
-    current?: number
     records?: McpServerDetail[]
+    current?: number
     pages?: number
+  }
+
+  type listGrantsUsingGetParams = {
+    pictureId: string
   }
 
   type listMcpServersUsingGetParams = {
@@ -532,8 +602,25 @@ declare namespace API {
     role?: string
     subType?: string
     content?: string
+    attachmentIds?: string[]
     createdTime?: string
     summary?: boolean
+  }
+
+  type ModerationResourceVO = {
+    resourceType?: string
+    resourceId?: string
+    resourceName?: string
+    status?: string
+    operatorId?: string
+    operatorUserName?: string
+    reason?: string
+    createTime?: string
+    releaseOperatorId?: string
+    releaseOperatorUserName?: string
+    releaseReason?: string
+    releaseTime?: string
+    history?: ModerationResourceVO[]
   }
 
   type OrderItem = {
@@ -702,6 +789,18 @@ declare namespace API {
     tags?: string[]
   }
 
+  type PictureGrantCreateRequest = {
+    pictureId?: string
+    granteeUserId?: string
+    expiresTime?: string
+    reason?: string
+  }
+
+  type PictureGrantRevokeRequest = {
+    grantId?: string
+    reason?: string
+  }
+
   type PictureQueryRequest = {
     current?: number
     pageSize?: number
@@ -791,6 +890,7 @@ declare namespace API {
     updateTime?: string
     user?: UserVO
     permissionList?: string[]
+    quarantined?: boolean
     viewCount?: number
     likeCount?: number
     collectCount?: number
@@ -846,6 +946,35 @@ declare namespace API {
     pendingReviewCount?: number
     activeExecution?: boolean
     actions?: RecoveryActionVO[]
+  }
+
+  type ResourceGrantListVO = {
+    canManage?: boolean
+    grants?: ResourceGrantVO[]
+  }
+
+  type ResourceGrantVO = {
+    id?: string
+    resourceType?: string
+    resourceId?: string
+    resourceName?: string
+    granteeUserId?: string
+    granteeUserName?: string
+    grantedByUserId?: string
+    grantedByUserName?: string
+    reason?: string
+    expiresTime?: string
+    status?: string
+    revokedByUserId?: string
+    revokeReason?: string
+    revokeTime?: string
+    createTime?: string
+  }
+
+  type ResourceModerationRequest = {
+    resourceType?: string
+    resourceId?: string
+    reason?: string
   }
 
   type resumeUsingPostParams = {

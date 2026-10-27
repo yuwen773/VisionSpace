@@ -38,6 +38,13 @@ public class AgentMessage implements Serializable {
     private String content;
 
     /**
+     * 消息携带的图片资源标识，十进制逗号分隔。
+     *
+     * <p>历史消息按它渲染受控入口；消息正文不再保留源站地址。
+     */
+    private String attachmentIds;
+
+    /**
      * Token数量
      */
     private Integer tokenCount;

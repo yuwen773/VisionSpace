@@ -66,4 +66,12 @@ public interface AgentSessionMapper extends BaseMapper<AgentSession> {
                            @Param("userId") Long userId,
                            @Param("summaryContent") String summaryContent,
                            @Param("lastMessage") String lastMessage);
+
+    /**
+     * 逻辑删除会话。归属条件写进同一条 UPDATE：会话不存在或不属于该用户时
+     * 不会产生任何行，调用方据此判定「删除成功」。
+     */
+    @Update("UPDATE agent_session SET isDelete = 1, updatedTime = NOW() " +
+            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
+    int markDeleted(@Param("sessionId") String sessionId, @Param("userId") Long userId);
 }

@@ -27,5 +27,10 @@ public interface UserConstant {
      */
     String ADMIN_ROLE = "admin";
 
+    /**
+     * 违规处置角色：隔离与恢复资源的独立权限，不等同于平台管理员
+     */
+    String MODERATOR_ROLE = "moderator";
+
     // endregion
 }

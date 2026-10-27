@@ -30,6 +30,7 @@ CREATE TABLE `agent_message`  (
                                   `role` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '角色: USER/ASSISTANT/TOOL/SYSTEM',
                                   `subType` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '消息类型',
                                   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息内容',
+                                  `attachmentIds` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '消息携带的图片资源标识，十进制逗号分隔',
                                   `tokenCount` int(11) NULL DEFAULT 0 COMMENT 'Token数量',
                                   `isSummary` tinyint(4) NULL DEFAULT 0 COMMENT '0=原始 1=摘要',
                                   `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -314,6 +315,9 @@ CREATE TABLE `picture_file` (
   `url` varchar(1024) NULL DEFAULT NULL COMMENT '上传时返回的地址，仅作记录',
   `fileSize` bigint(20) NULL DEFAULT NULL COMMENT '文件字节数',
   `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=TEMP 1=ACTIVE 2=DELETED 3=SUPERSEDED',
+  `deleteState` int(11) NOT NULL DEFAULT 0 COMMENT '0=无删除任务 1=待重试 2=已确认删除',
+  `deleteRetryCount` int(11) NOT NULL DEFAULT 0 COMMENT '删除重试次数',
+  `deleteNextRetryTime` datetime NULL DEFAULT NULL COMMENT '下次重试时间',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
@@ -405,3 +409,99 @@ CREATE TABLE `vip_redemption_record` (
   UNIQUE INDEX `uk_codeId`(`codeId`) USING BTREE,
   INDEX `idx_userId`(`userId`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'VIP 兑换流水';
+-- Table structure for agent_session_attachment (#35)
+-- ----------------------------
+CREATE TABLE `agent_session_attachment` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '绑定标识',
+  `sessionId` varchar(64) NOT NULL COMMENT '会话标识',
+  `resourceId` bigint(20) NOT NULL COMMENT 'picture_file 资源标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '附件所有者用户 id',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=BOUND 已绑定 1=RELEASED 已解除',
+  `legacy` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1=由存量迁移登记',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_session_resource` (`sessionId`, `resourceId`) USING BTREE,
+  INDEX `idx_resource_status` (`resourceId`, `status`) USING BTREE,
+  INDEX `idx_session_status` (`sessionId`, `status`) USING BTREE,
+  INDEX `idx_owner_status` (`ownerUserId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'Agent 会话附件绑定';
+
+-- ----------------------------
+-- Table structure for agent_legacy_attachment (#35)
+-- ----------------------------
+CREATE TABLE `agent_legacy_attachment` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '清单标识',
+  `sessionId` varchar(64) NOT NULL COMMENT '会话标识',
+  `messageId` bigint(20) NOT NULL COMMENT '消息标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '会话所有者用户 id',
+  `urlHash` varchar(64) NOT NULL COMMENT '源站地址的 SHA2 摘要（不存原始地址）',
+  `resourceId` bigint(20) NULL DEFAULT NULL COMMENT '确认归属后的资源标识，归属不明时为空',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=待核对（阻断） 1=已确认归属 2=已确认无归属',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_message_hash` (`messageId`, `urlHash`(32)) USING BTREE,
+  INDEX `idx_status` (`status`) USING BTREE,
+  INDEX `idx_session` (`sessionId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存量会话图片清单';
+
+-- ----------------------------
+-- #36 私有资源管理与反馈保护（反馈附件 / 限时只读授权 / 违规隔离）
+-- ----------------------------
+CREATE TABLE `feedback_attachment` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '附件标识',
+  `ownerUserId` bigint(20) NOT NULL COMMENT '上传者用户 id',
+  `feedbackId` bigint(20) NULL DEFAULT NULL COMMENT '绑定后的反馈 id；未提交时为空',
+  `platform` varchar(32) NOT NULL COMMENT '存储平台标识；旧附件为 legacy',
+  `objectKey` varchar(768) NOT NULL COMMENT '存储对象键；旧附件保留地址原文',
+  `url` varchar(1024) NULL DEFAULT NULL COMMENT '上传时返回的地址，仅作记录，不对外返回',
+  `fileSize` bigint(20) NULL DEFAULT NULL COMMENT '文件字节数',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=UPLOADED 1=BOUND 2=LEGACY_VERIFIED 3=BLOCKED',
+  `legacyUrlHash` char(64) NULL DEFAULT NULL COMMENT '旧附件地址摘要，仅用于幂等登记',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_legacy_url_hash`(`legacyUrlHash`) USING BTREE,
+  INDEX `idx_feedback_status`(`feedbackId`, `status`) USING BTREE,
+  INDEX `idx_owner_status`(`ownerUserId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '反馈附件记录';
+
+CREATE TABLE `resource_access_grant` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '授权标识',
+  `resourceType` varchar(32) NOT NULL COMMENT '资源类型：picture',
+  `resourceId` bigint(20) NOT NULL COMMENT '资源 id',
+  `granteeUserId` bigint(20) NOT NULL COMMENT '被授权查看者',
+  `grantedByUserId` bigint(20) NOT NULL COMMENT '授权主体（个人资源所有者或团队管理员）',
+  `reason` varchar(500) NULL DEFAULT NULL COMMENT '授权理由',
+  `expiresTime` datetime NOT NULL COMMENT '到期时间，必填',
+  `status` int(11) NOT NULL DEFAULT 1 COMMENT '1=ACTIVE 2=REVOKED 3=EXPIRED',
+  `activeKey` varchar(128) NULL DEFAULT NULL COMMENT '有效授权唯一键；撤销或到期后置空',
+  `revokedByUserId` bigint(20) NULL DEFAULT NULL COMMENT '撤销人',
+  `revokeReason` varchar(500) NULL DEFAULT NULL COMMENT '撤销理由',
+  `revokeTime` datetime NULL DEFAULT NULL COMMENT '撤销时间',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_active_key`(`activeKey`) USING BTREE,
+  INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE,
+  INDEX `idx_grantee_status`(`granteeUserId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '单资源限时只读授权';
+
+CREATE TABLE `resource_isolation` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '隔离记录标识',
+  `resourceType` varchar(32) NOT NULL COMMENT '资源类型：picture',
+  `resourceId` bigint(20) NOT NULL COMMENT '资源 id',
+  `status` int(11) NOT NULL DEFAULT 1 COMMENT '1=QUARANTINED 2=RELEASED',
+  `activeKey` varchar(128) NULL DEFAULT NULL COMMENT '隔离中唯一键；解除后置空',
+  `operatorId` bigint(20) NOT NULL COMMENT '隔离操作者',
+  `reason` varchar(500) NOT NULL COMMENT '隔离理由',
+  `releaseOperatorId` bigint(20) NULL DEFAULT NULL COMMENT '恢复操作者',
+  `releaseReason` varchar(500) NULL DEFAULT NULL COMMENT '恢复理由',
+  `releaseTime` datetime NULL DEFAULT NULL COMMENT '恢复时间',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '隔离时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_active_key`(`activeKey`) USING BTREE,
+  INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '违规资源隔离与恢复';

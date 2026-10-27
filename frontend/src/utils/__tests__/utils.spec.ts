@@ -53,9 +53,20 @@ describe('contentSrc', () => {
     expect(contentSrc('/picture/content/1/original')).toBe(`${base}/api/picture/content/1/original`)
   })
 
+  it('反馈附件入口同样走 API 源站，不直连存储', () => {
+    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+    expect(contentSrc('/feedback/attachment/12')).toBe(`${base}/api/feedback/attachment/12`)
+  })
+
   it('源站地址与空值不被改写', () => {
     expect(contentSrc('https://example.com/a.jpg')).toBe('https://example.com/a.jpg')
     expect(contentSrc(null)).toBe('')
     expect(contentSrc(undefined)).toBe('')
+  })
+
+  it('形似的绝对地址不能被误判为受控入口', () => {
+    expect(contentSrc('https://evil.example/feedback/attachment/1')).toBe(
+      'https://evil.example/feedback/attachment/1',
+    )
   })
 })

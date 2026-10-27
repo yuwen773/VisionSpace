@@ -6,6 +6,8 @@ import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
+import com.yuwen.visionspace.service.ResourceAccessGrantService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
@@ -37,6 +39,8 @@ class PictureContentAuthManagerTest {
     private static final long VIEWER = 2L;
     private static final long STRANGER = 3L;
     private static final long ADMIN = 4L;
+    private static final long MODERATOR = 5L;
+    private static final long GRANTEE = 6L;
     private static final long SPACE_ID = 900L;
 
     @Mock
@@ -51,6 +55,12 @@ class PictureContentAuthManagerTest {
     @Mock
     private SpaceUserAuthManager spaceUserAuthManager;
 
+    @Mock
+    private ResourceIsolationService resourceIsolationService;
+
+    @Mock
+    private ResourceAccessGrantService resourceAccessGrantService;
+
     @InjectMocks
     private PictureContentAuthManager manager;
 
@@ -60,7 +70,41 @@ class PictureContentAuthManagerTest {
             User user = invocation.getArgument(0);
             return user != null && user.getId() != null && user.getId() == ADMIN;
         });
+        when(userService.isModerator(any())).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            return user != null && user.getId() != null && user.getId() == MODERATOR;
+        });
         when(spaceUserAuthManager.hasPermission(anyString(), anyString())).thenReturn(true);
+        when(resourceIsolationService.isQuarantined(anyString(), any())).thenReturn(false);
+        when(resourceAccessGrantService.hasActiveGrant(any(), any())).thenReturn(false);
+    }
+
+    @Test
+    void quarantineDeniesEveryoneIncludingModerators() {
+        Picture approved = publicPicture(1);
+        when(resourceIsolationService.isQuarantined(anyString(), any())).thenReturn(true);
+
+        // 隔离优先于公开状态、所有权与显式授权
+        assertFalse(manager.canReadContent(approved, null));
+        assertFalse(manager.canReadContent(approved, user(OWNER)));
+        assertFalse(manager.canReadContent(approved, user(ADMIN)));
+        assertFalse(manager.canReadContent(approved, user(GRANTEE)));
+        // 处置职责只看元数据：隔离不能成为读取私人内容的后门
+        assertFalse(manager.canReadContent(approved, user(MODERATOR)));
+    }
+
+    @Test
+    void activeGrantAllowsGranteeToReadPrivateContent() {
+        Picture picture = spacePicture(SPACE_ID);
+        when(spaceService.getById(SPACE_ID)).thenReturn(space(OWNER, SpaceTypeEnum.PRIVATE.getValue()));
+        when(resourceAccessGrantService.hasActiveGrant(11L, GRANTEE)).thenReturn(true);
+
+        assertTrue(manager.canReadContent(picture, user(GRANTEE)));
+        // 撤销或到期后，同一次判定立即变回拒绝
+        when(resourceAccessGrantService.hasActiveGrant(11L, GRANTEE)).thenReturn(false);
+        assertFalse(manager.canReadContent(picture, user(GRANTEE)));
+        // 授权只对指定资源生效
+        assertFalse(manager.canReadContent(picture, user(STRANGER)));
     }
 
     @Test
@@ -78,7 +122,7 @@ class PictureContentAuthManagerTest {
     }
 
     @Test
-    void privateSpaceContentIsNotReadableAnonymouslyOrByStrangers() {
+    void privateSpaceContentIsReadableOnlyByOwner() {
         Picture picture = spacePicture(SPACE_ID);
         Space space = space(OWNER, SpaceTypeEnum.PRIVATE.getValue());
         when(spaceService.getById(SPACE_ID)).thenReturn(space);
@@ -86,8 +130,8 @@ class PictureContentAuthManagerTest {
         assertFalse(manager.canReadContent(picture, null));
         assertFalse(manager.canReadContent(picture, user(STRANGER)));
         assertTrue(manager.canReadContent(picture, user(OWNER)));
-        // 平台管理员保留违规处置能力，可以读取私有空间内容
-        assertTrue(manager.canReadContent(picture, user(ADMIN)));
+        // 平台管理员身份不扩展到私人内容；读取需资源方授权或独立处置流程
+        assertFalse(manager.canReadContent(picture, user(ADMIN)));
     }
 
     @Test

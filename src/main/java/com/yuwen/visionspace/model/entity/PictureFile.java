@@ -52,6 +52,19 @@ public class PictureFile implements Serializable {
     /** {@link com.yuwen.visionspace.model.enums.PictureFileStatusEnum} */
     private Integer status;
 
+    /**
+     * 删除任务状态：0=无删除任务 1=对象删除未确认待重试 2=删除已确认。
+     *
+     * <p>对象存储删除失败时保留可重试状态，清理任务按退避时间重试；不静默丢弃。
+     */
+    private Integer deleteState;
+
+    /** 删除重试次数 */
+    private Integer deleteRetryCount;
+
+    /** 下次重试时间 */
+    private Date deleteNextRetryTime;
+
     private Date createTime;
 
     private Date updateTime;

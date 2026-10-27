@@ -6,11 +6,15 @@ import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
+import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
+import com.yuwen.visionspace.service.ResourceAccessGrantService;
+import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Resource;
@@ -20,14 +24,14 @@ import jakarta.annotation.Resource;
  *
  * <p>每次新请求都按当前数据库状态判定，不缓存判定结果：
  * <ul>
+ *   <li>隔离中的资源：一律拒绝内容读取；违规处置只看元数据，不因此获得私人内容读取权限；</li>
  *   <li>已审核的公共图库图片：允许匿名读取；</li>
- *   <li>未审核的公共图库图片：仅作者与平台管理员；</li>
- *   <li>私有空间：空间所有者与平台管理员；</li>
- *   <li>团队空间：空间所有者与当前团队成员（viewer 及以上），平台管理员不因平台角色
- *       自动获得成员权限；</li>
- *   <li>平台管理员身份不扩展到其他用户的公共图库未审核内容以外的场景。</li>
+ *   <li>未审核的公共图库图片：作者与具有审核职责的平台管理员；</li>
+ *   <li>私有空间：空间所有者，以及资源所有者授予的限时只读访问；</li>
+ *   <li>团队空间：空间所有者与当前团队成员（viewer 及以上），以及团队管理员授予的限时只读访问；</li>
+ *   <li>平台管理员身份不扩展到私人内容，也不能作为授权主体。</li>
  * </ul>
- * 成员被移除或降权后，下一次请求即按新的成员关系判定。
+ * 成员被移除、降权、授权到期或撤销后，下一次请求即按新的状态判定。
  */
 @Slf4j
 @Component
@@ -45,6 +49,13 @@ public class PictureContentAuthManager {
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
 
+    @Resource
+    private ResourceIsolationService resourceIsolationService;
+
+    @Lazy
+    @Resource
+    private ResourceAccessGrantService resourceAccessGrantService;
+
     /**
      * 判断当前查看者是否可以读取该图片的内容。
      *
@@ -56,6 +67,32 @@ public class PictureContentAuthManager {
         if (picture == null) {
             return false;
         }
+        // 隔离优先于一切：隔离后公开与私人访问都按隔离规则拒绝
+        if (isQuarantined(picture)) {
+            // 处置职责只看元数据：隔离不能成为读取私人内容的后门
+            return false;
+        }
+        if (canReadByOwnership(picture, viewer)) {
+            return true;
+        }
+        // 资源方授予的限时只读访问：每次读取都查当前状态，到期或撤销立即失效
+        return viewer != null && viewer.getId() != null
+                && picture.getId() != null
+                && resourceAccessGrantService.hasActiveGrant(picture.getId(), viewer.getId());
+    }
+
+    /**
+     * 图片当前是否处于隔离状态。
+     */
+    public boolean isQuarantined(Picture picture) {
+        return picture != null
+                && resourceIsolationService.isQuarantined(ResourceTypeEnum.PICTURE.getValue(), picture.getId());
+    }
+
+    /**
+     * 按归属、公开状态与成员关系判定，不考虑临时授权。
+     */
+    private boolean canReadByOwnership(Picture picture, User viewer) {
         Long spaceId = picture.getSpaceId();
         if (spaceId == null) {
             return canReadPublicPicture(picture, viewer);
@@ -71,10 +108,11 @@ public class PictureContentAuthManager {
         if (viewer == null) {
             return false;
         }
-        if (userService.isAdmin(viewer)) {
+        if (picture.getUserId() != null && picture.getUserId().equals(viewer.getId())) {
             return true;
         }
-        return picture.getUserId() != null && picture.getUserId().equals(viewer.getId());
+        // 审核职责需要查看待审内容：平台管理员保留这一职责，但仅限公共图库的审核场景
+        return userService.isAdmin(viewer);
     }
 
     private boolean canReadSpacePicture(Picture picture, Long spaceId, User viewer) {
@@ -89,8 +127,8 @@ public class PictureContentAuthManager {
             return true;
         }
         if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间只对所有者与平台管理员开放
-            return userService.isAdmin(viewer);
+            // 私有空间仅所有者；平台管理员不因平台角色读取私人内容
+            return false;
         }
         // 团队空间按成员关系判定：平台管理员不因平台角色自动获得成员权限，
         // 与 StpInterfaceImpl 的团队空间分支保持一致

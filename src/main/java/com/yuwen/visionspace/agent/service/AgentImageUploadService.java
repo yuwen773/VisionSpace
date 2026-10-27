@@ -46,6 +46,9 @@ public class AgentImageUploadService {
     @Resource
     private UploadQuotaManager uploadQuotaManager;
 
+    @Resource
+    private AgentAttachmentService agentAttachmentService;
+
     /**
      * 上传临时图片。
      *
@@ -92,9 +95,11 @@ public class AgentImageUploadService {
     }
 
     /**
-     * 删除临时图片。
+     * 丢弃尚未绑定的临时上传。
      *
-     * <p>只有资源记录的所有者可以删除；记录已删除时按成功处理（重复删除无副作用）。
+     * <p>只有资源记录的所有者可以丢弃；记录已删除时按成功处理（重复删除无副作用）。
+     * 已经绑定到会话的资源不在这里删除：绑定的图片保留到会话或图片被明确删除，
+     * 前端的失败清理不会把已经进入会话的图片删掉。
      *
      * @param resourceId 资源标识
      * @param loginUser  当前登录用户
@@ -103,35 +108,7 @@ public class AgentImageUploadService {
     public boolean deleteImage(Long resourceId, User loginUser) {
         ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         ThrowUtils.throwIf(resourceId == null || resourceId <= 0, ErrorCode.PARAMS_ERROR, "资源标识不能为空");
-        return deleteOwnedRecord(pictureFileService.getById(resourceId), loginUser);
-    }
-
-    /**
-     * 校验对话附件属于当前用户。
-     *
-     * <p>Agent 会把附件地址交给模型与工具读取，因此地址必须先与本人的资源记录
-     * 精确匹配；未登记或属于他人的地址一律拒绝，不做前缀或域名匹配。
-     *
-     * @param imageUrls 客户端提交的附件地址
-     * @param loginUser 当前登录用户
-     */
-    public void assertOwnedAttachments(List<String> imageUrls, User loginUser) {
-        ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
-        if (imageUrls == null || imageUrls.isEmpty()) {
-            return;
-        }
-        for (String url : imageUrls) {
-            if (StrUtil.isBlank(url)) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "附件地址不能为空");
-            }
-            PictureFile file = pictureFileService.findByExactUrl(url.trim());
-            if (file == null
-                    || !loginUser.getId().equals(file.getOwnerUserId())
-                    || !PictureFilePurposeEnum.AGENT_CHAT.getValue().equals(file.getPurpose())) {
-                // 不区分"不存在"与"不属于你"，避免探测他人资源
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "附件不存在或无权访问");
-            }
-        }
+        return agentAttachmentService.discardUnboundUpload(resourceId, loginUser.getId());
     }
 
     /**
@@ -141,21 +118,12 @@ public class AgentImageUploadService {
     public boolean deleteImageByExactUrl(String imageUrl, User loginUser) {
         ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         ThrowUtils.throwIf(StrUtil.isBlank(imageUrl), ErrorCode.PARAMS_ERROR, "资源地址不能为空");
-        return deleteOwnedRecord(pictureFileService.findByExactUrl(imageUrl.trim()), loginUser);
-    }
-
-    /**
-     * 按资源记录删除：归属只看服务端记录，已删除的记录按成功处理。
-     * 未知记录同样按"不存在或无权"拒绝，不区分两者以避免探测他人资源。
-     */
-    private boolean deleteOwnedRecord(PictureFile file, User loginUser) {
+        PictureFile file = pictureFileService.findByExactUrl(imageUrl.trim());
         if (file == null || !loginUser.getId().equals(file.getOwnerUserId())) {
+            // 不区分"不存在"与"不属于你"，避免探测他人资源
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
-        if (PictureFileStatusEnum.DELETED.getValue() == file.getStatus()) {
-            return false;
-        }
-        return pictureFileService.deleteFile(file);
+        return agentAttachmentService.discardUnboundUpload(file.getId(), loginUser.getId());
     }
 
     private void validate(MultipartFile file) {
