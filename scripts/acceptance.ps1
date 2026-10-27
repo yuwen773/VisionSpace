@@ -15,6 +15,7 @@ $database = "vs_acceptance_$nonce"
 $results = [ordered]@{}
 $ownedProcesses = @()
 $ownedContainers = @()
+$mysql = $null
 $savedEnvironment = @{}
 $environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD')
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -68,11 +69,12 @@ try {
         # Reuse tracked DDL only: exclude database selection, DROP statements and any data.
         $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
         $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-        # 表数量变化必须人工复核：#38 新增幂等台账 picture_action_event_dedupe，
-        # #41 新增 agent_run_state / agent_action_record，
-        # #35 新增 agent_session_attachment / agent_legacy_attachment，表数由 12 变为 17。
-        # #36 新增 feedback_attachment / resource_access_grant / resource_isolation，表数由 17 变为 20。
-        if ($tables.Count -ne 20) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+        # The expected count comes from the DDL itself, so adding a table never needs an edit here.
+        # Bootstrap completeness is verified against the live server below.
+        if ($tables.Count -eq 0) { throw 'FAIL: no CREATE TABLE statements found in sql/create_vision_space.sql.' }
+        $expectedTables = @($tables | ForEach-Object {
+                [regex]::Match($_.Value, '(?m)^CREATE TABLE (?:IF NOT EXISTS )?`?([A-Za-z0-9_]+)`?').Groups[1].Value
+            })
         $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
         $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -126,6 +128,19 @@ $ddl
             # MySQL opens its final TCP socket only after entrypoint SQL is applied.
             & docker exec $redisContainer redis-cli -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
             if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
+        }
+        # Verify the bootstrap actually created every tracked table, rather than trusting a hand-kept count.
+        $tableListSql = "SELECT table_name FROM information_schema.tables WHERE table_schema = '$database'"
+        $createdTables = @(
+            if ($MySqlBin) {
+                & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --batch --skip-column-names "--execute=$tableListSql"
+            } else {
+                & docker exec $mysqlContainer mysql --user=root "--password=$nonce" --batch --skip-column-names "--execute=$tableListSql"
+            }
+        ) | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'acceptance_instance' }
+        $missingTables = @($expectedTables | Where-Object { $createdTables -notcontains $_ })
+        if ($missingTables.Count -gt 0 -or $createdTables.Count -ne $expectedTables.Count) {
+            throw "FAIL: acceptance schema incomplete (expected $($expectedTables.Count) tables, found $($createdTables.Count); missing: $($missingTables -join ', '))."
         }
         $env:VS_ACCEPTANCE_NONCE = $nonce
         $env:VS_ACCEPTANCE_MYSQL_PORT = "$mysqlPort"
