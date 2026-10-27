@@ -181,3 +181,14 @@
 - 全量验收矩阵（`scripts/acceptance.ps1` 九类门禁 + 双实例）在合并后未在本机重跑，
   改由 PR 的远程 CI（Acceptance baseline，真实执行九类门禁）验证；结论以 CI 为准。
 - 「未验证范围」其余条目（生产迁移、真实兑换码、远程 CI 之外的 Ubuntu 环境差异）不变。
+
+### PR 远程 CI（2026-10-27，`8ab9353`）
+
+Acceptance baseline 全绿，九个结果分类全部 PASS（`infrastructure: docker`，
+`productionAcceptance: NOT_RUN`）。
+
+首次运行（`889da96`）在 backend 门禁失败：520 tests / 99 failures / 1 error，均为
+`Unknown column 'vipCode' in 'field list'`。原因是**用例顺序依赖**：回滚脚本用例收尾无条件
+`ALTER TABLE user DROP COLUMN vipCode`，而 bootstrap 建库脚本本身带兼容列、`User` 实体映射也含
+`vipCode`；本机 Windows 的 surefire 顺序恰好先跑 HTTP 用例，CI 的目录顺序相反。修复为
+「记录进入时的列状态、在 finally 恢复原形态」，未放宽任何断言。
