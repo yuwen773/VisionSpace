@@ -130,14 +130,21 @@ $ddl
             if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
         }
         # Verify the bootstrap actually created every tracked table, rather than trusting a hand-kept count.
+        # The Docker entrypoint still applies the mounted SQL after the TCP port opens, so retry until
+        # the schema settles instead of reading a half-initialised server.
         $tableListSql = "SELECT table_name FROM information_schema.tables WHERE table_schema = '$database'"
-        $createdTables = @(
-            if ($MySqlBin) {
-                & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --batch --skip-column-names "--execute=$tableListSql"
+        $createdTables = @()
+        $schemaDeadline = [DateTime]::UtcNow.AddSeconds(180)
+        while ([DateTime]::UtcNow -lt $schemaDeadline) {
+            $tableRows = if ($MySqlBin) {
+                & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --batch --skip-column-names "--execute=$tableListSql" 2>$null
             } else {
-                & docker exec $mysqlContainer mysql --user=root "--password=$nonce" --batch --skip-column-names "--execute=$tableListSql"
+                & docker exec $mysqlContainer mysql --user=root "--password=$nonce" --batch --skip-column-names "--execute=$tableListSql" 2>$null
             }
-        ) | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'acceptance_instance' }
+            $createdTables = @($tableRows | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'acceptance_instance' })
+            if ($createdTables.Count -ge $expectedTables.Count) { break }
+            Start-Sleep -Seconds 2
+        }
         $missingTables = @($expectedTables | Where-Object { $createdTables -notcontains $_ })
         if ($missingTables.Count -gt 0 -or $createdTables.Count -ne $expectedTables.Count) {
             throw "FAIL: acceptance schema incomplete (expected $($expectedTables.Count) tables, found $($createdTables.Count); missing: $($missingTables -join ', '))."
