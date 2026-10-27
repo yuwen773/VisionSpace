@@ -6,7 +6,14 @@
       <!-- Badge -->
       <div class="vip-badge-wrap">
         <div class="vip-badge" :class="{ active: isVip }">
-          <svg v-if="isVip" class="vip-crown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            v-if="isVip"
+            class="vip-crown"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M2 20h20M5 20V9l4 3 3-6 3 6 4-3v11" />
           </svg>
           <span>{{ isVip ? 'VIP' : '普通用户' }}</span>
@@ -15,7 +22,9 @@
 
       <!-- Info -->
       <div class="vip-info">
-        <p class="vip-expire">{{ isVip ? `到期时间：${vipExpireTime}` : '升级 VIP 解锁更多权益' }}</p>
+        <p class="vip-expire">
+          {{ isVip ? `到期时间：${vipExpireTime}` : '升级 VIP 解锁更多权益' }}
+        </p>
         <div v-if="!isVip" class="vip-perks">
           <div v-for="perk in vipPerks" :key="perk" class="perk-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -137,7 +146,11 @@ const vipPerks = ['无限上传空间', '高清原图下载', 'AI 扩图无限�
 }
 
 @keyframes vip-shimmer-slide {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(50%); }
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(50%);
+  }
 }
 </style>

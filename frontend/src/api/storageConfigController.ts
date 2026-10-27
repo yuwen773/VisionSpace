@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /storage/config/add */
 export async function addStorageConfigUsingPost(
   body: API.StorageConfigAddRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLong>('/storage/config/add', {
     method: 'POST',
@@ -20,7 +20,7 @@ export async function addStorageConfigUsingPost(
 /** 此处后端没有提供注释 POST /storage/config/delete */
 export async function deleteStorageConfigUsingPost(
   body: API.DeleteRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/storage/config/delete', {
     method: 'POST',
@@ -36,7 +36,7 @@ export async function deleteStorageConfigUsingPost(
 export async function listStorageConfigUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.listStorageConfigUsingGetParams,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListStorageConfigVO>('/storage/config/list', {
     method: 'GET',
@@ -60,7 +60,7 @@ export async function refreshStorageConfigUsingPost(options?: { [key: string]: a
 /** 此处后端没有提供注释 POST /storage/config/set_active */
 export async function setActivePlatformUsingPost(
   body: API.StorageConfigActiveRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/storage/config/set_active', {
     method: 'POST',
@@ -75,7 +75,7 @@ export async function setActivePlatformUsingPost(
 /** 此处后端没有提供注释 POST /storage/config/set_default */
 export async function setDefaultPlatformUsingPost(
   body: API.StorageConfigActiveRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/storage/config/set_default', {
     method: 'POST',
@@ -90,7 +90,7 @@ export async function setDefaultPlatformUsingPost(
 /** 此处后端没有提供注释 POST /storage/config/update */
 export async function updateStorageConfigUsingPost(
   body: API.StorageConfigUpdateRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/storage/config/update', {
     method: 'POST',

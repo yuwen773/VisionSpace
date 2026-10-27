@@ -4,7 +4,15 @@
       <div v-if="open" class="image-preview-overlay" @click="close">
         <!-- Close button -->
         <button class="image-preview-close" @click.stop="close" aria-label="关闭">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -104,8 +112,9 @@ const dragStartY = ref(0)
 const translateStartX = ref(0)
 const translateStartY = ref(0)
 
-const imageTransform = computed(() =>
-  `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`
+const imageTransform = computed(
+  () =>
+    `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`,
 )
 
 const zoomPercent = computed(() => `${Math.round(scale.value * 100)}%`)
@@ -168,14 +177,17 @@ onMounted(() => {
 })
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
-watch(() => props.open, (val) => {
-  if (val) {
-    reset()
-    document.addEventListener('keydown', handleKeydown)
-  } else {
-    document.removeEventListener('keydown', handleKeydown)
-  }
-})
+watch(
+  () => props.open,
+  (val) => {
+    if (val) {
+      reset()
+      document.addEventListener('keydown', handleKeydown)
+    } else {
+      document.removeEventListener('keydown', handleKeydown)
+    }
+  },
+)
 </script>
 
 <style scoped>
@@ -283,8 +295,14 @@ watch(() => props.open, (val) => {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.image-preview-enter-active { transition: opacity 0.25s ease; }
-.image-preview-leave-active { transition: opacity 0.2s ease; }
+.image-preview-enter-active {
+  transition: opacity 0.25s ease;
+}
+.image-preview-leave-active {
+  transition: opacity 0.2s ease;
+}
 .image-preview-enter-from,
-.image-preview-leave-to { opacity: 0; }
+.image-preview-leave-to {
+  opacity: 0;
+}
 </style>

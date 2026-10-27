@@ -4,8 +4,16 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <svg
+            class="title-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+            ></path>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
@@ -27,7 +35,13 @@
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
       <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          class="search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
@@ -96,7 +110,9 @@
           <polyline points="9 11 12 14 22 4"></polyline>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
         </svg>
-        <span>已选择 <strong>{{ selectedRowKeys.length }}</strong> 个空间</span>
+        <span
+          >已选择 <strong>{{ selectedRowKeys.length }}</strong> 个空间</span
+        >
       </div>
       <div class="batch-actions">
         <button class="batch-btn" @click="batchEdit">
@@ -131,7 +147,9 @@
           <button class="batch-btn danger" :disabled="batchLoading">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <path
+                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              ></path>
             </svg>
             批量删除
           </button>
@@ -163,26 +181,40 @@
           </template>
           <template v-else-if="column.dataIndex === 'spaceType'">
             <div class="center-cell">
-            <span class="type-tag" :class="record.spaceType === 0 ? 'private' : 'team'">
-              <svg v-if="record.spaceType === 0" class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <svg v-else class="tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-              {{ record.spaceType === 0 ? '私人' : '团队' }}
-            </span>
+              <span class="type-tag" :class="record.spaceType === 0 ? 'private' : 'team'">
+                <svg
+                  v-if="record.spaceType === 0"
+                  class="tag-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <svg
+                  v-else
+                  class="tag-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                {{ record.spaceType === 0 ? '私人' : '团队' }}
+              </span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'spaceLevel'">
             <div class="center-cell">
-            <span class="level-tag" :class="getLevelClass(record.spaceLevel)">
-              {{ SPACE_LEVEL_MAP[record.spaceLevel] }}
-            </span>
+              <span class="level-tag" :class="getLevelClass(record.spaceLevel)">
+                {{ SPACE_LEVEL_MAP[record.spaceLevel] }}
+              </span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'capacity'">
@@ -201,12 +233,32 @@
               </div>
               <div class="capacity-stats">
                 <span class="stat-item">
-                  <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <svg
+                    class="stat-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
                   {{ formatSize(record.totalSize) }} / {{ formatSize(record.maxSize) }}
                 </span>
                 <span class="stat-divider"></span>
                 <span class="stat-item">
-                  <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <svg
+                    class="stat-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
                   {{ record.totalCount }} / {{ record.maxCount }} 张
                 </span>
               </div>
@@ -215,7 +267,9 @@
           <template v-else-if="column.dataIndex === 'userId'">
             <div class="user-cell">
               <a-tooltip :title="record.userId" placement="topLeft">
-                <span class="user-id">{{ record.userId.slice(0, 8) }}...{{ record.userId.slice(-4) }}</span>
+                <span class="user-id"
+                  >{{ record.userId.slice(0, 8) }}...{{ record.userId.slice(-4) }}</span
+                >
               </a-tooltip>
             </div>
           </template>
@@ -242,12 +296,28 @@
                 </button>
               </a-tooltip>
               <a-tooltip :title="record.status === 1 ? '禁用空间' : '启用空间'">
-                <button class="action-btn" :class="record.status === 1 ? 'warning' : 'success'" @click="toggleStatus(record)">
-                  <svg v-if="record.status === 1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <button
+                  class="action-btn"
+                  :class="record.status === 1 ? 'warning' : 'success'"
+                  @click="toggleStatus(record)"
+                >
+                  <svg
+                    v-if="record.status === 1"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
                   </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="16 12 12 8 8 12"></polyline>
                     <line x1="12" y1="16" x2="12" y2="8"></line>
@@ -265,7 +335,9 @@
                   <button class="action-btn danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      ></path>
                     </svg>
                   </button>
                 </a-tooltip>
@@ -280,14 +352,15 @@
 
 <script lang="ts" setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { deleteSpaceUsingPost, listSpaceByPageUsingPost, updateSpaceUsingPost } from '@/api/spaceController.ts'
+import {
+  deleteSpaceUsingPost,
+  listSpaceByPageUsingPost,
+  updateSpaceUsingPost,
+} from '@/api/spaceController.ts'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import {
-  SPACE_LEVEL_MAP,
-  SPACE_LEVEL_ENUM,
-} from '@/constants/space.ts'
+import { SPACE_LEVEL_MAP, SPACE_LEVEL_ENUM } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
 
 const router = useRouter()
@@ -354,7 +427,7 @@ onMounted(() => {
 const doTableChange = (
   pag: { current?: number; pageSize?: number },
   filters: Record<string, unknown>,
-  sorter: { field?: string; order?: 'ascend' | 'descend' }
+  sorter: { field?: string; order?: 'ascend' | 'descend' },
 ) => {
   searchParams.current = pag.current
   searchParams.pageSize = pag.pageSize
@@ -387,7 +460,7 @@ const doDelete = async (id: number | undefined) => {
     const res = await deleteSpaceUsingPost({ id })
     if (res.data.code === 0) {
       message.success('空间已删除')
-      selectedRowKeys.value = selectedRowKeys.value.filter(k => k !== id)
+      selectedRowKeys.value = selectedRowKeys.value.filter((k) => k !== id)
       await fetchData()
     } else {
       message.error('删除失败：' + res.data.message)
@@ -473,7 +546,7 @@ const batchOperation = async (options: BatchOperationOptions) => {
   if (!selectedRowKeys.value.length) return
   batchLoading.value = true
   try {
-    const promises = selectedRowKeys.value.map(id => operation(id))
+    const promises = selectedRowKeys.value.map((id) => operation(id))
     const results = await Promise.allSettled(promises)
     const failed = results.filter((r) => {
       if (r.status === 'rejected') return true
@@ -1002,9 +1075,15 @@ const goToEdit = (id: number) => {
   text-align: right;
   font-variant-numeric: tabular-nums;
 
-  &.normal { color: #1a7f37; }
-  &.warning { color: #9a6700; }
-  &.danger { color: #cf222e; }
+  &.normal {
+    color: #1a7f37;
+  }
+  &.warning {
+    color: #9a6700;
+  }
+  &.danger {
+    color: #cf222e;
+  }
 }
 
 .capacity-stats {
@@ -1110,8 +1189,12 @@ const goToEdit = (id: number) => {
 
 /* ========== 动画 ========== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {

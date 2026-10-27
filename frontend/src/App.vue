@@ -23,7 +23,8 @@ import './access.ts'
 }
 
 /* 防止页面双滚动条 */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   min-height: 100vh;

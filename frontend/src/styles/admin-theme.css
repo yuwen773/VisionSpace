@@ -74,7 +74,8 @@
   --admin-radius-full: 9999px;
 
   /* 字体 */
-  --admin-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --admin-font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --admin-font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 
   /* 字号 */
@@ -96,8 +97,12 @@
 
 /* ========== 共享动画 ========== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {

@@ -37,4 +37,3 @@ export const getMcpServer = (mcpServerCode: string, needTools = false) =>
  */
 export const listMcpServers = (params: { name?: string; current?: number; size?: number }) =>
   request('/api/mcp-server', { params })
-

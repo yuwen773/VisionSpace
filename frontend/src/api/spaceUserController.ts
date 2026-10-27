@@ -5,7 +5,7 @@ import request from '@/request'
 /** 此处后端没有提供注释 POST /spaceUser/add */
 export async function addSpaceUserUsingPost(
   body: API.SpaceUserAddRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseLong>('/spaceUser/add', {
     method: 'POST',
@@ -20,7 +20,7 @@ export async function addSpaceUserUsingPost(
 /** 此处后端没有提供注释 POST /spaceUser/delete */
 export async function deleteSpaceUserUsingPost(
   body: API.DeleteRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/spaceUser/delete', {
     method: 'POST',
@@ -35,7 +35,7 @@ export async function deleteSpaceUserUsingPost(
 /** 此处后端没有提供注释 POST /spaceUser/edit */
 export async function editSpaceUserUsingPost(
   body: API.SpaceUserEditRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/spaceUser/edit', {
     method: 'POST',
@@ -50,7 +50,7 @@ export async function editSpaceUserUsingPost(
 /** 此处后端没有提供注释 POST /spaceUser/get */
 export async function getSpaceUserUsingPost(
   body: API.SpaceUserQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseSpaceUser>('/spaceUser/get', {
     method: 'POST',
@@ -65,7 +65,7 @@ export async function getSpaceUserUsingPost(
 /** 此处后端没有提供注释 POST /spaceUser/list */
 export async function listSpaceUserUsingPost(
   body: API.SpaceUserQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseListSpaceUserVO>('/spaceUser/list', {
     method: 'POST',

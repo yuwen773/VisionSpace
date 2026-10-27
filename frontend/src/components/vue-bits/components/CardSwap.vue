@@ -4,7 +4,7 @@
     class="card-swap-container"
     :style="{
       width: typeof width === 'number' ? `${width}px` : width,
-      height: typeof height === 'number' ? `${height}px` : height
+      height: typeof height === 'number' ? `${height}px` : height,
     }"
   >
     <div
@@ -14,7 +14,7 @@
       class="card-swap-card"
       :style="{
         width: typeof width === 'number' ? `${width}px` : width,
-        height: typeof height === 'number' ? `${height}px` : height
+        height: typeof height === 'number' ? `${height}px` : height,
       }"
       @click="handleCardClick(index)"
     >
@@ -24,33 +24,33 @@
 </template>
 
 <script lang="ts">
-import gsap from 'gsap';
+import gsap from 'gsap'
 
 export interface CardSwapProps {
-  width?: number | string;
-  height?: number | string;
-  cardDistance?: number;
-  verticalDistance?: number;
-  delay?: number;
-  pauseOnHover?: boolean;
-  onCardClick?: (idx: number) => void;
-  skewAmount?: number;
-  easing?: 'linear' | 'elastic';
+  width?: number | string
+  height?: number | string
+  cardDistance?: number
+  verticalDistance?: number
+  delay?: number
+  pauseOnHover?: boolean
+  onCardClick?: (idx: number) => void
+  skewAmount?: number
+  easing?: 'linear' | 'elastic'
 }
 
 interface Slot {
-  x: number;
-  y: number;
-  z: number;
-  zIndex: number;
+  x: number
+  y: number
+  z: number
+  zIndex: number
 }
 
 const makeSlot = (i: number, distX: number, distY: number, total: number): Slot => ({
   x: i * distX,
   y: -i * distY,
   z: -i * distX * 1.5,
-  zIndex: total - i
-});
+  zIndex: total - i,
+})
 
 const placeNow = (el: HTMLElement, slot: Slot, skew: number) => {
   gsap.set(el, {
@@ -62,15 +62,15 @@ const placeNow = (el: HTMLElement, slot: Slot, skew: number) => {
     skewY: skew,
     transformOrigin: 'center center',
     zIndex: slot.zIndex,
-    force3D: true
-  });
-};
+    force3D: true,
+  })
+}
 
-export { makeSlot, placeNow };
+export { makeSlot, placeNow }
 </script>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, computed, useTemplateRef } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick, computed, useTemplateRef } from 'vue'
 
 const props = withDefaults(defineProps<CardSwapProps>(), {
   width: 500,
@@ -80,23 +80,23 @@ const props = withDefaults(defineProps<CardSwapProps>(), {
   delay: 5000,
   pauseOnHover: false,
   skewAmount: 6,
-  easing: 'elastic'
-});
+  easing: 'elastic',
+})
 
 const emit = defineEmits<{
-  'card-click': [index: number];
-}>();
+  'card-click': [index: number]
+}>()
 
-const containerRef = useTemplateRef<HTMLDivElement>('containerRef');
-const cardRefs = ref<HTMLElement[]>([]);
-const order = ref<number[]>([0, 1, 2]);
-const tlRef = ref<gsap.core.Timeline | null>(null);
-const intervalRef = ref<number>();
+const containerRef = useTemplateRef<HTMLDivElement>('containerRef')
+const cardRefs = ref<HTMLElement[]>([])
+const order = ref<number[]>([0, 1, 2])
+const tlRef = ref<gsap.core.Timeline | null>(null)
+const intervalRef = ref<number>()
 
 const handleCardClick = (index: number) => {
-  emit('card-click', index);
-  props.onCardClick?.(index);
-};
+  emit('card-click', index)
+  props.onCardClick?.(index)
+}
 
 const config = computed(() => {
   return props.easing === 'elastic'
@@ -106,7 +106,7 @@ const config = computed(() => {
         durMove: 2,
         durReturn: 2,
         promoteOverlap: 0.9,
-        returnDelay: 0.05
+        returnDelay: 0.05,
       }
     : {
         ease: 'power1.inOut',
@@ -114,64 +114,64 @@ const config = computed(() => {
         durMove: 0.8,
         durReturn: 0.8,
         promoteOverlap: 0.45,
-        returnDelay: 0.2
-      };
-});
+        returnDelay: 0.2,
+      }
+})
 
 const initializeCards = () => {
-  if (!cardRefs.value.length) return;
+  if (!cardRefs.value.length) return
 
-  const total = cardRefs.value.length;
+  const total = cardRefs.value.length
 
   cardRefs.value.forEach((el, i) => {
     if (el) {
-      placeNow(el, makeSlot(i, props.cardDistance, props.verticalDistance, total), props.skewAmount);
+      placeNow(el, makeSlot(i, props.cardDistance, props.verticalDistance, total), props.skewAmount)
     }
-  });
-};
+  })
+}
 
 const updateCardPositions = () => {
-  if (!cardRefs.value.length) return;
+  if (!cardRefs.value.length) return
 
-  const total = cardRefs.value.length;
+  const total = cardRefs.value.length
 
   cardRefs.value.forEach((el, i) => {
     if (el) {
-      const slot = makeSlot(i, props.cardDistance, props.verticalDistance, total);
+      const slot = makeSlot(i, props.cardDistance, props.verticalDistance, total)
       gsap.set(el, {
         x: slot.x,
         y: slot.y,
         z: slot.z,
-        skewY: props.skewAmount
-      });
+        skewY: props.skewAmount,
+      })
     }
-  });
-};
+  })
+}
 
 const swap = () => {
-  if (order.value.length < 2) return;
+  if (order.value.length < 2) return
 
-  const [front, ...rest] = order.value;
-  const elFront = cardRefs.value[front];
-  if (!elFront) return;
+  const [front, ...rest] = order.value
+  const elFront = cardRefs.value[front]
+  if (!elFront) return
 
-  const tl = gsap.timeline();
-  tlRef.value = tl;
+  const tl = gsap.timeline()
+  tlRef.value = tl
 
   tl.to(elFront, {
     y: '+=500',
     duration: config.value.durDrop,
-    ease: config.value.ease
-  });
+    ease: config.value.ease,
+  })
 
-  tl.addLabel('promote', `-=${config.value.durDrop * config.value.promoteOverlap}`);
+  tl.addLabel('promote', `-=${config.value.durDrop * config.value.promoteOverlap}`)
 
   rest.forEach((idx, i) => {
-    const el = cardRefs.value[idx];
-    if (!el) return;
+    const el = cardRefs.value[idx]
+    if (!el) return
 
-    const slot = makeSlot(i, props.cardDistance, props.verticalDistance, cardRefs.value.length);
-    tl.set(el, { zIndex: slot.zIndex }, 'promote');
+    const slot = makeSlot(i, props.cardDistance, props.verticalDistance, cardRefs.value.length)
+    tl.set(el, { zIndex: slot.zIndex }, 'promote')
     tl.to(
       el,
       {
@@ -179,113 +179,113 @@ const swap = () => {
         y: slot.y,
         z: slot.z,
         duration: config.value.durMove,
-        ease: config.value.ease
+        ease: config.value.ease,
       },
-      `promote+=${i * 0.15}`
-    );
-  });
+      `promote+=${i * 0.15}`,
+    )
+  })
 
   const backSlot = makeSlot(
     cardRefs.value.length - 1,
     props.cardDistance,
     props.verticalDistance,
-    cardRefs.value.length
-  );
-  tl.addLabel('return', `promote+=${config.value.durMove * config.value.returnDelay}`);
+    cardRefs.value.length,
+  )
+  tl.addLabel('return', `promote+=${config.value.durMove * config.value.returnDelay}`)
   tl.call(
     () => {
-      gsap.set(elFront, { zIndex: backSlot.zIndex });
+      gsap.set(elFront, { zIndex: backSlot.zIndex })
     },
     undefined,
-    'return'
-  );
-  tl.set(elFront, { x: backSlot.x, z: backSlot.z }, 'return');
+    'return',
+  )
+  tl.set(elFront, { x: backSlot.x, z: backSlot.z }, 'return')
   tl.to(
     elFront,
     {
       y: backSlot.y,
       duration: config.value.durReturn,
-      ease: config.value.ease
+      ease: config.value.ease,
     },
-    'return'
-  );
+    'return',
+  )
 
   tl.call(() => {
-    order.value = [...rest, front];
-  });
-};
+    order.value = [...rest, front]
+  })
+}
 
 const startAnimation = () => {
-  stopAnimation();
-  swap();
-  intervalRef.value = window.setInterval(swap, props.delay);
-};
+  stopAnimation()
+  swap()
+  intervalRef.value = window.setInterval(swap, props.delay)
+}
 
 const stopAnimation = () => {
-  tlRef.value?.kill();
+  tlRef.value?.kill()
   if (intervalRef.value) {
-    clearInterval(intervalRef.value);
+    clearInterval(intervalRef.value)
   }
-};
+}
 
 const resumeAnimation = () => {
-  tlRef.value?.play();
-  intervalRef.value = window.setInterval(swap, props.delay);
-};
+  tlRef.value?.play()
+  intervalRef.value = window.setInterval(swap, props.delay)
+}
 
 const setupHoverListeners = () => {
   if (props.pauseOnHover && containerRef.value) {
-    containerRef.value.addEventListener('mouseenter', stopAnimation);
-    containerRef.value.addEventListener('mouseleave', resumeAnimation);
+    containerRef.value.addEventListener('mouseenter', stopAnimation)
+    containerRef.value.addEventListener('mouseleave', resumeAnimation)
   }
-};
+}
 
 const removeHoverListeners = () => {
   if (containerRef.value) {
-    containerRef.value.removeEventListener('mouseenter', stopAnimation);
-    containerRef.value.removeEventListener('mouseleave', resumeAnimation);
+    containerRef.value.removeEventListener('mouseenter', stopAnimation)
+    containerRef.value.removeEventListener('mouseleave', resumeAnimation)
   }
-};
+}
 
 watch(
   () => [props.cardDistance, props.verticalDistance, props.skewAmount],
   () => {
-    updateCardPositions();
-  }
-);
+    updateCardPositions()
+  },
+)
 
 watch(
   () => props.delay,
   () => {
     if (intervalRef.value) {
-      clearInterval(intervalRef.value);
-      intervalRef.value = window.setInterval(swap, props.delay);
+      clearInterval(intervalRef.value)
+      intervalRef.value = window.setInterval(swap, props.delay)
     }
-  }
-);
+  },
+)
 
 watch(
   () => props.pauseOnHover,
   () => {
-    removeHoverListeners();
-    setupHoverListeners();
-  }
-);
+    removeHoverListeners()
+    setupHoverListeners()
+  },
+)
 
 onMounted(() => {
   nextTick(() => {
-    initializeCards();
-    startAnimation();
-    setupHoverListeners();
-  });
-});
+    initializeCards()
+    startAnimation()
+    setupHoverListeners()
+  })
+})
 
 onUnmounted(() => {
-  stopAnimation();
-  removeHoverListeners();
-});
+  stopAnimation()
+  removeHoverListeners()
+})
 
-defineOptions({ name: 'CardSwap' });
+defineOptions({ name: 'CardSwap' })
 </script>
 
 <style scoped>

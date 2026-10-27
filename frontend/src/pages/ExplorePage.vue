@@ -18,14 +18,14 @@
         <div class="brand-section">
           <div class="brand-logo">
             <svg class="brand-icon" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="url(#brandGradient)" stroke-width="3"/>
-              <circle cx="24" cy="24" r="12" fill="url(#brandGradient)" opacity="0.3"/>
-              <circle cx="24" cy="24" r="6" fill="url(#brandGradient)"/>
+              <circle cx="24" cy="24" r="20" stroke="url(#brandGradient)" stroke-width="3" />
+              <circle cx="24" cy="24" r="12" fill="url(#brandGradient)" opacity="0.3" />
+              <circle cx="24" cy="24" r="6" fill="url(#brandGradient)" />
               <defs>
                 <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#f472b6"/>
-                  <stop offset="50%" stop-color="#a855f7"/>
-                  <stop offset="100%" stop-color="#9333ea"/>
+                  <stop offset="0%" stop-color="#f472b6" />
+                  <stop offset="50%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#9333ea" />
                 </linearGradient>
               </defs>
             </svg>
@@ -38,8 +38,12 @@
 
         <!-- 主标题 -->
         <h1 class="hero-title">
-          <span class="title-word" v-for="(word, i) in titleWords" :key="i"
-                :style="{ animationDelay: `${i * 0.15}s` }">
+          <span
+            class="title-word"
+            v-for="(word, i) in titleWords"
+            :key="i"
+            :style="{ animationDelay: `${i * 0.15}s` }"
+          >
             {{ word }}
           </span>
         </h1>
@@ -48,9 +52,16 @@
         <!-- 搜索胶囊 - 毛玻璃效果 -->
         <div class="search-capsule" :class="{ 'search-focused': isSearchFocused }">
           <div class="search-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
           </div>
           <input
@@ -64,8 +75,15 @@
           />
           <button class="search-btn" @click="doSearch">
             <span>探索</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
         </div>
@@ -81,7 +99,6 @@
             {{ cat }}
           </button>
         </div>
-
       </section>
 
       <!-- 图片画廊区域 -->
@@ -116,17 +133,33 @@
                   </div>
                   <div class="overlay-actions">
                     <button class="action-btn" title="收藏">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+                        />
                       </svg>
                     </button>
                     <button class="action-btn" title="分享">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="18" cy="5" r="3"/>
-                        <circle cx="6" cy="12" r="3"/>
-                        <circle cx="18" cy="19" r="3"/>
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                       </svg>
                     </button>
                   </div>
@@ -136,7 +169,7 @@
               <div
                 class="impression-tracker"
                 :data-picture-id="picture.id"
-                :ref="el => setImpressionRef(el, picture.id)"
+                :ref="(el) => setImpressionRef(el, picture.id)"
               />
             </div>
           </div>
@@ -167,16 +200,30 @@
             </div>
             <div class="end-actions">
               <button class="end-btn" @click="backToTop">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 15l-6-6-6 6"/>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M18 15l-6-6-6 6" />
                 </svg>
                 <span>回到顶部</span>
               </button>
               <button class="end-btn secondary" @click="refreshGallery">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 4v6h-6"/>
-                  <path d="M1 20v-6h6"/>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M23 4v6h-6" />
+                  <path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                 </svg>
                 <span>换一批</span>
               </button>
@@ -188,17 +235,44 @@
           <div class="empty-state" v-else-if="!loading && pictureList.length === 0">
             <div class="empty-illustration">
               <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-                <circle cx="60" cy="60" r="50" stroke="var(--color-border-default)" stroke-width="2" stroke-dasharray="8 4"/>
-                <rect x="35" y="35" width="50" height="50" rx="8" stroke="var(--color-text-tertiary)" stroke-width="2"/>
-                <circle cx="50" cy="50" r="6" fill="var(--color-text-disabled)"/>
-                <path d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z" fill="var(--color-bg-tertiary)" stroke="var(--color-text-tertiary)" stroke-width="2"/>
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="50"
+                  stroke="var(--color-border-default)"
+                  stroke-width="2"
+                  stroke-dasharray="8 4"
+                />
+                <rect
+                  x="35"
+                  y="35"
+                  width="50"
+                  height="50"
+                  rx="8"
+                  stroke="var(--color-text-tertiary)"
+                  stroke-width="2"
+                />
+                <circle cx="50" cy="50" r="6" fill="var(--color-text-disabled)" />
+                <path
+                  d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z"
+                  fill="var(--color-bg-tertiary)"
+                  stroke="var(--color-text-tertiary)"
+                  stroke-width="2"
+                />
               </svg>
             </div>
             <h3 class="empty-title">暂无图片</h3>
             <p class="empty-desc">还没有上传任何图片，开始你的创作吧</p>
             <button class="empty-action" @click="goToUpload">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12h14"/>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 5v14M5 12h14" />
               </svg>
               <span>上传图片</span>
             </button>
@@ -294,7 +368,7 @@ const getAspectRatio = (picture: any) => {
  * 获取指定列的图片
  */
 const getColumnPictures = (colIndex: number) => {
-  return pictureList.value.filter(picture => {
+  return pictureList.value.filter((picture) => {
     return columnAssignment.value.get(picture.id) === colIndex
   })
 }
@@ -322,7 +396,7 @@ const calculatePictureHeight = (picture: any): number => {
  * 将新加载的图片分配到最短列
  */
 const assignPicturesToColumns = (newPictures: any[]) => {
-  newPictures.forEach(picture => {
+  newPictures.forEach((picture) => {
     const shortestCol = getShortestColumn()
     columnAssignment.value.set(picture.id, shortestCol)
     const estimatedHeight = calculatePictureHeight(picture)
@@ -445,7 +519,7 @@ const setImpressionRef = (el: Element | ComponentPublicInstance | null, pictureI
 const initImpressionObserver = () => {
   impressionObserver = new IntersectionObserver(
     (entries) => {
-      entries.forEach(entry => {
+      entries.forEach((entry) => {
         if (entry.isIntersecting) {
           const pictureId = (entry.target as HTMLElement).dataset.pictureId as string
           if (pictureId && !observedPictures.value.has(pictureId)) {
@@ -456,7 +530,7 @@ const initImpressionObserver = () => {
         }
       })
     },
-    { threshold: 0.5 }
+    { threshold: 0.5 },
   )
 }
 
@@ -472,7 +546,7 @@ const initScrollObserver = () => {
         loadMore()
       }
     },
-    { root: null, rootMargin: '200px', threshold: 0 }
+    { root: null, rootMargin: '200px', threshold: 0 },
   )
 
   scrollObserver.observe(loaderRef.value)
@@ -527,43 +601,47 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 40% 10%, rgba(255,255,255,0.8) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 70% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 85% 70%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 55%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(2px 2px at 35% 75%, rgba(168,85,247,0.6) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 60% 85%, rgba(236,72,153,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 5% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 78% 8%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 48% 25%, rgba(168,85,247,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 88% 92%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 22% 65%, rgba(255,255,255,0.3) 0%, transparent 100%);
+    radial-gradient(1px 1px at 10% 15%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 10%, rgba(255, 255, 255, 0.8) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 60%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 70% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 70%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 55%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+    radial-gradient(2px 2px at 35% 75%, rgba(168, 85, 247, 0.6) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 60% 85%, rgba(236, 72, 153, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 5% 50%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 78% 8%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 48% 25%, rgba(168, 85, 247, 0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 88% 92%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 22% 65%, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
   animation: starfield-drift 120s linear infinite;
 }
 
 .starfield-2 {
   background-image:
-    radial-gradient(1px 1px at 18% 28%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 33% 72%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 62% 18%, rgba(255,255,255,0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 48%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 45% 92%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 12% 58%, rgba(168,85,247,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 72% 82%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 95% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(2px 2px at 50% 50%, rgba(168,85,247,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 28% 8%, rgba(255,255,255,0.5) 0%, transparent 100%);
+    radial-gradient(1px 1px at 18% 28%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 33% 72%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 62% 18%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 48%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 92%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 12% 58%, rgba(168, 85, 247, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 72% 82%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 95% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 100%),
+    radial-gradient(2px 2px at 50% 50%, rgba(168, 85, 247, 0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 28% 8%, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
   animation: starfield-drift 180s linear infinite reverse;
   opacity: 0.7;
 }
 
 @keyframes starfield-drift {
-  from { transform: translateY(0); }
-  to { transform: translateY(-200px); }
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-200px);
+  }
 }
 
 .gradient-orb {
@@ -576,7 +654,12 @@ onUnmounted(() => {
 .orb-1 {
   width: 700px;
   height: 700px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, rgba(110, 53, 235, 0.15) 50%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.35) 0%,
+    rgba(110, 53, 235, 0.15) 50%,
+    transparent 70%
+  );
   top: -250px;
   right: -150px;
   animation-name: orb-breathe-1;
@@ -586,7 +669,12 @@ onUnmounted(() => {
 .orb-2 {
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, rgba(168, 85, 247, 0.1) 50%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(236, 72, 153, 0.25) 0%,
+    rgba(168, 85, 247, 0.1) 50%,
+    transparent 70%
+  );
   top: 35%;
   left: -200px;
   animation-name: orb-breathe-2;
@@ -596,7 +684,12 @@ onUnmounted(() => {
 .orb-3 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(34, 104, 245, 0.1) 50%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.2) 0%,
+    rgba(34, 104, 245, 0.1) 50%,
+    transparent 70%
+  );
   bottom: -150px;
   right: 15%;
   animation-name: orb-breathe-3;
@@ -605,20 +698,47 @@ onUnmounted(() => {
 
 /* orb 呼吸动画：translate + scale + opacity 联动 */
 @keyframes orb-breathe-1 {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
-  33% { transform: translate(40px, -40px) scale(1.08); opacity: 0.9; }
-  66% { transform: translate(-30px, 30px) scale(0.95); opacity: 0.6; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.7;
+  }
+  33% {
+    transform: translate(40px, -40px) scale(1.08);
+    opacity: 0.9;
+  }
+  66% {
+    transform: translate(-30px, 30px) scale(0.95);
+    opacity: 0.6;
+  }
 }
 
 @keyframes orb-breathe-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-  40% { transform: translate(-50px, 30px) scale(1.1); opacity: 0.85; }
-  70% { transform: translate(30px, -20px) scale(0.92); opacity: 0.5; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  40% {
+    transform: translate(-50px, 30px) scale(1.1);
+    opacity: 0.85;
+  }
+  70% {
+    transform: translate(30px, -20px) scale(0.92);
+    opacity: 0.5;
+  }
 }
 
 @keyframes orb-breathe-3 {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-  50% { transform: translate(20px, -50px) scale(1.12); opacity: 0.8; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(20px, -50px) scale(1.12);
+    opacity: 0.8;
+  }
 }
 
 /* ========== 主内容区 ========== */
@@ -672,8 +792,13 @@ onUnmounted(() => {
 
 /* 只用 filter + opacity 做呼吸，不碰 scale（避免 layout thrashing） */
 @keyframes logo-breathe {
-  0%, 100% { filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5)); }
-  50% { filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.8)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.8));
+  }
 }
 
 .brand-text {
@@ -839,7 +964,9 @@ onUnmounted(() => {
 
   &:hover {
     transform: translateY(-3px) scale(1.03);
-    box-shadow: 0 8px 35px rgba(244, 114, 182, 0.55), 0 0 20px rgba(168, 85, 247, 0.3);
+    box-shadow:
+      0 8px 35px rgba(244, 114, 182, 0.55),
+      0 0 20px rgba(168, 85, 247, 0.3);
   }
 
   &:active {
@@ -927,13 +1054,25 @@ onUnmounted(() => {
 }
 
 @keyframes bounce-arrow {
-  0%, 100% { transform: translateY(0); opacity: 0.7; }
-  50% { transform: translateY(8px); opacity: 1; }
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(8px);
+    opacity: 1;
+  }
 }
 
 @keyframes arrow-pulse {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
 }
 
 /* 底部渐变遮罩 - 暗示下方有内容 */
@@ -943,7 +1082,12 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 200px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(168, 85, 247, 0.15) 70%, var(--bg-primary) 100%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(168, 85, 247, 0.15) 70%,
+    var(--bg-primary) 100%
+  );
   pointer-events: none;
 }
 
@@ -1015,8 +1159,12 @@ onUnmounted(() => {
 }
 
 @keyframes skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .item-image {
@@ -1026,7 +1174,9 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 
   &.loaded {
     opacity: 1;
@@ -1154,12 +1304,21 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-orb {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.8); opacity: 0.6; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
 }
 
 @keyframes spin-ring {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loader-text {
@@ -1194,21 +1353,51 @@ onUnmounted(() => {
   animation: twinkle 2s ease-in-out infinite;
   text-shadow: 0 0 10px rgba(244, 114, 182, 0.8);
 
-  &.star-1 { left: 0; top: 50%; transform: translateY(-50%); animation-delay: 0s; }
-  &.star-2 { left: 50%; top: 0; transform: translateX(-50%); animation-delay: 0.3s; font-size: 16px; }
-  &.star-3 { right: 0; top: 50%; transform: translateY(-50%); animation-delay: 0.6s; }
+  &.star-1 {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    animation-delay: 0s;
+  }
+  &.star-2 {
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    animation-delay: 0.3s;
+    font-size: 16px;
+  }
+  &.star-3 {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    animation-delay: 0.6s;
+  }
 }
 
 @keyframes twinkle {
-  0%, 100% { opacity: 1; transform: translateY(-50%) scale(1); }
-  50% { opacity: 0.4; transform: translateY(-50%) scale(0.8); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: translateY(-50%) scale(0.8);
+  }
 }
 
 .star-2 {
   animation-name: twinkle-alt;
   @keyframes twinkle-alt {
-    0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(0.8); }
-    50% { opacity: 1; transform: translateX(-50%) scale(1.1); }
+    0%,
+    100% {
+      opacity: 0.4;
+      transform: translateX(-50%) scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: translateX(-50%) scale(1.1);
+    }
   }
 }
 
@@ -1306,7 +1495,12 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 400px;
   height: 150px;
-  background: radial-gradient(ellipse, rgba(244, 114, 182, 0.3) 0%, rgba(251, 146, 60, 0.2) 40%, transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    rgba(244, 114, 182, 0.3) 0%,
+    rgba(251, 146, 60, 0.2) 40%,
+    transparent 70%
+  );
   pointer-events: none;
   filter: blur(30px);
 }
@@ -1328,8 +1522,13 @@ onUnmounted(() => {
 }
 
 @keyframes float-illustration {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .empty-title {

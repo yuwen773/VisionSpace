@@ -1,4 +1,5 @@
 import { generateService } from '@umijs/openapi'
+import { pathToFileURL } from 'node:url'
 
 // schemaPath 指向本地后端（mvn spring-boot:run 后 http://localhost:8081/api/v3/api-docs）。
 // 可用 OPENAPI_SCHEMA_PATH 覆盖，例如部署环境：
@@ -40,6 +41,20 @@ const TAG_RENAME = {
   'agent-attachment-controller': 'agent-attachment-controller',
 }
 
+// springdoc 输出对象属性的顺序不稳定，生成器又按 spec 顺序写字段，
+// 导致同样的契约两次生成出不同文件。排序后再生成，产物才可逐字节对账。
+const sortKeys = (value) => {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, sortKeys(value[key])]),
+    )
+  }
+  return value
+}
+
 const renameTags = (spec) => {
   for (const pathItem of Object.values(spec.paths || {})) {
     for (const operation of Object.values(pathItem)) {
@@ -48,13 +63,14 @@ const renameTags = (spec) => {
       }
     }
   }
-  return spec
+  return sortKeys(spec)
 }
 
 const legacyName = (data) =>
   normalizeVo(data.operationId) + (METHOD_SUFFIX[data.method.toLowerCase()] || '')
 
-generateService({
+// 生成配置单独导出，scripts/openapi-check.mjs 复用同一份，避免检查与生成规则漂移。
+export const openApiConfig = {
   requestLibPath: "import request from '@/request'",
   schemaPath: process.env.OPENAPI_SCHEMA_PATH || 'http://localhost:8081/api/v3/api-docs',
   serversPath: './src',
@@ -63,4 +79,10 @@ generateService({
     customFunctionName: legacyName,
     customTypeName: legacyName,
   },
-})
+}
+
+// 直接执行（npm run openapi2ts）时才写盘；被 import 时不产生副作用。
+const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
+if (entry === import.meta.url) {
+  generateService(openApiConfig)
+}

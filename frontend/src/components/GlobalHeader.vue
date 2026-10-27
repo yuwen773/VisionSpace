@@ -21,12 +21,20 @@
               <svg viewBox="0 0 60 60" class="ring-svg">
                 <defs>
                   <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#a855f7"/>
-                    <stop offset="50%" stop-color="#ec4899"/>
-                    <stop offset="100%" stop-color="#f472b6"/>
+                    <stop offset="0%" stop-color="#a855f7" />
+                    <stop offset="50%" stop-color="#ec4899" />
+                    <stop offset="100%" stop-color="#f472b6" />
                   </linearGradient>
                 </defs>
-                <circle cx="30" cy="30" r="28" fill="none" stroke="url(#ringGradient)" stroke-width="2" stroke-dasharray="8 4"/>
+                <circle
+                  cx="30"
+                  cy="30"
+                  r="28"
+                  fill="none"
+                  stroke="url(#ringGradient)"
+                  stroke-width="2"
+                  stroke-dasharray="8 4"
+                />
               </svg>
             </div>
             <!-- Logo 图标 -->
@@ -64,7 +72,11 @@
       <!-- 用户区域 -->
       <div class="header-right">
         <!-- 主题切换按钮 -->
-        <div class="theme-toggle-wrapper" @click="toggleTheme" :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'">
+        <div
+          class="theme-toggle-wrapper"
+          @click="toggleTheme"
+          :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'"
+        >
           <div class="theme-toggle-pill" :class="currentTheme">
             <span class="theme-icon-item sun"><Sun :size="14" /></span>
             <span class="theme-icon-item moon"><Moon :size="14" /></span>
@@ -82,12 +94,20 @@
               <div class="user-info">
                 <span class="user-name">{{ loginUserStore.loginUser.userAccount ?? 'User' }}</span>
                 <span class="user-role">
-                  <span class="role-icon"><Crown v-if="isAdmin" :size="12" /><User v-else :size="12" /></span>
+                  <span class="role-icon"
+                    ><Crown v-if="isAdmin" :size="12" /><User v-else :size="12"
+                  /></span>
                 </span>
               </div>
               <span class="user-arrow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="arrow-icon">
-                  <path d="M6 9l6 6 6-6"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  class="arrow-icon"
+                >
+                  <path d="M6 9l6 6 6-6" />
                 </svg>
               </span>
             </div>
@@ -96,7 +116,11 @@
                 <!-- 用户信息头部 -->
                 <div class="dropdown-header">
                   <div class="dropdown-avatar-wrapper">
-                    <a-avatar :src="loginUserStore.loginUser.userAvatar" :size="64" class="dropdown-avatar" />
+                    <a-avatar
+                      :src="loginUserStore.loginUser.userAvatar"
+                      :size="64"
+                      class="dropdown-avatar"
+                    />
                     <div class="dropdown-avatar-glow"></div>
                   </div>
                   <div class="dropdown-user-info">
@@ -170,7 +194,11 @@
         </div>
 
         <!-- 汉堡菜单按钮（移动端） -->
-        <button class="hamburger-btn" @click="toggleMobileMenu" :class="{ active: mobileMenuVisible }">
+        <button
+          class="hamburger-btn"
+          @click="toggleMobileMenu"
+          :class="{ active: mobileMenuVisible }"
+        >
           <span class="hamburger-line"></span>
           <span class="hamburger-line"></span>
           <span class="hamburger-line"></span>
@@ -214,7 +242,24 @@ import { ref, computed, watchEffect, onMounted, onUnmounted, h } from 'vue'
 import type { MenuProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { Sun, Moon, Crown, User, Home, MessageSquare, Settings, LogOut, KeyRound, Sparkles, Camera, Cloud, Users, Rocket, Compass, ShieldCheck } from 'lucide-vue-next'
+import {
+  Sun,
+  Moon,
+  Crown,
+  User,
+  Home,
+  MessageSquare,
+  Settings,
+  LogOut,
+  KeyRound,
+  Sparkles,
+  Camera,
+  Cloud,
+  Users,
+  Rocket,
+  Compass,
+  ShieldCheck,
+} from 'lucide-vue-next'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLogoutUsingPost } from '@/api/userController.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
@@ -327,16 +372,14 @@ const items = computed(() => filterMenus(menuItems.value))
 
 const PARENT_MENU_KEYS = new Set(['add_space_submenu', 'team_space_submenu'])
 
-const doMenuClick = (menuInfo: { key: string, keyPath?: string[] }) => {
+const doMenuClick = (menuInfo: { key: string; keyPath?: string[] }) => {
   // 如果是父菜单项（有子菜单），只展开子菜单，不导航
   if (PARENT_MENU_KEYS.has(menuInfo.key)) {
     return
   }
 
   const [url, queryString] = menuInfo.key.split('?')
-  const query = queryString
-    ? Object.fromEntries(new URLSearchParams(queryString).entries())
-    : {}
+  const query = queryString ? Object.fromEntries(new URLSearchParams(queryString).entries()) : {}
 
   router.push({
     path: url,
@@ -349,7 +392,7 @@ const toggleMobileMenu = () => {
   mobileMenuVisible.value = !mobileMenuVisible.value
 }
 
-const handleMobileMenuClick = (menuInfo: { key: string, keyPath?: string[] }) => {
+const handleMobileMenuClick = (menuInfo: { key: string; keyPath?: string[] }) => {
   mobileMenuVisible.value = false
   doMenuClick(menuInfo)
 }
@@ -558,7 +601,8 @@ onUnmounted(() => {
 }
 
 @keyframes auroraFloat {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0) translateY(0) scale(1);
   }
   33% {
@@ -692,7 +736,8 @@ onUnmounted(() => {
 }
 
 @keyframes particleFloat {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) scale(1);
     opacity: 1;
   }
@@ -724,7 +769,6 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-
 
   &::before {
     content: '';
@@ -814,7 +858,9 @@ onUnmounted(() => {
       color: var(--text-primary);
       background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(236, 72, 153, 0.25));
       border: 1px solid rgba(168, 85, 247, 0.4);
-      box-shadow: 0 0 20px rgba(168, 85, 247, 0.2), inset 0 0 20px rgba(168, 85, 247, 0.1);
+      box-shadow:
+        0 0 20px rgba(168, 85, 247, 0.2),
+        inset 0 0 20px rgba(168, 85, 247, 0.1);
 
       &::before {
         opacity: 1;
@@ -907,7 +953,9 @@ onUnmounted(() => {
     border-radius: var(--radius-lg);
     border: 2px solid transparent;
     background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) border-box;
-    mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) padding-box,
+      linear-gradient(#fff 0 0);
     mask-composite: exclude;
     opacity: 0.5;
     transition: all var(--transition-bounce);
@@ -991,7 +1039,13 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-secondary), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary),
+      var(--color-secondary),
+      transparent
+    );
   }
 }
 
@@ -1362,7 +1416,12 @@ onUnmounted(() => {
   }
 
   &.primary {
-    background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-secondary-500) 50%, var(--color-accent-purple) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-500) 0%,
+      var(--color-secondary-500) 50%,
+      var(--color-accent-purple) 100%
+    );
     color: white;
     border: none;
     box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
@@ -1372,7 +1431,9 @@ onUnmounted(() => {
     }
 
     &:hover {
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4), 0 0 40px rgba(236, 72, 153, 0.2);
+      box-shadow:
+        0 8px 30px rgba(168, 85, 247, 0.4),
+        0 0 40px rgba(236, 72, 153, 0.2);
     }
   }
 }
@@ -1399,11 +1460,14 @@ onUnmounted(() => {
     transparent 100%
   );
   animation: borderGlow 4s ease-in-out infinite;
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.5), 0 0 40px rgba(236, 72, 153, 0.3);
+  box-shadow:
+    0 0 20px rgba(168, 85, 247, 0.5),
+    0 0 40px rgba(236, 72, 153, 0.3);
 }
 
 @keyframes borderGlow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     transform: scaleX(0.98);
   }
@@ -1578,7 +1642,8 @@ onUnmounted(() => {
 
 /* ========== 动画 ========== */
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {

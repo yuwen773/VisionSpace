@@ -57,7 +57,7 @@ export interface PictureRecommendRequest {
  */
 export async function reportPictureAction(
   params: PictureActionRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean_>('/api/picture/action/report', {
     method: 'POST',
@@ -76,7 +76,7 @@ export async function reportPictureAction(
  */
 export async function getRecommendListUsingGet(
   params: PictureRecommendRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseRecommendPageVO>('/api/picture/recommend/list', {
     method: 'GET',

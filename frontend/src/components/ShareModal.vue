@@ -45,7 +45,10 @@
 
         <!-- 底部提示 -->
         <div class="share-footer">
-          <span class="footer-text"><Lightbulb :size="14" style="vertical-align: middle; margin-right: 4px;" /> 分享给好友，一起欣赏精彩图片</span>
+          <span class="footer-text"
+            ><Lightbulb :size="14" style="vertical-align: middle; margin-right: 4px" />
+            分享给好友，一起欣赏精彩图片</span
+          >
         </div>
       </div>
     </a-modal>
@@ -88,7 +91,7 @@ const closeModal = () => {
 
 // 暴露函数给父组件
 defineExpose({
-  openModal
+  openModal,
 })
 </script>
 

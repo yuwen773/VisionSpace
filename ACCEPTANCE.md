@@ -43,7 +43,11 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 
 ## 结果与最小 CI
 
-脚本先验证六个结果分类场景，再顺序执行 `mvn clean verify`、`npm ci`、`npm run type-check`、`npm test`、`npm run build-only`。各关卡分别记录，后端失败仍会运行独立前端检查。最后生成 `target/acceptance/summary.json`，本轮各关卡日志和 Surefire XML 位于 `target/acceptance/<本轮标识>/`，原始临时目录在 summary 中列出。Surefire 从一开始就写入本轮独立目录，环境阻断不会混入旧测试结果。生成产物不入库。
+脚本先验证六个结果分类场景，再顺序执行 `mvn clean verify`、`npm ci`、`npm run lint:check`、`npm run format:check`、`npm run type-check`、`npm test`、`npm run build-only`，后端通过时再跑 `scripts/openapi-contract.ps1` 核对生成客户端与契约。各关卡分别记录，后端失败仍会运行独立前端检查。最后生成 `target/acceptance/summary.json`，本轮各关卡日志和 Surefire XML 位于 `target/acceptance/<本轮标识>/`，原始临时目录在 summary 中列出。Surefire 从一开始就写入本轮独立目录，环境阻断不会混入旧测试结果。生成产物不入库。
+
+### 接口契约关卡
+
+`OpenApiContractTest` 在隔离环境里把后端 `/api/v3/api-docs` 落到 `target/openapi-contract.json`；`scripts/openapi-contract.ps1` 随后用与 `npm run openapi2ts` 相同的生成配置（同一份 `openapi.config.js`）生成到临时目录，与入库的 `frontend/src/api/` 逐字节比较。因此后端接口变更后忘记重新生成客户端会直接 FAIL，不再依赖评审人肉眼判断，也不需要手工启动后端。生成前会对 spec 的键递归排序，避免 springdoc 的属性顺序让同一契约产出不同文件。
 
 | 状态 | 含义 |
 | --- | --- |

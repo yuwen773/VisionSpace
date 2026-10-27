@@ -17,39 +17,76 @@
     <!-- 顶部导航栏 -->
     <header class="detail-header">
       <button @click="goBack" class="back-btn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         <span>返回</span>
       </button>
 
       <div class="header-actions">
         <button class="action-icon-btn" @click="doShare" title="分享">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="18" cy="5" r="3"/>
-            <circle cx="6" cy="12" r="3"/>
-            <circle cx="18" cy="19" r="3"/>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
         </button>
         <button class="action-icon-btn" @click="doDownload" title="下载">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
         <button v-if="canEdit" @click="doEdit" class="action-icon-btn" title="编辑">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
         </button>
         <button v-if="canDelete" @click="doDelete" class="action-icon-btn delete" title="删除">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path
+              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            />
           </svg>
         </button>
       </div>
@@ -83,10 +120,17 @@
 
             <!-- 悬停时的缩放提示 -->
             <div class="zoom-hint">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="m21 21-4.35-4.35"/>
-                <path d="M11 8v6M8 11h6"/>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
               </svg>
               <span>点击全屏预览</span>
             </div>
@@ -102,10 +146,17 @@
           <div class="image-info-bar" :class="{ visible: imageLoaded }">
             <div class="info-bar-item">
               <span class="info-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
                 </svg>
               </span>
               <span class="info-text">{{ picture.picWidth }} × {{ picture.picHeight }}</span>
@@ -113,9 +164,16 @@
             <div class="info-divider"></div>
             <div class="info-bar-item">
               <span class="info-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
                 </svg>
               </span>
               <span class="info-text">{{ picture.picFormat?.toUpperCase() }}</span>
@@ -123,8 +181,17 @@
             <div class="info-divider"></div>
             <div class="info-bar-item">
               <span class="info-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                  />
                 </svg>
               </span>
               <span class="info-text">{{ formatSize(picture.picSize ?? 0) }}</span>
@@ -132,9 +199,18 @@
             <div class="info-divider"></div>
             <div class="info-bar-item">
               <span class="info-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                  />
+                  <polyline points="22,6 12,13 2,6" />
                 </svg>
               </span>
               <span class="info-text">{{ picture.picScale }}</span>
@@ -149,11 +225,7 @@
         <div class="author-card" :style="{ animationDelay: '0.1s' }">
           <div class="author-glow"></div>
           <div class="author-content">
-            <a-avatar
-              :src="picture.user?.userAvatar"
-              :size="56"
-              class="author-avatar"
-            />
+            <a-avatar :src="picture.user?.userAvatar" :size="56" class="author-avatar" />
             <div class="author-info">
               <span class="author-name">{{ picture.user?.userName || '未知用户' }}</span>
               <span class="author-account">@{{ picture.user?.userAccount }}</span>
@@ -161,11 +233,18 @@
           </div>
           <div class="author-decoration">
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <circle cx="20" cy="20" r="18" stroke="url(#authorGradZiyan)" stroke-width="2" stroke-dasharray="4 4"/>
+              <circle
+                cx="20"
+                cy="20"
+                r="18"
+                stroke="url(#authorGradZiyan)"
+                stroke-width="2"
+                stroke-dasharray="4 4"
+              />
               <defs>
                 <linearGradient id="authorGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#a855f7"/>
-                  <stop offset="100%" stop-color="#ec4899"/>
+                  <stop offset="0%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#ec4899" />
                 </linearGradient>
               </defs>
             </svg>
@@ -182,8 +261,17 @@
         <div class="meta-grid" :style="{ animationDelay: '0.3s' }">
           <div class="meta-card" v-if="picture.category">
             <div class="meta-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                />
               </svg>
             </div>
             <div class="meta-content">
@@ -194,28 +282,47 @@
 
           <div class="meta-card color-card" v-if="picture.picColor">
             <div class="meta-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="13.5" cy="6.5" r="3"/>
-                <circle cx="17.5" cy="10.5" r="3"/>
-                <circle cx="8.5" cy="7.5" r="3"/>
-                <circle cx="6.5" cy="12.5" r="3"/>
-                <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.5-2.5-4.5L12 22z"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="13.5" cy="6.5" r="3" />
+                <circle cx="17.5" cy="10.5" r="3" />
+                <circle cx="8.5" cy="7.5" r="3" />
+                <circle cx="6.5" cy="12.5" r="3" />
+                <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.5-2.5-4.5L12 22z" />
               </svg>
             </div>
             <div class="meta-content">
               <span class="meta-label">主色调</span>
               <div class="color-value">
                 <span class="meta-value">{{ picture.picColor }}</span>
-                <span class="color-swatch" :style="{ backgroundColor: toHexColor(picture.picColor) }"></span>
+                <span
+                  class="color-swatch"
+                  :style="{ backgroundColor: toHexColor(picture.picColor) }"
+                ></span>
               </div>
             </div>
           </div>
 
           <div class="meta-card" v-if="picture.tags?.length">
             <div class="meta-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                <line x1="7" y1="7" x2="7.01" y2="7"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+                />
+                <line x1="7" y1="7" x2="7.01" y2="7" />
               </svg>
             </div>
             <div class="meta-content">
@@ -230,16 +337,32 @@
         <!-- 操作按钮组 -->
         <div class="action-group" :style="{ animationDelay: '0.4s' }">
           <button class="action-btn primary" @click="toggleFullscreen">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              />
             </svg>
             <span>全屏预览</span>
           </button>
           <button class="action-btn secondary" @click="doDownload">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             <span>免费下载</span>
           </button>
@@ -263,7 +386,11 @@
     </div>
 
     <!-- 全屏预览模态框 -->
-    <ImagePreview v-model:open="isFullscreen" :url="contentSrc(picture.previewUrl || picture.url)" :alt="picture.name" />
+    <ImagePreview
+      v-model:open="isFullscreen"
+      :url="contentSrc(picture.previewUrl || picture.url)"
+      :alt="picture.name"
+    />
 
     <!-- 分享弹窗 -->
     <ShareModal ref="shareModalRef" :link="shareLink" title="分享图片" />
@@ -292,7 +419,9 @@ const props = defineProps<Props>()
 const pictureId = computed(() => toId(props.id))
 // 授权面板按原始标识定位资源：图片标识是雪花值，超出 JavaScript 安全整数范围，
 // 转成 number 会丢精度，服务端就找不到资源
-const rawPictureId = computed(() => (props.id === undefined || props.id === null ? '' : String(props.id)))
+const rawPictureId = computed(() =>
+  props.id === undefined || props.id === null ? '' : String(props.id),
+)
 const router = useRouter()
 const { report: reportAction } = usePictureAction()
 
@@ -389,9 +518,12 @@ onMounted(() => {
   fetchDetailPicture()
 })
 
-watch(() => props.id, () => {
-  fetchDetailPicture()
-})
+watch(
+  () => props.id,
+  () => {
+    fetchDetailPicture()
+  },
+)
 </script>
 
 <style scoped lang="less">
@@ -447,10 +579,19 @@ watch(() => props.id, () => {
 }
 
 @keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(40px, -40px) scale(1.05); }
-  50% { transform: translate(-30px, 30px) scale(0.95); }
-  75% { transform: translate(25px, 15px) scale(1.03); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(40px, -40px) scale(1.05);
+  }
+  50% {
+    transform: translate(-30px, 30px) scale(0.95);
+  }
+  75% {
+    transform: translate(25px, 15px) scale(1.03);
+  }
 }
 
 /* 浮动装饰点 */
@@ -512,10 +653,19 @@ watch(() => props.id, () => {
 }
 
 @keyframes float-dot {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(10px, -15px) rotate(90deg); }
-  50% { transform: translate(-5px, 10px) rotate(180deg); }
-  75% { transform: translate(15px, 5px) rotate(270deg); }
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(10px, -15px) rotate(90deg);
+  }
+  50% {
+    transform: translate(-5px, 10px) rotate(180deg);
+  }
+  75% {
+    transform: translate(15px, 5px) rotate(270deg);
+  }
 }
 
 /* ========== 顶部导航栏 ========== */
@@ -659,8 +809,12 @@ watch(() => props.id, () => {
 }
 
 @keyframes skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .main-image {
@@ -705,7 +859,13 @@ watch(() => props.id, () => {
     left: 10%;
     right: 10%;
     height: 3px;
-    background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-secondary), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary),
+      var(--color-secondary),
+      transparent
+    );
   }
 
   &.frame-bottom {
@@ -713,7 +873,13 @@ watch(() => props.id, () => {
     left: 10%;
     right: 10%;
     height: 3px;
-    background: linear-gradient(90deg, transparent, var(--color-sky), var(--color-mint), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-sky),
+      var(--color-mint),
+      transparent
+    );
   }
 
   &.frame-left {
@@ -877,7 +1043,9 @@ watch(() => props.id, () => {
 }
 
 @keyframes spin-slow {
-  to { transform: translateY(-50%) rotate(360deg); }
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
 }
 
 /* 标题区 */

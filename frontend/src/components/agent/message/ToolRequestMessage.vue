@@ -1,15 +1,22 @@
 <template>
   <div class="tool-requests">
-    <div
-      v-for="(call, idx) in parsedCalls"
-      :key="idx"
-      class="tool-card"
-    >
+    <div v-for="(call, idx) in parsedCalls" :key="idx" class="tool-card">
       <!-- Card Header -->
       <div class="tool-card-header">
         <span class="tool-icon" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+            />
           </svg>
         </span>
         <span class="tool-name">{{ call.name }}</span>
@@ -22,11 +29,7 @@
           <span class="empty-args">{ }</span>
         </template>
         <template v-else>
-          <div
-            v-for="(val, key) in call.args"
-            :key="key"
-            class="arg-row"
-          >
+          <div v-for="(val, key) in call.args" :key="key" class="arg-row">
             <span class="arg-key">{{ key }}</span>
             <span class="arg-sep">:</span>
             <span class="arg-value" v-html="highlightJsonValue(val)"></span>
@@ -201,14 +204,37 @@ const isEmptyArgs = (args: Record<string, any>) => {
 }
 
 /* JSON Syntax Colors */
-:deep(.json-key) { color: #7dd3fc; }
-:deep(.json-str) { color: #86efac; }
-:deep(.json-num) { color: #c4b5fd; }
-:deep(.json-bool) { color: #f9a8d4; }
-:deep(.json-null) { color: #f87171; }
-:deep(.json-bracket) { color: #94a3b8; }
-:deep(.json-comma) { color: #94a3b8; }
-:deep(.json-sep) { color: #94a3b8; }
-:deep(.json-count) { color: #64748b; font-size: 10.5px; margin-left: 2px; }
-:deep(.json-more) { color: #64748b; font-style: italic; }
+:deep(.json-key) {
+  color: #7dd3fc;
+}
+:deep(.json-str) {
+  color: #86efac;
+}
+:deep(.json-num) {
+  color: #c4b5fd;
+}
+:deep(.json-bool) {
+  color: #f9a8d4;
+}
+:deep(.json-null) {
+  color: #f87171;
+}
+:deep(.json-bracket) {
+  color: #94a3b8;
+}
+:deep(.json-comma) {
+  color: #94a3b8;
+}
+:deep(.json-sep) {
+  color: #94a3b8;
+}
+:deep(.json-count) {
+  color: #64748b;
+  font-size: 10.5px;
+  margin-left: 2px;
+}
+:deep(.json-more) {
+  color: #64748b;
+  font-style: italic;
+}
 </style>

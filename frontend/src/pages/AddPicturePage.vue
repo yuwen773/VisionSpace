@@ -17,8 +17,15 @@
     <!-- 顶部导航栏 -->
     <header class="page-header">
       <button @click="goBack" class="back-btn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         <span>返回</span>
       </button>
@@ -31,8 +38,15 @@
       </div>
 
       <div class="header-space">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
         <span>{{ spaceName }}</span>
       </div>
@@ -44,12 +58,18 @@
       <section class="upload-hero">
         <div class="hero-text">
           <h1 class="hero-title">
-            <span class="title-word" v-for="(word, i) in titleWords" :key="i"
-                  :style="{ animationDelay: `${i * 0.12}s` }">
+            <span
+              class="title-word"
+              v-for="(word, i) in titleWords"
+              :key="i"
+              :style="{ animationDelay: `${i * 0.12}s` }"
+            >
               {{ word }}
             </span>
           </h1>
-          <p class="hero-subtitle">{{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace' }}</p>
+          <p class="hero-subtitle">
+            {{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace' }}
+          </p>
         </div>
 
         <!-- 上传方式切换 -->
@@ -59,10 +79,17 @@
             :class="{ active: uploadType === 'file' }"
             @click="uploadType = 'file'"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             <span>本地上传</span>
           </button>
@@ -71,9 +98,16 @@
             :class="{ active: uploadType === 'url' }"
             @click="uploadType = 'url'"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
             <span>URL 上传</span>
           </button>
@@ -114,10 +148,17 @@
                   <img :src="contentSrc(picture.url)" :alt="picture.name" class="preview-image" />
                   <div class="preview-overlay">
                     <button class="preview-action-btn" @click="changeImage">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="17 8 12 3 7 8"/>
-                        <line x1="12" y1="3" x2="12" y2="15"/>
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
                       <span>更换图片</span>
                     </button>
@@ -127,20 +168,34 @@
                 <!-- 快速操作按钮 -->
                 <div class="quick-actions">
                   <button class="quick-action-btn" @click="doEditPicture" title="裁剪编辑">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="6" cy="6" r="3"/>
-                      <circle cx="6" cy="18" r="3"/>
-                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="6" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                      <line x1="8.12" y1="8.12" x2="12" y2="12" />
                     </svg>
                     <span>裁剪</span>
                   </button>
                   <button class="quick-action-btn" @click="doImagePainting" title="AI 扩图">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/>
-                      <path d="M12 8v4l2 2"/>
-                      <path d="M2.5 12a9.5 9.5 0 0 1 1.5-3"/>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12" />
+                      <path d="M12 8v4l2 2" />
+                      <path d="M2.5 12a9.5 9.5 0 0 1 1.5-3" />
                     </svg>
                     <span>AI 扩图</span>
                   </button>
@@ -150,7 +205,12 @@
 
             <!-- 装饰粒子 -->
             <div class="portal-particles">
-              <span v-for="i in 6" :key="i" class="particle" :style="{ animationDelay: `${i * 0.3}s` }"></span>
+              <span
+                v-for="i in 6"
+                :key="i"
+                class="particle"
+                :style="{ animationDelay: `${i * 0.3}s` }"
+              ></span>
             </div>
           </div>
         </div>
@@ -163,9 +223,16 @@
 
               <div class="card-header">
                 <div class="header-icon-wrap">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 20h9"/>
-                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
                 </div>
                 <div class="header-text">
@@ -177,9 +244,18 @@
               <form class="info-form" @submit.prevent="handSubmit">
                 <div class="form-group">
                   <label class="form-label">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                      <line x1="7" y1="7" x2="7.01" y2="7"/>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+                      />
+                      <line x1="7" y1="7" x2="7.01" y2="7" />
                     </svg>
                     <span>作品名称</span>
                   </label>
@@ -194,11 +270,18 @@
 
                 <div class="form-group">
                   <label class="form-label">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                      <line x1="16" y1="13" x2="8" y2="13"/>
-                      <line x1="16" y1="17" x2="8" y2="17"/>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
                     </svg>
                     <span>作品简介</span>
                   </label>
@@ -213,8 +296,17 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                        />
                       </svg>
                       <span>分类</span>
                     </label>
@@ -233,9 +325,18 @@
 
                   <div class="form-group">
                     <label class="form-label">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                        <line x1="7" y1="7" x2="7.01" y2="7"/>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+                        />
+                        <line x1="7" y1="7" x2="7.01" y2="7" />
                       </svg>
                       <span>标签</span>
                     </label>
@@ -248,16 +349,19 @@
                       autocomplete="off"
                     />
                     <div class="tag-list" v-if="pictureForm.tags?.length">
-                      <span
-                        v-for="tag in pictureForm.tags"
-                        :key="tag"
-                        class="tag-item"
-                      >
+                      <span v-for="tag in pictureForm.tags" :key="tag" class="tag-item">
                         {{ tag }}
                         <button type="button" class="tag-remove" @click="removeTag(tag)">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                          >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
                         </button>
                       </span>
@@ -267,15 +371,29 @@
 
                 <div class="form-actions">
                   <button type="submit" class="submit-btn primary">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="20 6 9 17 4 12"/>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
                     </svg>
                     <span>{{ route.query.id ? '保存修改' : '创建作品' }}</span>
                   </button>
                   <button type="button" class="submit-btn secondary" @click="goBack">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                     <span>取消</span>
                   </button>
@@ -340,9 +458,7 @@ const isDragOver = ref(false)
 // 标签输入
 const tagInput = ref('')
 
-const titleWords = computed(() =>
-  route.query.id ? ['编辑', '作品'] : ['上传', '作品']
-)
+const titleWords = computed(() => (route.query.id ? ['编辑', '作品'] : ['上传', '作品']))
 
 // 空间ID
 const spaceId = computed(() => toId(route.query?.spaceId as string | undefined))
@@ -380,7 +496,7 @@ const addTag = () => {
 
 // 移除标签
 const removeTag = (tag: string) => {
-  pictureForm.tags = pictureForm.tags?.filter(t => t !== tag)
+  pictureForm.tags = pictureForm.tags?.filter((t) => t !== tag)
 }
 
 // 更换图片
@@ -578,10 +694,19 @@ onMounted(() => {
 }
 
 @keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(40px, -40px) scale(1.05); }
-  50% { transform: translate(-30px, 30px) scale(0.95); }
-  75% { transform: translate(25px, 15px) scale(1.03); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(40px, -40px) scale(1.05);
+  }
+  50% {
+    transform: translate(-30px, 30px) scale(0.95);
+  }
+  75% {
+    transform: translate(25px, 15px) scale(1.03);
+  }
 }
 
 /* 浮动装饰点 */
@@ -643,10 +768,19 @@ onMounted(() => {
 }
 
 @keyframes float-dot {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(10px, -15px) rotate(90deg); }
-  50% { transform: translate(-5px, 10px) rotate(180deg); }
-  75% { transform: translate(15px, 5px) rotate(270deg); }
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(10px, -15px) rotate(90deg);
+  }
+  50% {
+    transform: translate(-5px, 10px) rotate(180deg);
+  }
+  75% {
+    transform: translate(15px, 5px) rotate(270deg);
+  }
 }
 
 /* ========== 页面头部 ========== */
@@ -714,8 +848,15 @@ onMounted(() => {
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 
 .indicator-text {
@@ -781,14 +922,24 @@ onMounted(() => {
   transform: translateY(30px);
 
   &:nth-child(1) {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 50%, var(--color-violet) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary) 0%,
+      var(--color-primary-dark) 50%,
+      var(--color-violet) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   &:nth-child(2) {
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-dark) 50%, var(--color-pink) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-secondary) 0%,
+      var(--color-secondary-dark) 50%,
+      var(--color-pink) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -959,7 +1110,9 @@ onMounted(() => {
 }
 
 @keyframes rotate-ring {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .portal-glow {
@@ -1105,17 +1258,48 @@ onMounted(() => {
   border-radius: 50%;
   opacity: 0.6;
 
-  &:nth-child(1) { top: 20%; left: 10%; animation: float-particle 4s ease-in-out infinite; }
-  &:nth-child(2) { top: 30%; right: 15%; animation: float-particle 5s ease-in-out infinite 0.5s; }
-  &:nth-child(3) { bottom: 25%; left: 20%; animation: float-particle 4.5s ease-in-out infinite 1s; }
-  &:nth-child(4) { bottom: 35%; right: 10%; animation: float-particle 5.5s ease-in-out infinite 1.5s; }
-  &:nth-child(5) { top: 50%; left: 5%; animation: float-particle 4s ease-in-out infinite 2s; }
-  &:nth-child(6) { top: 40%; right: 8%; animation: float-particle 4.8s ease-in-out infinite 2.5s; }
+  &:nth-child(1) {
+    top: 20%;
+    left: 10%;
+    animation: float-particle 4s ease-in-out infinite;
+  }
+  &:nth-child(2) {
+    top: 30%;
+    right: 15%;
+    animation: float-particle 5s ease-in-out infinite 0.5s;
+  }
+  &:nth-child(3) {
+    bottom: 25%;
+    left: 20%;
+    animation: float-particle 4.5s ease-in-out infinite 1s;
+  }
+  &:nth-child(4) {
+    bottom: 35%;
+    right: 10%;
+    animation: float-particle 5.5s ease-in-out infinite 1.5s;
+  }
+  &:nth-child(5) {
+    top: 50%;
+    left: 5%;
+    animation: float-particle 4s ease-in-out infinite 2s;
+  }
+  &:nth-child(6) {
+    top: 40%;
+    right: 8%;
+    animation: float-particle 4.8s ease-in-out infinite 2.5s;
+  }
 }
 
 @keyframes float-particle {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-  50% { transform: translate(10px, -15px) scale(1.2); opacity: 1; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(10px, -15px) scale(1.2);
+    opacity: 1;
+  }
 }
 
 /* ========== 信息卡片 ========== */

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { apiUrl, attachCsrf, CSRF_COOKIE, CSRF_HEADER, readCsrfToken, webSocketUrl } from '@/apiOrigin'
+import {
+  apiUrl,
+  attachCsrf,
+  CSRF_COOKIE,
+  CSRF_HEADER,
+  readCsrfToken,
+  webSocketUrl,
+} from '@/apiOrigin'
 
 function setCookie(value: string) {
   document.cookie = `${CSRF_COOKIE}=${value}; path=/`
@@ -54,9 +61,15 @@ describe('CSRF double submit', () => {
 
   it('状态修改请求带上令牌，GET 不带', () => {
     setCookie('token-value')
-    expect(attachCsrf({ method: 'post', headers: {} as Record<string, string> }).headers[CSRF_HEADER]).toBe('token-value')
-    expect(attachCsrf({ method: 'DELETE', headers: {} as Record<string, string> }).headers[CSRF_HEADER]).toBe('token-value')
-    expect(attachCsrf({ method: 'get', headers: {} as Record<string, string> }).headers[CSRF_HEADER]).toBeUndefined()
+    expect(
+      attachCsrf({ method: 'post', headers: {} as Record<string, string> }).headers[CSRF_HEADER],
+    ).toBe('token-value')
+    expect(
+      attachCsrf({ method: 'DELETE', headers: {} as Record<string, string> }).headers[CSRF_HEADER],
+    ).toBe('token-value')
+    expect(
+      attachCsrf({ method: 'get', headers: {} as Record<string, string> }).headers[CSRF_HEADER],
+    ).toBeUndefined()
   })
 
   it('没有令牌时保持请求原样，由后端决定拒绝', () => {

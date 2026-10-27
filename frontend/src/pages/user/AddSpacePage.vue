@@ -17,8 +17,15 @@
     <!-- 顶部导航栏 -->
     <header class="page-header">
       <button @click="goBack" class="back-btn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         <span>返回</span>
       </button>
@@ -26,14 +33,14 @@
       <div class="header-brand">
         <div class="brand-icon">
           <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="20" stroke="url(#headerGradTheme)" stroke-width="2"/>
-            <circle cx="24" cy="24" r="12" fill="url(#headerGradTheme)" opacity="0.3"/>
-            <circle cx="24" cy="24" r="6" fill="url(#headerGradTheme)"/>
+            <circle cx="24" cy="24" r="20" stroke="url(#headerGradTheme)" stroke-width="2" />
+            <circle cx="24" cy="24" r="12" fill="url(#headerGradTheme)" opacity="0.3" />
+            <circle cx="24" cy="24" r="6" fill="url(#headerGradTheme)" />
             <defs>
               <linearGradient id="headerGradTheme" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="var(--color-primary)"/>
-                <stop offset="50%" stop-color="var(--color-secondary)"/>
-                <stop offset="100%" stop-color="var(--color-accent-pink, var(--color-secondary))"/>
+                <stop offset="0%" stop-color="var(--color-primary)" />
+                <stop offset="50%" stop-color="var(--color-secondary)" />
+                <stop offset="100%" stop-color="var(--color-accent-pink, var(--color-secondary))" />
               </linearGradient>
             </defs>
           </svg>
@@ -49,8 +56,12 @@
       <!-- 标题区 -->
       <section class="hero-section">
         <h1 class="page-title">
-          <span class="title-word" v-for="(word, i) in titleWords" :key="i"
-                :style="{ animationDelay: `${i * 0.15}s` }">
+          <span
+            class="title-word"
+            v-for="(word, i) in titleWords"
+            :key="i"
+            :style="{ animationDelay: `${i * 0.15}s` }"
+          >
             {{ word }}
           </span>
         </h1>
@@ -68,13 +79,20 @@
               <div class="space-icon-preview">
                 <div class="icon-orb" :class="{ 'orb-active': spaceForm.spaceName }">
                   <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="24" r="18" stroke="url(#orbGradTheme)" stroke-width="2" stroke-dasharray="4 4"/>
-                    <circle cx="24" cy="24" r="10" fill="url(#orbGradTheme)" opacity="0.5"/>
-                    <circle cx="24" cy="24" r="4" fill="url(#orbGradTheme)"/>
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="18"
+                      stroke="url(#orbGradTheme)"
+                      stroke-width="2"
+                      stroke-dasharray="4 4"
+                    />
+                    <circle cx="24" cy="24" r="10" fill="url(#orbGradTheme)" opacity="0.5" />
+                    <circle cx="24" cy="24" r="4" fill="url(#orbGradTheme)" />
                     <defs>
                       <linearGradient id="orbGradTheme" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="var(--color-primary)"/>
-                        <stop offset="100%" stop-color="var(--color-secondary)"/>
+                        <stop offset="0%" stop-color="var(--color-primary)" />
+                        <stop offset="100%" stop-color="var(--color-secondary)" />
                       </linearGradient>
                     </defs>
                   </svg>
@@ -125,10 +143,21 @@
                     :class="{ 'btn-active': spaceForm.spaceName && spaceForm.spaceLevel }"
                   >
                     <span class="btn-content">
-                      <svg v-if="!loading" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path v-if="!route.query.id" d="M12 5v14M5 12h14"/>
-                        <path v-if="route.query.id" d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                        <path v-if="route.query.id" d="M17 21v-8H7v8M7 3v5h8"/>
+                      <svg
+                        v-if="!loading"
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path v-if="!route.query.id" d="M12 5v14M5 12h14" />
+                        <path
+                          v-if="route.query.id"
+                          d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                        />
+                        <path v-if="route.query.id" d="M17 21v-8H7v8M7 3v5h8" />
                       </svg>
                       <span>{{ route.query.id ? '保存修改' : '创建空间' }}</span>
                     </span>
@@ -146,10 +175,17 @@
             <div class="card-shine theme-card-shine"></div>
             <div class="card-content">
               <div class="info-header">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="16" x2="12" y2="12"/>
-                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 <h3>空间级别</h3>
               </div>
@@ -175,32 +211,62 @@
                     <span class="planet-name">{{ level.text }}</span>
                     <div class="planet-stats">
                       <span class="stat">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                          />
                         </svg>
                         {{ formatSize(level.maxSize ?? 0) }}
                       </span>
                       <span class="stat">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                          <circle cx="8.5" cy="8.5" r="1.5"/>
-                          <polyline points="21 15 16 10 5 21"/>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <polyline points="21 15 16 10 5 21" />
                         </svg>
                         {{ level.maxCount }} 张
                       </span>
                     </div>
                   </div>
                   <div class="planet-selected" v-if="spaceForm?.spaceLevel === level.value">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                      <polyline points="20 6 9 17 4 12"/>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </div>
                 </div>
               </div>
 
               <div class="upgrade-tip">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
                 <span>升级空间级别请联系管理员</span>
               </div>
@@ -212,9 +278,17 @@
 
     <!-- 底部装饰 -->
     <div class="bottom-decoration">
-      <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style="width: 100%; height: 60px;">
-        <path d="M0,50 C200,100 400,0 600,50 C800,100 1000,0 1200,50 C1400,100 1440,50 1440,50 L1440,100 L0,100 Z" fill="var(--color-primary)" opacity="0.1"/>
-        <path d="M0,60 C300,100 500,20 720,60 C940,100 1140,20 1440,60 L1440,100 L0,100 Z" fill="var(--color-secondary)" opacity="0.08"/>
+      <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style="width: 100%; height: 60px">
+        <path
+          d="M0,50 C200,100 400,0 600,50 C800,100 1000,0 1200,50 C1400,100 1440,50 1440,50 L1440,100 L0,100 Z"
+          fill="var(--color-primary)"
+          opacity="0.1"
+        />
+        <path
+          d="M0,60 C300,100 500,20 720,60 C940,100 1140,20 1440,60 L1440,100 L0,100 Z"
+          fill="var(--color-secondary)"
+          opacity="0.08"
+        />
       </svg>
     </div>
   </div>
@@ -230,10 +304,7 @@ import {
   updateSpaceUsingPost,
 } from '@/api/spaceController.ts'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  SPACE_LEVEL_OPTIONS,
-  SPACE_TYPE_ENUM,
-} from '@/constants/space.ts'
+import { SPACE_LEVEL_OPTIONS, SPACE_TYPE_ENUM } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
 import { toId } from '@/utils'
 
@@ -406,10 +477,19 @@ onMounted(() => {
 }
 
 @keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(40px, -40px) scale(1.05); }
-  50% { transform: translate(-30px, 30px) scale(0.95); }
-  75% { transform: translate(25px, 15px) scale(1.03); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(40px, -40px) scale(1.05);
+  }
+  50% {
+    transform: translate(-30px, 30px) scale(0.95);
+  }
+  75% {
+    transform: translate(25px, 15px) scale(1.03);
+  }
 }
 
 /* 浮动装饰点 */
@@ -471,10 +551,19 @@ onMounted(() => {
 }
 
 @keyframes float-dot {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(10px, -15px) rotate(90deg); }
-  50% { transform: translate(-5px, 10px) rotate(180deg); }
-  75% { transform: translate(15px, 5px) rotate(270deg); }
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(10px, -15px) rotate(90deg);
+  }
+  50% {
+    transform: translate(-5px, 10px) rotate(180deg);
+  }
+  75% {
+    transform: translate(15px, 5px) rotate(270deg);
+  }
 }
 
 /* ========== 顶部导航栏 ========== */
@@ -529,8 +618,15 @@ onMounted(() => {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { filter: drop-shadow(0 0 8px var(--color-primary)); opacity: 0.8; }
-  50% { filter: drop-shadow(0 0 16px var(--color-secondary)); opacity: 1; }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 8px var(--color-primary));
+    opacity: 0.8;
+  }
+  50% {
+    filter: drop-shadow(0 0 16px var(--color-secondary));
+    opacity: 1;
+  }
 }
 
 .brand-text {
@@ -587,7 +683,11 @@ onMounted(() => {
     background-clip: text;
   }
   &:nth-child(2) {
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-dark) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-secondary) 0%,
+      var(--color-secondary-dark) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -733,8 +833,13 @@ onMounted(() => {
 }
 
 @keyframes orb-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 /* ========== 表单样式 ========== */
@@ -815,7 +920,7 @@ onMounted(() => {
   /* 针对 a-select 的基础容器样式 */
   &.ant-select {
     width: 100%;
-    
+
     :deep(.ant-select-selector) {
       background: var(--bg-secondary) !important;
       border: 2px solid var(--border-default) !important;
@@ -896,7 +1001,11 @@ onMounted(() => {
   }
 
   &.btn-active {
-    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary-dark) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-dark) 0%,
+      var(--color-secondary-dark) 100%
+    );
     box-shadow: 0 4px 25px var(--color-primary-light);
   }
 }
@@ -976,9 +1085,15 @@ onMounted(() => {
     box-shadow: var(--shadow-glow-purple);
   }
 
-  &.planet-1 { animation-delay: 0.3s; }
-  &.planet-2 { animation-delay: 0.4s; }
-  &.planet-3 { animation-delay: 0.5s; }
+  &.planet-1 {
+    animation-delay: 0.3s;
+  }
+  &.planet-2 {
+    animation-delay: 0.4s;
+  }
+  &.planet-3 {
+    animation-delay: 0.5s;
+  }
 }
 
 @keyframes planet-reveal {
@@ -1024,7 +1139,11 @@ onMounted(() => {
   &.planet-size-3 {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-dark) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-secondary) 0%,
+      var(--color-secondary-dark) 100%
+    );
     box-shadow: 0 0 25px var(--color-secondary-dark);
   }
 }
@@ -1043,8 +1162,12 @@ onMounted(() => {
 }
 
 @keyframes ring-rotate {
-  from { transform: translate(-50%, -50%) rotateX(70deg) rotateZ(0deg); }
-  to { transform: translate(-50%, -50%) rotateX(70deg) rotateZ(360deg); }
+  from {
+    transform: translate(-50%, -50%) rotateX(70deg) rotateZ(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotateX(70deg) rotateZ(360deg);
+  }
 }
 
 .planet-orbit {
@@ -1060,8 +1183,13 @@ onMounted(() => {
 }
 
 @keyframes orbit-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .planet-info {
@@ -1111,9 +1239,15 @@ onMounted(() => {
 }
 
 @keyframes check-pop {
-  0% { transform: translateY(-50%) scale(0); }
-  50% { transform: translateY(-50%) scale(1.2); }
-  100% { transform: translateY(-50%) scale(1); }
+  0% {
+    transform: translateY(-50%) scale(0);
+  }
+  50% {
+    transform: translateY(-50%) scale(1.2);
+  }
+  100% {
+    transform: translateY(-50%) scale(1);
+  }
 }
 
 /* ========== 升级提示 ========== */

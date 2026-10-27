@@ -4,11 +4,7 @@
       <div class="message-header">
         <span class="agent-name">SpaceMind</span>
       </div>
-      <div
-        class="message-body markdown-body"
-        v-html="finalContent"
-        @click="onBodyClick"
-      ></div>
+      <div class="message-body markdown-body" v-html="finalContent" @click="onBodyClick"></div>
 
       <!-- 内联缩略图：只渲染受控来源，避免把消息里的任意地址发出去 -->
       <div v-if="loadableImages.length > 0" class="message-images">
@@ -23,12 +19,15 @@
       </div>
 
       <!-- 资源触发按钮 -->
-      <button
-        v-if="hasResources"
-        class="resource-trigger-btn"
-        @click="handleToggleResources"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <button v-if="hasResources" class="resource-trigger-btn" @click="handleToggleResources">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
@@ -39,19 +38,40 @@
       <!-- 操作按钮栏（类 Grok） -->
       <div class="message-actions">
         <button class="action-icon-btn" title="重新生成" @click="emit('regenerate')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <polyline points="23 4 23 10 17 10" />
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
         </button>
         <button class="action-icon-btn" title="复制" @click="copyContent">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
           </svg>
         </button>
         <button class="action-icon-btn" title="分享" @click="emit('share')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="18" cy="5" r="3" />
             <circle cx="6" cy="12" r="3" />
             <circle cx="18" cy="19" r="3" />
@@ -59,9 +79,23 @@
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
         </button>
-        <button class="action-icon-btn" :class="{ liked: liked }" title="点赞" @click="liked = !liked">
-          <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
-            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
+        <button
+          class="action-icon-btn"
+          :class="{ liked: liked }"
+          title="点赞"
+          @click="liked = !liked"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            :fill="liked ? 'currentColor' : 'none'"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"
+            />
             <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
           </svg>
         </button>
@@ -130,7 +164,7 @@ watch(
   async (newContent) => {
     await renderWithDiagrams(newContent)
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // 监听 isLoading 变化，loading 结束后重新渲染图表
@@ -140,7 +174,7 @@ watch(
     if (!isLoading && props.content) {
       await renderWithDiagrams(props.content)
     }
-  }
+  },
 )
 
 onUnmounted(() => {
@@ -154,8 +188,10 @@ const isImageUrl = (url: string): boolean => {
   if (imageExts.test(url)) return true
   try {
     const hostname = new URL(url).hostname
-    if (imageHosts.some(h => hostname.includes(h))) return true
-  } catch { /* invalid url */ }
+    if (imageHosts.some((h) => hostname.includes(h))) return true
+  } catch {
+    /* invalid url */
+  }
   return false
 }
 
@@ -193,7 +229,9 @@ const imageSourceCount = computed(() => {
   for (const img of allImages.value) {
     try {
       domains.add(new URL(img.url).hostname)
-    } catch { /* invalid url */ }
+    } catch {
+      /* invalid url */
+    }
   }
   return domains.size
 })
@@ -207,7 +245,9 @@ function getExtractedLinks() {
     seen.add(url)
     try {
       links.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
-    } catch { /* invalid url */ }
+    } catch {
+      /* invalid url */
+    }
   }
   return links
 }
@@ -224,9 +264,7 @@ const handleToggleResources = () => {
   })
 }
 
-const hasResources = computed(() =>
-  allImages.value.length > 0 || imageSourceCount.value > 0
-)
+const hasResources = computed(() => allImages.value.length > 0 || imageSourceCount.value > 0)
 
 const copyContent = async () => {
   try {
@@ -252,12 +290,12 @@ const copyContent = async () => {
   position: relative;
 }
 
-[data-theme="aurora"] .message-content {
+[data-theme='aurora'] .message-content {
   background: var(--color-bg-elevated);
   border-color: var(--color-border-default);
 }
 
-[data-theme="pop"] .message-content {
+[data-theme='pop'] .message-content {
   background: var(--color-bg-elevated);
   border-color: var(--color-border-subtle);
 }
@@ -644,7 +682,9 @@ const copyContent = async () => {
 }
 
 @keyframes blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* 内联缩略图 */

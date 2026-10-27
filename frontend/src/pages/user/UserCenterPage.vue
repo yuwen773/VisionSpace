@@ -30,18 +30,18 @@
     <div class="main-layout">
       <!-- Sidebar -->
       <div class="glass-sider">
-        <a-menu
-          v-model:selectedKeys="currentMenu"
-          :items="menuItems"
-          class="glass-menu"
-        />
+        <a-menu v-model:selectedKeys="currentMenu" :items="menuItems" class="glass-menu" />
       </div>
 
       <!-- Content -->
       <div class="glass-content">
         <Transition name="fade-slide" mode="out-in">
           <ProfileSection v-if="currentMenu[0] === 'profile'" key="profile" />
-          <PicturesSection v-else-if="currentMenu[0] === 'pictures'" key="pictures" @goToPicture="goToPictureDetail" />
+          <PicturesSection
+            v-else-if="currentMenu[0] === 'pictures'"
+            key="pictures"
+            @goToPicture="goToPictureDetail"
+          />
           <VipSection v-else-if="currentMenu[0] === 'vip'" key="vip" />
           <FeedbackSection v-else-if="currentMenu[0] === 'feedback'" key="feedback" />
         </Transition>
@@ -88,7 +88,9 @@ const goToPictureDetail = (id: number) => {
   min-height: 100vh;
   background: var(--bg-primary);
   background-image: var(--pattern-dots-subtle);
-  background-size: 100% 100%, 24px 24px;
+  background-size:
+    100% 100%,
+    24px 24px;
   overflow: hidden;
   padding-bottom: var(--space-12);
 }
@@ -272,7 +274,9 @@ const goToPictureDetail = (id: number) => {
 /* ========== Transition ========== */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 .fade-slide-enter-from {
   opacity: 0;

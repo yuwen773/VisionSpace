@@ -1,69 +1,69 @@
 <script setup lang="ts">
-import { gsap } from 'gsap';
-import { onMounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { gsap } from 'gsap'
+import { onMounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 
 interface TargetCursorProps {
-  targetSelector?: string;
-  spinDuration?: number;
-  hideDefaultCursor?: boolean;
+  targetSelector?: string
+  spinDuration?: number
+  hideDefaultCursor?: boolean
 }
 
 const props = withDefaults(defineProps<TargetCursorProps>(), {
   targetSelector: '.cursor-target',
   spinDuration: 2,
-  hideDefaultCursor: true
-});
+  hideDefaultCursor: true,
+})
 
-const cursorRef = useTemplateRef('cursorRef');
-const cornersRef = ref<NodeListOf<HTMLDivElement> | null>(null);
-const spinTl = ref<gsap.core.Timeline | null>(null);
+const cursorRef = useTemplateRef('cursorRef')
+const cornersRef = ref<NodeListOf<HTMLDivElement> | null>(null)
+const spinTl = ref<gsap.core.Timeline | null>(null)
 
 const constants = {
   borderWidth: 2,
   cornerSize: 16,
-  parallaxStrength: 0.00005
-};
+  parallaxStrength: 0.00005,
+}
 
 const moveCursor = (x: number, y: number) => {
-  if (!cursorRef.value) return;
+  if (!cursorRef.value) return
 
   gsap.to(cursorRef.value, {
     x,
     y,
     duration: 0.1,
-    ease: 'power3.out'
-  });
-};
+    ease: 'power3.out',
+  })
+}
 
-let cleanupAnimation: () => void = () => {};
+let cleanupAnimation: () => void = () => {}
 
 const setupAnimation = () => {
-  if (!cursorRef.value) return;
+  if (!cursorRef.value) return
 
-  const originalCursor = document.body.style.cursor;
-  const cursor = cursorRef.value;
-  cornersRef.value = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner');
+  const originalCursor = document.body.style.cursor
+  const cursor = cursorRef.value
+  cornersRef.value = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner')
 
   if (props.hideDefaultCursor) {
-    document.body.style.cursor = 'none';
+    document.body.style.cursor = 'none'
   }
 
-  let activeTarget: Element | null = null;
-  let currentTargetMove: ((ev: Event) => void) | null = null;
-  let currentLeaveHandler: (() => void) | null = null;
-  let isAnimatingToTarget = false;
-  let resumeTimeout: ReturnType<typeof setTimeout> | null = null;
+  let activeTarget: Element | null = null
+  let currentTargetMove: ((ev: Event) => void) | null = null
+  let currentLeaveHandler: (() => void) | null = null
+  let isAnimatingToTarget = false
+  let resumeTimeout: ReturnType<typeof setTimeout> | null = null
 
   const cleanupTarget = (target: Element) => {
     if (currentTargetMove) {
-      target.removeEventListener('mousemove', currentTargetMove);
+      target.removeEventListener('mousemove', currentTargetMove)
     }
     if (currentLeaveHandler) {
-      target.removeEventListener('mouseleave', currentLeaveHandler);
+      target.removeEventListener('mouseleave', currentLeaveHandler)
     }
-    currentTargetMove = null;
-    currentLeaveHandler = null;
-  };
+    currentTargetMove = null
+    currentLeaveHandler = null
+  }
 
   gsap.set(cursor, {
     xPercent: -50,
@@ -71,234 +71,234 @@ const setupAnimation = () => {
     x: window.innerWidth / 2,
     y: window.innerHeight / 2,
     opacity: 1,
-    display: 'block'
-  });
+    display: 'block',
+  })
 
   const createSpinTimeline = () => {
     if (spinTl.value) {
-      spinTl.value.kill();
+      spinTl.value.kill()
     }
     spinTl.value = gsap.timeline({ repeat: -1 }).to(cursor, {
       rotation: '+=360',
       duration: props.spinDuration,
-      ease: 'none'
-    });
-  };
+      ease: 'none',
+    })
+  }
 
-  createSpinTimeline();
+  createSpinTimeline()
 
   const moveHandler = (e: MouseEvent) => {
-    moveCursor(e.clientX, e.clientY);
-  };
-  window.addEventListener('mousemove', moveHandler);
+    moveCursor(e.clientX, e.clientY)
+  }
+  window.addEventListener('mousemove', moveHandler)
 
   const enterHandler = (e: MouseEvent) => {
-    const directTarget = e.target as Element;
+    const directTarget = e.target as Element
 
-    const allTargets: Element[] = [];
-    let current = directTarget;
+    const allTargets: Element[] = []
+    let current = directTarget
     while (current && current !== document.body) {
       if (current.matches(props.targetSelector)) {
-        allTargets.push(current);
+        allTargets.push(current)
       }
-      current = current.parentElement!;
+      current = current.parentElement!
     }
 
-    const target = allTargets[0] || null;
-    if (!target || !cursorRef.value || !cornersRef.value) return;
+    const target = allTargets[0] || null
+    if (!target || !cursorRef.value || !cornersRef.value) return
 
-    if (activeTarget === target) return;
+    if (activeTarget === target) return
 
     if (activeTarget) {
-      cleanupTarget(activeTarget);
+      cleanupTarget(activeTarget)
     }
 
     if (resumeTimeout) {
-      clearTimeout(resumeTimeout);
-      resumeTimeout = null;
+      clearTimeout(resumeTimeout)
+      resumeTimeout = null
     }
 
-    activeTarget = target;
-    const corners = Array.from(cornersRef.value);
-    corners.forEach(corner => {
-      gsap.killTweensOf(corner);
-    });
-    gsap.killTweensOf(cursorRef.value, 'rotation');
-    spinTl.value?.pause();
+    activeTarget = target
+    const corners = Array.from(cornersRef.value)
+    corners.forEach((corner) => {
+      gsap.killTweensOf(corner)
+    })
+    gsap.killTweensOf(cursorRef.value, 'rotation')
+    spinTl.value?.pause()
 
-    gsap.set(cursorRef.value, { rotation: 0 });
+    gsap.set(cursorRef.value, { rotation: 0 })
 
     const updateCorners = (mouseX?: number, mouseY?: number) => {
-      const rect = target.getBoundingClientRect();
-      const cursorRect = cursorRef.value!.getBoundingClientRect();
+      const rect = target.getBoundingClientRect()
+      const cursorRect = cursorRef.value!.getBoundingClientRect()
 
-      const cursorCenterX = cursorRect.left + cursorRect.width / 2;
-      const cursorCenterY = cursorRect.top + cursorRect.height / 2;
+      const cursorCenterX = cursorRect.left + cursorRect.width / 2
+      const cursorCenterY = cursorRect.top + cursorRect.height / 2
 
-      const [tlc, trc, brc, blc] = Array.from(cornersRef.value!);
+      const [tlc, trc, brc, blc] = Array.from(cornersRef.value!)
 
-      const { borderWidth, cornerSize, parallaxStrength } = constants;
+      const { borderWidth, cornerSize, parallaxStrength } = constants
 
       const tlOffset = {
         x: rect.left - cursorCenterX - borderWidth,
-        y: rect.top - cursorCenterY - borderWidth
-      };
+        y: rect.top - cursorCenterY - borderWidth,
+      }
       const trOffset = {
         x: rect.right - cursorCenterX + borderWidth - cornerSize,
-        y: rect.top - cursorCenterY - borderWidth
-      };
+        y: rect.top - cursorCenterY - borderWidth,
+      }
       const brOffset = {
         x: rect.right - cursorCenterX + borderWidth - cornerSize,
-        y: rect.bottom - cursorCenterY + borderWidth - cornerSize
-      };
+        y: rect.bottom - cursorCenterY + borderWidth - cornerSize,
+      }
       const blOffset = {
         x: rect.left - cursorCenterX - borderWidth,
-        y: rect.bottom - cursorCenterY + borderWidth - cornerSize
-      };
-
-      if (mouseX !== undefined && mouseY !== undefined) {
-        const targetCenterX = rect.left + rect.width / 2;
-        const targetCenterY = rect.top + rect.height / 2;
-        const mouseOffsetX = (mouseX - targetCenterX) * parallaxStrength;
-        const mouseOffsetY = (mouseY - targetCenterY) * parallaxStrength;
-
-        tlOffset.x += mouseOffsetX;
-        tlOffset.y += mouseOffsetY;
-        trOffset.x += mouseOffsetX;
-        trOffset.y += mouseOffsetY;
-        brOffset.x += mouseOffsetX;
-        brOffset.y += mouseOffsetY;
-        blOffset.x += mouseOffsetX;
-        blOffset.y += mouseOffsetY;
+        y: rect.bottom - cursorCenterY + borderWidth - cornerSize,
       }
 
-      const tl = gsap.timeline();
-      const corners = [tlc, trc, brc, blc];
-      const offsets = [tlOffset, trOffset, brOffset, blOffset];
+      if (mouseX !== undefined && mouseY !== undefined) {
+        const targetCenterX = rect.left + rect.width / 2
+        const targetCenterY = rect.top + rect.height / 2
+        const mouseOffsetX = (mouseX - targetCenterX) * parallaxStrength
+        const mouseOffsetY = (mouseY - targetCenterY) * parallaxStrength
+
+        tlOffset.x += mouseOffsetX
+        tlOffset.y += mouseOffsetY
+        trOffset.x += mouseOffsetX
+        trOffset.y += mouseOffsetY
+        brOffset.x += mouseOffsetX
+        brOffset.y += mouseOffsetY
+        blOffset.x += mouseOffsetX
+        blOffset.y += mouseOffsetY
+      }
+
+      const tl = gsap.timeline()
+      const corners = [tlc, trc, brc, blc]
+      const offsets = [tlOffset, trOffset, brOffset, blOffset]
 
       corners.forEach((corner, index) => {
-        const offset = offsets[index];
-        if (!offset) return;
+        const offset = offsets[index]
+        if (!offset) return
         tl.to(
           corner as HTMLElement,
           {
             x: offset.x,
             y: offset.y,
             duration: 0.2,
-            ease: 'power2.out'
+            ease: 'power2.out',
           },
-          0
-        );
-      });
-    };
+          0,
+        )
+      })
+    }
 
-    isAnimatingToTarget = true;
-    updateCorners();
+    isAnimatingToTarget = true
+    updateCorners()
 
     setTimeout(() => {
-      isAnimatingToTarget = false;
-    }, 1);
+      isAnimatingToTarget = false
+    }, 1)
 
-    let moveThrottle: number | null = null;
+    let moveThrottle: number | null = null
     const targetMove = (ev: Event) => {
-      if (moveThrottle || isAnimatingToTarget) return;
+      if (moveThrottle || isAnimatingToTarget) return
       moveThrottle = requestAnimationFrame(() => {
-        const mouseEvent = ev as MouseEvent;
-        updateCorners(mouseEvent.clientX, mouseEvent.clientY);
-        moveThrottle = null;
-      });
-    };
+        const mouseEvent = ev as MouseEvent
+        updateCorners(mouseEvent.clientX, mouseEvent.clientY)
+        moveThrottle = null
+      })
+    }
 
     const leaveHandler = () => {
-      activeTarget = null;
-      isAnimatingToTarget = false;
+      activeTarget = null
+      isAnimatingToTarget = false
 
       if (cornersRef.value) {
-        const corners = Array.from(cornersRef.value);
-        gsap.killTweensOf(corners);
+        const corners = Array.from(cornersRef.value)
+        gsap.killTweensOf(corners)
 
-        const { cornerSize } = constants;
+        const { cornerSize } = constants
         const positions = [
           { x: -cornerSize * 1.5, y: -cornerSize * 1.5 },
           { x: cornerSize * 0.5, y: -cornerSize * 1.5 },
           { x: cornerSize * 0.5, y: cornerSize * 0.5 },
-          { x: -cornerSize * 1.5, y: cornerSize * 0.5 }
-        ];
+          { x: -cornerSize * 1.5, y: cornerSize * 0.5 },
+        ]
 
-        const tl = gsap.timeline();
+        const tl = gsap.timeline()
         corners.forEach((corner, index) => {
-          const pos = positions[index];
-          if (!pos) return;
+          const pos = positions[index]
+          if (!pos) return
           tl.to(
             corner as HTMLElement,
             {
               x: pos.x,
               y: pos.y,
               duration: 0.3,
-              ease: 'power3.out'
+              ease: 'power3.out',
             },
-            0
-          );
-        });
+            0,
+          )
+        })
       }
 
       resumeTimeout = setTimeout(() => {
         if (!activeTarget && cursorRef.value && spinTl.value) {
-          const currentRotation = gsap.getProperty(cursorRef.value, 'rotation') as number;
-          const normalizedRotation = currentRotation % 360;
+          const currentRotation = gsap.getProperty(cursorRef.value, 'rotation') as number
+          const normalizedRotation = currentRotation % 360
 
-          spinTl.value.kill();
+          spinTl.value.kill()
           spinTl.value = gsap.timeline({ repeat: -1 }).to(cursorRef.value, {
             rotation: '+=360',
             duration: props.spinDuration,
-            ease: 'none'
-          });
+            ease: 'none',
+          })
 
           gsap.to(cursorRef.value, {
             rotation: normalizedRotation + 360,
             duration: props.spinDuration * (1 - normalizedRotation / 360),
             ease: 'none',
             onComplete: () => {
-              spinTl.value?.restart();
-            }
-          });
+              spinTl.value?.restart()
+            },
+          })
         }
-        resumeTimeout = null;
-      }, 50);
+        resumeTimeout = null
+      }, 50)
 
-      cleanupTarget(target);
-    };
+      cleanupTarget(target)
+    }
 
-    currentTargetMove = targetMove;
-    currentLeaveHandler = leaveHandler;
+    currentTargetMove = targetMove
+    currentLeaveHandler = leaveHandler
 
-    target.addEventListener('mousemove', targetMove);
-    target.addEventListener('mouseleave', leaveHandler);
-  };
+    target.addEventListener('mousemove', targetMove)
+    target.addEventListener('mouseleave', leaveHandler)
+  }
 
-  window.addEventListener('mouseover', enterHandler, { passive: true });
+  window.addEventListener('mouseover', enterHandler, { passive: true })
 
   cleanupAnimation = () => {
-    window.removeEventListener('mousemove', moveHandler);
-    window.removeEventListener('mouseover', enterHandler);
+    window.removeEventListener('mousemove', moveHandler)
+    window.removeEventListener('mouseover', enterHandler)
 
     if (activeTarget) {
-      cleanupTarget(activeTarget);
+      cleanupTarget(activeTarget)
     }
 
     if (resumeTimeout) {
-      clearTimeout(resumeTimeout);
-      resumeTimeout = null;
+      clearTimeout(resumeTimeout)
+      resumeTimeout = null
     }
 
-    spinTl.value?.kill();
-    spinTl.value = null;
+    spinTl.value?.kill()
+    spinTl.value = null
 
     if (cursorRef.value) {
-      gsap.killTweensOf(cursorRef.value);
+      gsap.killTweensOf(cursorRef.value)
     }
     if (cornersRef.value) {
-      gsap.killTweensOf(Array.from(cornersRef.value));
+      gsap.killTweensOf(Array.from(cornersRef.value))
     }
 
     if (cursorRef.value) {
@@ -307,57 +307,69 @@ const setupAnimation = () => {
         y: 0,
         rotation: 0,
         opacity: 0,
-        display: 'none'
-      });
+        display: 'none',
+      })
     }
 
-    document.body.style.cursor = originalCursor;
-    activeTarget = null;
-  };
-};
+    document.body.style.cursor = originalCursor
+    activeTarget = null
+  }
+}
 
 onMounted(() => {
-  setupAnimation();
-});
+  setupAnimation()
+})
 
 onBeforeUnmount(() => {
-  cleanupAnimation();
-});
+  cleanupAnimation()
+})
 
 watch(
   () => [props.targetSelector, props.spinDuration, props.hideDefaultCursor],
   () => {
-    cleanupAnimation();
-    setupAnimation();
-  }
-);
+    cleanupAnimation()
+    setupAnimation()
+  },
+)
 
 watch(
   () => props.spinDuration,
   () => {
-    if (!cursorRef.value || !spinTl.value) return;
+    if (!cursorRef.value || !spinTl.value) return
 
     if (spinTl.value.isActive()) {
-      spinTl.value.kill();
+      spinTl.value.kill()
       spinTl.value = gsap.timeline({ repeat: -1 }).to(cursorRef.value, {
         rotation: '+=360',
         duration: props.spinDuration,
-        ease: 'none'
-      });
+        ease: 'none',
+      })
     }
   },
-  { immediate: true }
-);
+  { immediate: true },
+)
 </script>
 
 <template>
   <Teleport to="body">
     <div ref="cursorRef" class="target-cursor" :style="{ willChange: 'transform' }">
       <div class="target-cursor-dot" :style="{ willChange: 'transform' }" />
-      <div class="target-cursor-corner target-cursor-corner-tl" :style="{ willChange: 'transform' }" />
-      <div class="target-cursor-corner target-cursor-corner-tr" :style="{ willChange: 'transform' }" />
-      <div class="target-cursor-corner target-cursor-corner-br" :style="{ willChange: 'transform' }" />
-      <div class="target-cursor-corner target-cursor-corner-bl" :style="{ willChange: 'transform' }" />
+      <div
+        class="target-cursor-corner target-cursor-corner-tl"
+        :style="{ willChange: 'transform' }"
+      />
+      <div
+        class="target-cursor-corner target-cursor-corner-tr"
+        :style="{ willChange: 'transform' }"
+      />
+      <div
+        class="target-cursor-corner target-cursor-corner-br"
+        :style="{ willChange: 'transform' }"
+      />
+      <div
+        class="target-cursor-corner target-cursor-corner-bl"
+        :style="{ willChange: 'transform' }"
+      />
     </div>
   </Teleport>
 </template>

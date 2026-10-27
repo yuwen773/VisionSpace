@@ -59,7 +59,7 @@ export function useAgentStream() {
   const extractResources = (content: string) => {
     if (!content) return
 
-    const seenImageUrls = new Set(images.value.map(img => img.url))
+    const seenImageUrls = new Set(images.value.map((img) => img.url))
     for (const match of content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
       const url = match[2]
       if (!seenImageUrls.has(url)) {
@@ -68,13 +68,18 @@ export function useAgentStream() {
       }
     }
 
-    const seenLinkUrls = new Set(links.value.map(l => l.url))
+    const seenLinkUrls = new Set(links.value.map((l) => l.url))
     // Negative lookahead (?!!) excludes image syntax ![alt](url)
     for (const match of content.matchAll(/(?!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
       const url = match[2]
       if (!seenLinkUrls.has(url)) {
         try {
-          links.value.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
+          links.value.push({
+            url,
+            title: match[1],
+            snippet: match[1],
+            domain: new URL(url).hostname,
+          })
         } catch {
           // invalid URL
         }
@@ -174,7 +179,12 @@ export function useAgentStream() {
                 lastAssistantContent = msgDto.content || ''
                 if (assistantMsgIndex === -1) {
                   assistantMsgIndex = messages.value.length
-                  pushMessage({ type: 'assistant', content: streamContent, node: 'agent', isLoading: true })
+                  pushMessage({
+                    type: 'assistant',
+                    content: streamContent,
+                    node: 'agent',
+                    isLoading: true,
+                  })
                 } else {
                   updateMessage(assistantMsgIndex, { content: streamContent })
                 }
@@ -204,7 +214,13 @@ export function useAgentStream() {
                   } catch {
                     parsedArgs = { _raw: tc.arguments }
                   }
-                  pushMessage({ type: 'tool-request', content: '', node: 'agent', toolName: name, toolCalls: [{ name, args: parsedArgs }] })
+                  pushMessage({
+                    type: 'tool-request',
+                    content: '',
+                    node: 'agent',
+                    toolName: name,
+                    toolCalls: [{ name, args: parsedArgs }],
+                  })
                 }
                 break
               }
@@ -235,7 +251,12 @@ export function useAgentStream() {
                 reasoningMsgIndex = -1
                 streamContent = ''
                 const toolContent = msgDto.content || ''
-                pushMessage({ type: 'tool-response', content: toolContent, node: 'agent', toolName: msgDto.toolName })
+                pushMessage({
+                  type: 'tool-response',
+                  content: toolContent,
+                  node: 'agent',
+                  toolName: msgDto.toolName,
+                })
                 extractResources(toolContent)
                 break
               }

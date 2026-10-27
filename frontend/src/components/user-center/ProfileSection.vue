@@ -7,8 +7,16 @@
       <a-avatar :src="loginUser.userAvatar" :size="64" class="avatar-preview" />
       <div class="avatar-info">
         <span class="field-label">头像</span>
-        <a-button class="change-avatar-btn" :loading="avatarUploading" @click="triggerAvatarUpload">更换头像</a-button>
-        <input ref="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="handleAvatarChange" />
+        <a-button class="change-avatar-btn" :loading="avatarUploading" @click="triggerAvatarUpload"
+          >更换头像</a-button
+        >
+        <input
+          ref="avatarInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          style="display: none"
+          @change="handleAvatarChange"
+        />
       </div>
     </div>
 
@@ -18,32 +26,60 @@
         <span class="field-label">昵称</span>
         <div v-if="editingField !== 'userName'" class="field-value" @click="startEdit('userName')">
           <span>{{ loginUser.userName }}</span>
-          <svg class="edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="edit-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
         </div>
         <div v-else class="field-edit">
-          <a-input v-model:value="editForm.userName" class="edit-input" @pressEnter="saveField('userName')" />
+          <a-input
+            v-model:value="editForm.userName"
+            class="edit-input"
+            @pressEnter="saveField('userName')"
+          />
           <a-button size="small" @click="cancelEdit">取消</a-button>
-          <a-button size="small" type="primary" :loading="saving" @click="saveField('userName')">保存</a-button>
+          <a-button size="small" type="primary" :loading="saving" @click="saveField('userName')"
+            >保存</a-button
+          >
         </div>
       </div>
 
       <!-- 简介 -->
       <div class="field-item">
         <span class="field-label">简介</span>
-        <div v-if="editingField !== 'userProfile'" class="field-value" @click="startEdit('userProfile')">
+        <div
+          v-if="editingField !== 'userProfile'"
+          class="field-value"
+          @click="startEdit('userProfile')"
+        >
           <span>{{ loginUser.userProfile || '暂无简介' }}</span>
-          <svg class="edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="edit-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
         </div>
         <div v-else class="field-edit">
-          <a-input v-model:value="editForm.userProfile" class="edit-input" @pressEnter="saveField('userProfile')" />
+          <a-input
+            v-model:value="editForm.userProfile"
+            class="edit-input"
+            @pressEnter="saveField('userProfile')"
+          />
           <a-button size="small" @click="cancelEdit">取消</a-button>
-          <a-button size="small" type="primary" :loading="saving" @click="saveField('userProfile')">保存</a-button>
+          <a-button size="small" type="primary" :loading="saving" @click="saveField('userProfile')"
+            >保存</a-button
+          >
         </div>
       </div>
     </div>
@@ -64,7 +100,7 @@ const editingField = ref<EditableField | null>(null)
 const saving = ref(false)
 const editForm = ref<Record<EditableField, string>>({
   userName: '',
-  userProfile: ''
+  userProfile: '',
 })
 
 const startEdit = (field: EditableField) => {

@@ -62,7 +62,7 @@ export interface StorageConfigActiveRequest {
 
 export function getStorageConfigListUsingGet(
   params: StorageConfigQueryRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/list', {
     method: 'GET',
@@ -73,7 +73,7 @@ export function getStorageConfigListUsingGet(
 
 export function addStorageConfigUsingPost(
   body: StorageConfigAddRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/add', {
     method: 'POST',
@@ -85,7 +85,7 @@ export function addStorageConfigUsingPost(
 
 export function updateStorageConfigUsingPost(
   body: StorageConfigUpdateRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/update', {
     method: 'POST',
@@ -97,7 +97,7 @@ export function updateStorageConfigUsingPost(
 
 export function deleteStorageConfigUsingPost(
   body: { id: number },
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/delete', {
     method: 'POST',
@@ -109,7 +109,7 @@ export function deleteStorageConfigUsingPost(
 
 export function setActivePlatformUsingPost(
   body: StorageConfigActiveRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/set_active', {
     method: 'POST',
@@ -121,7 +121,7 @@ export function setActivePlatformUsingPost(
 
 export function setDefaultPlatformUsingPost(
   body: StorageConfigActiveRequest,
-  options?: { [key: string]: any }
+  options?: { [key: string]: any },
 ) {
   return request<any>('/api/storage/config/set_default', {
     method: 'POST',
