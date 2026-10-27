@@ -24,6 +24,7 @@ import com.yuwen.visionspace.manager.upload.FilePictureUpload;
 import com.yuwen.visionspace.manager.upload.PictureUploadTemplate;
 import com.yuwen.visionspace.manager.upload.UrlPictureUpload;
 import com.yuwen.visionspace.mapper.PictureMapper;
+import com.yuwen.visionspace.mapper.SpaceMapper;
 import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
 import com.yuwen.visionspace.model.dto.picture.*;
 import com.yuwen.visionspace.model.entity.Picture;
@@ -46,6 +47,7 @@ import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.SpaceUserService;
+import com.yuwen.visionspace.service.StorageCleanupService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.utils.ColorSimilarUtils;
 import com.yuwen.visionspace.utils.ColorTransformUtils;
@@ -126,6 +128,15 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private ResourceLockManager resourceLockManager;
 
+    @Resource
+    private SpaceMapper spaceMapper;
+
+    @Resource
+    private PictureMapper pictureMapper;
+
+    @Resource
+    private StorageCleanupService storageCleanupService;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -150,20 +161,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
         // 校验空间是否存在
         Long spaceId = pictureUploadRequest.getSpaceId();
+        Space space = null;
         if (spaceId != null) {
-            Space space = spaceService.getById(spaceId);
+            space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
             // 业务边界复核：只有空间所有者或团队编辑者可向该空间上传
             checkSpaceWriteAuth(loginUser, space, SpaceUserPermissionConstant.PICTURE_UPLOAD);
-            // 校验额度
-            if (space.getTotalCount() >= space.getMaxCount()) {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间条数不足");
-            }
-            if (space.getTotalSize() >= space.getMaxSize()) {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间大小不足");
-            }
+            // 额度不在进入存储前做「读-判断」：读到的计数随时会被另一实例改掉。
+            // 权威判定是事务里的条件更新，见下方 reservePictureSlot / applyPictureSizeDelta。
         }
-        // 判断是新增还是删除
+        // 判断是新增还是替换
         Long pictureId = null;
         if (pictureUploadRequest != null) {
             pictureId = pictureUploadRequest.getId();
@@ -261,6 +268,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long finalPictureId = pictureId;
         try {
             transactionTemplate.execute(status -> {
+                long oldSize = 0L;
                 if (finalPictureId != null) {
                     // 替换已有资源：先取资源行锁，再按最新状态复核隔离。
                     // 隔离与替换共用同一把行锁：谁先取到谁先提交，后取到的一方
@@ -271,19 +279,26 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
                                     ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
                             ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
+                    // 差额必须基于锁内读到的最新大小，不能用请求开始前读到的值
+                    Picture locked = pictureMapper.selectForUpdate(finalPictureId);
+                    ThrowUtils.throwIf(locked == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+                    oldSize = locked.getPicSize() == null ? 0L : locked.getPicSize();
+                }
+                // 先占额度再写图片：额度判定与写入是同一条条件更新，
+                // 超限时影响 0 行，后面的图片写入随事务一起回滚，不会留下超额的图片。
+                if (finalSpaceId != null) {
+                    long newSize = picture.getPicSize() == null ? 0L : picture.getPicSize();
+                    int updated = finalPictureId == null
+                            // 新增：数量 +1、大小 +本次字节数，同一条语句判定上限
+                            ? spaceMapper.reservePictureSlot(finalSpaceId, newSize)
+                            // 替换：数量不变，按新旧差额调整；变小不受上限限制
+                            : spaceMapper.applyPictureSizeDelta(finalSpaceId, newSize - oldSize);
+                    ThrowUtils.throwIf(updated == 0, ErrorCode.OPERATION_ERROR,
+                            finalPictureId == null ? "空间额度不足" : "空间大小不足");
                 }
                 // 插入数据
                 boolean result = this.saveOrUpdate(picture);
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
-                if (finalSpaceId != null) {
-                    // 更新空间的使用额度
-                    boolean update = spaceService.lambdaUpdate()
-                            .eq(Space::getId, finalSpaceId)
-                            .setSql("totalSize = totalSize + " + picture.getPicSize())
-                            .setSql("totalCount = totalCount + 1")
-                            .update();
-                    ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
-                }
                 // 资源记录与图片记录在同一事务内绑定，避免出现无主对象
                 pictureFileService.bindToPicture(picture.getId(), loginUser.getId(), uploadedFiles);
                 // 被替换的旧资源在同一事务内标记并清理：数据提交与对象清理属于同一次替换，
@@ -311,16 +326,24 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     /**
      * 上传后失败时回收已写入存储的对象（还没有资源记录可依据）。
+     *
+     * <p>删除未确认时登记清理任务：对象已经写进存储，数据库里却没有任何记录
+     * 指向它，不登记就没有任何线索能在之后把它找出来。
      */
     private void discardUploadedObjects(Long userId, UploadPictureResult uploadResult) {
         if (uploadResult != null) {
             String platform = uploadResult.getPlatform();
-            // 原图删除失败时不能把缩略图删掉：重试仍需原图定位信息
-            if (pictureStorageService.deleteObject(platform, uploadResult.getStoragePath())) {
-                pictureStorageService.deleteObject(platform, uploadResult.getThumbnailObjectKey());
-            } else {
-                log.warn("上传失败后的原图回收未确认: platform={}, key={}",
-                        platform, uploadResult.getStoragePath());
+            String originalKey = uploadResult.getStoragePath();
+            boolean originalRemoved = pictureStorageService.deleteObject(platform, originalKey);
+            if (!originalRemoved) {
+                storageCleanupService.enqueue(null, originalKey, "上传失败回收原图未确认");
+                log.warn("上传失败后的原图回收未确认: platform={}, key={}", platform, originalKey);
+            }
+            // 缩略图独立重试：原图回收失败时也要登记，否则它会成为永久孤儿对象
+            String thumbnailKey = uploadResult.getThumbnailObjectKey();
+            if (StrUtil.isNotBlank(thumbnailKey)
+                    && !pictureStorageService.deleteObject(platform, thumbnailKey)) {
+                storageCleanupService.enqueue(null, thumbnailKey, "上传失败回收缩略图未确认");
             }
         }
         uploadQuotaManager.refundRate(userId, PictureFilePurposeEnum.GALLERY);
@@ -337,6 +360,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         for (PictureFile file : files) {
             if (!pictureFileService.deleteFile(file)) {
+                // 对象已经写进存储，记录随事务回滚消失：登记清理任务才能之后找回它
+                storageCleanupService.enqueue(file, file.getObjectKey(), "上传失败后的资源回收未完成");
                 log.warn("上传失败后的资源回收未完成: fileId={}, kind={}", file.getId(), file.getKind());
             }
         }
@@ -629,17 +654,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (count > 1) {
             return;
         }
-        // 删除原图
-        pictureStorageService.deleteObject(pictureUrl);
-        // 删除缩略图
-        String thumbnailUrl = oldPicture.getThumbnailUrl();
-        if (StrUtil.isNotBlank(thumbnailUrl)) {
-            pictureStorageService.deleteObject(thumbnailUrl);
+        // 存量对象没有平台与对象键，只能按地址删除；删除未确认时登记为等待人工核对，
+        // 不按地址进入自动重试（地址不能作为可信的删除定位）
+        if (!pictureStorageService.deleteObject(pictureUrl)) {
+            storageCleanupService.enqueueForReview(pictureUrl, "存量图片原图删除未确认");
         }
-        // 删除预览图
+        String thumbnailUrl = oldPicture.getThumbnailUrl();
+        if (StrUtil.isNotBlank(thumbnailUrl) && !pictureStorageService.deleteObject(thumbnailUrl)) {
+            storageCleanupService.enqueueForReview(thumbnailUrl, "存量图片缩略图删除未确认");
+        }
         String previewUrl = oldPicture.getPreviewUrl();
-        if (StrUtil.isNotBlank(previewUrl)) {
-            pictureStorageService.deleteObject(previewUrl);
+        if (StrUtil.isNotBlank(previewUrl) && !pictureStorageService.deleteObject(previewUrl)) {
+            storageCleanupService.enqueueForReview(previewUrl, "存量图片预览图删除未确认");
         }
     }
 
@@ -661,6 +687,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private void cleanupFiles(List<PictureFile> files, String reason) {
         for (PictureFile file : files) {
             if (!pictureFileService.deleteFile(file)) {
+                // 删除未确认：登记可重试的清理任务，而不是只留一行日志
+                storageCleanupService.enqueue(file, file.getObjectKey(), reason);
                 log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
             }
         }
@@ -688,17 +716,17 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
                             ResourceTypeEnum.PICTURE.getValue(), pictureId),
                     ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
-            // 操作数据库
+            // 操作数据库：逻辑删除影响 0 行说明已被并发删除，此时不能再扣额度，
+            // 否则同一张图会被扣两次
             boolean result = this.removeById(pictureId);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-            // 更新空间的使用额度，释放额度（仅当图片属于某个空间时）
+            // 更新空间的使用额度，释放额度（仅当图片属于某个空间时）。
+            // 公开图库（spaceId 为空）没有空间额度可扣。
+            // 释放语句把计数收敛到 0：存量偏差不能把删除卡住，也不能让计数变负。
             if (oldPicture.getSpaceId() != null) {
-                boolean update = spaceService.lambdaUpdate()
-                        .eq(Space::getId, oldPicture.getSpaceId())
-                        .setSql("totalSize = totalSize - " + oldPicture.getPicSize())
-                        .setSql("totalCount = totalCount - 1")
-                        .update();
-                ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+                long size = oldPicture.getPicSize() == null ? 0L : oldPicture.getPicSize();
+                ThrowUtils.throwIf(spaceMapper.releasePictureSlot(oldPicture.getSpaceId(), size) == 0,
+                        ErrorCode.OPERATION_ERROR, "额度更新失败");
             }
             return true;
         });
