@@ -49,29 +49,31 @@ class VipRedemptionMigrationTest {
     void rollbackScriptRestoresLegacyVipCodeColumnIdempotently() throws Exception {
         // 脚本使用会话级变量与 PREPARE/EXECUTE，必须整体在单一连接上执行
         // （与 DBA 用 mysql CLI 执行整个文件的方式一致）。
-        Boolean hasColumn = jdbc.queryForObject(
-                "SELECT COUNT(*) > 0 FROM information_schema.COLUMNS "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'vipCode'",
-                Boolean.class);
-        if (Boolean.TRUE.equals(hasColumn)) {
-            // 已被前一次执行补列：直接验证幂等（第二次执行不报错、不重复加列）
+        // bootstrap 建库脚本仍保留兼容列，先移除它才能走到回滚脚本的补列路径。
+        boolean columnPresentAtStart = hasVipCodeColumn();
+        if (columnPresentAtStart) {
+            jdbc.execute("ALTER TABLE `user` DROP COLUMN `vipCode`");
+        }
+        try {
             runOnSingleConnection(ROLLBACK);
-            runOnSingleConnection(ROLLBACK);
-        } else {
-            runOnSingleConnection(ROLLBACK);
-            assertTrue(jdbc.queryForObject(
-                    "SELECT COUNT(*) > 0 FROM information_schema.COLUMNS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'vipCode'",
-                    Boolean.class), "回滚必须补回旧版本依赖的 user.vipCode 列");
-            // 幂等：再执行一次不报错
+            assertTrue(hasVipCodeColumn(), "回滚必须补回旧版本依赖的 user.vipCode 列");
+            // 幂等：再执行一次不报错、不重复加列
             runOnSingleConnection(ROLLBACK);
             // 列必须为 NULL：回滚不得写入或恢复任何码值
             Integer nullCount = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM user WHERE vipCode IS NOT NULL", Integer.class);
             assertEquals(0, nullCount, "回滚后的兼容列不得携带任何码值");
+        } finally {
+            // 恢复本用例开始前的形态，避免污染后续用例：
+            // 实体映射含 vipCode，列一旦缺失，其它用例的按账号查询会直接报错。
+            if (columnPresentAtStart) {
+                if (!hasVipCodeColumn()) {
+                    runOnSingleConnection(ROLLBACK);
+                }
+            } else {
+                dropVipCodeColumnIfNeeded();
+            }
         }
-        // 清理：删除该列，恢复 bootstrap 形态（只清理本测试引入的变更）
-        dropVipCodeColumnIfNeeded();
     }
 
     @Test
@@ -283,12 +285,16 @@ class VipRedemptionMigrationTest {
         return output;
     }
 
-    private void dropVipCodeColumnIfNeeded() {
+    private boolean hasVipCodeColumn() {
         Boolean hasColumn = jdbc.queryForObject(
                 "SELECT COUNT(*) > 0 FROM information_schema.COLUMNS "
                         + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'vipCode'",
                 Boolean.class);
-        if (Boolean.TRUE.equals(hasColumn)) {
+        return Boolean.TRUE.equals(hasColumn);
+    }
+
+    private void dropVipCodeColumnIfNeeded() {
+        if (hasVipCodeColumn()) {
             jdbc.execute("ALTER TABLE `user` DROP COLUMN `vipCode`");
         }
     }
