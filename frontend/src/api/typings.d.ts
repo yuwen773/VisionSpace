@@ -544,9 +544,9 @@ declare namespace API {
   type IPageMcpServerDetail = {
     size?: number
     total?: number
-    records?: McpServerDetail[]
-    current?: number
     pages?: number
+    current?: number
+    records?: McpServerDetail[]
   }
 
   type listGrantsUsingGetParams = {
