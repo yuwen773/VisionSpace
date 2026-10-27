@@ -47,7 +47,12 @@
             allow-clear
             @pressEnter="onRedeem"
           />
-          <a-button type="primary" :loading="redeeming" :disabled="!vipCode.trim()" @click="onRedeem">
+          <a-button
+            type="primary"
+            :loading="redeeming"
+            :disabled="!vipCode.trim()"
+            @click="onRedeem"
+          >
             兑换
           </a-button>
         </a-input-group>
@@ -122,7 +127,6 @@ async function onRedeem() {
     redeeming.value = false
   }
 }
-
 </script>
 
 <style scoped>
