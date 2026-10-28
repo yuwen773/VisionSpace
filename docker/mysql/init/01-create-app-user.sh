@@ -22,7 +22,9 @@ APP_PASSWORD_SQL=$(sql_quote "$MYSQL_APP_PASSWORD")
 docker_process_sql --database="$MYSQL_DATABASE" <<-EOSQL
 CREATE USER IF NOT EXISTS 'vision_app'@'%' IDENTIFIED BY $APP_PASSWORD_SQL;
 GRANT SELECT, INSERT, UPDATE, DELETE ON \`$MYSQL_DATABASE\`.* TO 'vision_app'@'%';
--- 探活账号只有连接权：SELECT 1 不需要任何库表授权，最小权限优先
-CREATE USER IF NOT EXISTS 'healthcheck'@'localhost' IDENTIFIED BY $APP_PASSWORD_SQL;
+-- 探活账号只有连接权：SELECT 1 不需要任何库表授权，最小权限优先。
+-- 探活走 TCP -h 127.0.0.1：容器内反向解析不保证映射到 localhost，
+-- 实测客户端主机就是 127.0.0.1（写成 localhost 会一直 Access denied）。
+CREATE USER IF NOT EXISTS 'healthcheck'@'127.0.0.1' IDENTIFIED BY $APP_PASSWORD_SQL;
 FLUSH PRIVILEGES;
 EOSQL
