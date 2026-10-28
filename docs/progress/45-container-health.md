@@ -15,6 +15,7 @@
 | `pom.xml` | 新增 `spring-boot-starter-actuator`（唯一依赖变更） |
 | `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密（字符集避开 SQL 特殊字符）；启动顺序为先 mysql/redis → 以 root 导入 15 张业务表（复用 #27 的 DDL 提取约定；vision_app 仅业务 DML，无 CREATE）→ 再启动 backend，避免 FileStorageInit 查询空库失败；HTTP 验收前有界等待业务端点就绪；恢复等待持续到 healthy 或超时（不把 unhealthy 过渡态当终态）；端口发布判定以本轮容器的 compose ps 为准（字段结构对照 Docker 官方文档：服务级 `Service`、发布项级 `URL`，已离线样本验证回环断言与非默认端口漏检修复）；A4 覆盖 MySQL/Redis 停止恢复，以及下述同进程延迟启动和非零退出实验；compose ps JSON 逐行解析 |
 | `HttpHealthEndpointTest` | 健康端点契约回归：业务健康不含依赖细节；actuator health 状态 UP 且不泄露组件与连接信息 |
+| `scripts/acceptance.ps1` | `runner-tests` 关卡追加执行 `tests/test-container-verification.ps1`：容器验证脚本的控制流回归（8 个场景，含预期拒绝）由 CI 自动跑，不再只靠手工执行；该回归不需要 Docker，容器运行验收仍单独需要 |
 | `.gitignore` | 追加 `.env.secrets*`（密码代理文件，含真实值，禁止提交） |
 
 ## 已完成的静态与本地验证
@@ -28,6 +29,19 @@
 | `mvn compile` / `mvn test-compile`（本地，含 actuator 依赖与新测试） | PASS |
 | Dockerfile wget 探活行为（镜像内实测 `wget` 可用且连接拒绝时返回非 0） | PASS |
 | 基础镜像 `eclipse-temurin:21-jre-alpine` 已拉取 | PASS（`maven:3.9-eclipse-temurin-21-alpine` 下载中断，未完成） |
+
+## 2026-10-28 复核
+
+分支已 rebase 到 `origin/main`（`8dd98e0`），五个提交无冲突落地，复核时 HEAD `76d9ca6`。
+
+| 检查 | 结果 |
+| --- | --- |
+| 完整验收套件（原生隔离 MySQL 8.0.26 + Redis 3.2.100，`native-explicit`） | **12/12 PASS**：`runner-tests`、`secret-scan`、`isolation`、`backend`、`frontend-install`、`frontend-lint`、`frontend-format`、`frontend-typecheck`、`frontend-tests`、`frontend-build`、`frontend-api-contract`、`cleanup` |
+| 后端测试 | 523 条，0 失败、0 错误、0 跳过；其中 `HttpHealthEndpointTest` 2 条实际执行通过（actuator 依赖没有带坏既有用例） |
+| `runner-tests` 内容 | 已包含容器验证脚本的 8 个控制流回归场景，全部符合预期 |
+| 容器运行验收（A1–A4） | 仍 **BLOCKED_ENV**：`docker info` 连 `dockerDesktopLinuxEngine` 命名管道失败，daemon 未运行；本节不改变上表结论 |
+
+首轮 `frontend-format` FAIL 是工作区换行符问题，不是代码问题：本 worktree 建在 `.gitattributes`（`* text=auto eol=lf`）落地之前，465 个已跟踪文件仍是 CRLF 检出，Prettier 报 38 个文件。按属性重新检出后 `npm run format:check` 全部通过，`git status` 仍干净——索引内容一行未改。新建 worktree 不受影响。
 
 ## 验收对照（容器运行验收：BLOCKED_ENV）
 

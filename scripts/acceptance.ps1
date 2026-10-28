@@ -55,7 +55,13 @@ function Run-Gate([string]$Name, [scriptblock]$Command) {
 New-Item -ItemType Directory -Path $runDir | Out-Null
 Push-Location $repo
 try {
-    Run-Gate 'runner-tests' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-acceptance-results.ps1') }
+    Run-Gate 'runner-tests' {
+        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-acceptance-results.ps1')
+        if ($LASTEXITCODE -ne 0) { throw "test-acceptance-results exited $LASTEXITCODE" }
+        # 容器验证脚本的控制流回归：只跑脚本自身的判定逻辑，不需要 Docker。
+        # 真正的容器运行验收仍需 Docker（见 scripts/container-verification.ps1）。
+        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-container-verification.ps1')
+    }
     # 候选内容脱敏扫描：只记录文件:行号:规则名，不输出命中内容。
     Run-Gate 'secret-scan' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'secret-scan.ps1') }
     try {
