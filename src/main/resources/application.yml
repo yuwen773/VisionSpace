@@ -62,6 +62,12 @@ vision-space:
     base-url: "https://dashscope.aliyuncs.com/api/v1"
     create-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting"
     get-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/tasks/%s"
+  # 图片识别服务：非秘密参数给默认值，生产可用环境变量覆盖。
+  # 这些键此前只写在被忽略的 application-local/server.yml 里，prod 启动会因
+  # 占位符无法解析而失败（容器验收实测）。
+  vision-recognition:
+    base-url: ${VISION_SPACE_VISION_RECOGNITION_BASE_URL:https://www.dmxapi.cn}
+    model: ${VISION_SPACE_VISION_RECOGNITION_MODEL:GLM-4.1V-Thinking-Flash}
   # Agent 配置
   agent:
     summary-threshold: 20
