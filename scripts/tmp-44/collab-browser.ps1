@@ -18,7 +18,8 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $nonce = [Guid]::NewGuid().ToString('N')
-$runDir = Join-Path ([IO.Path]::GetTempPath()) "vs44-browser-$nonce"
+# C 盘空间紧张：运行目录放 D 盘
+$runDir = Join-Path (Join-Path $repo '.vs44-runs') "vs44-browser-$nonce"
 $database = "vs44_browser_$nonce"
 $ownedProcesses = @()
 $results = [ordered]@{}
@@ -66,7 +67,9 @@ try {
     } finally { Pop-Location }
     $certPath = Join-Path $runDir 'entry.crt'
     $keyPath = Join-Path $runDir 'entry.key'
-    & openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' `
+    $certConfig = Join-Path $runDir 'openssl.cnf'
+    "[req]`ndistinguished_name = req_dn`n[req_dn]" | Set-Content $certConfig
+    & openssl req -config $certConfig -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' `
         -addext 'subjectAltName=IP:127.0.0.1' -keyout $keyPath -out $certPath *> (Join-Path $runDir 'cert.log')
     if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: openssl unavailable' }
 
@@ -107,10 +110,13 @@ $ddl
     Push-Location $repo
     try {
         mvn -B --no-transfer-progress -DskipTests clean package *> (Join-Path $runDir 'mvn-package.log')
-        if ($LASTEXITCODE -ne 0) { throw 'backend build failed' }
+        if ($LASTEXITCODE -ne 0 -or -not (Select-String -LiteralPath (Join-Path $runDir 'mvn-package.log') -SimpleMatch 'BUILD SUCCESS')) {
+            throw 'backend build failed or Maven did not execute'
+        }
     } finally { Pop-Location }
     $backendPort = Free-Port
     $backendArgs = @(
+        '-Xmx256m', '-Xms128m',
         '-jar', (Join-Path $repo 'target/vision-space-0.0.1-SNAPSHOT.jar'),
         '--spring.profiles.active=browser',
         "--spring.config.additional-location=file:$(Join-Path $repo 'e2e/application-browser.yml')",
@@ -140,6 +146,8 @@ $ddl
         throw 'BLOCKED_ENV: backend did not become ready'
     }
     $results['backend'] = 'PASS'
+    Invoke-WebRequest -Uri "http://127.0.0.1:$backendPort/api/v3/api-docs" `
+        -OutFile (Join-Path $runDir 'openapi.json') -TimeoutSec 30
 
     Write-Host "== seed collab fixtures =="
     # 用户由浏览器脚本通过真实注册入口创建；这里只建团队空间与图片。
@@ -155,29 +163,37 @@ $ddl
     # 先让浏览器脚本只执行注册阶段（写入 owner-account 文件），再 seed
     Push-Location (Join-Path $repo 'frontend')
     try {
-        node ../../scripts/tmp-44/collab-browser-entry.mjs --register-only *> (Join-Path $runDir 'register-phase.log')
+        node (Join-Path $PSScriptRoot 'collab-browser-entry.mjs') --register-only *> (Join-Path $runDir 'register-phase.log')
         if ($LASTEXITCODE -ne 0) { throw 'browser register phase failed' }
     } finally { Pop-Location }
-    $ownerAccount = (Get-Content (Join-Path $runDir 'artifacts' 'owner-account.txt') -Raw).Trim()
+    $accounts = Get-Content -Raw (Join-Path $runDir 'artifacts' 'accounts.json') | ConvertFrom-Json
+    $ownerAccount = $accounts.owner
     $idOwner = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$ownerAccount';"
-    if (-not $idOwner) { throw 'owner registration produced no row' }
+    $idEditor = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$($accounts.editor)';"
+    $idViewer = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$($accounts.viewer)';"
+    if (-not $idOwner -or -not $idEditor -or -not $idViewer) { throw 'account registration produced no rows' }
     $seedPath = Join-Path $runDir 'seed.sql'
     [IO.File]::WriteAllText($seedPath, @"
 USE $database;
 INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount, totalSize, totalCount, isDelete)
  VALUES (9441001, 'collab-team', $idOwner, 1, 1, 1000, 1000, 0, 1, 0);
-INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (9441001, $idOwner, 'admin');
+INSERT INTO space_user (spaceId, userId, spaceRole) VALUES
+ (9441001, $idOwner, 'admin'), (9441001, $idEditor, 'editor'), (9441001, $idViewer, 'viewer');
 INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
  VALUES (9442001, 'collab-picture', 'original', $idOwner, 10, 9441001, 1, 0);
 "@, [Text.UTF8Encoding]::new($false))
-    $seedPath | & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --default-character-set=utf8mb4 *> (Join-Path $runDir 'seed.log')
+    # 管道输入 + --binary-mode：避免 mysql 把 SQL 里的反斜杠当转义命令（\V 等）
+    Get-Content -Raw $seedPath | & $mysql --no-defaults --binary-mode --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --default-character-set=utf8mb4 *> (Join-Path $runDir 'seed.log')
     if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
     @{ spaceId = 9441001; pictureId = 9442001; ownerAccount = $ownerAccount } | ConvertTo-Json | Set-Content $fixturePath
 
     Write-Host "== browser scenarios =="
+    $env:VS44_E2E_OWNER_ACCOUNT = $accounts.owner
+    $env:VS44_E2E_EDITOR_ACCOUNT = $accounts.editor
+    $env:VS44_E2E_VIEWER_ACCOUNT = $accounts.viewer
     Push-Location (Join-Path $repo 'frontend')
     try {
-        node ../../scripts/tmp-44/collab-browser-entry.mjs *> (Join-Path $runDir 'browser.log')
+        node (Join-Path $PSScriptRoot 'collab-browser-entry.mjs') *> (Join-Path $runDir 'browser.log')
         $exit = $LASTEXITCODE
         Get-Content -LiteralPath (Join-Path $runDir 'browser.log') -Tail 40 | Write-Host
         if ($exit -eq 2) { throw 'BLOCKED_ENV: browser prerequisites missing' }
@@ -186,10 +202,12 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     } finally { Pop-Location }
 
     Write-Host "== final data =="
-    $final = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch -e "SELECT name FROM picture WHERE id=9442001; SELECT totalSize FROM space WHERE id=9441001;" 2>&1
+    $final = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT name FROM picture WHERE id=9442001; SELECT totalSize, totalCount FROM space WHERE id=9441001;" 2> (Join-Path $runDir 'final-query-error.log')
     $final | Set-Content (Join-Path $runDir 'artifacts' 'final-data.txt')
     Write-Host $final
-    if (($final -join "`n") -notmatch 'original') { throw 'FAIL: final picture row was modified' }
+    if ($LASTEXITCODE -ne 0 -or $final.Count -ne 2 -or $final[0] -ne 'original' -or $final[1] -ne "0`t1") {
+        throw 'FAIL: picture row or space quota was modified'
+    }
 } catch {
     $failed = $true
     $message = $_.Exception.Message

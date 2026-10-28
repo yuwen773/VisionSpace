@@ -11,8 +11,14 @@
 // 任一断言失败即退出码 1；环境缺失退出码 2（BLOCKED_ENV）。
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
-import { WebSocket } from 'ws'
+// ws 从 frontend/node_modules 解析（本脚本目录没有 node_modules）
+import { createRequire } from 'node:module'
+const scriptDir = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(scriptDir, '..', '..')
+const require = createRequire(path.join(repoRoot, 'frontend', 'package.json'))
+const { WebSocket } = require('ws')
 
 const PORT_A = Number(process.env.VS44_PORT_A)
 const PORT_B = Number(process.env.VS44_PORT_B)
@@ -73,6 +79,7 @@ class WsSession {
     this.ws = ws
     this.label = label
     this.messages = []
+    this.scanned = 0
     this.opened = new Promise((resolve, reject) => {
       ws.once('open', resolve)
       ws.once('error', (e) => reject(new Error(`handshake failed: ${e.message}`)))
@@ -93,13 +100,14 @@ class WsSession {
     this.ws.send(text)
   }
 
+  // 从上次扫描位置继续：历史里的旧消息不再满足后续断言
   async awaitType(type, ms = 8000) {
     const deadline = Date.now() + ms
-    let scanned = 0
     while (Date.now() < deadline) {
-      while (scanned < this.messages.length) {
-        if (this.messages[scanned].type === type) return this.messages[scanned]
-        scanned++
+      while (this.scanned < this.messages.length) {
+        const message = this.messages[this.scanned++]
+        const self = this.messages.find((m) => m.selfSessionId)?.selfSessionId
+        if (message.type === type && (type !== 'ENTER_EDIT' || message.sessionId === self)) return message
       }
       await sleep(50)
     }
@@ -168,6 +176,19 @@ async function main() {
   const loginB = await clientB.request('POST', PORT_B, '/user/login', { userAccount: userB.account, userPassword: PASSWORD })
   if (loginB.json?.code !== 0) throw new Error('editor login failed: ' + loginB.text)
 
+  // 两个实例同时进入：通过 ERROR 与广播的持有者身份确认唯一赢家。
+  const raceA = await connect(PORT_A, pictureId, clientA.jar)
+  const raceB = await connect(PORT_B, pictureId, clientB.jar)
+  if (raceA.handshakeError || raceB.handshakeError) throw new Error('race handshake failed')
+  await Promise.all([raceA.send({ type: 'ENTER_EDIT' }), raceB.send({ type: 'ENTER_EDIT' })])
+  const raceErrors = await Promise.all([raceA.awaitType('ERROR', 2000), raceB.awaitType('ERROR', 2000)])
+  const winners = new Set([...raceA.messages, ...raceB.messages]
+    .filter((m) => m.type === 'ENTER_EDIT').map((m) => m.user.userAccount))
+  record('双实例同时竞争只产生一个赢家', raceErrors.filter(Boolean).length === 1 && winners.size === 1,
+    `rejections=${raceErrors.filter(Boolean).length}, winners=${winners.size}`)
+  raceA.close(); raceB.close()
+  await sleep(500)
+
   const wsA = await connect(PORT_A, pictureId, clientA.jar)
   if (wsA.handshakeError) throw new Error('A handshake failed: ' + wsA.handshakeError)
   const wsB = await connect(PORT_B, pictureId, clientB.jar)
@@ -190,13 +211,15 @@ async function main() {
     await wsA.send({ type: 'EDIT_ACTION', editAction: 'ZOOM_IN' })
     const seenOnB = await wsC.awaitType('EDIT_ACTION')
     record('编辑操作跨实例广播', !!seenOnB, seenOnB?.message)
-    const bSelfRejected = !(await (async () => {
-      await wsB.send({ type: 'EDIT_ACTION', editAction: 'ZOOM_IN' })
-      return wsB.awaitType('ERROR', 3000)
-    })())
+    await sleep(200)
+    record('跨实例编辑操作只送达一次', wsC.messages.filter((m) => m.type === 'EDIT_ACTION').length === 1)
     // wsB 不持有租约，操作必须被拒
+    const beforeRejectedAction = wsC.messages.filter((m) => m.type === 'EDIT_ACTION').length
+    await wsB.send({ type: 'EDIT_ACTION', editAction: 'ZOOM_IN' })
     const bReject = await wsB.awaitType('ERROR', 3000)
     record('非持有者操作被拒（跨实例验证租约归属）', !!bReject, bReject?.message)
+    await sleep(200)
+    record('非持有者拒绝后零编辑广播', wsC.messages.filter((m) => m.type === 'EDIT_ACTION').length === beforeRejectedAction)
     wsC.close()
   } else {
     record('编辑操作跨实例广播', false, 'observer handshake failed: ' + wsC.handshakeError)
@@ -238,10 +261,10 @@ async function main() {
 
   // 旧连接对象迟到发送（连接已死应直接失败；若复活则被归属验证拒绝）
   try {
-    wsA.messages = []
+    wsA.scanned = wsA.messages.length
     await wsA.send({ type: 'EDIT_ACTION', editAction: 'ROTATE_LEFT' }).catch(() => {})
     await sleep(500)
-    const lateWriteVisible = wsB.messages.some((m) => m.type === 'EDIT_ACTION' && /ROTATE_LEFT/.test(m.message || ''))
+    const lateWriteVisible = wsB.messages.some((m) => m.type === 'EDIT_ACTION' && m.editAction === 'ROTATE_LEFT')
     record('断线旧连接迟到事件不写入', !lateWriteVisible, lateWriteVisible ? 'stale write observed' : '')
   } catch {
     record('断线旧连接迟到事件不写入', true, 'send failed as expected')
@@ -256,7 +279,9 @@ async function main() {
   record('B 重新获得租约', !!bLease, bLease?.message)
   if (bLease) {
     // 降权 B 为 viewer（驱动脚本通过 PS 注入的 SQL marker 文件触发）
-    fs.writeFileSync(process.env.VS44_DEMOTE_FILE || path.join(ARTIFACTS, 'demote.trigger'), JSON.stringify({ spaceId, user: userB }))
+    // 注意：雪花 id 超过 JS Number 安全范围会被舍入，这里只传 account（字符串），
+    // 由 PS 侧用 account 反查真实 id 执行 UPDATE
+    fs.writeFileSync(process.env.VS44_DEMOTE_FILE || path.join(ARTIFACTS, 'demote.trigger'), JSON.stringify({ spaceId, user: { account: userB.account } }))
     // 等待 PS 侧执行 UPDATE
     let demoted = false
     for (let i = 0; i < 40; i++) {
@@ -267,21 +292,28 @@ async function main() {
     await wsB.send({ type: 'EDIT_ACTION', editAction: 'ZOOM_IN' })
     const bDenied = await wsB.awaitType('ERROR', 8000)
     record('降权后写入被拒（跨实例）', !!bDenied, bDenied?.message)
-    // 租约应被收回，A 可以立即接管
-    await wsA.send({ type: 'ENTER_EDIT' })
-    const aTakeover = await wsA.awaitType('ENTER_EDIT', 8000)
+    // 租约应被收回，A 重新连接后立即接管（A 在场景 4 已断线，重连）
+    const wsA2 = await connect(PORT_A, pictureId, clientA.jar)
+    if (wsA2.handshakeError) throw new Error('A reconnect failed: ' + wsA2.handshakeError)
+    await wsA2.send({ type: 'ENTER_EDIT' })
+    const aTakeover = await wsA2.awaitType('ENTER_EDIT', 8000)
     record('降权后原持有者租约被收回', !!aTakeover, aTakeover?.message)
+    globalThis.__wsA2 = wsA2
   }
 
   // === 6. 注销即时生效（跨实例）：新连接持租约后走 REST 注销 ===
+  // 注：editor_44 已在场景 5 被降权，握手会被正确拒绝；注销场景改用 owner 账号
   const clientD = makeClient()
-  await clientD.request('POST', PORT_A, '/user/login', { userAccount: userB.account, userPassword: PASSWORD })
+  await clientD.request('POST', PORT_A, '/user/login', { userAccount: userA.account, userPassword: PASSWORD })
   const wsD = await connect(PORT_B, pictureId, clientD.jar)
   if (wsD.handshakeError) throw new Error('D handshake failed: ' + wsD.handshakeError)
-  await wsA.send({ type: 'EXIT_EDIT' }) // A 释放，让 D 拿租约
+  // A 的原连接已在场景 4 断线；若场景 5 重连成功则显式退出，否则租约应已为空
+  if (globalThis.__wsA2 && !globalThis.__wsA2.handshakeError) {
+    try { await globalThis.__wsA2.send({ type: 'EXIT_EDIT' }) } catch { /* 连接可能已关 */ }
+  }
   await sleep(300)
   await wsD.send({ type: 'ENTER_EDIT' })
-  const dLease = await wsD.awaitType('ENTER_EDIT', 5000)
+  const dLease = await wsD.awaitType('ENTER_EDIT', 8000)
   record('注销场景 D 获得租约', !!dLease, dLease?.message)
   if (dLease) {
     const logout = await clientD.request('POST', PORT_A, '/user/logout')
@@ -293,14 +325,19 @@ async function main() {
   }
 
   // === 7. 非法消息隔离（跨实例连接上验证） ===
-  if (!wsD.handshakeError && wsD.ws.readyState === 1) {
-    await wsD.send({ type: '' })
-    const e1 = await wsD.awaitType('ERROR', 5000)
-    await wsD.sendRaw('not-json {{{')
-    const e2 = await wsD.awaitType('ERROR', 5000)
+  {
+    const invalidWs = await connect(PORT_A, pictureId, clientA.jar)
+    if (invalidWs.handshakeError) throw new Error('invalid-message scenario handshake failed')
+    await invalidWs.send({ type: '' })
+    const e1 = await invalidWs.awaitType('ERROR', 5000)
+    await invalidWs.sendRaw('not-json {{{')
+    const e2 = await invalidWs.awaitType('ERROR', 5000)
     record('非法与损坏消息被拒绝', !!e1 && !!e2, [e1?.message, e2?.message].join(' | '))
-    // 注销后登录态已失效，ENTER_EDIT 会被复核拒绝——这里仅验证非法消息后通道仍响应
-    record('非法消息后通道仍处理消息', wsD.messages.length >= 2, `total=${wsD.messages.length}`)
+    await invalidWs.send({ type: 'ENTER_EDIT' })
+    const validAfterInvalid = await invalidWs.awaitType('ENTER_EDIT', 5000)
+    record('非法消息后通道仍处理消息', !!validAfterInvalid)
+    record('非法消息后合法授权连接仍可获得租约', !!validAfterInvalid)
+    invalidWs.close()
   }
 
   // === 8. 拒绝场景零未授权写入：以 viewer 账号连接被拒握手 ===

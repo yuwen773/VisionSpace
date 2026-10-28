@@ -41,7 +41,6 @@ public class PictureEditEventWorkHandler implements WorkHandler<PictureEditEvent
         try {
             PictureEditRequestMessage pictureEditRequestMessage = pictureEditEvent.getPictureEditRequestMessage();
             WebSocketSession session = pictureEditEvent.getSession();
-            User user = pictureEditEvent.getUser();
             Long pictureId = pictureEditEvent.getPictureId();
             // 队列中滞留的事件可能对应已关闭的连接：直接丢弃
             if (session == null || !session.isOpen()) {
@@ -68,7 +67,7 @@ public class PictureEditEventWorkHandler implements WorkHandler<PictureEditEvent
                 // 复核拒绝时收回该连接持有的租约：否则续期任务会给
                 // 已无权限的连接一直续租，其他用户永远接管不了
                 pictureEditHandler.revokeLeaseOf(pictureId, session.getId());
-                sendError(session, check.reason() == null ? "没有操作权限" : check.reason());
+                sendError(session, check.reason() == null ? "没有操作权限" : check.reason(), true);
                 return;
             }
             switch (messageType) {
@@ -81,10 +80,20 @@ public class PictureEditEventWorkHandler implements WorkHandler<PictureEditEvent
             // 单次处理异常被隔离：记入监控，消费线程继续处理后续合法消息
             pictureEditHandler.noteProcessingFailure();
             log.error("处理协作消息失败", e);
+        } finally {
+            // 环形槽位长期复用，处理后不保留已关闭连接和消息正文。
+            pictureEditEvent.setPictureEditRequestMessage(null);
+            pictureEditEvent.setSession(null);
+            pictureEditEvent.setUser(null);
+            pictureEditEvent.setPictureId(null);
         }
     }
 
     private void sendError(WebSocketSession session, String text) {
+        sendError(session, text, false);
+    }
+
+    private void sendError(WebSocketSession session, String text, boolean leaseLost) {
         if (!session.isOpen()) {
             return;
         }
@@ -92,6 +101,7 @@ public class PictureEditEventWorkHandler implements WorkHandler<PictureEditEvent
             PictureEditResponseMessage response = new PictureEditResponseMessage();
             response.setType(PictureEditMessageTypeEnum.ERROR.getValue());
             response.setMessage(text);
+            response.setLeaseLost(leaseLost);
             response.setUser(userService.getUserVO((User) session.getAttributes().get("user")));
             synchronized (session) {
                 session.sendMessage(new TextMessage(cn.hutool.json.JSONUtil.toJsonStr(response)));

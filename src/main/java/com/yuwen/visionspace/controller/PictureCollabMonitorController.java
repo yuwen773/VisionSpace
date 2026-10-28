@@ -6,6 +6,8 @@ import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.manager.websocket.monitor.PictureEditMonitor;
+import com.yuwen.visionspace.manager.websocket.PictureEditBroadcastBus;
+import com.yuwen.visionspace.manager.websocket.PictureEditHandler;
 import com.yuwen.visionspace.model.vo.CollabMonitorVO;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +27,12 @@ public class PictureCollabMonitorController {
     private PictureEditMonitor monitor;
 
     @Resource
+    private PictureEditBroadcastBus broadcastBus;
+
+    @Resource
+    private PictureEditHandler pictureEditHandler;
+
+    @Resource
     @Lazy
     private Disruptor<?> pictureEditEventDisruptor;
 
@@ -40,6 +48,9 @@ public class PictureCollabMonitorController {
         } catch (Exception e) {
             remaining = -1;
         }
-        return ResultUtils.success(CollabMonitorVO.from(monitor.snapshot(remaining)));
+        CollabMonitorVO view = CollabMonitorVO.from(monitor.snapshot(remaining));
+        view.setBroadcastQueueRemaining(broadcastBus.remainingCapacity());
+        view.setActiveLocalLeases(pictureEditHandler.activeLocalLeases());
+        return ResultUtils.success(view);
     }
 }

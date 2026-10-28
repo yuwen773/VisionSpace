@@ -132,32 +132,32 @@ public class PictureEditLeaseManager {
      * 当前持有者用户。
      */
     public Optional<Long> holderUserId(long pictureId) {
-        String value = stringRedisTemplate.opsForValue().get(key(pictureId));
-        if (value == null) {
-            return Optional.empty();
-        }
-        int sep = value.indexOf('|');
-        if (sep < 0) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(Long.parseLong(value.substring(sep + 1)));
-        } catch (NumberFormatException e) {
-            return Optional.empty();
-        }
+        return currentLease(pictureId).map(LeaseHolder::userId);
     }
 
     /**
      * 当前持有者的连接标识。
      */
     public Optional<String> holderSessionId(long pictureId) {
+        return currentLease(pictureId).map(LeaseHolder::sessionId);
+    }
+
+    /** 一次读取完整归属，避免两次 GET 之间发生移交。 */
+    public Optional<LeaseHolder> currentLease(long pictureId) {
         String value = stringRedisTemplate.opsForValue().get(key(pictureId));
         if (value == null) {
             return Optional.empty();
         }
         int sep = value.indexOf('|');
-        return sep < 0 ? Optional.empty() : Optional.of(value.substring(0, sep));
+        if (sep < 0) return Optional.empty();
+        try {
+            return Optional.of(new LeaseHolder(value.substring(0, sep), Long.parseLong(value.substring(sep + 1))));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
     }
+
+    public record LeaseHolder(String sessionId, long userId) { }
 
     private String key(long pictureId) {
         return KEY_PREFIX + pictureId;

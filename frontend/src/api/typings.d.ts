@@ -55,6 +55,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseCollabMonitorVO = {
+    code?: number
+    data?: CollabMonitorVO
+    message?: string
+  }
+
   type BaseResponseCreateOutPaintingTaskResponse = {
     code?: number
     data?: CreateOutPaintingTaskResponse
@@ -347,6 +353,22 @@ declare namespace API {
     hasMore?: boolean
     messages?: MessageVO[]
     nextCursor?: number
+  }
+
+  type CollabMonitorVO = {
+    received?: number
+    queueRemaining?: number
+    rejectedByBackpressure?: number
+    invalidMessages?: number
+    processingFailures?: number
+    authRejections?: number
+    leaseConflicts?: number
+    broadcastsSent?: number
+    broadcastFailures?: number
+    broadcastRejections?: number
+    broadcastQueueRemaining?: number
+    activeLocalLeases?: number
+    lastFailureAt?: Record<string, any>
   }
 
   type contentUsingGetParams = {

@@ -95,6 +95,8 @@ class WsPictureEditContractTest {
         try (WsClient first = connect(ownerId, pictureId); WsClient second = connect(ownerId, pictureId)) {
             first.send(Map.of("type", "ENTER_EDIT"));
             assertTrue(first.awaitType("ENTER_EDIT", 5).isPresent(), "first claimer must win the lease");
+            Thread.sleep(300);
+            assertEquals(1, first.count("ENTER_EDIT"), "pub/sub must not replay the local broadcast twice");
 
             second.send(Map.of("type", "ENTER_EDIT"));
             var rejected = second.awaitType("ERROR", 5);
@@ -237,6 +239,60 @@ class WsPictureEditContractTest {
         editor.socket().abort();
     }
 
+    @Test
+    void idleLoggedOutHolderCannotKeepRenewing() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        WsClient holder = connect(ownerId, pictureId);
+        holder.send(Map.of("type", "ENTER_EDIT"));
+        assertTrue(holder.awaitType("ENTER_EDIT", 5).isPresent());
+        logout(holder.http());
+        // 不发送任何 WS 消息：续期本身必须复核登录态并释放。
+        awaitLeaseGone(pictureId);
+        try (WsClient successor = connect(ownerId, pictureId)) {
+            successor.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(successor.awaitType("ENTER_EDIT", 5).isPresent());
+        }
+    }
+
+    @Test
+    void changingHttpLoginCannotChangeAnExistingSocketIdentity() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        long editorId = seedUser("switch_" + fixtureSeq);
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        joinTeam(spaceId, editorId, "editor");
+        try (WsClient holder = connect(ownerId, pictureId); WsClient observer = connect(editorId, pictureId)) {
+            holder.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(holder.awaitType("ENTER_EDIT", 5).isPresent());
+            var switched = post(holder.http(), "/user/login", Map.of(
+                    "userAccount", userAccounts.get(editorId), "userPassword", PASSWORD));
+            assertEquals(0, switched.path("code").asInt());
+            holder.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
+            awaitLeaseGone(pictureId);
+            Thread.sleep(300);
+            assertEquals(0, observer.count("EDIT_ACTION"), "old socket must never borrow the new login identity");
+        }
+    }
+
+    @Test
+    void onlineAuthorizedHolderIsRenewedBeyondOriginalTtl() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        try (WsClient holder = connect(ownerId, pictureId); WsClient rival = connect(ownerId, pictureId)) {
+            holder.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(holder.awaitType("ENTER_EDIT", 5).isPresent());
+            Thread.sleep(4500);
+            rival.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(rival.awaitType("ERROR", 5).isPresent(), "live holder must renew beyond the 3s TTL");
+        }
+    }
+
     // ---- 29.3 非法消息隔离：坏消息后合法消息仍可处理 ----
 
     @Test
@@ -301,6 +357,8 @@ class WsPictureEditContractTest {
             assertEquals(0, allowed.path("code").asInt(), allowed.toString());
             assertTrue(allowed.path("data").has("received"));
             assertTrue(allowed.path("data").has("queueRemaining"));
+            assertTrue(allowed.path("data").has("activeLocalLeases"));
+            assertTrue(allowed.path("data").has("broadcastQueueRemaining"));
         }
     }
 
@@ -475,6 +533,7 @@ class WsPictureEditContractTest {
         private final HttpClient http;
         private final WebSocket socket;
         private final ConcurrentLinkedQueue<JsonNode> messages = new ConcurrentLinkedQueue<>();
+        private int scanned;
 
         WsClient(HttpClient http, long pictureId) {
             this.http = http;
@@ -485,17 +544,19 @@ class WsPictureEditContractTest {
         }
 
         void send(Map<?, ?> body) throws Exception {
-            socket.sendText(json.writeValueAsString(body), true);
+            socket.sendText(json.writeValueAsString(body), true).join();
         }
 
         void sendRaw(String raw) {
-            socket.sendText(raw, true);
+            socket.sendText(raw, true).join();
         }
 
         java.util.Optional<JsonNode> awaitType(String type, int seconds) throws Exception {
             long deadline = System.currentTimeMillis() + seconds * 1000L;
             while (System.currentTimeMillis() < deadline) {
-                for (JsonNode node : messages) {
+                List<JsonNode> received = List.copyOf(messages);
+                while (scanned < received.size()) {
+                    JsonNode node = received.get(scanned++);
                     if (type.equals(node.path("type").asText())) {
                         return java.util.Optional.of(node);
                     }
@@ -519,7 +580,7 @@ class WsPictureEditContractTest {
 
         @Override
         public void close() {
-            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done");
+            if (!socket.isOutputClosed()) socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
         }
     }
 

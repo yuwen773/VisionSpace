@@ -7,6 +7,7 @@ import * as agentAttachmentController from './agentAttachmentController'
 import * as agentController from './agentController'
 import * as agentImageUploadController from './agentImageUploadController'
 import * as feedbackController from './feedbackController'
+import * as pictureCollabMonitorController from './pictureCollabMonitorController'
 import * as mainController from './mainController'
 import * as mcpController from './mcpController'
 import * as resourceModerationController from './resourceModerationController'
@@ -26,6 +27,7 @@ export default {
   agentController,
   agentImageUploadController,
   feedbackController,
+  pictureCollabMonitorController,
   mainController,
   mcpController,
   resourceModerationController,

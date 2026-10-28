@@ -223,7 +223,6 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
 import { toId } from '@/utils'
-import { useLoginUserStore } from '@/stores/userLogin.ts'
 import PictureEditWebSocket from '@/utils/pictureEditWebSocket.ts'
 import { PICTURE_EDIT_ACTION_ENUM, PICTURE_EDIT_MESSAGE_TYPE_ENUM } from '@/constants/picture.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
@@ -257,6 +256,8 @@ const closeModal = () => {
     websocket.disconnect()
   }
   editingUser.value = undefined
+  editingSessionId.value = undefined
+  selfSessionId.value = undefined
 }
 
 // 暴露函数给父组件
@@ -321,20 +322,19 @@ const handleUpload = async ({ file }: any) => {
 }
 
 //---------------实时编辑----------------
-const loginUserStore = useLoginUserStore()
-const loginUser = loginUserStore.loginUser
-
 //正在编辑的用户
 const editingUser = ref<API.UserVO>()
+const editingSessionId = ref<string>()
+const selfSessionId = ref<string>()
 
 //当前用户是否可以进入编辑
 const canEnterEdit = computed(() => {
   return !editingUser.value
 })
 
-//正在编辑的用户是本人，可以退出编辑
+//仅持有租约的具体连接可以退出编辑
 const canExistEdit = computed(() => {
-  return editingUser.value?.id === loginUser.id
+  return !!selfSessionId.value && editingSessionId.value === selfSessionId.value
 })
 
 //可以点击编辑图片的操作按钮
@@ -342,7 +342,7 @@ const canEdit = computed(() => {
   if (!isTeamSpace.value) {
     return true
   }
-  return editingUser.value?.id === loginUser.id
+  return canExistEdit.value
 })
 
 //编写webSocket逻辑
@@ -358,9 +358,11 @@ const initWebsocket = () => {
     websocket.disconnect()
   }
   websocket = new PictureEditWebSocket(pictureId)
+  const connection = websocket
   websocket.connect()
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (msg) => {
+    if (msg.selfSessionId) selfSessionId.value = msg.selfSessionId
     message.info(msg.message)
   })
 
@@ -368,38 +370,41 @@ const initWebsocket = () => {
     // 编辑权反馈：拿不到租约（他人正在编辑）或被拒绝（撤权/注销）时,
     // 本端不处于编辑状态,清掉本地的编辑者标记避免 UI 误显示自己可编辑
     message.error(msg.message)
-    if (editingUser.value?.id === loginUser.id) {
+    if (msg.leaseLost && canExistEdit.value) {
       editingUser.value = undefined
+      editingSessionId.value = undefined
     }
   })
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (msg) => {
     editingUser.value = msg.user
+    editingSessionId.value = msg.sessionId
     message.info(msg.message)
-    switch (msg.message) {
-      case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT:
-        rotateLeft()
-        break
-      case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT:
-        rotateRight()
-        break
-      case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN:
-        changeScale(1)
-        break
-      case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT:
-        changeScale(-1)
-        break
-    }
   })
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (msg) => {
     message.info(msg.message)
-    editingUser.value = msg.user
+    // 远端操作只更新画布，不再次上行，避免协作消息回环。
+    switch (msg.editAction) {
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT: cropperRef.value?.rotateLeft(); break
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT: cropperRef.value?.rotateRight(); break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN: cropperRef.value?.changeScale(1); break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT: cropperRef.value?.changeScale(-1); break
+    }
   })
 
   websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (msg) => {
     message.info(msg.message)
+    if (msg.sessionId === editingSessionId.value) {
+      editingUser.value = undefined
+      editingSessionId.value = undefined
+    }
+  })
+  websocket.on('close', () => {
+    if (websocket !== connection) return
     editingUser.value = undefined
+    editingSessionId.value = undefined
+    selfSessionId.value = undefined
   })
 }
 

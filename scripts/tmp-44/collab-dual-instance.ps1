@@ -20,7 +20,8 @@ $PSNativeCommandUseErrorActionPreference = $false
 
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $nonce = [Guid]::NewGuid().ToString('N')
-$runDir = Join-Path ([IO.Path]::GetTempPath()) "vs44-collab-$nonce"
+# C 盘空间紧张：运行目录（含 MySQL 数据目录）放 D 盘，且必须不存在（initialize 要求空目录）
+$runDir = Join-Path (Join-Path $repo '.vs44-runs') "vs44-collab-$nonce"
 New-Item -ItemType Directory -Path $runDir | Out-Null
 $artifacts = Join-Path $runDir 'artifacts'
 New-Item -ItemType Directory -Path $artifacts | Out-Null
@@ -65,7 +66,7 @@ try {
     $dataDir = Join-Path $runDir 'mysql'
     & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
     if ($LASTEXITCODE -ne 0) { throw 'mysql init failed' }
-    $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
+    $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console', '--general-log=1', "--general-log-file=$(Join-Path $runDir 'mysql-general.log')") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
     $ownedProcesses += Start-Process -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-err.log')
     Wait-Port $mysqlPort 'mysql'; Wait-Port $redisPort 'redis'
     $database = "vs44_collab_$nonce"
@@ -87,13 +88,20 @@ $ddl
     $env:MYSQL_PWD = ''
     $bootstrap | & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --default-character-set=utf8mb4 *> (Join-Path $runDir 'bootstrap.log')
     if ($LASTEXITCODE -ne 0) { throw 'bootstrap failed' }
+    # 立即验证验收账号可用：防止启动竞态把「未就绪」变成后端阶段的 Access denied
+    $env:MYSQL_PWD = $nonce
+    & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance -e "SELECT 1" *> (Join-Path $runDir 'auth-check.log')
+    if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: vs_acceptance auth check failed right after bootstrap' }
+    $env:MYSQL_PWD = ''
     & $redisCli -h 127.0.0.1 -p $redisPort -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
     Write-Host "   mysql=$mysqlPort redis=$redisPort"
 
     Write-Host "== [2/6] package backend jar =="
     Push-Location $repo
-    & mvn -B -q --no-transfer-progress -DskipTests package *> (Join-Path $runDir 'package.log')
-    if ($LASTEXITCODE -ne 0) { throw 'mvn package failed; see package.log' }
+    & mvn -B --no-transfer-progress -DskipTests package *> (Join-Path $runDir 'package.log')
+    if ($LASTEXITCODE -ne 0 -or -not (Select-String -LiteralPath (Join-Path $runDir 'package.log') -SimpleMatch 'BUILD SUCCESS')) {
+        throw 'mvn package failed or Maven did not execute; see package.log'
+    }
     $jar = Get-ChildItem (Join-Path $repo 'target\*.jar') | Where-Object { $_.Name -notmatch '\.original\.jar$' } | Select-Object -First 1
     if (-not $jar) { throw 'no jar produced' }
     Pop-Location
@@ -101,16 +109,35 @@ $ddl
     Write-Host "== [3/6] start two backend instances =="
     $portA = Free-Port; $portB = Free-Port
     while ($portB -eq $portA) { $portB = Free-Port }
+    # 数据源与 Redis 全部走外部 yml（--spring.config.additional-location），
+    # 与 scripts/browser-acceptance.ps1 的已验证模式一致：命令行/环境变量在这台
+    # 机器的 Start-Process 组合下曾被 jar 内属性源覆盖（见 jdbc-probe-before 对比）。
+    $backendConfigPath = Join-Path $runDir 'backend-overlay.yml'
+    [IO.File]::WriteAllText($backendConfigPath, @"
+spring:
+  datasource:
+    # ${database} 明确变量边界：PS7 会把 "$database?x" 解析为 null 条件成员访问
+    url: jdbc:mysql://127.0.0.1:$mysqlPort/${database}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: vs_acceptance
+    password: $nonce
+  data:
+    redis:
+      host: 127.0.0.1
+      port: $redisPort
+      password: $nonce
+      database: 15
+  session:
+    store-type: redis
+    timeout: 600
+"@, [Text.UTF8Encoding]::new($false))
     $commonArgs = @(
+        # 验收实例内存占用收敛：协作验收不需要大堆，两实例 + MySQL + Redis 同机并存
+        '-Xmx256m', '-Xms128m',
         '-jar', $jar.FullName,
         "--server.port=$portA",
         # 不用 local profile（它依赖 gitignore 的本地配置文件），占位密钥走命令行
         '--spring.profiles.active=default',
-        '--spring.datasource.url=jdbc:mysql://127.0.0.1:' + $mysqlPort + '/' + $database + '?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC',
-        '--spring.datasource.username=vs_acceptance', "--spring.datasource.password=$nonce",
-        '--spring.data.redis.host=127.0.0.1', "--spring.data.redis.port=$redisPort",
-        "--spring.data.redis.password=$nonce", '--spring.data.redis.database=15',
-        '--spring.data.redis.url=redis://:' + $nonce + '@127.0.0.1:' + $redisPort + '/15',
+        "--spring.config.additional-location=file:$backendConfigPath",
         '--spring.session.store-type=redis', '--spring.session.timeout=600',
         '--vision-space.websocket.lease-ttl-seconds=5',
         '--vision-space.websocket.lease-renew-interval-ms=1500',
@@ -126,9 +153,36 @@ $ddl
     )
     $argsB = $commonArgs -replace "--server\.port=$portA", "--server.port=$portB"
     $java = Resolve-Java
-    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $commonArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-a.log') -RedirectStandardError (Join-Path $runDir 'backend-a-err.log')
-    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $argsB -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-b.log') -RedirectStandardError (Join-Path $runDir 'backend-b-err.log')
-    Wait-Port $portA 'backend A'; Wait-Port $portB 'backend B'
+    # backend 启动前用 JDBC（与后端相同驱动与参数）预检凭据：失败立即停止而不是让 backend 报出难定位的 Access denied
+    if (Test-Path 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs\JdbcProbe.class') {
+        $preUrl = "jdbc:mysql://127.0.0.1:$mysqlPort/$database" + '?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
+        $pre = & $java -cp 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs;D:\maven-repository\com\mysql\mysql-connector-j\9.7.0\mysql-connector-j-9.7.0.jar' JdbcProbe $preUrl vs_acceptance $nonce 2>&1
+        $pre | Set-Content (Join-Path $runDir 'jdbc-probe-before.log')
+        if ($LASTEXITCODE -ne 0 -or -not (($pre -join ' ') -match 'CONNECTED')) { throw "BLOCKED_ENV: JDBC precheck failed: $($pre -join ' ')" }
+    }
+    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $commonArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-a.log') -RedirectStandardError (Join-Path $runDir 'backend-a-err.log') -Environment $backendEnv
+    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $argsB -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-b.log') -RedirectStandardError (Join-Path $runDir 'backend-b-err.log') -Environment $backendEnv
+    # 低内存环境下 JVM 启动可能超过 120s；同时监测进程是否被杀
+    foreach ($pair in @(@($portA, 'backend A', 0), @($portB, 'backend B', 1))) {
+        $p = $ownedProcesses[$pair[2]]
+        $deadline = [DateTime]::UtcNow.AddSeconds(240)
+        $opened = $false
+        while ([DateTime]::UtcNow -lt $deadline) {
+            if ($p.HasExited) { throw "BLOCKED_ENV: $($pair[1]) process exited with $($p.ExitCode) (check backend logs; often OOM on this host)" }
+            $c = [Net.Sockets.TcpClient]::new()
+            try { $c.Connect('127.0.0.1', $pair[0]); $c.Dispose(); $opened = $true; break } catch { Start-Sleep -Milliseconds 800 } finally { $c.Dispose() }
+        }
+        if (-not $opened) {
+            # 诊断：backend 失败时用 JDBC probe 直接验证 mysql 端凭据状态
+            # （区分「mysql 端拒绝」与「backend 属性被覆盖」两种可能）
+            if (Test-Path 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs\JdbcProbe.class') {
+                $probeUrl = "jdbc:mysql://127.0.0.1:$mysqlPort/$database" + '?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
+                $probe = & $java -cp 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs;D:\maven-repository\com\mysql\mysql-connector-j\9.7.0\mysql-connector-j-9.7.0.jar' JdbcProbe $probeUrl vs_acceptance $nonce 2>&1
+                $probe | Set-Content (Join-Path $runDir 'jdbc-probe-after-failure.log')
+            }
+            throw "BLOCKED_ENV: $($pair[1]) did not open port $($pair[0])"
+        }
+    }
     # 等待两个实例真正可服务（健康探测）
     foreach ($p in @($portA, $portB)) {
         $ok = $false
@@ -145,6 +199,9 @@ $ddl
     Write-Host "== [4/6] register users + seed fixtures =="
     # 用户通过真实注册入口创建（mjs register 阶段），PS 只 seed 资源与角色。
     $env:VS44_PHASE = 'register'
+    $env:VS44_PORT_A = "$portA"; $env:VS44_PORT_B = "$portB"
+    $env:VS44_MYSQL_PORT = "$mysqlPort"; $env:VS44_REDIS_PORT = "$redisPort"
+    $env:VS44_NONCE = $nonce
     Push-Location (Join-Path $repo 'frontend')
     & node (Join-Path $PSScriptRoot 'collab-dual-instance.mjs')
     if ($LASTEXITCODE -ne 0) { Pop-Location; throw 'user registration phase failed' }
@@ -163,7 +220,8 @@ INSERT INTO space_user (spaceId, userId, spaceRole) VALUES
 INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
  VALUES (9442001, 'collab-picture', 'original', $idOwner, 10, 9441001, 1, 0);
 "@, [Text.UTF8Encoding]::new($false))
-    $seedPath | & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --default-character-set=utf8mb4 *> (Join-Path $runDir 'seed.log')
+    # 管道输入不走文件路径转义；改用 --binary-mode 避免 mysql 把 \V 等路径反斜杠当转义
+    Get-Content -Raw $seedPath | & $mysql --no-defaults --binary-mode --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --default-character-set=utf8mb4 *> (Join-Path $runDir 'seed.log')
     if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
     $fixture = [ordered]@{
         spaceId  = 9441001
@@ -186,14 +244,18 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     $env:VS44_FIXTURE_JSON = $fixturePath
     $env:VS44_DEMOTE_FILE = (Join-Path $artifacts 'demote.trigger')
     $env:VS44_DEMOTE_DONE_FILE = (Join-Path $artifacts 'demote.done')
-    # 降权触发文件由 mjs 写入；这里起一个轮询 job 执行 SQL 并写 done
+    # 降权触发文件由 mjs 写入（带真实 editor userId）；这里起一个轮询 job 执行 SQL 并写 done
     $demoteJob = Start-Job -ScriptBlock {
-        param($mysql, $mysqlPort, $database, $nonce, $trigger, $done, $mysqlPwdEnv)
+        param($mysql, $mysqlPort, $database, $nonce, $trigger, $done)
         $env:MYSQL_PWD = ''
         while ($true) {
             if (Test-Path $trigger) {
-                & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database -e "UPDATE space_user SET spaceRole='viewer' WHERE spaceId=9441001 AND userId=9440002;" *> $null
-                Set-Content -Path $done -Value 'done'
+                $triggerData = Get-Content -Raw $trigger | ConvertFrom-Json
+                # JS 侧雪花 id 会精度丢失，用 account 反查真实 id
+                $account = $triggerData.user.account
+                $uid = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$account';"
+                & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database -e "UPDATE space_user SET spaceRole='viewer' WHERE spaceId=$($triggerData.spaceId) AND userId=$uid;" *> $null
+                Set-Content -Path $done -Value "demoted userId=$uid account=$account"
                 break
             }
             Start-Sleep -Milliseconds 200
@@ -210,15 +272,15 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     $finalQueries = @"
 USE $database;
 SELECT name FROM picture WHERE id = 9442001;
-SELECT totalSize FROM space WHERE id = 9441001;
-SELECT spaceRole FROM space_user WHERE spaceId = 9441001 AND userId = 9440002;
+SELECT totalSize, totalCount FROM space WHERE id = 9441001;
+SELECT spaceRole FROM space_user WHERE spaceId = 9441001 AND userId = $idEditor;
 "@
     $finalPath = Join-Path $runDir 'final.sql'
     [IO.File]::WriteAllText($finalPath, $finalQueries, [Text.UTF8Encoding]::new($false))
-    $finalOutput = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --batch 2>&1
+    $finalOutput = Get-Content -Raw $finalPath | & $mysql --no-defaults --binary-mode --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --batch --skip-column-names 2> (Join-Path $runDir 'final-query-error.log')
     $finalOutput | Set-Content (Join-Path $artifacts 'final-data.txt')
     Write-Host $finalOutput
-    if (($finalOutput -join "`n") -match 'original') {
+    if ($LASTEXITCODE -eq 0 -and $finalOutput.Count -eq 3 -and $finalOutput[0] -eq 'original' -and $finalOutput[1] -eq "0`t1" -and $finalOutput[2] -eq 'viewer') {
         Write-Host 'PASS  最终数据：picture.name 保持 original（协作消息不落库）'
     } else {
         Write-Host 'FAIL  最终数据：picture.name 被意外修改'

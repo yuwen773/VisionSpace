@@ -24,6 +24,7 @@ public class PictureEditMonitor {
     private final AtomicLong leaseConflicts = new AtomicLong();
     private final AtomicLong broadcastsSent = new AtomicLong();
     private final AtomicLong broadcastFailures = new AtomicLong();
+    private final AtomicLong broadcastRejections = new AtomicLong();
     /** 各类失败最后一次发生的时间戳（epoch millis），便于判断「还在发生吗」。 */
     private final Map<String, AtomicLong> lastFailureAt = new ConcurrentHashMap<>();
 
@@ -69,6 +70,11 @@ public class PictureEditMonitor {
         lastFailureAt.computeIfAbsent(kind, k -> new AtomicLong()).set(System.currentTimeMillis());
     }
 
+    public void onBroadcastRejected() {
+        broadcastRejections.incrementAndGet();
+        markFailure("broadcast-backpressure");
+    }
+
     /**
      * 管理端点读取的只读快照。
      *
@@ -85,6 +91,7 @@ public class PictureEditMonitor {
         view.put("leaseConflicts", leaseConflicts.get());
         view.put("broadcastsSent", broadcastsSent.get());
         view.put("broadcastFailures", broadcastFailures.get());
+        view.put("broadcastRejections", broadcastRejections.get());
         lastFailureAt.forEach((k, v) -> view.put("lastFailureAt." + k, v.get()));
         return view;
     }

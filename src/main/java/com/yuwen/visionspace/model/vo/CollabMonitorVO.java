@@ -37,6 +37,10 @@ public class CollabMonitorVO {
     /** 广播失败计数 */
     private long broadcastFailures;
 
+    private long broadcastRejections;
+    private long broadcastQueueRemaining;
+    private long activeLocalLeases;
+
     /** 各类失败最后一次发生的时间戳 */
     private Map<String, Long> lastFailureAt;
 
@@ -51,6 +55,7 @@ public class CollabMonitorVO {
         vo.setLeaseConflicts(((Number) snapshot.getOrDefault("leaseConflicts", 0L)).longValue());
         vo.setBroadcastsSent(((Number) snapshot.getOrDefault("broadcastsSent", 0L)).longValue());
         vo.setBroadcastFailures(((Number) snapshot.getOrDefault("broadcastFailures", 0L)).longValue());
+        vo.setBroadcastRejections(((Number) snapshot.getOrDefault("broadcastRejections", 0L)).longValue());
         var lastFailureAt = new java.util.HashMap<String, Long>();
         snapshot.forEach((k, v) -> {
             if (k.startsWith("lastFailureAt.") && v instanceof Number number) {

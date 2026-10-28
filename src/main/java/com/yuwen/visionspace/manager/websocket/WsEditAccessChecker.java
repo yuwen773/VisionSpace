@@ -75,6 +75,9 @@ public class WsEditAccessChecker {
         if (!(userObj instanceof User sessionUser) || sessionUser.getId() == null) {
             return AccessCheckResult.denied("登录会话已失效");
         }
+        if (!sessionUser.getId().equals(session.getAttribute("userId"))) {
+            return AccessCheckResult.denied("登录身份已变更，请重新连接");
+        }
         // 以数据库当前状态为准：注销、封禁、改角色都体现在这里
         User user = userService.getById(sessionUser.getId());
         if (user == null) {

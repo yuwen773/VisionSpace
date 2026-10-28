@@ -5,8 +5,6 @@ import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.service.PictureService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Resource;
@@ -24,8 +22,6 @@ import java.util.List;
 @Slf4j
 public class CollabLeaseRevoker {
 
-    private static final String KEY_PREFIX = "picture:edit:lease:";
-
     @Resource
     private PictureService pictureService;
 
@@ -33,7 +29,7 @@ public class CollabLeaseRevoker {
     private PictureEditLeaseManager leaseManager;
 
     @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private PictureEditHandler pictureEditHandler;
 
     /**
      * 收回某空间某成员当前持有的全部编辑租约。
@@ -43,18 +39,12 @@ public class CollabLeaseRevoker {
                         .select("id").eq("spaceId", spaceId).eq("isDelete", 0),
                 id -> (Long) id);
         for (Long pictureId : pictureIds) {
-            String key = KEY_PREFIX + pictureId;
-            String value = stringRedisTemplate.opsForValue().get(key);
-            if (value == null) {
-                continue;
-            }
-            int sep = value.indexOf('|');
-            if (sep < 0 || !value.substring(sep + 1).equals(String.valueOf(userId))) {
+            var lease = leaseManager.currentLease(pictureId);
+            if (lease.isEmpty() || lease.get().userId() != userId) {
                 // 不是该成员持有的租约，不动
                 continue;
             }
-            String sessionId = value.substring(0, sep);
-            leaseManager.forceRevoke(pictureId, sessionId);
+            pictureEditHandler.revokeLeaseOf(pictureId, lease.get().sessionId());
             log.info("成员权限变更，收回编辑租约: pictureId={}, userId={}", pictureId, userId);
         }
     }

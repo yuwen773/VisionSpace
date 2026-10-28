@@ -32,4 +32,13 @@ public class PictureEditResponseMessage {
      * 用户信息
      */
     private UserVO user;
+
+    /** 事件所属连接，编辑权不得只按用户判断。 */
+    private String sessionId;
+
+    /** 仅握手完成后的定向 INFO 携带本连接标识，不经总线广播。 */
+    private String selfSessionId;
+
+    /** 仅确认租约已失效时为 true；可重试的消息错误不改变编辑权。 */
+    private boolean leaseLost;
 }

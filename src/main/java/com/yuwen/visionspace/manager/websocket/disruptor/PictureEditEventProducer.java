@@ -3,9 +3,7 @@ package com.yuwen.visionspace.manager.websocket.disruptor;
 import com.lmax.disruptor.InsufficientCapacityException;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
-import com.yuwen.visionspace.manager.websocket.model.PictureEditMessageTypeEnum;
 import com.yuwen.visionspace.manager.websocket.model.PictureEditRequestMessage;
-import com.yuwen.visionspace.manager.websocket.model.PictureEditResponseMessage;
 import com.yuwen.visionspace.manager.websocket.monitor.PictureEditMonitor;
 import com.yuwen.visionspace.model.entity.User;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +13,6 @@ import org.springframework.web.socket.WebSocketSession;
 
 import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
-import java.io.IOException;
 
 /**
  * 图片编辑事件生产者。
@@ -62,13 +59,10 @@ public class PictureEditEventProducer {
             return;
         }
         try {
-            PictureEditResponseMessage response = new PictureEditResponseMessage();
-            response.setType(PictureEditMessageTypeEnum.ERROR.getValue());
-            response.setMessage(text);
             synchronized (session) {
                 session.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"" + text + "\"}"));
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.warn("背压拒绝消息发送失败: sessionId={}", session.getId());
         }
     }
