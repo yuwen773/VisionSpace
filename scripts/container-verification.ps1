@@ -184,7 +184,11 @@ try {
         if ($state -eq 'healthy') { $mysqlReady = $true; break }
         Start-Sleep -Seconds 3
     }
-    if (-not $mysqlReady) { throw 'isolated MySQL did not become healthy within 120s' }
+    if (-not $mysqlReady) {
+        Write-Host '--- mysql health log ---'
+        & docker inspect --format '{{json .State.Health}}' "$project-mysql-1" 2>&1 | ForEach-Object { Write-Host $_ }
+        throw 'isolated MySQL did not become healthy within 120s'
+    }
     # docker compose up -d mysql 已执行 init 脚本（vision_app/healthcheck 已建）；
     # 表结构导入用初始化管理身份（root）：vision_app 只有业务 DML 权限，没有 CREATE。
     # 通过 stdin 灌入 DDL，不把 schema 文件挂进镜像或卷。
