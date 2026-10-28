@@ -284,10 +284,5 @@
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
-  },
-  "src/utils/pictureEditWebSocket.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    }
   }
 }

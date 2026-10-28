@@ -1,9 +1,21 @@
 import { webSocketUrl } from '@/apiOrigin'
 
+/** 服务端协作消息的形状：字段按需出现，未知字段原样保留。 */
+export interface PictureEditMessage {
+  type?: string
+  message?: string
+  sessionId?: string
+  selfSessionId?: string
+  editAction?: string
+  leaseLost?: boolean
+  user?: API.UserVO
+  [key: string]: unknown
+}
+
 export default class PictureEditWebSocket {
   private pictureId: number
   private socket: WebSocket | null
-  private eventHandlers: any
+  private eventHandlers: Record<string, Array<(data?: unknown) => void>>
 
   constructor(pictureId: number) {
     this.pictureId = pictureId // 当前编辑的图片 ID
@@ -32,7 +44,19 @@ export default class PictureEditWebSocket {
 
     // 监听消息事件
     this.socket.onmessage = (event) => {
-      const message = JSON.parse(event.data)
+      // 损坏消息不会抛到全局：解析失败按 ERROR 处理，连接保持可用
+      let message: PictureEditMessage
+      try {
+        message = JSON.parse(event.data) as PictureEditMessage
+      } catch {
+        console.error('收到无法解析的协作消息:', event.data)
+        this.triggerEvent('ERROR', { type: 'ERROR', message: '协作消息格式错误' })
+        return
+      }
+      if (!message || typeof message.type !== 'string') {
+        this.triggerEvent('ERROR', { type: 'ERROR', message: '协作消息类型缺失' })
+        return
+      }
       console.log('收到消息:', message)
 
       // 根据消息类型触发对应事件
@@ -89,11 +113,11 @@ export default class PictureEditWebSocket {
    * @param {string} type 消息类型
    * @param {Function} handler 消息处理函数
    */
-  on(type: string, handler: (data?: any) => void) {
+  on<T = unknown>(type: string, handler: (data?: T) => void) {
     if (!this.eventHandlers[type]) {
       this.eventHandlers[type] = []
     }
-    this.eventHandlers[type].push(handler)
+    this.eventHandlers[type].push(handler as (data?: unknown) => void)
   }
 
   /**
@@ -101,10 +125,10 @@ export default class PictureEditWebSocket {
    * @param {string} type 消息类型
    * @param {Object} data 消息数据
    */
-  triggerEvent(type: string, data?: any) {
+  triggerEvent(type: string, data?: unknown) {
     const handlers = this.eventHandlers[type]
     if (handlers) {
-      handlers.forEach((handler: any) => handler(data))
+      handlers.forEach((handler) => handler(data))
     }
   }
 }
