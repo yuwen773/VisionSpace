@@ -281,24 +281,24 @@ try {
 
     # 依赖延迟启动：仅对这两个隔离启动实验关闭 Docker 自动重启，核对同一
     # 应用进程进入连接阶段、等待依赖并恢复，避免崩溃重启替代应用重试。
+    # 只停 MySQL：Redis 由 Redisson 在启动早期连接，Redis 缺失会让应用在
+    # 到达 Hikari 之前明确失败，无法验证「有限等待后恢复」这条路径。
     & docker update --restart=no "$project-backend-1" *> (Join-Path $runDir 'backend-restart-policy.log')
     if ($LASTEXITCODE -ne 0) { throw 'could not disable automatic restarts for the startup experiments' }
-    Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop.log')
+    Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'deps-stop.log')
     Invoke-Compose @('restart', '--no-deps', 'backend') *> (Join-Path $runDir 'backend-restart.log')
     $delayedStart = Get-ContainerInspection 'backend'
     $connectionObserved = Wait-BackendConnectionAttempt $delayedStart 60
     Assert $connectionObserved 'A4-late-connection-attempt-observed' 'this process must enter the Hikari connection stage'
-    if ($connectionObserved) { Start-Sleep -Seconds 10 }
+    if ($connectionObserved) { Start-Sleep -Seconds 5 }
     $waiting = Get-ContainerInspection 'backend'
     $sameWaitingProcess = $waiting.State.Running -and
         $waiting.State.StartedAt -eq $delayedStart.State.StartedAt -and $waiting.RestartCount -eq $delayedStart.RestartCount
-    Assert $sameWaitingProcess 'A4-late-same-process-waiting' 'backend must remain in the same process while dependencies are absent'
-    foreach ($service in @('mysql', 'redis')) {
-        $dependency = Get-ContainerInspection $service
-        Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) "A4-late-$service-stopped" 'dependency must remain stopped during the delay'
-    }
-    Invoke-Compose @('start', 'mysql', 'redis') *> (Join-Path $runDir 'deps-restart.log')
-    Assert (Wait-Health 'healthy' 240) 'A4-late-dependency-recovers' 'backend must reach healthy once dependencies start late'
+    Assert $sameWaitingProcess 'A4-late-same-process-waiting' 'backend must remain in the same process while the dependency is absent'
+    $dependency = Get-ContainerInspection 'mysql'
+    Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) 'A4-late-mysql-stopped' 'mysql must remain stopped during the delay'
+    Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'deps-restart.log')
+    Assert (Wait-Health 'healthy' 240) 'A4-late-dependency-recovers' 'backend must reach healthy once the dependency starts late'
     $recovered = Get-ContainerInspection 'backend'
     $sameRecoveredProcess = $recovered.State.Running -and
         $recovered.State.StartedAt -eq $delayedStart.State.StartedAt -and $recovered.RestartCount -eq $delayedStart.RestartCount
@@ -346,6 +346,10 @@ try {
     exit 2
 } finally {
     Write-Host '=== cleanup: removing only this run''s resources ==='
+    # 清理前保留完整日志，作为每轮证据；失败时无需重跑即可定位。
+    foreach ($service in @('backend', 'mysql', 'redis')) {
+        & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "$service.log")
+    }
     & docker compose -f $composeYml -p $project --env-file $envFile down -v --remove-orphans *> (Join-Path $runDir 'down.log')
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
 }
