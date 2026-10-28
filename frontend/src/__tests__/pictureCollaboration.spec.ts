@@ -4,7 +4,10 @@ import { nextTick } from 'vue'
 import ImageCropper from '@/components/ImageCropper.vue'
 
 const { sockets } = vi.hoisted(() => ({
-  sockets: [] as { handlers: Record<string, (data: any) => void>; sendMessage: ReturnType<typeof vi.fn> }[],
+  sockets: [] as {
+    handlers: Record<string, (data: unknown) => void>
+    sendMessage: ReturnType<typeof vi.fn>
+  }[],
 }))
 vi.mock('@/stores/userLogin.ts', () => ({
   useLoginUserStore: () => ({ loginUser: { id: '101', userName: 'owner' } }),
@@ -13,12 +16,16 @@ vi.mock('@/api/pictureController.ts', () => ({ uploadPictureUsingPost: vi.fn() }
 vi.mock('ant-design-vue', () => ({ message: { info: vi.fn(), error: vi.fn() } }))
 vi.mock('@/utils/pictureEditWebSocket.ts', () => ({
   default: class {
-    handlers: Record<string, (data: any) => void> = {}
+    handlers: Record<string, (data: unknown) => void> = {}
     sendMessage = vi.fn()
-    constructor() { sockets.push(this) }
+    constructor() {
+      sockets.push(this)
+    }
     connect() {}
     disconnect() {}
-    on(type: string, callback: (data: any) => void) { this.handlers[type] = callback }
+    on(type: string, callback: (data: unknown) => void) {
+      this.handlers[type] = callback
+    }
   },
 }))
 
@@ -36,9 +43,13 @@ describe('图片协作的连接编辑权', () => {
   })
   afterEach(() => wrapper.unmount())
 
-  const enter = (sessionId: string) => sockets[0].handlers.ENTER_EDIT({
-    type: 'ENTER_EDIT', sessionId, user: { id: '101', userName: 'owner' }, message: '开始编辑',
-  })
+  const enter = (sessionId: string) =>
+    sockets[0].handlers.ENTER_EDIT({
+      type: 'ENTER_EDIT',
+      sessionId,
+      user: { id: '101', userName: 'owner' },
+      message: '开始编辑',
+    })
 
   it('同用户另一标签持有租约时，本标签的工具保持禁用', async () => {
     enter('tab-a')

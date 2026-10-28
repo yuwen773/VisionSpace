@@ -9,7 +9,7 @@
 #   6. 清理自己创建的进程与临时目录
 #
 # 用法：
-#   pwsh.exe -NoLogo -NoProfile -File scripts/tmp-44/collab-dual-instance.ps1
+#   pwsh.exe -NoLogo -NoProfile -File scripts/collab-verification/collab-dual-instance.ps1
 [CmdletBinding()]
 param(
     [string]$MySqlBin = 'D:\Work\Backend\MySQL-8.0.26\mysql-8.0.26-winx64\bin',

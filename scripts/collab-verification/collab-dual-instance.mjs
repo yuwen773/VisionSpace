@@ -1,6 +1,6 @@
 // 工单 44 双实例协作稳定性验收驱动。
 //
-// 由 scripts/tmp-44/collab-dual-instance.ps1 启动两个真实后端进程
+// 由 scripts/collab-verification/collab-dual-instance.ps1 启动两个真实后端进程
 // （共享同一个隔离 MySQL/Redis），然后运行本脚本：
 //   VS44_PORT_A / VS44_PORT_B  两个后端实例的端口
 //   VS44_MYSQL_PORT / VS44_REDIS_PORT / VS44_NONCE  隔离实例

@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>走真实 TCP -> 握手拦截器（Cookie 会话 + 资源授权）-> WebSocket -> Disruptor
  * -> 租约管理器（隔离 Redis）-> 广播。跨实例部分由独立脚本
- * scripts/collab-dual-instance.ps1 驱动两个真实后端进程验证。
+ * scripts/collab-verification/collab-dual-instance.ps1 驱动两个真实后端进程验证。
  */
 @IsolatedSpringBootTest
 class WsPictureEditContractTest {
@@ -229,13 +230,20 @@ class WsPictureEditContractTest {
         editor.send(Map.of("type", "ENTER_EDIT"));
         assertTrue(editor.awaitType("ENTER_EDIT", 5).isPresent());
 
-        // 同一 Cookie 会话注销（REST logout）
-        logout(editor.http());
-        Thread.sleep(800); // 注销失效 Redis 会话后，下一条消息的复核会拒绝
+        // 旁观者：用来证明注销后的操作没有产生任何编辑广播
+        try (WsClient observer = connect(ownerId, pictureId)) {
+            // 同一 Cookie 会话注销（REST logout）
+            logout(editor.http());
+            Thread.sleep(800); // 注销失效 Redis 会话后，下一条消息的复核会拒绝
 
-        editor.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
-        var denied = editor.awaitType("ERROR", 5);
-        assertTrue(denied.isPresent(), "logged-out user must not perform actions");
+            // 服务端可能在收到消息前就关掉了连接：发送失败本身就是「写不进去」
+            boolean sent = editor.sendIfOpen(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
+            var denied = editor.awaitType("ERROR", 3);
+            assertTrue(denied.isPresent() || !sent || editor.isClosed(),
+                    "logged-out user must be rejected or disconnected before writing");
+            assertFalse(observer.awaitType("EDIT_ACTION", 2).isPresent(),
+                    "a logged-out editor must not produce any edit broadcast");
+        }
         editor.socket().abort();
     }
 
@@ -377,7 +385,7 @@ class WsPictureEditContractTest {
         try {
             HttpClient viewerClient = client();
             loginAs(viewerClient, "viewer_" + fixtureSeq);
-            viewerClient.newWebSocketBuilder().buildAsync(wsUri(pictureId), new WsListener(new ConcurrentLinkedQueue<>())).join();
+            viewerClient.newWebSocketBuilder().buildAsync(wsUri(pictureId), new WsListener(new ConcurrentLinkedQueue<>(), new AtomicBoolean())).join();
             throw new AssertionError("viewer handshake must fail");
         } catch (Exception expected) {
             // 握手被拒绝表现为 join 异常
@@ -385,7 +393,7 @@ class WsPictureEditContractTest {
         // 匿名（无 Cookie）握手被拒
         HttpClient anonymous = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         try {
-            anonymous.newWebSocketBuilder().buildAsync(wsUri(pictureId), new WsListener(new ConcurrentLinkedQueue<>())).join();
+            anonymous.newWebSocketBuilder().buildAsync(wsUri(pictureId), new WsListener(new ConcurrentLinkedQueue<>(), new AtomicBoolean())).join();
             throw new AssertionError("anonymous handshake must fail");
         } catch (Exception expected) {
             // 握手被拒绝表现为 join 异常
@@ -533,18 +541,44 @@ class WsPictureEditContractTest {
         private final HttpClient http;
         private final WebSocket socket;
         private final ConcurrentLinkedQueue<JsonNode> messages = new ConcurrentLinkedQueue<>();
+        /** 服务端已关闭连接：此时发送会抛 IOException，用例要能把它当成预期结果。 */
+        private final AtomicBoolean closed = new AtomicBoolean();
         private int scanned;
 
         WsClient(HttpClient http, long pictureId) {
             this.http = http;
             this.socket = http.newWebSocketBuilder()
                     .connectTimeout(Duration.ofSeconds(5))
-                    .buildAsync(wsUri(pictureId), new WsListener(messages)).join();
+                    .buildAsync(wsUri(pictureId), new WsListener(messages, closed)).join();
             sockets.add(socket);
         }
 
         void send(Map<?, ?> body) throws Exception {
             socket.sendText(json.writeValueAsString(body), true).join();
+        }
+
+        /**
+         * 连接已被服务端关闭时发送必然失败：返回 false 表示「这条写没有发出去」，
+         * 由用例把它与「收到 ERROR 拒绝」一起当作预期结果，而不是让整个用例报错。
+         */
+        boolean sendIfOpen(Map<?, ?> body) throws Exception {
+            if (closed.get()) {
+                return false;
+            }
+            try {
+                socket.sendText(json.writeValueAsString(body), true).join();
+                return true;
+            } catch (java.util.concurrent.CompletionException e) {
+                if (e.getCause() instanceof java.io.IOException) {
+                    closed.set(true);
+                    return false;
+                }
+                throw e;
+            }
+        }
+
+        boolean isClosed() {
+            return closed.get();
         }
 
         void sendRaw(String raw) {
@@ -586,10 +620,23 @@ class WsPictureEditContractTest {
 
     private static final class WsListener implements WebSocket.Listener {
         private final ConcurrentLinkedQueue<JsonNode> messages;
+        private final AtomicBoolean closed;
         private final StringBuilder buffer = new StringBuilder();
 
-        WsListener(ConcurrentLinkedQueue<JsonNode> messages) {
+        WsListener(ConcurrentLinkedQueue<JsonNode> messages, AtomicBoolean closed) {
             this.messages = messages;
+            this.closed = closed;
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            closed.set(true);
+            return null;
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            closed.set(true);
         }
 
         @Override

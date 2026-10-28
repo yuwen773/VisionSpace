@@ -1,6 +1,6 @@
 // 工单 44 浏览器多连接协作验收（真实 Chromium + 真实 WebSocket 协议）。
 //
-// 由 scripts/tmp-44/collab-browser.ps1 启动隔离后端与本脚本：
+// 由 scripts/collab-verification/collab-browser.ps1 启动隔离后端与本脚本：
 //   VS44_E2E_API_TARGET   隔离验收后端地址
 //   VS44_E2E_HTTPS_CERT / VS44_E2E_HTTPS_KEY  自签证书
 //   VS44_E2E_ARTIFACTS    截图与结果目录

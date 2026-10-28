@@ -356,19 +356,19 @@ declare namespace API {
   }
 
   type CollabMonitorVO = {
-    received?: number
-    queueRemaining?: number
-    rejectedByBackpressure?: number
-    invalidMessages?: number
-    processingFailures?: number
-    authRejections?: number
-    leaseConflicts?: number
-    broadcastsSent?: number
-    broadcastFailures?: number
-    broadcastRejections?: number
-    broadcastQueueRemaining?: number
     activeLocalLeases?: number
+    authRejections?: number
+    broadcastFailures?: number
+    broadcastQueueRemaining?: number
+    broadcastRejections?: number
+    broadcastsSent?: number
+    invalidMessages?: number
     lastFailureAt?: Record<string, any>
+    leaseConflicts?: number
+    processingFailures?: number
+    queueRemaining?: number
+    received?: number
+    rejectedByBackpressure?: number
   }
 
   type contentUsingGetParams = {

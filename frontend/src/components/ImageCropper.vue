@@ -223,7 +223,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
 import { toId } from '@/utils'
-import PictureEditWebSocket from '@/utils/pictureEditWebSocket.ts'
+import PictureEditWebSocket, { type PictureEditMessage } from '@/utils/pictureEditWebSocket.ts'
 import { PICTURE_EDIT_ACTION_ENUM, PICTURE_EDIT_MESSAGE_TYPE_ENUM } from '@/constants/picture.ts'
 import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
 
@@ -361,12 +361,14 @@ const initWebsocket = () => {
   const connection = websocket
   websocket.connect()
 
-  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (msg) => {
+  websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (msg) => {
+    if (!msg) return
     if (msg.selfSessionId) selfSessionId.value = msg.selfSessionId
     message.info(msg.message)
   })
 
-  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (msg) => {
+  websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (msg) => {
+    if (!msg) return
     // 编辑权反馈：拿不到租约（他人正在编辑）或被拒绝（撤权/注销）时,
     // 本端不处于编辑状态,清掉本地的编辑者标记避免 UI 误显示自己可编辑
     message.error(msg.message)
@@ -376,24 +378,35 @@ const initWebsocket = () => {
     }
   })
 
-  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (msg) => {
+  websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (msg) => {
+    if (!msg) return
     editingUser.value = msg.user
     editingSessionId.value = msg.sessionId
     message.info(msg.message)
   })
 
-  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (msg) => {
+  websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (msg) => {
+    if (!msg) return
     message.info(msg.message)
     // 远端操作只更新画布，不再次上行，避免协作消息回环。
     switch (msg.editAction) {
-      case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT: cropperRef.value?.rotateLeft(); break
-      case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT: cropperRef.value?.rotateRight(); break
-      case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN: cropperRef.value?.changeScale(1); break
-      case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT: cropperRef.value?.changeScale(-1); break
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT:
+        cropperRef.value?.rotateLeft()
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT:
+        cropperRef.value?.rotateRight()
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN:
+        cropperRef.value?.changeScale(1)
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT:
+        cropperRef.value?.changeScale(-1)
+        break
     }
   })
 
-  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (msg) => {
+  websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (msg) => {
+    if (!msg) return
     message.info(msg.message)
     if (msg.sessionId === editingSessionId.value) {
       editingUser.value = undefined
