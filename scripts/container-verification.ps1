@@ -164,10 +164,14 @@ try {
 
     Write-Host '=== schema bootstrap (isolated database) ==='
     # 复用 #27 验收的约定：只提取跟踪 DDL 的 CREATE TABLE 语句，不含库选择、
-    # DROP 与任何数据；表数变化必须人工复核（当前 15 张）。
+    # DROP 与任何数据。提取数必须与源文件声明的 CREATE TABLE 数一致，
+    # 这样表结构演进不需要改脚本，但正则漏抓会立即失败而不是静默少建表。
     $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    if ($tables.Count -ne 15) { throw "FAIL: schema changed ($($tables.Count) tables); review bootstrap before running." }
+    $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
+    if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) {
+        throw "FAIL: schema extraction incomplete ($($tables.Count)/$declaredTables tables)"
+    }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     # 隔离库的账号由 init 脚本在数据卷首启时创建；这里等 MySQL 就绪后用
     # healthcheck 账号导入业务表。口令经 MYSQL_PWD 环境变量传入。
