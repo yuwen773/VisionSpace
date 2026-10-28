@@ -328,6 +328,17 @@ try {
     exit 1
 } catch {
     Write-Host "BLOCKED_ENV/ERROR: $_"
+    # 失败诊断：容器日志与状态落到本轮目录并回显尾部，避免只看到超时结果。
+    try {
+        foreach ($service in @('backend', 'mysql', 'redis')) {
+            & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "failure-$service.log")
+        }
+        & docker compose -f $composeYml -p $project --env-file $envFile ps *> (Join-Path $runDir 'failure-ps.txt')
+        Write-Host '--- backend log tail (last 120 lines) ---'
+        Get-Content -LiteralPath (Join-Path $runDir 'failure-backend.log') -Tail 120 | ForEach-Object { Write-Host $_ }
+    } catch {
+        Write-Host "diagnostics unavailable: $_"
+    }
     exit 2
 } finally {
     Write-Host '=== cleanup: removing only this run''s resources ==='
