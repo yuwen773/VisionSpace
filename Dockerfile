@@ -19,7 +19,24 @@ WORKDIR /app
 # 从构建阶段复制 jar 包
 COPY --from=builder /app/target/*.jar app.jar
 
-# 暴露端口
+# 运行身份：非 root 专用 UID/GID。属主 root 但全员可读/可遍历（755），
+# 运行用户读得到 jar 却写不了；镜像内可写范围只有应用临时目录。
+RUN addgroup -g 10001 app && adduser -u 10001 -G app -D -H -s /sbin/nologin app \
+    && mkdir -p /app/tmp \
+    && chown -R app:app /app/tmp \
+    && chmod 770 /app/tmp \
+    && chown root:root /app /app/app.jar \
+    && chmod 755 /app && chmod 755 /app/app.jar
+
+USER 10001:10001
+
+ENV TMPDIR=/app/tmp
+
+# 只声明业务端口；管理端口 9081 绑定 127.0.0.1，不对外
 EXPOSE 8081
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 探活走 readiness：包含 db/redis 组件，依赖故障时报告 503
+HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:9081/actuator/health/readiness || exit 1
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

@@ -70,3 +70,7 @@ docker-compose.override.yml
 ## MUST BE IGNORED
 /sql/vision_space.sql
 /src/main/resources/application-server.yml
+
+# 密码代理文件（compose env_file 用，含真实值，禁止提交）
+.env.secrets
+.env.secrets.*

@@ -1,0 +1,31 @@
+name: Container candidate verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      # 构建并启动隔离生产候选：随机回环端口与秘密，断言运行身份、可写范围、
+      # 端口发布、生效 profile、SQL 日志卫生，以及依赖故障/恢复/重试耗尽。
+      - name: Isolated production candidate (build, run, health)
+        shell: pwsh
+        run: ./scripts/container-verification.ps1
+      - name: Preserve container evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-verification-evidence
+          path: |
+            /tmp/visionspace-container-*/
+          if-no-files-found: warn
+          retention-days: 14
