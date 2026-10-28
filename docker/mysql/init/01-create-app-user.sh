@@ -22,7 +22,7 @@ APP_PASSWORD_SQL=$(sql_quote "$MYSQL_APP_PASSWORD")
 docker_process_sql --database="$MYSQL_DATABASE" <<-EOSQL
 CREATE USER IF NOT EXISTS 'vision_app'@'%' IDENTIFIED BY $APP_PASSWORD_SQL;
 GRANT SELECT, INSERT, UPDATE, DELETE ON \`$MYSQL_DATABASE\`.* TO 'vision_app'@'%';
--- 探活账号只有连接权：mysqladmin ping 无需任何库表授权，最小权限优先
+-- 探活账号只有连接权：SELECT 1 不需要任何库表授权，最小权限优先
 CREATE USER IF NOT EXISTS 'healthcheck'@'localhost' IDENTIFIED BY $APP_PASSWORD_SQL;
 FLUSH PRIVILEGES;
 EOSQL
