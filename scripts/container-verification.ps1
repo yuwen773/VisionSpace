@@ -266,7 +266,9 @@ try {
     Assert ((Get-BackendHealth) -eq 'healthy') 'A4-healthy-before-failure' 'readiness healthy before failure'
 
     Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'mysql-stop.log')
-    Assert (Wait-Health 'unhealthy' 90) 'A4-readiness-down-on-mysql-stop' 'readiness must report unhealthy after mysql stops'
+    # 窗口要覆盖容器探活的重试周期（interval 10s × retries 6）加上单次探活的
+    # 阻塞时间；90 秒会卡在边界上误判，150 秒留出余量。
+    Assert (Wait-Health 'unhealthy' 150) 'A4-readiness-down-on-mysql-stop' 'readiness must report unhealthy after mysql stops'
 
     Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'mysql-start.log')
     # 恢复等待必须等到 healthy 或超时：unhealthy 是过渡态，不能一次判负
@@ -274,7 +276,7 @@ try {
 
     # Redis 故障同样必须反映到 readiness（redis 组件在 readiness 组内）
     Invoke-Compose @('stop', 'redis') *> (Join-Path $runDir 'redis-stop.log')
-    Assert (Wait-Health 'unhealthy' 90) 'A4-readiness-down-on-redis-stop' 'readiness must report unhealthy after redis stops'
+    Assert (Wait-Health 'unhealthy' 150) 'A4-readiness-down-on-redis-stop' 'readiness must report unhealthy after redis stops'
 
     Invoke-Compose @('start', 'redis') *> (Join-Path $runDir 'redis-start.log')
     Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-redis-restart' 'readiness must return healthy after redis restarts'

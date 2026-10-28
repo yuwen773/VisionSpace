@@ -57,8 +57,9 @@ management:
         include: health
   health:
     redis:
-      # 探活超时短于容器健康检查间隔，避免检查堆积
-      timeout: 3s
+      # 探活超时明显短于容器健康检查间隔：Redis 故障时 readiness 要在
+      # 秒级返回 503，而不是拖到容器探活超时。本地 PING 是毫秒级。
+      timeout: 1s
 aliYunAi:
   apiKey: ${ALI_YUN_AI_API_KEY:}
 sa-token:
