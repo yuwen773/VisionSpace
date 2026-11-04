@@ -11,8 +11,11 @@
 -- storage_switch_confirm：确认实例集合（不是次数计数器）。
 --   主键 (version, instanceId)，INSERT IGNORE 保证同一实例对同一版本
 --   重复确认（重试、重启后再次确认）只计一次，杜绝确认数虚增导致的提前晋升。
---   instanceId 为进程启动时生成的 UUID；进程重启后旧确认行随新确认共存，
---   每行都对应一次真实的候选应用，晋升判定只看集合大小。
+--   instanceId 为实例本地持久化的 UUID（vs.instance-id-file）：同一物理实例
+--   跨重启复用同一标识，不会因重启在集合里占多席。
+--   残留清理：占位事务内由占位赢家清空同版本号的全部确认行——回滚只清
+--   pending 不清本表，重新发起时若不清残留行，流产尝试的确认会被继承，
+--   导致其余实例未确认就被提前晋升。
 --
 -- 切换流程（对应父规格 D20）：
 --   1. 候选快照完整构建并验证（任一配置失败即整体失败，保留旧快照）；
@@ -76,3 +79,20 @@ DEALLOCATE PREPARE stmt;
 
 -- 单行初始化：仅在该行不存在时插入（幂等，可重复执行）。
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
+
+-- 前向清理：跑过早期版本迁移（确认进度为计数器）的环境会残留 NOT NULL 的
+-- confirmCount 死列，现行代码不再写入。条件 DROP，幂等可重复执行。
+SET @confirm_count_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'storage_switch_state'
+    AND COLUMN_NAME = 'confirmCount'
+);
+SET @ddl = IF(
+  @confirm_count_exists > 0,
+  'ALTER TABLE `storage_switch_state` DROP COLUMN `confirmCount`',
+  'SELECT ''storage_switch_state.confirmCount not present, nothing to do'''
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -12,3 +12,20 @@
 
 -- 状态单行兜底（幂等）
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
+
+-- 对称恢复：前向迁移会条件 DROP 早期计数器列 confirmCount；若本环境回滚到
+-- 仍依赖该列的中间版本，可在此条件重建（DEFAULT 0 保证现行应用不写它也能插入）。
+SET @confirm_count_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'storage_switch_state'
+    AND COLUMN_NAME = 'confirmCount'
+);
+SET @ddl = IF(
+  @confirm_count_exists = 0,
+  'ALTER TABLE `storage_switch_state` ADD COLUMN `confirmCount` int(11) NOT NULL DEFAULT 0 COMMENT ''（已废弃）确认计数器，仅中间版本使用''',
+  'SELECT ''storage_switch_state.confirmCount already present, nothing to do'''
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
