@@ -155,7 +155,11 @@ class StorageSwitchServiceTest {
     @Test
     void switchAbortsWhenClaimIsConcurrentlyRolledBack() {
         when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
-        when(stateMapper.selectById(1L)).thenReturn(idleState(), idleState());
+        // 读序：校验激活状态 → 占位事务内（此时占位仍有效）→ 应用前重读（已被并发回滚）
+        when(stateMapper.selectById(1L)).thenReturn(
+                idleState(),
+                state(5L, 6L, TARGET_ID, "oss", 1),
+                idleState());
         when(stateMapper.claimSwitch(TARGET_ID, "oss", 1)).thenReturn(1);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
@@ -173,9 +177,10 @@ class StorageSwitchServiceTest {
     @Test
     void singleInstanceSwitchCompletesImmediatelyAndMovesActivation() {
         when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
-        // 读序：校验激活状态 → 占位后重读 → maybeComplete 读 → 晋升后 buildStatus 读
+        // 读序：校验激活状态 → 占位事务内 → 占位后重读 → maybeComplete → 晋升后 buildStatus
         when(stateMapper.selectById(1L)).thenReturn(
                 idleState(),
+                state(5L, 6L, TARGET_ID, "oss", 1),
                 state(5L, 6L, TARGET_ID, "oss", 1),
                 state(5L, 6L, TARGET_ID, "oss", 1),
                 completedState(6L));
@@ -191,6 +196,46 @@ class StorageSwitchServiceTest {
         verify(stateMapper).completeSwitch(6L);
         verify(configMapper).deactivateOtherConfigs(TARGET_ID);
         verify(configMapper).activateConfig(TARGET_ID);
+    }
+
+    /**
+     * 回归：回滚只清 pending 不清 confirm 集合，重新发起时占位赢家必须在
+     * 占位事务内清掉同版本号的残留确认行，否则上次流产尝试的确认会被继承，
+     * 其余实例从未确认就被提前晋升（虚报完整成功）。
+     */
+    @Test
+    void claimPurgesStaleConfirmRowsFromAbortedAttempt() {
+        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
+        when(stateMapper.selectById(1L)).thenReturn(
+                idleState(),
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2));
+        when(stateMapper.claimSwitch(TARGET_ID, "oss", 2)).thenReturn(1);
+        when(confirmMapper.countByVersion(6L)).thenReturn(1L);
+
+        StorageSwitchStatusVO status = service.switchToStoragePlatform(request(TARGET_ID, 2));
+
+        assertEquals("pending", status.getPhase());
+        verify(stateMapper).claimSwitch(TARGET_ID, "oss", 2);
+        verify(confirmMapper).deleteByVersion(6L);
+    }
+
+    /**
+     * 占位落败方不得清理确认集合：并发赢家可能已经收到本版本的新确认行。
+     */
+    @Test
+    void failedClaimDoesNotPurgeConfirmRows() {
+        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
+        when(stateMapper.selectById(1L)).thenReturn(idleState());
+        when(stateMapper.claimSwitch(TARGET_ID, "oss", 2)).thenReturn(0);
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                service.switchToStoragePlatform(request(TARGET_ID, 2)));
+
+        assertEquals(50001, exception.getCode());
+        verify(confirmMapper, never()).deleteByVersion(anyLong());
+        verify(confirmMapper, never()).insertIgnore(anyLong(), anyString(), any(Long.class));
     }
 
     /**

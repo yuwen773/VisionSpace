@@ -84,15 +84,20 @@ class HttpStorageSwitchTest {
                     pendingPlatform = NULL, pendingTime = NULL, expectedInstances = 1
                 WHERE id = 1
                 """);
+        // 按 id 与平台双口径清理：库里可能存在引导种子或前序套件留下的同平台行
+        // （platform 有唯一键，只按固定 id 删会撞 uk_platform）
         jdbc.update("DELETE FROM picture_file WHERE objectKey IN (?, ?)", OLD_RESOURCE_KEY, NEW_RESOURCE_KEY);
         jdbc.update("DELETE FROM picture WHERE id = ?", OLD_PICTURE_ID);
-        jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?)", OLD_CONFIG_ID, NEW_CONFIG_ID);
+        jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?) OR platform IN (?, ?)",
+                OLD_CONFIG_ID, NEW_CONFIG_ID, OLD_PLATFORM, NEW_PLATFORM);
         jdbc.update("UPDATE storage_config SET isActive = 0");
         jdbc.update("UPDATE storage_config SET isActive = 1 WHERE id = ?", OLD_CONFIG_ID);
     }
 
     private void seedConfigs() {
-        jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?)", OLD_CONFIG_ID, NEW_CONFIG_ID);
+        // 与 cleanup 同口径：id 与平台双清，对种子数据与前序套件残留健壮
+        jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?) OR platform IN (?, ?)",
+                OLD_CONFIG_ID, NEW_CONFIG_ID, OLD_PLATFORM, NEW_PLATFORM);
         jdbc.update("""
                 INSERT INTO storage_config
                     (id, platform, platformName, endpoint, region, bucket, accessKey, secretKey,
@@ -250,6 +255,39 @@ class HttpStorageSwitchTest {
             assertTrue(after.path("data").path("localSynced").asBoolean());
             assertEquals(OLD_PLATFORM, after.path("data").path("activePlatform").asText());
             assertEquals(OLD_PLATFORM, after.path("data").path("localDefaultPlatform").asText());
+        }
+    }
+
+    /**
+     * 回归：回滚只清 pending 不清 confirm 集合，重新发起时占位事务必须清掉
+     * 同版本号的残留确认行——否则上次流产尝试的 1 行确认会被继承，
+     * 本实例一确认即虚增到 2/2，另一实例从未应用候选就被提前晋升。
+     */
+    @Test
+    void reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows() throws Exception {
+        seedConfigs();
+        try (var admin = client()) {
+            loginAsAdmin(admin);
+            // 第一次发起（expected=2，本实例确认 1/2）后回滚：集合里残留 1 行
+            assertEquals(0, post(admin, "/storage/config/set_active",
+                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 2))
+                    .path("code").asInt());
+            assertEquals(0, post(admin, "/storage/config/switch/rollback", Map.of())
+                    .path("code").asInt());
+            // 重新发起：claimSwitch 复用同一版本号（activeVersion 未变）
+            assertEquals(0, post(admin, "/storage/config/set_active",
+                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 2))
+                    .path("code").asInt());
+            var status = get(admin, "/storage/config/switch/status");
+            assertEquals("pending", status.path("data").path("phase").asText(), status.toString());
+            assertEquals(1, status.path("data").path("confirmCount").asInt(),
+                    "重新发起不得继承上次流产尝试的确认行: " + status);
+            assertEquals(OLD_PLATFORM, status.path("data").path("activePlatform").asText(),
+                    "残留确认行不得触发提前晋升");
+            int persistedActive = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM storage_config WHERE id = ? AND isActive = 1", Integer.class,
+                    NEW_CONFIG_ID);
+            assertEquals(0, persistedActive, "其余实例未确认时不得迁移持久激活标记");
         }
     }
 
