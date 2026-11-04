@@ -93,8 +93,7 @@ class UserPreferenceServiceTest {
     }
 
     @Test
-    void saveFeedback_capsHistoryAtConfiguredSize() throws Exception {
-        AgentConstants constants = new AgentConstants();
+    void saveFeedback_capsHistoryAtConfiguredSize() throws Exception {        AgentConstants constants = new AgentConstants();
         constants.setMaxFeedbackHistorySize(1);
         ReflectionTestUtils.setField(service, "agentConstants", constants);
 
@@ -111,6 +110,24 @@ class UserPreferenceServiceTest {
                 new TypeReference<>() {});
         assertEquals(1, history.size());
         assertEquals("新原因", history.get(0).get("reason"));
+    }
+
+    @Test
+    void saveFeedback_nullContentRow_learnsIntoEmptyProfileWithoutFailure() throws Exception {
+        // 刚清除或刚建行后内容列全为 null：学习必须按空档案处理——
+        // 不抛错、不给 applyLearned 传 null，学习产物落成合法 JSON
+        when(mapper.selectByUserId(USER_ID)).thenReturn(row(0, 0, 1));
+        when(mapper.applyLearned(eq(USER_ID), anyString(), anyString(), eq(0L), eq(0L))).thenReturn(1);
+
+        service.saveFeedback(USER_ID, ActionType.REGENERATE, "太暗了");
+
+        ArgumentCaptor<String> learnedJson = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> historyJson = ArgumentCaptor.forClass(String.class);
+        verify(mapper).applyLearned(eq(USER_ID), learnedJson.capture(), historyJson.capture(),
+                eq(0L), eq(0L));
+        Map<String, Object> learned = objectMapper.readValue(learnedJson.getValue(), MAP_TYPE);
+        assertTrue(learned.get("disliked_styles").toString().contains("暗色调"), learnedJson.getValue());
+        assertTrue(historyJson.getValue().contains("太暗了"), historyJson.getValue());
     }
 
     // ---- 27.3 清除/关闭与在途学习交错：旧任务不能复活已清除数据 ----
@@ -167,6 +184,16 @@ class UserPreferenceServiceTest {
     }
 
     // ---- 27.3 显式设置优先于模型推断 ----
+
+    @Test
+    void loadForModel_nullContentRow_returnsEmptyWithoutFailure() {
+        UserPreference row = row(0, 0, 0);
+        row.setLearnedContent(null);
+        row.setExplicitContent(null);
+        when(mapper.selectByUserId(USER_ID)).thenReturn(row);
+
+        assertTrue(service.loadForModel(USER_ID).isEmpty(), "内容列为 null 必须按空偏好处理");
+    }
 
     @Test
     void loadForModel_explicitOverridesLearnedOnSameKey() {

@@ -117,8 +117,11 @@ class HttpAgentPreferenceTest {
             JsonNode updated = user.post("/agent/preference/update", json.writeValueAsString(Map.of(
                     "explicit", Map.of("liked_styles", List.of("水彩"), "rogue_key", List.of("x")))));
             assertEquals(0, updated.path("code").asInt(), updated.toString());
-            assertEquals(List.of("水彩").toString(), updated.path("data").path("explicit")
-                    .path("liked_styles").toString());
+            // 数组键必须按 JSON 数组存取（元素逐个比对，不比对节点 toString 的形状）
+            JsonNode likedStyles = updated.path("data").path("explicit").path("liked_styles");
+            assertTrue(likedStyles.isArray(), "数组键必须是数组: " + likedStyles);
+            assertEquals(1, likedStyles.size(), likedStyles.toString());
+            assertEquals("水彩", likedStyles.get(0).asText(), likedStyles.toString());
             assertFalse(updated.path("data").path("explicit").has("rogue_key"));
         }
     }
@@ -161,9 +164,11 @@ class HttpAgentPreferenceTest {
                     "清除后旧学习任务的条件更新不得命中");
 
             var after = preferenceMapper.selectByUserId(user.id);
+            // 清除把三块内容全部置空（含显式设置）：旧学习任务写不回，
+            // 显式设置同样不被旧任务复活——任何一块非空都是复活
             assertNull(after.getLearnedContent(), "已清除的学习数据不得被旧任务复活");
-            assertEquals("整体偏亮", json.readTree(after.getExplicitContent()).path("notes").asText(),
-                    "清除只清偏好内容，显式设置不受旧学习任务影响");
+            assertNull(after.getFeedbackHistory(), "已清除的反馈历史不得被旧任务复活");
+            assertNull(after.getExplicitContent(), "已清除的显式设置不得被旧任务复活");
         }
     }
 
