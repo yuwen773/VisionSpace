@@ -3,47 +3,75 @@
 分支：`feat/40-storage-switch`（基于 main 8dd98e0）
 规格：`.tickets/issue-40.md`（父规格 SRF-v2 D20；测试决策 T20）
 
-## 切换语义（候选验证 → 原子切换 → 双实例确认）
+## 切换语义（候选验证 → 原子占位 → 确认集合 → 事务内晋升）
 
 1. **候选完整构建验证**：`StorageSnapshotAssembler` 把全部启用配置逐一交给
    `StorageCandidateVerifier`（生产实现 `DefaultStorageCandidateVerifier`：平台枚举与必填字段
    显式校验 → 完整构建 x-file-storage 平台客户端 → 反射强制完成惰性 SDK 客户端初始化 →
-   可选 bucketExists 探活，默认关闭）。任一配置失败即整体失败，运行时与持久状态都不触碰。
+   可选 bucketExists 探活，**默认开启（fail-closed）**，隔离验收经 acceptance.yml 显式关闭）。
+   任一配置失败即整体失败，运行时与持久状态都不触碰。
 2. **原子占位**：`storage_switch_state` 单行表（迁移 `2026-11-05-storage-switch-state.sql`），
    `claimSwitch` 以 `WHERE pendingVersion IS NULL` 单语句原子占位，跨实例只允许一个进行中的
-   切换；落败方收到显式错误，不静默排队。
-3. **本实例生效**：`StorageSnapshotManager.apply` 原子应用候选快照（同名平台原位替换 →
-   追加新增 → 移除失效），不做「先清空列表再重建」。
-4. **各实例确认**：`/storage/config/switch/confirm` 原子累加 `confirmCount`；本实例重复确认
-   不重复累加（内存领取标记 + 先领额度再应用，应用失败可重试）。
-5. **晋升**：确认数达到 `expectedInstances` 后在同一事务里 `completeSwitch`（版本晋升）并
-   `deactivateOtherConfigs` + `activateConfig`（持久激活标记迁移），保证运行生效与
-   `storage_config.isActive` 一致提交。
-6. **回滚**：`/storage/config/switch/rollback` 清空 pending，`activeVersion` 不变；本实例从
-   持久激活配置重建快照。部分生效的其他实例呈现版本漂移（状态接口可见 `localSynced=false`），
-   由管理员逐实例执行 `/storage/config/refresh` 对齐。
-7. **旧资源不受影响**：切换不搬迁、不删除任何对象；资源的读取/删除/补偿始终按资源记录里的
+   切换；落败方收到显式错误，不静默排队。**不预置确认数**：占位只写
+   pendingVersion/pendingConfigId/pendingPlatform/pendingTime/expectedInstances。
+3. **占位后重校验**：占位与生效之间可能被并发回滚；应用前重读状态行，占位不再是本次目标
+   即放弃应用（fail-closed），不静默运行已被回滚的候选快照。
+4. **本实例生效**：`StorageSnapshotManager.apply` 应用候选快照：先让全部候选平台就位
+   （同名原位替换 / 新增追加，重复名显式失败）→ 再切默认平台 → 最后移除不在候选中的平台。
+   x-file-storage 内部平台列表是 final 字段，无法整体引用交换；上述顺序保证任意时刻
+   保留平台的查找都可用，`AtomicReference<Snapshot>` 作为权威生效记录。
+5. **各实例确认（确认集合，非计数器）**：确认写入 `storage_switch_confirm`
+   （主键 `(version, instanceId)`，`INSERT IGNORE`）。同一实例重复确认（重试、重启、双击）
+   只占一席，晋升不可能被确认数虚增提前触发；发起实例与其余实例走同一条确认路径。
+   注意：实例标识为进程内 UUID，重启后产生新标识——旧行保留（如实反映该实例曾确认过），
+   新进程按新实例重新确认。
+6. **晋升**：确认集合大小 ≥ expectedInstances 后在同一事务里 `completeSwitch`
+   （`WHERE pendingVersion=#{version}`，并发晋升唯一赢家）并 `deactivateOtherConfigs` +
+   `activateConfig`（持久激活标记迁移），保证运行生效与 `storage_config.isActive` 一致提交。
+   **单实例部署（expectedInstances=1）发起即确认即晋升**，不存在「1/1 卡 pending」状态。
+7. **回滚**：`/storage/config/switch/rollback` 原子清空 pending（`WHERE pendingVersion IS NOT NULL`），
+   `activeVersion` 不变；本实例从持久激活配置重建快照。已应用候选的落后实例在下次
+   状态读取/确认时**惰性自愈**（pending 为空且本地版本 ≠ activeVersion 时从持久配置重建；
+   pending 非空期间的落后是待确认状态，绝不自动应用）。
+8. **旧资源不受影响**：切换不搬迁、不删除任何对象；资源的读取/删除/补偿始终按资源记录里的
    原平台与对象键定位（#34 已建立的行级归属）。
-8. **在途上传**：`putPictureObject`/`putObject` 在任务开始时解析并钉住平台
+9. **在途上传**：`putPictureObject`/`putObject` 在任务开始时解析并钉住平台
    （`setPlatform`），切换并发时在途上传按原配置完成；无默认平台时显式拒绝上传，
    不存在「不确定落到哪个平台」的暧昧状态。
+
+## 评审处置表（两轴评审 P1/P2/P3）
+
+| # | 级别 | 问题 | 处置 |
+| --- | --- | --- | --- |
+| 1 | P1 | 确认计数跨实例虚增（内存计数器 + 发起方预置 1） | **已修**：删除 `confirmCount` 列与 `incrementConfirm`；新增 `storage_switch_confirm` 确认集合表（主键 (version, instanceId) + INSERT IGNORE）；发起实例走统一确认路径；晋升条件改为集合大小 ≥ expectedInstances；移除 `localConfirmedVersion` 内存标记。回归：`StorageSwitchServiceTest.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies`；验收 `switchReportsPendingUntilConfirmed`（重复确认仍 1/2） |
+| 2 | P1 | claim→rollback 交错会静默应用已回滚候选 | **已修**：占位成功后、应用前重读状态行并校验 pendingConfigId 仍是本次目标；不符即抛显式错误且不应用。回归：`StorageSwitchServiceTest.switchAbortsWhenClaimIsConcurrentlyRolledBack` |
+| 3 | P1 | 快照应用非原子（先清后建窗口） | **已修（如实的等价方案）**：x-file-storage 的平台列表是 final `CopyOnWriteArrayList`，整体引用交换不可行；改为全候选就位 → 切默认 → 移除失效的三段顺序应用 + `AtomicReference<Snapshot>` 权威记录，任意时刻保留平台查找可用；`FileStorageService.getFileStorageList()` 快照口径不变。已在类 javadoc 与上文语义第 4 条说明约束 |
+| 4 | P1 | deleteStorageConfig 可删除生效中/待切换目标配置 | **已修**：生效中配置删除显式拒绝（提示先切换）；进行中切换的目标配置删除显式拒绝（提示先回滚）。回归：验收 `HttpStorageConfigSecurityTest` 覆盖入口鉴权，删除守卫由 `StorageConfigServiceImpl.deleteStorageConfig` 实现 |
+| 5 | P2 | 生效中配置可改平台/凭据而不经验证 | **已修**：生效中配置拒绝平台变更与停用（须走切换流程）；改动存储目标字段（endpoint/region/bucket/basePath/domain/accessKey/secretKey）时先对合并后的候选执行完整验证，失败不保存 |
+| 6 | P2 | AC24.1 探活默认值含糊 | **已修**：`candidate-probe-enabled` 生产默认 **true**（fail-closed），`application.yml` 经 `VISION_SPACE_STORAGE_CANDIDATE_PROBE` 注入；隔离验收在 `acceptance.yml` 显式置 false（不产生真实存储网络请求）。无保留意见 |
+| 7 | P2 | 回滚后其他实例漂移不自愈 | **已修**：pending 为空且本地版本落后时，状态读取/确认触发惰性自愈（从持久配置重建，失败不阻塞状态读取且漂移保持可见）。回归：`StorageSwitchServiceTest.statusReadSelfHealsResidualDriftAfterRollback` / `.pendingSwitchIsNeverAutoAppliedByStatusRead`；验收 `statusReadSelfHealsLaggingInstanceAfterCompletedSwitch`（双实例） |
+| 8 | P2 | 单实例阶段 1/1 卡 pending 自相矛盾；前端硬编码实例数 | **已修**：发起实例占位后走统一确认路径，expectedInstances=1 时在 maybeComplete 内立即晋升；期望实例数由后端权威下发（状态 VO），前端切换弹窗由运维按部署规模填写、展示一律用后端返回值。回归：`StorageSwitchServiceTest.singleInstanceSwitchCompletesImmediatelyAndMovesActivation`；验收 `singleInstanceSwitchCompletesImmediatelyAndMovesActivation` |
+| 9 | P2 | /switch 与 /set_active 双入口；isDefault/set_default 死概念 | **已修**：删除 `/switch` 别名（保留 `/set_active` 为唯一切换入口，前端与既有验收已使用）；删除 `/set_default` 端点、`setDefaultPlatform` 服务方法、VO/DTO `isDefault` 字段及前端设默认按钮（DB 列保留，代码路径清空） |
+| 10 | P3 | 旧 URL 域名匹配删除路径受限 | 记录：按 URL 精确匹配本人记录的删除入口仅覆盖 acceptance.invalid 形式的登记地址；旧平台域名下的历史 URL 依赖 D08 维护窗口人工核对，不由本工单自动执行 |
+| 11 | P3 | 被撤销凭据「不长期沿用」 | 人工关卡：切换/候选验证保证新配置在启用前验证；撤销凭据的旧配置在切换后仍留在库里供旧资源读写（AC24.4 的要求），「停用/轮换」由 D20 运维交接流程承担 |
+| 12 | P3 | 阶段魔串 / 版本钉住重复 | 记录：phase 取值 `pending`/`completed` 集中在 `StorageSwitchService.buildStatus`；快照版本读取经由 `StorageSnapshotManager.currentVersion()` 单点，未做进一步抽象 |
 
 ## AC → 测试 → 状态
 
 | AC | 内容 | 测试 | 状态 |
 | --- | --- | --- | --- |
 | 24.1 | 候选完整验证后再原子切换；失败保留旧快照，不虚报完整成功 | 单测 `StorageSwitchServiceTest.candidateVerificationFailureKeepsOldSnapshotAndState` / `.alreadyActivePlatformIsRejectedWithoutClaiming`；单测 `DefaultStorageCandidateVerifierTest`（坏平台/缺字段/坏端点/坏 bucket 显式失败）；验收 `HttpStorageSwitchTest.singleSwitchKeepsOldSnapshotWhenCandidateFails` | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；两实例确认才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.promotionIsHeldUntilEveryExpectedInstanceConfirms` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.3 | 在途上传用原配置、新任务用已验证配置；双实例竞争不产生多活或无活的暧昧默认状态 | 单测 `PictureStorageServicePlatformPinTest`（平台钉住 + 无默认显式拒绝）；单测 `StorageSwitchServiceTest.concurrentSwitchLosesWithExplicitError`（占位唯一赢家）；验收 `HttpStorageSwitchTest.uploadUsesVerifiedSnapshotAndRejectsNoDefaultState` | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.4 | 读取/删除/补偿按资源原平台定位；切换不搬迁、不删除旧文件、不长期沿用已撤销凭据 | 验收 `HttpStorageSwitchTest.legacyResourcesKeepOriginalPlatformAcrossSwitch`（切换后旧资源平台/对象键未被改写、切换过程零存储调用、删除按原平台）；单测 `StorageSwitchServiceTest`（切换不触碰资源表） | NOT_RUN in isolation |
-| 24.5 | UI 展示真实生效状态；密钥不输出；旧平台资源核对及维护回滚可执行 | 验收 `HttpStorageSwitchTest.statusEndpointShowsRealEffectAndNoSecrets`；前端 `StorageConfigManagePage.vue`（本实例生效版本 / 版本漂移 / 确认进度 / 回滚按钮）；单测 `StorageCredentialMaskerTest`（既有） | NOT_RUN in isolation；UI 为人工关卡 |
+| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；确认集合达到期望才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.singleInstanceSwitchCompletesImmediatelyAndMovesActivation` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | NOT_RUN in isolation（单测 PASS 本地） |
+| 24.3 | 在途上传用原配置、新任务用已验证配置；双实例竞争不产生多活或无活的暧昧默认状态 | 单测 `PictureStorageServicePlatformPinTest`（平台钉住 + 无默认显式拒绝）；单测 `StorageSwitchServiceTest.concurrentSwitchLosesWithExplicitError` / `.switchAbortsWhenClaimIsConcurrentlyRolledBack`；验收 `HttpStorageSwitchTest.uploadUsesVerifiedSnapshotAndRejectsNoDefaultState` | NOT_RUN in isolation（单测 PASS 本地） |
+| 24.4 | 读取/删除/补偿按资源原平台定位；切换不搬迁、不删除旧文件、不长期沿用已撤销凭据 | 验收 `HttpStorageSwitchTest.legacyResourcesKeepOriginalPlatformAcrossSwitch`（切换后旧资源平台/对象键未被改写、内容读取按原平台、删除按原平台、切换不触碰资源状态）；单测 `StorageSwitchServiceTest`（切换不触碰资源表） | NOT_RUN in isolation；撤销凭据轮换为人工关卡 |
+| 24.5 | UI 展示真实生效状态；密钥不输出；旧平台资源核对及维护回滚可执行 | 验收 `HttpStorageSwitchTest.statusEndpointShowsRealEffectAndNoSecrets` / `.statusReadSelfHealsLaggingInstanceAfterCompletedSwitch`（双实例自愈）；前端 `StorageConfigManagePage.vue`（本实例生效版本 / 版本漂移 / 确认进度与期望实例数（后端下发）/ 回滚按钮 / 运维填写期望实例数的切换弹窗）；单测 `StorageCredentialMaskerTest`（既有） | NOT_RUN in isolation；UI 为人工关卡 |
 
 状态说明：
-- **PASS 本地**：`StorageSwitchServiceTest`（10）、`PictureStorageServicePlatformPinTest`（4）、
+- **PASS 本地**：`StorageSwitchServiceTest`（13）、`PictureStorageServicePlatformPinTest`（4）、
   `DefaultStorageCandidateVerifierTest`（6）在本 worktree 直接运行通过。
 - **NOT_RUN in isolation**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
   （及双实例用例的第二 JVM 端口），由编排者在交付后串行运行。
-- **人工关卡**：真实云凭据下的 bucketExists 探活（`VISION_SPACE_STORAGE_CANDIDATE_PROBE=true`）、
+- **人工关卡**：真实云凭据下的 bucketExists 探活（生产默认开启，隔离验收关闭）、
   密钥轮换与仍在使用旧配置任务的运维交接（D20 明确要求交接，不由本工单自动执行）、
   前端 UI 实际渲染核对。
 
@@ -52,35 +80,45 @@
 后端（新增）：
 - `manager/storage/StorageCandidateVerifier.java` / `DefaultStorageCandidateVerifier.java`
 - `manager/storage/StorageSnapshotManager.java` / `StorageSwitchService.java`
+- `manager/storage/StorageInstanceIdProvider.java`（进程内实例标识，确认集合主键成分）
 - `manager/storage/init/StorageSnapshotAssembler.java`
-- `mapper/StorageSwitchStateMapper.java` + `resources/mapper/StorageSwitchStateMapper.xml`
-- `model/entity/StorageSwitchState.java`、`model/vo/StorageSwitchStatusVO.java`、
-  `model/dto/storage/StorageSwitchRequest.java`
+- `mapper/StorageSwitchStateMapper.java` / `mapper/StorageSwitchConfirmMapper.java`
+  + 对应 XML（原子占位 / 原子完成 / 原子回滚 / INSERT IGNORE 确认 / 集合计数）
+- `model/entity/StorageSwitchState.java`、`model/entity/StorageSwitchConfirm.java`、
+  `model/vo/StorageSwitchStatusVO.java`、`model/dto/storage/StorageSwitchRequest.java`
 - `resources/mapper/StorageConfigMapper.xml`（受限查询 + 激活迁移原子语句）
 
 后端（修改）：
 - `PictureStorageService`：上传前钉住平台；无默认平台显式拒绝（BusinessException 传播）
 - `FileStorageInit`：启动改为「保证状态行 → 完整构建候选快照 → 原子应用」；失败保持空快照并显式报错
-- `StorageConfigController`：`set_active` 改为切换语义（返回状态 VO）；新增
-  `/switch`、`/switch/confirm`、`/switch/rollback`、`GET /switch/status`；`refresh` 重建持久快照
-- `StorageConfigService(Impl)`：移除 `setActivePlatform` 直改路径；`add`/`update` 拒绝直接写 `isActive=1`
-  （激活只能走切换流程），移除「先 deactivateAll 再 save」的先清后写模式
+- `StorageConfigController`：`set_active` 为唯一切换入口（返回状态 VO）；新增
+  `/switch/confirm`、`/switch/rollback`、`GET /switch/status`；`refresh` 重建持久快照；
+  删除 `/switch` 别名与 `/set_default`
+- `StorageConfigService(Impl)`：移除 `setActivePlatform` 与 `setDefaultPlatform` 直改路径；
+  `add`/`update` 拒绝直接写 `isActive=1`；生效中配置拒绝平台变更/停用、存储目标字段改动
+  先候选验证；删除守卫（生效中不可删、进行中切换目标不可删）
 - `StorageConfigMapper`：新增受限查询与原子激活迁移语句
+- `application.yml`：`candidate-probe-enabled` 默认 true；`acceptance.yml` 显式 false
 
 前端：
-- `api-custom/storage.ts`：切换/确认/回滚/状态 API 与 `StorageSwitchStatus` 类型
+- `api-custom/storage.ts`：切换/确认/回滚/状态 API 与 `StorageSwitchStatus` 类型；
+  移除 `setDefaultPlatformUsingPost` 与 `isDefault`
 - `pages/admin/StorageConfigManagePage.vue`：真实生效状态卡片（本实例版本、漂移标记、
-  pending 确认进度与回滚）、切换改为带确认弹窗且失败提示「已保留当前生效平台」
+  pending 确认进度与回滚）；切换改为弹窗（运维填写期望实例数，展示用后端返回值）；
+  移除设默认按钮
 
 SQL：
-- `sql/migrations/2026-11-05-storage-switch-state.sql`（+ rollback）：`storage_switch_state` 单行表，
-  幂等，无存量回填（启动 `ensureRow` 兜底）
+- `sql/migrations/2026-11-05-storage-switch-state.sql`（+ rollback）：`storage_switch_state`
+  单行表（无确认计数列）+ `storage_switch_confirm` 确认集合表，幂等，无存量回填
+  （启动 `ensureRow` 兜底）
 - `sql/create_vision_space.sql`：新增同表（验收 bootstrap 从该文件提取 DDL）
 
 ## 已知缺口
 
 - 双实例验收用例依赖编排脚本注入 `-Dvs.acceptance.second-port`（与 #39 相同机制），
-  本机无法单独运行。
+  本机无法单独运行；脚本未注入端口时用例显式 BLOCKED_ENV，不冒充通过。
+- 实例标识为进程内 UUID：实例重启后旧确认行保留（如实记录），新进程按新实例重新确认；
+  重启风暴场景需运维把 expectedInstances 调到含重启的实例总数。
 - 凭据撤销后的「不能长期沿用旧凭据」由运维交接流程承担（D20 原文要求明确交接，
   不在本工单自动执行范围）；本工单提供的是旧平台资源仍可按原平台读写删除的能力。
 - 合并后需运行 `npm run openapi2ts` 重新生成前端 API 客户端（`set_active` 响应类型已变，
