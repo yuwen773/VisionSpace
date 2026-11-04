@@ -91,8 +91,11 @@ class HttpStorageConfigSecurityTest {
                     "delete must require admin");
             assertRejected(post(user, "/storage/config/set_active", Map.of("id", CONFIG_ID)),
                     "set_active must require admin");
-            assertRejected(post(user, "/storage/config/set_default", Map.of("id", CONFIG_ID)),
-                    "set_default must require admin");
+            // 切换确认与回滚同样只允许管理员（/set_default 已随死概念删除）
+            assertRejected(post(user, "/storage/config/switch/confirm", Map.of()),
+                    "switch confirm must require admin");
+            assertRejected(post(user, "/storage/config/switch/rollback", Map.of()),
+                    "switch rollback must require admin");
             assertRejected(post(user, "/storage/config/refresh", Map.of()),
                     "refresh must require admin");
         }

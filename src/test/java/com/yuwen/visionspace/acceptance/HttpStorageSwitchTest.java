@@ -50,6 +50,7 @@ class HttpStorageSwitchTest {
     private static final String NEW_PLATFORM = "oss";
     private static final String OLD_RESOURCE_KEY = "legacy/8820/old-image.png";
     private static final String NEW_RESOURCE_KEY = "legacy/8820/new-image.png";
+    private static final long OLD_PICTURE_ID = 88203;
     private static final String PASSWORD = "acceptance-password";
 
     @LocalServerPort
@@ -75,7 +76,16 @@ class HttpStorageSwitchTest {
         } catch (Exception ignored) {
             // 清理失败由下个 fixture 的显式状态断言暴露
         }
+        // 版本计数在测试间复位，用例之间不产生顺序耦合
+        jdbc.update("DELETE FROM storage_switch_confirm");
+        jdbc.update("""
+                UPDATE storage_switch_state
+                SET activeVersion = 1, pendingVersion = NULL, pendingConfigId = NULL,
+                    pendingPlatform = NULL, pendingTime = NULL, expectedInstances = 1
+                WHERE id = 1
+                """);
         jdbc.update("DELETE FROM picture_file WHERE objectKey IN (?, ?)", OLD_RESOURCE_KEY, NEW_RESOURCE_KEY);
+        jdbc.update("DELETE FROM picture WHERE id = ?", OLD_PICTURE_ID);
         jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?)", OLD_CONFIG_ID, NEW_CONFIG_ID);
         jdbc.update("UPDATE storage_config SET isActive = 0");
         jdbc.update("UPDATE storage_config SET isActive = 1 WHERE id = ?", OLD_CONFIG_ID);
@@ -108,6 +118,27 @@ class HttpStorageSwitchTest {
         return jdbc.queryForObject("SELECT MAX(id) FROM picture_file WHERE objectKey = ?", Long.class, objectKey);
     }
 
+    /**
+     * 登记一条可经 /picture/content 读取的图库资源（会话绑定走 picture 归属）。
+     */
+    private long seedGalleryResource(long ownerUserId, long pictureId, String platform, String objectKey) {
+        jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
+        jdbc.update("""
+                INSERT INTO picture (id, url, thumbnailUrl, name, userId, picSize, spaceId,
+                                     reviewStatus, isDelete)
+                VALUES (?, ?, ?, 'legacy-switch', ?, 10, NULL, 1, 0)
+                """, pictureId, "https://acceptance.invalid/" + objectKey,
+                "https://acceptance.invalid/" + objectKey + ".min", ownerUserId);
+        jdbc.update("""
+                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
+                                          objectKey, url, fileSize, status, deleteState, deleteRetryCount,
+                                          createTime, updateTime)
+                VALUES (?, NULL, ?, 'gallery', 'original', ?, ?, ?, 128, 1, 0, 0, NOW(), NOW())
+                """, ownerUserId, pictureId, platform, objectKey,
+                "https://acceptance.invalid/" + objectKey);
+        return pictureId;
+    }
+
     // ---- AC 24.1：候选完整验证失败时保留旧快照，不虚报完整成功 ----
 
     @Test
@@ -131,13 +162,45 @@ class HttpStorageSwitchTest {
 
     // ---- AC 24.2：持久配置 / 全局版本 / 实例版本可区分；未确认保持 pending 且可回滚 ----
 
+    /**
+     * P2-8：期望实例数由后端权威下发，前端不得硬编码；
+     * 单实例部署（expected=1）发起即确认即晋升，不存在「1/1 卡 pending」的自相矛盾状态。
+     */
+    @Test
+    void singleInstanceSwitchCompletesImmediatelyAndMovesActivation() throws Exception {
+        seedConfigs();
+        try (var admin = client()) {
+            loginAsAdmin(admin);
+            var switched = post(admin, "/storage/config/set_active",
+                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 1));
+            assertEquals(0, switched.path("code").asInt(), switched.toString());
+            assertEquals("completed", switched.path("data").path("phase").asText(), switched.toString());
+            // 持久激活已迁移到新平台，本实例与新版本对齐
+            var status = get(admin, "/storage/config/switch/status");
+            assertEquals("completed", status.path("data").path("phase").asText());
+            assertEquals(NEW_PLATFORM, status.path("data").path("activePlatform").asText());
+            assertEquals(NEW_PLATFORM, status.path("data").path("localDefaultPlatform").asText());
+            assertTrue(status.path("data").path("localSynced").asBoolean());
+            int persistedActive = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM storage_config WHERE id = ? AND isActive = 1", Integer.class, NEW_CONFIG_ID);
+            assertEquals(1, persistedActive, "晋升必须迁移持久激活标记");
+            int oldActive = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM storage_config WHERE id = ? AND isActive = 1", Integer.class, OLD_CONFIG_ID);
+            assertEquals(0, oldActive, "旧平台不得同时保持激活");
+        }
+    }
+
+    /**
+     * P1-1：确认以实例集合记录；期望 2 实例时发起侧只占 1 席，
+     * 保持 pending 且持久激活不提前迁移，可随时回滚。
+     */
     @Test
     void switchReportsPendingUntilConfirmed() throws Exception {
         seedConfigs();
         try (var admin = client()) {
             loginAsAdmin(admin);
             var switched = post(admin, "/storage/config/set_active",
-                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 1));
+                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 2));
             assertEquals(0, switched.path("code").asInt(), switched.toString());
             // pending 期间：持久激活仍在旧平台，全局版本已前进且本实例与新版本对齐
             var status = get(admin, "/storage/config/switch/status");
@@ -147,20 +210,18 @@ class HttpStorageSwitchTest {
             assertEquals(2L, status.path("data").path("activeVersion").asLong());
             assertEquals(2L, status.path("data").path("localEffectiveVersion").asLong());
             assertEquals(NEW_PLATFORM, status.path("data").path("localDefaultPlatform").asText());
+            assertEquals(2, status.path("data").path("expectedInstances").asInt(),
+                    "期望实例数必须由后端下发");
+            assertEquals(1, status.path("data").path("confirmCount").asInt(),
+                    "发起实例确认后集合只应有 1 席，不得预置或虚增");
 
-            // 期望实例数已满足：确认后晋升为完整成功，持久激活迁移到新平台
-            var confirmed = post(admin, "/storage/config/switch/confirm", Map.of());
-            assertEquals(0, confirmed.path("code").asInt(), confirmed.toString());
-            assertEquals("completed", confirmed.path("data").path("phase").asText());
-            var after = get(admin, "/storage/config/switch/status");
-            assertEquals("completed", after.path("data").path("phase").asText());
-            assertEquals(NEW_PLATFORM, after.path("data").path("activePlatform").asText());
-            int persistedActive = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM storage_config WHERE id = ? AND isActive = 1", Integer.class, NEW_CONFIG_ID);
-            assertEquals(1, persistedActive, "晋升必须迁移持久激活标记");
-            int oldActive = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM storage_config WHERE id = ? AND isActive = 1", Integer.class, OLD_CONFIG_ID);
-            assertEquals(0, oldActive, "旧平台不得同时保持激活");
+            // 同一实例重复确认：集合幂等，仍是 1/2，不得计数翻倍触发晋升
+            var again = post(admin, "/storage/config/switch/confirm", Map.of());
+            assertEquals(0, again.path("code").asInt(), again.toString());
+            var still = get(admin, "/storage/config/switch/status");
+            assertEquals("pending", still.path("data").path("phase").asText());
+            assertEquals(1, still.path("data").path("confirmCount").asInt(),
+                    "重复确认不得虚增确认集合");
         }
     }
 
@@ -231,6 +292,39 @@ class HttpStorageSwitchTest {
         }
     }
 
+    /**
+     * P2-7 回归：切换完成时未参与确认的实例（如重启期间错过切换）处于旧版本，
+     * 其下一次状态读取触发惰性自愈，从持久配置收敛到当前生效版本——
+     * 不再要求「逐台手工刷新」，也绝不静默留在漂移状态。
+     */
+    @Test
+    void statusReadSelfHealsLaggingInstanceAfterCompletedSwitch() throws Exception {
+        int secondPort = Integer.getInteger("vs.acceptance.second-port", 0);
+        if (secondPort <= 0) {
+            throw new IllegalStateException(
+                    "BLOCKED_ENV: 双实例验收需要 -Dvs.acceptance.second-port=<第二实例端口>");
+        }
+        seedConfigs();
+        try (var admin = client()) {
+            loginAsAdmin(admin);
+            // 单实例晋升：第二实例从未确认，其快照仍停留在旧版本
+            assertEquals(0, post(admin, "/storage/config/set_active",
+                    Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 1))
+                    .path("code").asInt());
+            // 第二实例从未执行确认或刷新，直接读状态：响应必须是收敛后的真实状态
+            try (var lagging = clientOn(secondPort)) {
+                loginAsAdminOn(lagging, secondPort);
+                var healed = get(lagging, "/storage/config/switch/status");
+                assertEquals("completed", healed.path("data").path("phase").asText(), healed.toString());
+                assertEquals(2L, healed.path("data").path("localEffectiveVersion").asLong(),
+                        "落后实例的状态读取必须自愈到当前生效版本");
+                assertTrue(healed.path("data").path("localSynced").asBoolean(), healed.toString());
+                assertEquals(NEW_PLATFORM, healed.path("data").path("localDefaultPlatform").asText(),
+                        "自愈后本实例默认平台必须与持久生效平台一致");
+            }
+        }
+    }
+
     // ---- AC 24.3：新上传使用已验证配置；无默认平台时显式拒绝 ----
 
     @Test
@@ -243,13 +337,15 @@ class HttpStorageSwitchTest {
                     .path("code").asInt());
             try (var owner = client()) {
                 registerAndLogin(owner);
-                // 新任务使用切换后的已验证配置（替身按当前默认平台记账）
+                // 新任务使用切换后的已验证配置（替身按自身平台记账：
+                // 运行时快照经候选验证后存在可用默认平台，上传才被放行）
                 var upload = multipart(owner, "/agent/image/upload");
                 assertEquals(0, upload.path("code").asInt(), upload.toString());
                 long resourceId = upload.path("data").path("resourceId").asLong();
                 String platform = jdbc.queryForObject(
                         "SELECT platform FROM picture_file WHERE id = ?", String.class, resourceId);
-                assertEquals(NEW_PLATFORM, platform, "新上传必须使用切换后的平台");
+                assertEquals(RecordingStorageConfiguration.PLATFORM, platform,
+                        "新上传必须走切换后快照的默认平台（替身记账平台）");
                 // 上传记录中不含任何密钥
                 assertFalse(upload.toString().contains("new-secret"));
                 // 资源删除按其原平台定位
@@ -258,8 +354,8 @@ class HttpStorageSwitchTest {
                         Map.of("resourceId", resourceId)).path("code").asInt());
                 assertTrue(recorder.calls().subList(before, recorder.calls().size()).stream()
                                 .anyMatch(call -> "DELETE".equals(call.method())
-                                        && NEW_PLATFORM.equals(call.path())),
-                        "新资源删除必须在新平台上: " + recorder.calls().subList(before, recorder.calls().size()));
+                                        && RecordingStorageConfiguration.PLATFORM.equals(call.path())),
+                        "新资源删除必须按资源记录的平台: " + recorder.calls().subList(before, recorder.calls().size()));
             }
         }
     }
@@ -275,15 +371,17 @@ class HttpStorageSwitchTest {
                 long userId = registerAndLogin(owner);
                 long oldResource = seedResource(userId, OLD_PLATFORM, OLD_RESOURCE_KEY);
                 long newResource = seedResource(userId, NEW_PLATFORM, NEW_RESOURCE_KEY);
+                long oldPicture = seedGalleryResource(userId, OLD_PICTURE_ID, OLD_PLATFORM, OLD_RESOURCE_KEY);
 
                 assertEquals(0, post(admin, "/storage/config/set_active",
                         Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 1))
                         .path("code").asInt());
 
-                // 切换后读取旧平台资源：按资源记录里的原平台定位。
-                // 内容入口要求会话绑定，这里直接走服务侧记录的平台字段核对读取定位，
-                // 并断言切换没有触发对旧资源的搬迁或删除（拒绝场景零副作用）。
+                // 切换后读取旧平台资源：按资源记录里的原平台定位，而不是当前默认平台
                 int beforeRead = recorder.calls().size();
+                String content = getRaw(owner, "/picture/content/" + oldPicture + "/original");
+                assertEquals("acceptance-image-bytes", content,
+                        "内容读取必须返回记录替身的固定字节");
                 String storedPlatform = jdbc.queryForObject(
                         "SELECT platform FROM picture_file WHERE id = ?", String.class, oldResource);
                 assertEquals(OLD_PLATFORM, storedPlatform, "切换不得改写资源记录的平台归属");
@@ -294,11 +392,12 @@ class HttpStorageSwitchTest {
                         "SELECT COUNT(*) FROM picture_file WHERE id IN (?, ?) AND status <> 0",
                         Integer.class, oldResource, newResource);
                 assertEquals(0, mutated, "切换不得删除、搬迁或改写旧资源状态");
-                assertEquals(beforeRead, recorder.calls().size(),
-                        "切换过程本身不得产生任何存储读写删除调用");
+                assertEquals(beforeRead, recorder.calls().size() - 1,
+                        "读取只产生一次存储调用");
                 assertTrue(recorder.calls().subList(beforeRead, recorder.calls().size()).stream()
                                 .anyMatch(call -> "READ".equals(call.method())
-                                        && OLD_PLATFORM.equals(call.path())),
+                                        && OLD_PLATFORM.equals(call.path())
+                                        && OLD_RESOURCE_KEY.equals(call.body())),
                         "旧资源读取必须按原平台: " + recorder.calls().subList(beforeRead, recorder.calls().size()));
 
                 // 删除旧平台资源：仍按旧平台定位，不落到新默认平台
@@ -404,6 +503,14 @@ class HttpStorageSwitchTest {
 
     private JsonNode get(HttpClient client, String path) throws Exception {
         return getOn(client, path, port);
+    }
+
+    /** 内容入口返回原始字节而非 JSON 包裹，单独取响应体文本。 */
+    private String getRaw(HttpClient client, String path) throws Exception {
+        var response = client.send(HttpRequest.newBuilder(uri(path, port))
+                .timeout(Duration.ofSeconds(10)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+        return response.body();
     }
 
     private JsonNode getOn(HttpClient client, String path, int targetPort) throws Exception {

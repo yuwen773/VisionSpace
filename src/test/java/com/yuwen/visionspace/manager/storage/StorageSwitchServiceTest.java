@@ -3,6 +3,7 @@ package com.yuwen.visionspace.manager.storage;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.manager.storage.init.StorageSnapshotAssembler;
 import com.yuwen.visionspace.mapper.StorageConfigMapper;
+import com.yuwen.visionspace.mapper.StorageSwitchConfirmMapper;
 import com.yuwen.visionspace.mapper.StorageSwitchStateMapper;
 import com.yuwen.visionspace.model.dto.storage.StorageSwitchRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
@@ -22,48 +23,56 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * 存储切换编排（#40）：候选失败保留旧快照、原子占位唯一赢家、
- * 确认幂等与晋升原子性、回滚安全。
+ * 占位被并发回滚时放弃应用、确认集合幂等（不虚增）、晋升原子性、
+ * 回滚保留 activeVersion、状态读取惰性自愈漂移。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class StorageSwitchServiceTest {
 
     private static final long TARGET_ID = 2L;
+    private static final String INSTANCE_ID = "instance-a";
 
     @Mock
     private StorageConfigMapper configMapper;
     @Mock
     private StorageSwitchStateMapper stateMapper;
     @Mock
+    private StorageSwitchConfirmMapper confirmMapper;
+    @Mock
     private StorageSnapshotAssembler assembler;
     @Mock
     private StorageSnapshotManager snapshotManager;
     @Mock
+    private StorageInstanceIdProvider instanceIdProvider;
+    @Mock
     private FileStorage targetStorage;
-
-    private StorageSwitchService service;
 
     /**
      * 可状态的快照替身：apply 会真实推进版本，与运行时语义一致。
      */
-    private final java.util.concurrent.atomic.AtomicReference<StorageSnapshotManager.Snapshot> snapshotRef =
-            new java.util.concurrent.atomic.AtomicReference<>(
-                    new StorageSnapshotManager.Snapshot(5, "minio", List.of("minio")));
+    private final AtomicReference<StorageSnapshotManager.Snapshot> snapshotRef =
+            new AtomicReference<>(new StorageSnapshotManager.Snapshot(5, "minio", List.of("minio")));
+
+    private StorageSwitchService service;
 
     @BeforeEach
     void setUp() {
@@ -81,7 +90,8 @@ class StorageSwitchServiceTest {
             public void rollback(TransactionStatus status) {
             }
         });
-        service = new StorageSwitchService(configMapper, stateMapper, assembler, snapshotManager, txTemplate);
+        service = new StorageSwitchService(configMapper, stateMapper, confirmMapper, assembler,
+                snapshotManager, instanceIdProvider, txTemplate);
         when(targetStorage.getPlatform()).thenReturn("oss");
         when(assembler.assemble(anyString())).thenReturn(
                 new StorageSnapshotAssembler.Candidate(List.of(targetStorage), "oss"));
@@ -89,7 +99,7 @@ class StorageSwitchServiceTest {
                 new StorageSnapshotAssembler.Candidate(List.of(targetStorage), "minio"));
         when(snapshotManager.currentSnapshot()).thenAnswer(invocation -> snapshotRef.get());
         when(snapshotManager.currentVersion()).thenAnswer(invocation -> snapshotRef.get().version());
-        org.mockito.Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
             List<String> platforms = ((List<?>) invocation.getArgument(0)).stream()
                     .map(storage -> ((FileStorage) storage).getPlatform())
                     .toList();
@@ -97,6 +107,8 @@ class StorageSwitchServiceTest {
                     invocation.getArgument(2, Long.class), invocation.getArgument(1, String.class), platforms));
             return null;
         }).when(snapshotManager).apply(any(), anyString(), anyLong());
+        when(instanceIdProvider.get()).thenReturn(INSTANCE_ID);
+        when(confirmMapper.insertIgnore(anyLong(), anyString(), any(Long.class))).thenReturn(1);
     }
 
     @Test
@@ -110,9 +122,8 @@ class StorageSwitchServiceTest {
                 service.switchToStoragePlatform(request(TARGET_ID, 1)));
 
         assertEquals(50000, exception.getCode());
-        verify(stateMapper, never()).claimSwitch(anyLong(), anyString(), anyInt());
+        verify(stateMapper, never()).claimSwitch(anyLong(), anyString(), org.mockito.ArgumentMatchers.anyInt());
         verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
-        assertEquals("completed", service.getStorageSwitchStatus().getPhase());
     }
 
     @Test
@@ -121,14 +132,14 @@ class StorageSwitchServiceTest {
         when(stateMapper.selectById(1L)).thenReturn(idleState());
 
         assertThrows(BusinessException.class, () -> service.switchToStoragePlatform(request(TARGET_ID, 1)));
-        verify(stateMapper, never()).claimSwitch(anyLong(), anyString(), anyInt());
+        verify(stateMapper, never()).claimSwitch(anyLong(), anyString(), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
     void concurrentSwitchLosesWithExplicitError() {
         when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
         when(stateMapper.selectById(1L)).thenReturn(idleState());
-        when(stateMapper.claimSwitch(anyLong(), anyString(), anyInt())).thenReturn(0);
+        when(stateMapper.claimSwitch(anyLong(), anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
                 service.switchToStoragePlatform(request(TARGET_ID, 2)));
@@ -137,12 +148,64 @@ class StorageSwitchServiceTest {
         verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
     }
 
+    /**
+     * P1-2 回归：占位成功后、应用前被另一实例回滚，本实例必须放弃应用，
+     * 不静默运行已被回滚的候选快照。
+     */
     @Test
-    void claimedSwitchAppliesLocallyAndReportsPending() {
+    void switchAbortsWhenClaimIsConcurrentlyRolledBack() {
         when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
-        when(stateMapper.selectById(1L)).thenReturn(idleState(),
-                state(5L, 6L, TARGET_ID, "oss", 1, 2));
+        when(stateMapper.selectById(1L)).thenReturn(idleState(), idleState());
+        when(stateMapper.claimSwitch(TARGET_ID, "oss", 1)).thenReturn(1);
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                service.switchToStoragePlatform(request(TARGET_ID, 1)));
+
+        assertEquals(50001, exception.getCode());
+        verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
+        verify(confirmMapper, never()).insertIgnore(anyLong(), anyString(), any(Long.class));
+    }
+
+    /**
+     * P1-1 回归：发起实例不再预置确认数，走统一确认路径；
+     * 单实例（expected=1）占位并确认后立即晋升。
+     */
+    @Test
+    void singleInstanceSwitchCompletesImmediatelyAndMovesActivation() {
+        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
+        // 读序：校验激活状态 → 占位后重读 → maybeComplete 读 → 晋升后 buildStatus 读
+        when(stateMapper.selectById(1L)).thenReturn(
+                idleState(),
+                state(5L, 6L, TARGET_ID, "oss", 1),
+                state(5L, 6L, TARGET_ID, "oss", 1),
+                completedState(6L));
+        when(stateMapper.claimSwitch(TARGET_ID, "oss", 1)).thenReturn(1);
+        when(confirmMapper.countByVersion(6L)).thenReturn(1L);
+        when(stateMapper.completeSwitch(6L)).thenReturn(1);
+
+        StorageSwitchStatusVO status = service.switchToStoragePlatform(request(TARGET_ID, 1));
+
+        assertEquals("completed", status.getPhase());
+        verify(snapshotManager).apply(List.of(targetStorage), "oss", 6L);
+        verify(confirmMapper).insertIgnore(6L, INSTANCE_ID, TARGET_ID);
+        verify(stateMapper).completeSwitch(6L);
+        verify(configMapper).deactivateOtherConfigs(TARGET_ID);
+        verify(configMapper).activateConfig(TARGET_ID);
+    }
+
+    /**
+     * P1-1 回归：确认数来自确认实例集合，重复确认（INSERT IGNORE 命中 0 行）
+     * 不产生第二次记录，晋升只看集合大小。
+     */
+    @Test
+    void pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances() {
+        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
+        when(stateMapper.selectById(1L)).thenReturn(
+                idleState(),
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2));
         when(stateMapper.claimSwitch(TARGET_ID, "oss", 2)).thenReturn(1);
+        when(confirmMapper.countByVersion(6L)).thenReturn(1L);
 
         StorageSwitchStatusVO status = service.switchToStoragePlatform(request(TARGET_ID, 2));
 
@@ -151,59 +214,54 @@ class StorageSwitchServiceTest {
         assertEquals(2, status.getExpectedInstances());
         assertEquals(6L, status.getLocalEffectiveVersion());
         verify(snapshotManager).apply(List.of(targetStorage), "oss", 6L);
+        verify(stateMapper, never()).completeSwitch(anyLong());
+        verify(configMapper, never()).deactivateOtherConfigs(anyLong());
     }
 
     @Test
-    void confirmIsIdempotentWhenInstanceAlreadyEffective() {
-        when(stateMapper.selectById(1L)).thenReturn(state(5L, 6L, TARGET_ID, "oss", 1, 2));
+    void confirmIsIdempotentForSameInstanceAndNeverReapplies() {
+        // 本实例快照已是候选版本：跳过应用，确认集合幂等（重复插入 0 行）
+        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
+        when(stateMapper.selectById(1L)).thenReturn(
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2));
         when(snapshotManager.currentVersion()).thenReturn(6L);
+        when(confirmMapper.insertIgnore(6L, INSTANCE_ID, TARGET_ID)).thenReturn(0);
+        when(confirmMapper.countByVersion(6L)).thenReturn(1L);
 
-        service.confirmStorageSwitch();
+        StorageSwitchStatusVO status = service.confirmStorageSwitch();
 
-        verify(stateMapper, never()).incrementConfirm(anyLong());
+        assertEquals("pending", status.getPhase());
         verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
+        verify(confirmMapper).insertIgnore(6L, INSTANCE_ID, TARGET_ID);
+        verify(stateMapper, never()).completeSwitch(anyLong());
     }
 
     @Test
     void reachingExpectedInstancesPromotesAndMovesActivationAtomically() {
         when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
-        // 第一次读：pending 进行中（本实例旧版本）；确认后读：额度达标；晋升后读：完成
         when(stateMapper.selectById(1L)).thenReturn(
-                state(5L, 6L, TARGET_ID, "oss", 1, 2),
-                state(5L, 6L, TARGET_ID, "oss", 2, 2),
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2),
+                state(5L, 6L, TARGET_ID, "oss", 2),
                 completedState(6L));
-        when(stateMapper.incrementConfirm(6L)).thenReturn(1);
+        when(snapshotManager.currentVersion()).thenReturn(5L);
+        when(confirmMapper.countByVersion(6L)).thenReturn(2L);
         when(stateMapper.completeSwitch(6L)).thenReturn(1);
 
         StorageSwitchStatusVO status = service.confirmStorageSwitch();
 
         assertEquals("completed", status.getPhase());
-        verify(stateMapper).incrementConfirm(6L);
+        verify(snapshotManager).apply(List.of(targetStorage), "oss", 6L);
         verify(stateMapper).completeSwitch(6L);
         verify(configMapper).deactivateOtherConfigs(TARGET_ID);
         verify(configMapper).activateConfig(TARGET_ID);
     }
 
     @Test
-    void promotionIsHeldUntilEveryExpectedInstanceConfirms() {
-        when(configMapper.selectById(TARGET_ID)).thenReturn(enabledTarget(0));
-        when(stateMapper.selectById(1L)).thenReturn(
-                state(5L, 6L, TARGET_ID, "oss", 1, 3),
-                state(5L, 6L, TARGET_ID, "oss", 2, 3),
-                state(5L, 6L, TARGET_ID, "oss", 2, 3));
-        when(stateMapper.incrementConfirm(6L)).thenReturn(1);
-
-        StorageSwitchStatusVO status = service.confirmStorageSwitch();
-
-        assertEquals("pending", status.getPhase());
-        verify(stateMapper, never()).completeSwitch(anyLong());
-        verify(configMapper, never()).deactivateOtherConfigs(anyLong());
-    }
-
-    @Test
     void rollbackClearsPendingWithoutTouchingActiveVersion() {
         when(stateMapper.selectById(1L)).thenReturn(
-                state(5L, 6L, TARGET_ID, "oss", 1, 2),
+                state(5L, 6L, TARGET_ID, "oss", 1),
                 completedState(5L),
                 completedState(5L));
         when(stateMapper.abortSwitch()).thenReturn(1);
@@ -216,7 +274,7 @@ class StorageSwitchServiceTest {
         assertTrue(status.getLocalSynced());
         verify(stateMapper).abortSwitch();
         verify(assembler).assemble(isNull());
-        verify(snapshotManager).apply(any(), anyString(), org.mockito.ArgumentMatchers.eq(5L));
+        verify(snapshotManager).apply(any(), anyString(), eq(5L));
         verify(stateMapper, never()).completeSwitch(anyLong());
     }
 
@@ -225,6 +283,42 @@ class StorageSwitchServiceTest {
         when(stateMapper.selectById(1L)).thenReturn(idleState());
         assertThrows(BusinessException.class, () -> service.rollbackStorageSwitch());
         verify(assembler, never()).assemble(anyString());
+    }
+
+    /**
+     * P2-7 回归：无切换进行中而本实例版本落后（回滚后残留漂移），
+     * 状态读取触发惰性自愈，从持久配置重建快照。
+     */
+    @Test
+    void statusReadSelfHealsResidualDriftAfterRollback() {
+        when(stateMapper.selectById(1L)).thenReturn(completedState(5L), completedState(5L));
+        when(configMapper.selectActiveConfig()).thenReturn(enabledTarget(1));
+        snapshotRef.set(new StorageSnapshotManager.Snapshot(6, "oss", List.of("oss")));
+
+        StorageSwitchStatusVO status = service.getStorageSwitchStatus();
+
+        assertEquals("completed", status.getPhase());
+        assertTrue(status.getLocalSynced());
+        assertEquals(5L, status.getLocalEffectiveVersion());
+        assertEquals("minio", status.getLocalDefaultPlatform());
+        verify(assembler).assemble(isNull());
+        verify(snapshotManager).apply(any(), anyString(), eq(5L));
+    }
+
+    /**
+     * 切换进行中（pending 非空）的版本落后是待确认状态，绝不自动应用候选。
+     */
+    @Test
+    void pendingSwitchIsNeverAutoAppliedByStatusRead() {
+        when(stateMapper.selectById(1L)).thenReturn(state(5L, 6L, TARGET_ID, "oss", 1));
+        when(configMapper.selectActiveConfig()).thenReturn(enabledTarget(1));
+        snapshotRef.set(new StorageSnapshotManager.Snapshot(5, "minio", List.of("minio")));
+
+        StorageSwitchStatusVO status = service.getStorageSwitchStatus();
+
+        assertEquals("pending", status.getPhase());
+        assertFalse(status.getLocalSynced());
+        verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
     }
 
     @Test
@@ -264,23 +358,23 @@ class StorageSwitchServiceTest {
     }
 
     private StorageSwitchState completedState(long activeVersion) {
-        return state(activeVersion, null, null, null, 0, 1);
+        return state(activeVersion, null, null, null);
     }
 
     private StorageSwitchState state(long activeVersion, Long pendingVersion, Long pendingConfigId,
-                                     String pendingPlatform, int confirmCount, int expectedInstances) {
+                                     String pendingPlatform) {
+        return state(activeVersion, pendingVersion, pendingConfigId, pendingPlatform, 1);
+    }
+
+    private StorageSwitchState state(long activeVersion, Long pendingVersion, Long pendingConfigId,
+                                     String pendingPlatform, int expectedInstances) {
         StorageSwitchState state = new StorageSwitchState();
         state.setId(1L);
         state.setActiveVersion(activeVersion);
         state.setPendingVersion(pendingVersion);
         state.setPendingConfigId(pendingConfigId);
         state.setPendingPlatform(pendingPlatform);
-        state.setConfirmCount(confirmCount);
         state.setExpectedInstances(expectedInstances);
         return state;
-    }
-
-    private static String isNull() {
-        return org.mockito.ArgumentMatchers.isNull();
     }
 }
