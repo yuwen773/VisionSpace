@@ -20,7 +20,6 @@ export interface StorageConfigVO {
   domain?: string
   basePath?: string
   isActive?: number
-  isDefault?: number
   orderNum?: number
   status?: number
   createTime?: string
@@ -38,7 +37,6 @@ export interface StorageConfigAddRequest {
   domain?: string
   basePath?: string
   isActive?: number
-  isDefault?: number
   orderNum?: number
   status?: number
 }
@@ -54,10 +52,6 @@ export interface StorageConfigQueryRequest {
   id?: number
   platform?: string
   status?: number
-}
-
-export interface StorageConfigActiveRequest {
-  id: number
 }
 
 export function getStorageConfigListUsingGet(
@@ -172,18 +166,6 @@ export function getStorageSwitchStatusUsingGet(options?: { [key: string]: any })
       ...(options || {}),
     },
   )
-}
-
-export function setDefaultPlatformUsingPost(
-  body: StorageConfigActiveRequest,
-  options?: { [key: string]: unknown },
-) {
-  return request<any>('/api/storage/config/set_default', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: body,
-    ...(options || {}),
-  })
 }
 
 export function refreshStorageConfigUsingPost(options?: { [key: string]: any }) {
