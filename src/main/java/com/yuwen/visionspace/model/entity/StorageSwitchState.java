@@ -13,7 +13,8 @@ import java.util.Date;
  *
  * <p>持久配置状态（storage_config.isActive）与各实例运行快照由本行衔接：
  * activeVersion 为最近完整生效的快照版本；pendingVersion 非空表示有切换
- * 已占位但未被全部期望实例确认，期间可安全回滚。
+ * 已占位但未被全部期望实例确认，期间可安全回滚。确认进度不在本行计数，
+ * 而由 storage_switch_confirm 的确认实例集合决定（幂等，杜绝虚增）。
  */
 @Data
 @TableName(value = "storage_switch_state")
@@ -49,11 +50,6 @@ public class StorageSwitchState implements Serializable {
      * 切换占位时间
      */
     private Date pendingTime;
-
-    /**
-     * 已确认实例数
-     */
-    private Integer confirmCount;
 
     /**
      * 期望确认实例数

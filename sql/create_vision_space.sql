@@ -516,11 +516,21 @@ CREATE TABLE `storage_switch_state` (
   `pendingConfigId` bigint(20) NULL DEFAULT NULL COMMENT '待生效配置 id',
   `pendingPlatform` varchar(32) NULL DEFAULT NULL COMMENT '待生效平台',
   `pendingTime` datetime NULL DEFAULT NULL COMMENT '切换占位时间',
-  `confirmCount` int(11) NOT NULL DEFAULT 0 COMMENT '已确认实例数',
   `expectedInstances` int(11) NOT NULL DEFAULT 1 COMMENT '期望确认实例数',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换版本状态（单行）';
+
+-- ----------------------------
+-- Table structure for storage_switch_confirm (#40 切换确认实例集合)
+-- ----------------------------
+CREATE TABLE `storage_switch_confirm` (
+  `version` bigint(20) NOT NULL COMMENT '候选版本',
+  `instanceId` varchar(64) NOT NULL COMMENT '确认实例标识（进程启动生成）',
+  `configId` bigint(20) NULL DEFAULT NULL COMMENT '确认时的待生效配置 id（审计）',
+  `confirmTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '确认时间',
+  PRIMARY KEY (`version`, `instanceId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换确认实例集合';
 
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);

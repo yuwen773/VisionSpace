@@ -1,33 +1,41 @@
 -- #40 存储切换与旧资源可用性（前向迁移）
 --
--- 新增 storage_switch_state：存储切换的持久版本状态（单行，id = 1）。
--- 持久配置状态（storage_config.isActive）与运行生效状态（各实例内存快照）由此行衔接：
---   * activeVersion     最近一次完整确认生效的快照版本；
---   * pendingVersion    已占位但尚未被全部实例确认的候选版本（NULL 表示无切换进行中）；
+-- 新增两张表：
+--
+-- storage_switch_state（单行，id = 1）：切换全局状态。
+--   * activeVersion      最近一次完整确认生效的快照版本；
+--   * pendingVersion     已占位但尚未被全部实例确认的候选版本（NULL 表示无切换进行中）；
 --   * pendingConfigId / pendingPlatform / pendingTime   待生效目标；
---   * confirmCount / expectedInstances  双实例确认进度。
+--   * expectedInstances  期望确认实例数（占位时写入）。
+--
+-- storage_switch_confirm：确认实例集合（不是次数计数器）。
+--   主键 (version, instanceId)，INSERT IGNORE 保证同一实例对同一版本
+--   重复确认（重试、重启后再次确认）只计一次，杜绝确认数虚增导致的提前晋升。
+--   instanceId 为进程启动时生成的 UUID；进程重启后旧确认行随新确认共存，
+--   每行都对应一次真实的候选应用，晋升判定只看集合大小。
 --
 -- 切换流程（对应父规格 D20）：
 --   1. 候选快照完整构建并验证（任一配置失败即整体失败，保留旧快照）；
 --   2. claimSwitch 原子占位（WHERE pendingVersion IS NULL，跨实例只允许一个进行中的切换）；
---   3. 各实例确认生效（confirmCount 原子累加），达到 expectedInstances 后在同一个
---      事务里完成版本晋升与 storage_config.isActive 的迁移；
+--   3. 各实例（含发起实例）走统一确认路径：应用候选快照后向确认集合插入
+--      本实例标识，集合大小达到 expectedInstances 才在同一事务里完成版本
+--      晋升与 storage_config.isActive 的迁移；
 --   4. 部分生效期间保持明确的 pending 状态，可执行回滚（abortSwitch，
---      activeVersion 不变，各实例从持久配置重建快照）。
+--      activeVersion 不变，各实例从持久配置重建快照或惰性自愈）。
 --
--- 存量数据：无需回填。应用启动时会以 INSERT IGNORE 保证单行存在。
+-- 存量数据：无需回填。应用启动时会以 INSERT IGNORE 保证状态单行存在。
 -- 本脚本幂等：表已存在时整体不做任何事。
 --
--- 回滚：执行同名 -rollback.sql。回滚保留该表（运行中的切换状态不丢失），
--- 旧版本应用不读取该表，行为与升级前一致。
+-- 回滚：执行同名 -rollback.sql。回滚保留这两张表（运行中的切换状态不丢失），
+-- 旧版本应用不读取这两张表，行为与升级前一致。
 
-SET @table_exists = (
+SET @state_exists = (
   SELECT COUNT(*) FROM information_schema.TABLES
   WHERE TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME = 'storage_switch_state'
 );
 SET @ddl = IF(
-  @table_exists = 0,
+  @state_exists = 0,
   'CREATE TABLE `storage_switch_state` (\n' ||
   '  `id` bigint(20) NOT NULL COMMENT ''固定为 1 的单行'',\n' ||
   '  `activeVersion` bigint(20) NOT NULL DEFAULT 1 COMMENT ''最近完整生效的快照版本'',\n' ||
@@ -35,13 +43,32 @@ SET @ddl = IF(
   '  `pendingConfigId` bigint(20) NULL DEFAULT NULL COMMENT ''待生效配置 id'',\n' ||
   '  `pendingPlatform` varchar(32) NULL DEFAULT NULL COMMENT ''待生效平台'',\n' ||
   '  `pendingTime` datetime NULL DEFAULT NULL COMMENT ''切换占位时间'',\n' ||
-  '  `confirmCount` int(11) NOT NULL DEFAULT 0 COMMENT ''已确认实例数'',\n' ||
   '  `expectedInstances` int(11) NOT NULL DEFAULT 1 COMMENT ''期望确认实例数'',\n' ||
   '  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT ''创建时间'',\n' ||
   '  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT ''更新时间'',\n' ||
   '  PRIMARY KEY (`id`) USING BTREE\n' ||
   ') ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = ''存储切换版本状态（单行）''',
   'SELECT ''storage_switch_state already exists, nothing to do'''
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @confirm_exists = (
+  SELECT COUNT(*) FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'storage_switch_confirm'
+);
+SET @ddl = IF(
+  @confirm_exists = 0,
+  'CREATE TABLE `storage_switch_confirm` (\n' ||
+  '  `version` bigint(20) NOT NULL COMMENT ''候选版本'',\n' ||
+  '  `instanceId` varchar(64) NOT NULL COMMENT ''确认实例标识（进程启动生成）'',\n' ||
+  '  `configId` bigint(20) NULL DEFAULT NULL COMMENT ''确认时的待生效配置 id（审计）'',\n' ||
+  '  `confirmTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT ''确认时间'',\n' ||
+  '  PRIMARY KEY (`version`, `instanceId`) USING BTREE\n' ||
+  ') ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = ''存储切换确认实例集合''',
+  'SELECT ''storage_switch_confirm already exists, nothing to do'''
 );
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;

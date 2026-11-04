@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.StorageSwitchConfirmMapper">
+
+    <!--
+      #40 切换确认实例集合。
+      主键 (version, instanceId) + INSERT IGNORE：同一实例重复确认
+      （应用失败重试、重启后再次确认）只计一次，确认数不可能被虚增。
+    -->
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO storage_switch_confirm (version, instanceId, configId)
+        VALUES (#{version}, #{instanceId}, #{configId})
+    </insert>
+
+    <select id="countByVersion" resultType="long">
+        SELECT COUNT(*) FROM storage_switch_confirm WHERE version = #{version}
+    </select>
+</mapper>

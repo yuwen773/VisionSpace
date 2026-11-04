@@ -9,7 +9,8 @@ import org.apache.ibatis.annotations.Param;
  * 存储切换版本状态数据库操作。
  *
  * <p>全部状态迁移使用单语句原子更新（WHERE 条件保证跨实例只成功一次），
- * 与 #39 兑换码核销同一套并发纪律。
+ * 与 #39 兑换码核销同一套并发纪律。确认进度由 StorageSwitchConfirmMapper
+ * 的确认实例集合决定，本表不做次数计数。
  */
 @Mapper
 public interface StorageSwitchStateMapper extends BaseMapper<StorageSwitchState> {
@@ -24,6 +25,9 @@ public interface StorageSwitchStateMapper extends BaseMapper<StorageSwitchState>
     /**
      * 原子占位一次切换：把候选版本记为 activeVersion + 1。
      *
+     * <p>占位不预置任何确认数；发起实例与其他实例走同一条确认路径
+     * （应用候选快照 → 向确认集合登记本实例标识）。
+     *
      * <p>WHERE pendingVersion IS NULL 保证两个实例同时发起切换时
      * 只有一个成功；落败方影响 0 行。
      *
@@ -32,13 +36,6 @@ public interface StorageSwitchStateMapper extends BaseMapper<StorageSwitchState>
     int claimSwitch(@Param("targetConfigId") Long targetConfigId,
                     @Param("targetPlatform") String targetPlatform,
                     @Param("expectedInstances") int expectedInstances);
-
-    /**
-     * 本实例确认候选版本生效，确认数原子加一。
-     *
-     * @return 影响行数；0 表示版本已被完成或回滚
-     */
-    int incrementConfirm(@Param("version") long version);
 
     /**
      * 确认数达到期望后晋升版本：pending 提升为 active。
