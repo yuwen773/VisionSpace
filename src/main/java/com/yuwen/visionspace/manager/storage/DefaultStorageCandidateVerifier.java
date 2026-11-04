@@ -18,13 +18,13 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 
 /**
- * 默认候选验证：完整构建平台客户端并强制完成惰性初始化。
+ * 默认候选验证：完整构建平台客户端并强制完成惰性初始化，MinIO 默认探活。
  *
  * <p>x-file-storage 的平台客户端是惰性构造的（首次上传时才创建 SDK 客户端），
  * 只调用构建器不会发现坏配置。这里在候选阶段就强制构造 SDK 客户端，
  * 让坏端点、坏凭据格式在切换前显式失败，而不是切换后上传时才暴露。
- * MinIO 可选开启 bucketExists 探活（需要目标存储可达），默认关闭，
- * 由部署方在维护窗口内决定是否启用。
+ * MinIO 的 bucketExists 探活默认开启（fail-closed）：坏 bucket 名与被撤销
+ * 凭据在切换前显式失败；隔离验收环境经 acceptance.yml 显式关闭。
  */
 @Slf4j
 @Component

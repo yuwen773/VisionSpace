@@ -43,6 +43,9 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 vision-space:
+  # 候选验证的 bucketExists 探活需要真实云存储，隔离验收显式关闭（生产默认开启）
+  storage:
+    candidate-probe-enabled: false
   # 隔离验收同样走真实的 CSRF 与来源判定，不做放行
   web:
     trusted-origins: ""
