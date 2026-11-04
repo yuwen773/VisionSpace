@@ -68,4 +68,7 @@ cd frontend && npm run type-check                                             # 
 - 迁移脚本未在真实存量库执行（本票无存量数据需要回填，见诚实声明）。
 - 偏好注入是对话消息层（`buildUserMessage` 附加片段），不覆盖 Agent 内部工具调用的
   二次提示词构建；反馈入口 `handleFeedback` 不注入偏好（其输入是学习来源，不是生成请求）。
-- 前端 `agentPreference.ts` 为手写客户端；合并后运行 `npm run openapi2ts` 时若接口已进规范，以生成产物为准。
+- 前端客户端为契约生成产物（`api/agentPreferenceController.ts` + `typings.d.ts` + `index.ts`，
+  由 `target/openapi-contract.json` 离线生成并逐字节对账），用户中心 `PreferenceSection.vue`
+  从生成客户端导入；不再有手写 `agentPreference.ts`。后续重新生成时以 `npm run openapi2ts`
+  产物为准（真实 `src/api` 会被生成器重建，手写客户端一律放 `src/api-custom/`）。
