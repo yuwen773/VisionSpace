@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.StorageConfigMapper">
+
+    <!--
+      #40 存储切换使用的受限查询与原子激活迁移。
+      查询只取业务列，不含密钥输出路径；激活迁移在切换晋升事务内执行，
+      两条语句均幂等，重复执行不会产生第二个激活平台。
+    -->
+
+    <sql id="configColumns">
+        id, platform, platformName, endpoint, region, bucket, accessKey, secretKey,
+        domain, basePath, isActive, isDefault, orderNum, status, createTime, updateTime
+    </sql>
+
+    <select id="selectActiveConfig" resultType="com.yuwen.visionspace.model.entity.StorageConfig">
+        SELECT <include refid="configColumns"/>
+        FROM storage_config
+        WHERE isDelete = 0
+          AND isActive = 1
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectEnabledConfigs" resultType="com.yuwen.visionspace.model.entity.StorageConfig">
+        SELECT <include refid="configColumns"/>
+        FROM storage_config
+        WHERE isDelete = 0
+          AND status = 1
+        ORDER BY orderNum ASC, id ASC
+    </select>
+
+    <update id="deactivateOtherConfigs">
+        UPDATE storage_config
+        SET isActive = 0,
+            updateTime = NOW()
+        WHERE isDelete = 0
+          AND isActive = 1
+          AND id &lt;&gt; #{targetConfigId}
+    </update>
+
+    <update id="activateConfig">
+        UPDATE storage_config
+        SET isActive = 1,
+            updateTime = NOW()
+        WHERE isDelete = 0
+          AND id = #{targetConfigId}
+          AND status = 1
+    </update>
+</mapper>

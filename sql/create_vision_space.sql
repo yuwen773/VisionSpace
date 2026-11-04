@@ -505,3 +505,22 @@ CREATE TABLE `resource_isolation` (
   UNIQUE INDEX `uk_active_key`(`activeKey`) USING BTREE,
   INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '违规资源隔离与恢复';
+
+-- ----------------------------
+-- Table structure for storage_switch_state (#40 存储切换版本状态，单行)
+-- ----------------------------
+CREATE TABLE `storage_switch_state` (
+  `id` bigint(20) NOT NULL COMMENT '固定为 1 的单行',
+  `activeVersion` bigint(20) NOT NULL DEFAULT 1 COMMENT '最近完整生效的快照版本',
+  `pendingVersion` bigint(20) NULL DEFAULT NULL COMMENT '待确认的候选版本',
+  `pendingConfigId` bigint(20) NULL DEFAULT NULL COMMENT '待生效配置 id',
+  `pendingPlatform` varchar(32) NULL DEFAULT NULL COMMENT '待生效平台',
+  `pendingTime` datetime NULL DEFAULT NULL COMMENT '切换占位时间',
+  `confirmCount` int(11) NOT NULL DEFAULT 0 COMMENT '已确认实例数',
+  `expectedInstances` int(11) NOT NULL DEFAULT 1 COMMENT '期望确认实例数',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换版本状态（单行）';
+
+INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);

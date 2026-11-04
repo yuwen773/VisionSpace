@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuwen.visionspace.mapper.StorageSwitchStateMapper">
+
+    <!--
+      #40 存储切换状态迁移。
+      每条语句都是单语句原子更新：并发实例依赖 WHERE 条件与行锁决定唯一赢家，
+      不做「先读后写」，也不依赖应用级锁跨实例生效。
+    -->
+
+    <insert id="ensureRow">
+        INSERT IGNORE INTO storage_switch_state (id, activeVersion) VALUES (1, 1)
+    </insert>
+
+    <!-- 占位：activeVersion + 1 只在这里产生，pending 非空时不允许第二次占位 -->
+    <update id="claimSwitch">
+        UPDATE storage_switch_state
+        SET pendingVersion = activeVersion + 1,
+            pendingConfigId = #{targetConfigId},
+            pendingPlatform = #{targetPlatform},
+            pendingTime = NOW(),
+            confirmCount = 1,
+            expectedInstances = #{expectedInstances},
+            updateTime = NOW()
+        WHERE id = 1
+          AND pendingVersion IS NULL
+    </update>
+
+    <update id="incrementConfirm">
+        UPDATE storage_switch_state
+        SET confirmCount = confirmCount + 1,
+            updateTime = NOW()
+        WHERE id = 1
+          AND pendingVersion = #{version}
+    </update>
+
+    <!-- 晋升：把 pending 提升为 active。调用方在同一事务里迁移 isActive -->
+    <update id="completeSwitch">
+        UPDATE storage_switch_state
+        SET activeVersion = pendingVersion,
+            pendingVersion = NULL,
+            pendingConfigId = NULL,
+            pendingPlatform = NULL,
+            pendingTime = NULL,
+            confirmCount = 0,
+            expectedInstances = 1,
+            updateTime = NOW()
+        WHERE id = 1
+          AND pendingVersion = #{version}
+    </update>
+
+    <update id="abortSwitch">
+        UPDATE storage_switch_state
+        SET pendingVersion = NULL,
+            pendingConfigId = NULL,
+            pendingPlatform = NULL,
+            pendingTime = NULL,
+            confirmCount = 0,
+            expectedInstances = 1,
+            updateTime = NOW()
+        WHERE id = 1
+          AND pendingVersion IS NOT NULL
+    </update>
+</mapper>
