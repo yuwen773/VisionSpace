@@ -22,6 +22,7 @@ import com.yuwen.visionspace.agent.recovery.RunStatus;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.model.entity.AgentRunState;
+import com.yuwen.visionspace.agent.hook.UserPreferenceLoaderHook;
 import com.yuwen.visionspace.agent.hook.IterationControlHook;
 import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
@@ -93,6 +94,9 @@ public class ImageAgent {
 
     @Resource
     private UserPreferenceService userPreferenceService;
+
+    @Resource
+    private UserPreferenceLoaderHook userPreferenceLoaderHook;
 
     @Resource
     private IterationControlHook iterationControlHook;
@@ -273,7 +277,7 @@ public class ImageAgent {
         // 内置入口不使用 MCP：环境随执行配置声明为「空环境」，与检查点同版本落库
         RunnableConfig config = configFor(threadId, userId, List.of());
         try {
-            String fullMessage = buildUserMessage(userMessage, attachments);
+            String fullMessage = buildUserMessage(userMessage, attachments, userId);
             AssistantMessage response = agent.call(fullMessage, config);
             chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
             chatHistoryService.saveAssistantMessage(threadId, userId, response.getText(), "text");
@@ -323,7 +327,7 @@ public class ImageAgent {
         // 收敛之后仍有待核对动作：本次执行必须停在原地
         recoveryService.requireNoPendingReview(threadId, userId);
 
-        String fullMessage = buildUserMessage(userMessage, attachments);
+        String fullMessage = buildUserMessage(userMessage, attachments, userId);
         chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
 
         // 解析 MCP 回调
@@ -702,15 +706,22 @@ public class ImageAgent {
      * <p>地址来自服务端绑定记录：客户端只能提交资源标识，模型看到的地址由
      * 服务端按归属核对后的记录解析。
      */
-    private String buildUserMessage(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments) {
+    private String buildUserMessage(String userMessage, List<AgentAttachmentService.BoundAttachment> attachments,
+                                    Long userId) {
+        // 偏好只进入本次发给模型的消息，不写进聊天历史（历史保存的是原始 userMessage）
+        String preferenceBlock = userPreferenceLoaderHook.renderPreferenceBlock(userId);
         if (attachments == null || attachments.isEmpty()) {
-            return userMessage != null ? userMessage : "";
+            String bare = userMessage != null ? userMessage : "";
+            return preferenceBlock.isEmpty() ? bare : bare + preferenceBlock;
         }
         StringBuilder sb = new StringBuilder();
         for (AgentAttachmentService.BoundAttachment attachment : attachments) {
             sb.append("<image-analysis>").append(attachment.url()).append("</image-analysis>\n");
         }
         sb.append("\n").append(userMessage != null ? userMessage : "");
+        if (!preferenceBlock.isEmpty()) {
+            sb.append(preferenceBlock);
+        }
         return sb.toString();
     }
 
@@ -747,7 +758,7 @@ public class ImageAgent {
         RunnableConfig config = configFor(threadId, userId, List.of());
         chatHistoryService.saveUserMessage(threadId, userId, userMessage, attachmentIdsOf(attachments));
         try {
-            return agent.invokeAndGetOutput(buildUserMessage(userMessage, attachments), config);
+            return agent.invokeAndGetOutput(buildUserMessage(userMessage, attachments, userId), config);
         } catch (PendingReviewException e) {
             // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
             // 与其它入口的暂停语义不一致
