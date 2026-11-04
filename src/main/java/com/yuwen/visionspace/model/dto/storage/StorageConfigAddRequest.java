@@ -26,8 +26,6 @@ public class StorageConfigAddRequest implements Serializable {
 
     private Integer isActive;
 
-    private Integer isDefault;
-
     private Integer orderNum;
 
     private Integer status;

@@ -9,7 +9,6 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.storage.StorageSwitchService;
-import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigAddRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigUpdateRequest;
@@ -83,37 +82,17 @@ public class StorageConfigController {
     }
 
     /**
-     * 激活指定平台（候选验证 + 原子占位 + 本实例生效）。
+     * 切换默认存储平台（唯一的平台切换入口）。
      *
-     * <p>响应是切换状态而非布尔值：expectedInstances 大于 1 时返回
-     * pending 状态，需要其余实例确认后才晋升为完整成功。
+     * <p>候选完整验证 + 原子占位 + 本实例生效；响应是切换状态而非布尔值：
+     * expectedInstances 大于 1 时返回 pending 状态，需要其余实例确认后才
+     * 晋升为完整成功。单实例部署省略 expectedInstances 即立即晋升。
      */
     @PostMapping("/set_active")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<StorageSwitchStatusVO> setActivePlatform(@RequestBody StorageSwitchRequest request) {
         ThrowUtils.throwIf(request == null || request.getTargetConfigId() == null, ErrorCode.PARAMS_ERROR);
         return ResultUtils.success(storageSwitchService.switchToStoragePlatform(request));
-    }
-
-    /**
-     * 切换默认存储平台（与 set_active 同一语义的显式入口）
-     */
-    @PostMapping("/switch")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<StorageSwitchStatusVO> switchStoragePlatform(@RequestBody StorageSwitchRequest request) {
-        ThrowUtils.throwIf(request == null || request.getTargetConfigId() == null, ErrorCode.PARAMS_ERROR);
-        return ResultUtils.success(storageSwitchService.switchToStoragePlatform(request));
-    }
-
-    /**
-     * 设置默认平台
-     */
-    @PostMapping("/set_default")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> setDefaultPlatform(@RequestBody StorageConfigActiveRequest request) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
-        boolean result = storageConfigService.setDefaultPlatform(request.getId());
-        return ResultUtils.success(result);
     }
 
     /**
