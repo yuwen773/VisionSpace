@@ -7,8 +7,8 @@
 -- 回滚不改变任何空间、图片或资源记录：activeKey 只是唯一占位，删掉它不会
 -- 让已被拒绝的重复创建重新出现，也不会解除任何已有的数据约束。
 --
--- 回滚前必须先把 storage_cleanup_task 里仍待处理（status=0）与等待人工处理
--- （status=2）的任务处理完：删表等于丢掉「还没删掉的对象」这份事实，
+-- 回滚前必须先把 storage_cleanup_task 里仍待处理（status=0）、正在被实例认领
+-- （status=3）与等待人工处理（status=2）的任务处理完：删表等于丢掉「还没删掉的对象」这份事实，
 -- 之后没有任何地方能证明这些对象需要清理。存在未收敛任务时脚本主动失败，
 -- 与 #36 一样用带 CHECK 约束的守卫表阻断（MySQL 不支持在 PREPARE 里 SIGNAL）。
 --
@@ -23,7 +23,7 @@ SET @pending_tasks = (
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'storage_cleanup_task'
 );
 SET @unresolved_tasks = IF(@pending_tasks = 0, 0,
-  (SELECT COUNT(*) FROM `storage_cleanup_task` WHERE `status` IN (0, 2)));
+  (SELECT COUNT(*) FROM `storage_cleanup_task` WHERE `status` IN (0, 2, 3)));
 
 CREATE TABLE IF NOT EXISTS `_space_quota_rollback_guard` (
   `ok` tinyint NOT NULL,

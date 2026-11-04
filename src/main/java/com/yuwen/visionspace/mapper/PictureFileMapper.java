@@ -12,6 +12,13 @@ import java.util.List;
 @Mapper
 public interface PictureFileMapper extends BaseMapper<PictureFile> {
 
+    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
+            "WHERE id = #{id} AND status = 0 AND pictureId IS NULL AND purpose = 'gallery'")
+    int markAbandonedGalleryUpload(@Param("id") Long id);
+
+    @Update("UPDATE picture_file SET status = 2, updateTime = NOW() WHERE id = #{id} AND status = 3")
+    int markSupersededDeleted(@Param("id") Long id);
+
     /**
      * 锁定读一条资源记录。
      *
@@ -98,11 +105,13 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
                                                  @Param("objectKey") String objectKey);
 
     /**
-     * 资源记录是否仍绑定在一张未被删除的图片上。清理任务据此判断「这张图片又被
-     * 重新启用」，避免把仍在服务的内容删掉。
+     * 图片是否仍指向该资源地址，或资源地址缺失而无法确认引用已解除。
+     * 同一 pictureId 也会保留在替换后的历史记录上，不能仅凭图片仍存在就阻断清理。
      */
     @Select("SELECT COUNT(*) FROM picture p JOIN picture_file f ON f.pictureId = p.id " +
-            "WHERE f.id = #{fileId} AND p.isDelete = 0")
+            "WHERE f.id = #{fileId} AND p.isDelete = 0 AND " +
+            "(f.status IN (0, 1) OR f.url IS NULL OR f.url = '' OR p.url = f.url " +
+            "OR p.thumbnailUrl = f.url OR p.previewUrl = f.url)")
     int countLivePictureBinding(@Param("fileId") Long fileId);
 
     /**

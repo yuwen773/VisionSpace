@@ -364,7 +364,13 @@ public class AgentAttachmentService {
             pictureFileService.markDeletePending(file.getId(), retryCount, retryDelay(retryCount).toSeconds());
             // 同时登记到统一的清理任务表：附件自己的重试与图库清理共用一份对象事实，
             // 谁先确认删除，另一个在重试前的引用核对里都会看到并停下
-            storageCleanupService.enqueue(file, file.getObjectKey(), "附件对象删除未确认");
+            try {
+                storageCleanupService.enqueue(file, file.getObjectKey(), "附件对象删除未确认");
+            } catch (RuntimeException e) {
+                // 附件记录本身仍带可重试状态与定位信息，登记失败不掩盖对象仍在的事实
+                log.error("附件对象清理任务登记失败，附件记录保留: id={}, key={}",
+                        file.getId(), file.getObjectKey(), e);
+            }
             log.warn("附件对象删除未确认，保留重试状态: id={}, retry={}", file.getId(), retryCount);
             return false;
         }

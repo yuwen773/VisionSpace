@@ -301,12 +301,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
                 // 资源记录与图片记录在同一事务内绑定，避免出现无主对象
                 pictureFileService.bindToPicture(picture.getId(), loginUser.getId(), uploadedFiles);
-                // 被替换的旧资源在同一事务内标记并清理：数据提交与对象清理属于同一次替换，
-                // 不会出现"数据已经换掉、对象清理落在隔离生效之后"的空档
+                // 与替换一同提交清理任务，提交前绝不删除旧对象。
                 List<PictureFile> superseded = pictureFileService.supersedeExcept(picture.getId(),
                         uploadedFiles.stream().map(PictureFile::getId).toList());
-                if (!superseded.isEmpty()) {
-                    this.cleanupReplacedFiles(superseded);
+                for (PictureFile file : superseded) {
+                    storageCleanupService.enqueueReplacedFile(file);
                 }
                 return picture;
             });
@@ -336,17 +335,33 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             String originalKey = uploadResult.getStoragePath();
             boolean originalRemoved = pictureStorageService.deleteObject(platform, originalKey);
             if (!originalRemoved) {
-                storageCleanupService.enqueue(null, originalKey, "上传失败回收原图未确认");
-                log.warn("上传失败后的原图回收未确认: platform={}, key={}", platform, originalKey);
+                // 登记失败时对象仍在存储里：记录定位信息并继续尝试缩略图，
+                // 不让一个对象的问题掩盖另一个对象。
+                enqueueOrLog(platform, originalKey, PictureFileService.KIND_ORIGINAL,
+                        "上传失败回收原图未确认");
             }
             // 缩略图独立重试：原图回收失败时也要登记，否则它会成为永久孤儿对象
             String thumbnailKey = uploadResult.getThumbnailObjectKey();
             if (StrUtil.isNotBlank(thumbnailKey)
                     && !pictureStorageService.deleteObject(platform, thumbnailKey)) {
-                storageCleanupService.enqueue(null, thumbnailKey, "上传失败回收缩略图未确认");
+                enqueueOrLog(platform, thumbnailKey, PictureFileService.KIND_THUMBNAIL,
+                        "上传失败回收缩略图未确认");
             }
         }
         uploadQuotaManager.refundRate(userId, PictureFilePurposeEnum.GALLERY);
+    }
+
+    /**
+     * 登记失败保留定位信息：对象已经写进存储却没有任何记录指向它，日志是最后的
+     * 人工核对线索。缩略图与原图各自独立登记，一个失败不影响另一个。
+     */
+    private void enqueueOrLog(String platform, String key, String kind, String reason) {
+        try {
+            storageCleanupService.enqueueUploadedObject(platform, key, kind, reason);
+        } catch (RuntimeException e) {
+            log.error("上传失败后的对象清理任务登记失败: platform={}, key={}, kind={}, reason={}",
+                    platform, key, kind, reason, e);
+        }
     }
 
     /**
@@ -360,9 +375,15 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         for (PictureFile file : files) {
             if (!pictureFileService.deleteFile(file)) {
-                // 对象已经写进存储，记录随事务回滚消失：登记清理任务才能之后找回它
-                storageCleanupService.enqueue(file, file.getObjectKey(), "上传失败后的资源回收未完成");
-                log.warn("上传失败后的资源回收未完成: fileId={}, kind={}", file.getId(), file.getKind());
+                try {
+                    // 原子标记已放弃的临时记录并登记任务；记录已变化时不猜测删除。
+                    storageCleanupService.enqueueAbandonedUpload(file, "上传失败后的资源回收未完成");
+                    log.warn("上传失败后的资源回收未完成: fileId={}, kind={}", file.getId(), file.getKind());
+                } catch (RuntimeException e) {
+                    // 单个任务登记失败不能阻止后续对象的回收；临时记录仍保留供核对。
+                    log.error("上传失败后的资源清理任务登记失败: fileId={}, platform={}, key={}",
+                            file.getId(), file.getPlatform(), file.getObjectKey(), e);
+                }
             }
         }
         uploadQuotaManager.refundRate(userId, PictureFilePurposeEnum.GALLERY);
@@ -657,15 +678,24 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 存量对象没有平台与对象键，只能按地址删除；删除未确认时登记为等待人工核对，
         // 不按地址进入自动重试（地址不能作为可信的删除定位）
         if (!pictureStorageService.deleteObject(pictureUrl)) {
-            storageCleanupService.enqueueForReview(pictureUrl, "存量图片原图删除未确认");
+            enqueueForReviewOrLog(pictureUrl, "存量图片原图删除未确认");
         }
         String thumbnailUrl = oldPicture.getThumbnailUrl();
         if (StrUtil.isNotBlank(thumbnailUrl) && !pictureStorageService.deleteObject(thumbnailUrl)) {
-            storageCleanupService.enqueueForReview(thumbnailUrl, "存量图片缩略图删除未确认");
+            enqueueForReviewOrLog(thumbnailUrl, "存量图片缩略图删除未确认");
         }
         String previewUrl = oldPicture.getPreviewUrl();
         if (StrUtil.isNotBlank(previewUrl) && !pictureStorageService.deleteObject(previewUrl)) {
-            storageCleanupService.enqueueForReview(previewUrl, "存量图片预览图删除未确认");
+            enqueueForReviewOrLog(previewUrl, "存量图片预览图删除未确认");
+        }
+    }
+
+    /** 登记失败保留地址线索：三个衍生对象各自独立，一个失败不影响其余。 */
+    private void enqueueForReviewOrLog(String url, String reason) {
+        try {
+            storageCleanupService.enqueueForReview(url, reason);
+        } catch (RuntimeException e) {
+            log.error("存量对象人工核对任务登记失败: url={}, reason={}", url, reason, e);
         }
     }
 
@@ -677,19 +707,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         cleanupFiles(files, "图片资源删除未完成: pictureId=" + pictureId);
     }
 
-    /**
-     * 清理被重新上传替换掉的旧资源。
-     */
-    private void cleanupReplacedFiles(List<PictureFile> superseded) {
-        cleanupFiles(superseded, "被替换的资源删除未完成");
-    }
-
     private void cleanupFiles(List<PictureFile> files, String reason) {
         for (PictureFile file : files) {
             if (!pictureFileService.deleteFile(file)) {
-                // 删除未确认：登记可重试的清理任务，而不是只留一行日志
-                storageCleanupService.enqueue(file, file.getObjectKey(), reason);
-                log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
+                try {
+                    // 删除未确认：登记可重试的清理任务，而不是只留一行日志
+                    storageCleanupService.enqueue(file, file.getObjectKey(), reason);
+                    log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
+                } catch (RuntimeException e) {
+                    // 单个对象登记失败不影响其余对象；资源记录仍在，下一轮可再核对
+                    log.error("清理任务登记失败，资源记录保留: fileId={}, key={}, reason={}",
+                            file.getId(), file.getObjectKey(), reason, e);
+                }
             }
         }
     }
@@ -706,7 +735,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 预检：请求开始前就已隔离的资源直接拒绝
         ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
         // 开启事务
-        transactionTemplate.execute(status -> {
+        Picture deletedPicture = transactionTemplate.execute(status -> {
             // 资源行锁：与隔离、替换共用同一把锁。
             // 拿到锁之后复核隔离状态，隔离若在预检之后生效，这里直接拒绝：
             // 谁先取到锁谁先提交，破坏性动作不会落在隔离生效之后。
@@ -716,6 +745,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
                             ResourceTypeEnum.PICTURE.getValue(), pictureId),
                     ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
+            Picture lockedPicture = pictureMapper.selectForUpdate(pictureId);
+            ThrowUtils.throwIf(lockedPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
             // 操作数据库：逻辑删除影响 0 行说明已被并发删除，此时不能再扣额度，
             // 否则同一张图会被扣两次
             boolean result = this.removeById(pictureId);
@@ -723,16 +754,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             // 更新空间的使用额度，释放额度（仅当图片属于某个空间时）。
             // 公开图库（spaceId 为空）没有空间额度可扣。
             // 释放语句把计数收敛到 0：存量偏差不能把删除卡住，也不能让计数变负。
-            if (oldPicture.getSpaceId() != null) {
-                long size = oldPicture.getPicSize() == null ? 0L : oldPicture.getPicSize();
-                ThrowUtils.throwIf(spaceMapper.releasePictureSlot(oldPicture.getSpaceId(), size) == 0,
+            if (lockedPicture.getSpaceId() != null) {
+                long size = lockedPicture.getPicSize() == null ? 0L : lockedPicture.getPicSize();
+                ThrowUtils.throwIf(spaceMapper.releasePictureSlot(lockedPicture.getSpaceId(), size) == 0,
                         ErrorCode.OPERATION_ERROR, "额度更新失败");
             }
-            return true;
+            return lockedPicture;
         });
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容
-        this.clearPictureFile(oldPicture);
+        this.clearPictureFile(deletedPicture);
     }
 
     @Override

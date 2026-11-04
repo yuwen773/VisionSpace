@@ -2,6 +2,7 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuwen.visionspace.service.PictureFileService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,8 @@ class HttpSpaceQuotaConsistencyTest {
 
     /** 夹具空间 id 从高位段开始，避免与其它用例的固定 id 撞上 */
     private static final long SPACE_SEQ_START = 89200;
+    private static final java.util.concurrent.atomic.AtomicLong SPACE_IDS =
+            new java.util.concurrent.atomic.AtomicLong(SPACE_SEQ_START);
 
     @LocalServerPort
     private int port;
@@ -67,6 +70,7 @@ class HttpSpaceQuotaConsistencyTest {
     void fixture() throws Exception {
         RecordingStorageConfiguration.failUploads(false);
         RecordingStorageConfiguration.failDeletes(false);
+        RecordingStorageConfiguration.invalidThumbnailUrl(false);
         RecordingStorageConfiguration.resetUploadSize();
         createdPictureIds.clear();
         createdSpaceIds.clear();
@@ -77,6 +81,7 @@ class HttpSpaceQuotaConsistencyTest {
     void tearDown() {
         RecordingStorageConfiguration.failUploads(false);
         RecordingStorageConfiguration.failDeletes(false);
+        RecordingStorageConfiguration.invalidThumbnailUrl(false);
         RecordingStorageConfiguration.resetUploadSize();
         jdbc.update("DELETE FROM storage_cleanup_task WHERE reason IN "
                 + "('上传失败回收原图未确认', '上传失败回收缩略图未确认')");
@@ -91,6 +96,8 @@ class HttpSpaceQuotaConsistencyTest {
             jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", pictureId);
             jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
         }
+        jdbc.update("DELETE FROM picture_file WHERE ownerUserId = ?", ownerId);
+        jdbc.update("DELETE FROM picture WHERE userId = ?", ownerId);
         // 本用例注册的用户不共享空间，按 userId 清理即可
         jdbc.update("DELETE FROM space_user WHERE userId = ?", ownerId);
         jdbc.update("DELETE FROM space WHERE userId = ?", ownerId);
@@ -125,6 +132,46 @@ class HttpSpaceQuotaConsistencyTest {
                     "replacing with the same size must leave the used size unchanged");
             assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM picture WHERE id = ? AND isDelete = 0", Integer.class, pictureId));
+        }
+    }
+
+    @Test
+    void replacementAppliesBothSizeDeltasAndRejectsGrowthBeyondTheLimit() throws Exception {
+        long spaceId = seedSpace(ownerId, "size-delta", 0, 100, 1_000);
+        long pictureId;
+        try (var client = client()) {
+            login(client, ownerId);
+            RecordingStorageConfiguration.uploadSize(100L);
+            var first = upload(client, "/picture/upload", "small.png", "spaceId", String.valueOf(spaceId));
+            assertEquals(0, first.path("code").asInt(), first.toString());
+            pictureId = first.path("data").path("id").asLong();
+            createdPictureIds.add(pictureId);
+            assertEquals(100L, totalSize(spaceId), "the first upload counts its real bytes");
+
+            // 变大：数量不变，已用大小按 +差额 增加，且必须受上限约束
+            RecordingStorageConfiguration.uploadSize(300L);
+            var bigger = upload(client, "/picture/upload", "bigger.png",
+                    "id", String.valueOf(pictureId), "spaceId", String.valueOf(spaceId));
+            assertEquals(0, bigger.path("code").asInt(), bigger.toString());
+            assertEquals(1L, totalCount(spaceId), "replacement must not change the count");
+            assertEquals(300L, totalSize(spaceId), "growth must apply the positive delta");
+
+            // 变小：不受上限限制，已用大小按 -差额 收敛
+            RecordingStorageConfiguration.uploadSize(50L);
+            var smaller = upload(client, "/picture/upload", "smaller.png",
+                    "id", String.valueOf(pictureId), "spaceId", String.valueOf(spaceId));
+            assertEquals(0, smaller.path("code").asInt(), smaller.toString());
+            assertEquals(50L, totalSize(spaceId), "shrinking must apply the negative delta");
+
+            // 增大到超过上限：条件更新影响 0 行，图片与已用大小都保持原状
+            RecordingStorageConfiguration.uploadSize(2_000L);
+            var rejected = upload(client, "/picture/upload", "too-big.png",
+                    "id", String.valueOf(pictureId), "spaceId", String.valueOf(spaceId));
+            assertNotEquals(0, rejected.path("code").asInt(), rejected.toString());
+            assertEquals(50L, totalSize(spaceId), "a rejected growth must not change the used size");
+            assertEquals(1L, totalCount(spaceId));
+        } finally {
+            RecordingStorageConfiguration.resetUploadSize();
         }
     }
 
@@ -181,8 +228,7 @@ class HttpSpaceQuotaConsistencyTest {
         assertEquals(1L, totalCount(spaceId), "the count must not exceed the limit");
         assertTrue(totalSize(spaceId) <= 1_000_000L);
         // 被拒绝的请求不能留下图片记录
-        assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture WHERE spaceId = ? AND isDelete = 0", Integer.class, spaceId));
+        assertEquals(1, countPicturesIn(spaceId));
     }
 
     @Test
@@ -244,6 +290,41 @@ class HttpSpaceQuotaConsistencyTest {
     }
 
     // ==================== 17.3 存储 / 数据库失败 ----------
+
+    @Test
+    void committedReplacementQueuesAndReclaimsBothOldObjects() throws Exception {
+        long spaceId = seedSpace(ownerId, "replace-cleanup", 0, 100, 1_000_000);
+        long pictureId;
+        List<Map<String, Object>> oldFiles;
+        try (var client = client()) {
+            login(client, ownerId);
+            JsonNode uploaded = upload(client, "/picture/upload", "original.png", "spaceId", String.valueOf(spaceId));
+            assertEquals(0, uploaded.path("code").asInt(), uploaded.toString());
+            pictureId = uploaded.path("data").path("id").asLong();
+            createdPictureIds.add(pictureId);
+            oldFiles = jdbc.queryForList("SELECT id, platform, objectKey FROM picture_file "
+                    + "WHERE pictureId = ? AND status = 1", pictureId);
+            assertEquals(2, oldFiles.size());
+            for (var file : oldFiles) {
+                assertTrue(RecordingStorageConfiguration.hasObject((String) file.get("platform"), (String) file.get("objectKey")));
+            }
+            JsonNode replaced = upload(client, "/picture/upload", "replacement.png", "id", String.valueOf(pictureId));
+            assertEquals(0, replaced.path("code").asInt(), replaced.toString());
+        }
+        for (var file : oldFiles) {
+            String key = (String) file.get("objectKey");
+            List<Long> taskIds = jdbc.queryForList("SELECT id FROM storage_cleanup_task WHERE objectKey = ? AND status = 0",
+                    Long.class, key);
+            assertEquals(1, taskIds.size(), "each replaced object must have a durable cleanup task");
+            assertTrue(storageCleanupService.retryOne(taskIds.get(0)), "old objects must be reclaimable after commit");
+            assertFalse(RecordingStorageConfiguration.hasObject((String) file.get("platform"), key));
+            assertEquals(2, jdbc.queryForObject("SELECT status FROM picture_file WHERE id = ?", Integer.class, file.get("id")));
+        }
+        for (var file : jdbc.queryForList("SELECT platform, objectKey FROM picture_file WHERE pictureId = ? AND status = 1", pictureId)) {
+            assertTrue(RecordingStorageConfiguration.hasObject((String) file.get("platform"), (String) file.get("objectKey")),
+                    "the replacement objects must remain available");
+        }
+    }
 
     @Test
     void storageWriteFailureProducesNoPicture() throws Exception {
@@ -309,6 +390,72 @@ class HttpSpaceQuotaConsistencyTest {
             assertTrue(task.get("nextRetryTime") != null, "the task must be retryable: " + task);
             assertTrue(task.get("platform") != null, "the task must carry the storage platform: " + task);
         }
+        List<Long> taskIds = jdbc.queryForList(
+                "SELECT id FROM storage_cleanup_task WHERE status = 0 AND objectKey LIKE ?",
+                Long.class, "%/space/" + spaceId + "/%");
+        assertEquals(2, taskIds.size(), "original and thumbnail must each have a cleanup task");
+        for (Long taskId : taskIds) {
+            assertTrue(storageCleanupService.retryOne(taskId),
+                    "once storage recovers, abandoned uploads must actually be reclaimed");
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT status FROM storage_cleanup_task WHERE id = ?", Integer.class, taskId));
+        }
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM picture_file WHERE spaceId = ? AND status IN (0, 1)",
+                Integer.class, spaceId), "reclaimed uploads must not remain live");
+    }
+
+    @Test
+    void quotaRejectionBeforeRegistrationRetriesBothObjectsOnTheirOriginalPlatform() throws Exception {
+        long spaceId = seedSpace(ownerId, "unregistered-retry", 0, 100, 2_000_000_000L);
+        RecordingStorageConfiguration.uploadSize(1_073_741_825L);
+        RecordingStorageConfiguration.failDeletes(true);
+        try (var client = client()) {
+            login(client, ownerId);
+            var response = upload(client, "/picture/upload", "over-user-quota.png",
+                    "spaceId", String.valueOf(spaceId));
+            assertNotEquals(0, response.path("code").asInt(), response.toString());
+        } finally {
+            RecordingStorageConfiguration.failDeletes(false);
+            RecordingStorageConfiguration.resetUploadSize();
+        }
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file WHERE spaceId = ?",
+                Integer.class, spaceId), "rejection must occur before registration");
+        var tasks = jdbc.queryForList("SELECT id, platform, objectKey FROM storage_cleanup_task "
+                + "WHERE status = 0 AND objectKey LIKE ?", "%/space/" + spaceId + "/%");
+        assertEquals(2, tasks.size(), "original and thumbnail must both be tracked");
+        for (var task : tasks) {
+            assertEquals(RecordingStorageConfiguration.PLATFORM, task.get("platform"));
+            String objectKey = (String) task.get("objectKey");
+            int before = deleteCallsFor(objectKey);
+            assertTrue(storageCleanupService.retryOne(((Number) task.get("id")).longValue()));
+            assertEquals(before + 1, deleteCallsFor(objectKey));
+        }
+    }
+
+    @Test
+    void partialRegistrationFailureRollsBackRecordsAndRetriesBothObjects() throws Exception {
+        long spaceId = seedSpace(ownerId, "partial-registration", 0, 100, 1_000_000);
+        RecordingStorageConfiguration.invalidThumbnailUrl(true);
+        RecordingStorageConfiguration.failDeletes(true);
+        try (var client = client()) {
+            login(client, ownerId);
+            var response = upload(client, "/picture/upload", "registration-failure.png",
+                    "spaceId", String.valueOf(spaceId));
+            assertNotEquals(0, response.path("code").asInt(), response.toString());
+        } finally {
+            RecordingStorageConfiguration.invalidThumbnailUrl(false);
+            RecordingStorageConfiguration.failDeletes(false);
+        }
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file WHERE spaceId = ?",
+                Integer.class, spaceId), "partial registration must roll back all file records");
+        var tasks = jdbc.queryForList("SELECT id, platform, objectKey FROM storage_cleanup_task "
+                + "WHERE status = 0 AND objectKey LIKE ?", "%/space/" + spaceId + "/%");
+        assertEquals(2, tasks.size());
+        for (var task : tasks) {
+            assertEquals(RecordingStorageConfiguration.PLATFORM, task.get("platform"));
+            assertTrue(storageCleanupService.retryOne(((Number) task.get("id")).longValue()));
+        }
     }
 
     @Test
@@ -356,6 +503,54 @@ class HttpSpaceQuotaConsistencyTest {
                 "a retryable task must carry a next retry time: " + tasks);
         assertTrue(tasks.stream().allMatch(t -> t.get("platform") != null && t.get("objectKey") != null),
                 "a retryable task must carry the platform and object key: " + tasks);
+    }
+
+    @Test
+    void longObjectKeyIsTrackedAndOnlyOneInstanceClaimsTheTask() throws Exception {
+        // 对象键远超旧的 255 字符 pendingKey：登记不能被截断、不能被静默吞掉，
+        // 也不能因为定长摘要列宽不足而失败。
+        String longKey = "acceptance/space/37/" + "k".repeat(700);
+        RecordingStorageConfiguration.uploadSize(10L);
+        try {
+            storageCleanupService.enqueueUploadedObject(RecordingStorageConfiguration.PLATFORM,
+                    longKey, PictureFileService.KIND_ORIGINAL, "长对象键回归");
+            List<Map<String, Object>> tasks = jdbc.queryForList(
+                    "SELECT id, status, pendingKey FROM storage_cleanup_task WHERE objectKey = ?", longKey);
+            assertEquals(1, tasks.size(), "a long key must leave a durable task");
+            assertEquals(0, ((Number) tasks.get(0).get("status")).intValue());
+            String pendingKey = (String) tasks.get(0).get("pendingKey");
+            assertTrue(pendingKey != null && pendingKey.matches("[0-9a-f]{64}"),
+                    "the pending key must be a fixed-length digest: " + pendingKey);
+
+            long taskId = ((Number) tasks.get(0).get("id")).longValue();
+            // 两个实例同时认领同一条：只有一个能真正执行删除
+            int before = deleteCallsFor(longKey);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+            try {
+                java.util.concurrent.Future<Boolean> a = pool.submit(() -> {
+                    start.await();
+                    return storageCleanupService.retryOne(taskId);
+                });
+                java.util.concurrent.Future<Boolean> b = pool.submit(() -> {
+                    start.await();
+                    return storageCleanupService.retryOne(taskId);
+                });
+                start.countDown();
+                boolean first = a.get(10, TimeUnit.SECONDS);
+                boolean second = b.get(10, TimeUnit.SECONDS);
+                assertFalse(first && second, "only one instance may claim and process the task");
+            } finally {
+                pool.shutdownNow();
+            }
+            assertEquals(before + 1, deleteCallsFor(longKey),
+                    "the object must be deleted exactly once, not once per instance");
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT status FROM storage_cleanup_task WHERE id = ?", Integer.class, taskId));
+        } finally {
+            RecordingStorageConfiguration.resetUploadSize();
+            jdbc.update("DELETE FROM storage_cleanup_task WHERE objectKey = ?", longKey);
+        }
     }
 
     @Test
@@ -499,9 +694,13 @@ class HttpSpaceQuotaConsistencyTest {
     private com.yuwen.visionspace.service.StorageCleanupService storageCleanupService;
 
     private long seedSpace(long userId, String name, int type, long maxCount, long maxSize) {
-        long id = SPACE_SEQ_START + Math.abs(System.nanoTime() % 1000);
-        while (jdbc.queryForObject("SELECT COUNT(*) FROM space WHERE id = ?", Integer.class, id) > 0) {
-            id++;
+        long id = SPACE_IDS.getAndIncrement();
+        while (jdbc.queryForObject("SELECT (SELECT COUNT(*) FROM space WHERE id = ?) "
+                        + "+ (SELECT COUNT(*) FROM picture WHERE spaceId = ?) "
+                        + "+ (SELECT COUNT(*) FROM picture_file WHERE spaceId = ?) "
+                        + "+ (SELECT COUNT(*) FROM storage_cleanup_task WHERE objectKey LIKE ?)",
+                Integer.class, id, id, id, "%/space/" + id + "/%") > 0) {
+            id = SPACE_IDS.getAndIncrement();
         }
         jdbc.update("""
                 INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,

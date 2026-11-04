@@ -75,10 +75,48 @@ CREATE TABLE IF NOT EXISTS `storage_cleanup_task` (
   `attempts` int(11) NOT NULL DEFAULT 0 COMMENT '已尝试次数',
   `nextRetryTime` datetime NULL DEFAULT NULL COMMENT '下次重试时间（数据库时钟）',
   `lastError` varchar(255) NULL DEFAULT NULL COMMENT '最近一次失败原因，不含秘密值',
-  `pendingKey` varchar(255) NULL DEFAULT NULL COMMENT '待处理唯一键 platform|kind|objectKey；进入终态后置空',
+  `claimTime` datetime NULL DEFAULT NULL COMMENT '最近一次被实例认领的时间；超时后回收重试',
+  `pendingKey` char(64) NULL DEFAULT NULL COMMENT '待处理唯一键 SHA256(platform|kind|objectKey)；进入终态后置空',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_pending_object`(`pendingKey`) USING BTREE,
   INDEX `idx_status_retry`(`status`, `nextRetryTime`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '对象存储清理任务';
+
+-- 已建过旧版表的库：把拼接式 pendingKey 收敛为定长摘要列，并补上认领时间列。
+-- 旧 pendingKey 是明文拼接，既可能超过列宽也无法与新的 SHA2 摘要格式共存，
+-- 统一置空后由任务按新格式重排。条件 DDL 可重复执行。
+DROP PROCEDURE IF EXISTS `vs37_normalize_cleanup_task`;
+
+DELIMITER $$
+CREATE PROCEDURE `vs37_normalize_cleanup_task`()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'storage_cleanup_task'
+          AND COLUMN_NAME = 'claimTime'
+    ) THEN
+        ALTER TABLE `storage_cleanup_task`
+            ADD COLUMN `claimTime` datetime NULL DEFAULT NULL
+            COMMENT '最近一次被实例认领的时间；超时后回收重试';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'storage_cleanup_task'
+          AND COLUMN_NAME = 'pendingKey'
+          AND (DATA_TYPE <> 'char' OR CHARACTER_MAXIMUM_LENGTH <> 64)
+    ) THEN
+        UPDATE `storage_cleanup_task` SET `pendingKey` = NULL WHERE `status` = 0;
+        ALTER TABLE `storage_cleanup_task`
+            MODIFY COLUMN `pendingKey` char(64) NULL DEFAULT NULL
+            COMMENT '待处理唯一键 SHA256(platform|kind|objectKey)；进入终态后置空';
+    END IF;
+END$$
+DELIMITER ;
+
+CALL vs37_normalize_cleanup_task();
+
+DROP PROCEDURE IF EXISTS `vs37_normalize_cleanup_task`;

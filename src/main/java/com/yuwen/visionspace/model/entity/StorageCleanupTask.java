@@ -34,6 +34,9 @@ public class StorageCleanupTask implements Serializable {
     /** 引用复核不通过，暂停自动重试，等待人工处理 */
     public static final int STATUS_BLOCKED = 2;
 
+    /** 已被某个实例认领、正在处理；进程中断后由认领超时重新回到待重试 */
+    public static final int STATUS_CLAIMED = 3;
+
     @TableId(type = IdType.AUTO)
     private Long id;
 
@@ -67,8 +70,11 @@ public class StorageCleanupTask implements Serializable {
     /** 最近一次失败或阻断的原因（不含秘密值） */
     private String lastError;
 
+    /** 最近一次被实例认领的时间；进程中断后超时回收 */
+    private Date claimTime;
+
     /**
-     * 待处理唯一键：{@code platform|kind|objectKey}。
+     * 待处理唯一键：{@code SHA256(platform|kind|objectKey)} 的十六进制摘要。
      *
      * <p>唯一索引只约束非空值：进入终态时置空，因此同一个对象被再次清理时
      * 可以重新排队，而不会与历史任务冲突。

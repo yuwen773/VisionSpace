@@ -20,13 +20,29 @@
 | `StorageCleanupJob` | 每 15 分钟（首次延迟 10 分钟）重试到期任务，单批 100 条，单条失败不影响其余；退避 5 分钟起翻倍、上限 24 小时 |
 | `PictureServiceImpl#uploadPicture` | 进入存储前不再做「读-判断」配额校验；改为事务内条件更新，超限时后续写入随事务一起回滚 |
 | `PictureServiceImpl#deletePicture` | 只对属于空间的图片扣额度；公开图库不扣任何空间 |
-| `PictureServiceImpl#discardUploadedObjects` / `#discardRegisteredFiles` / `#cleanupFiles` | 回收失败不再只写一行日志：登记清理任务，原图与缩略图各自独立重试 |
+| `PictureServiceImpl#discardUploadedObjects` / `#discardRegisteredFiles` / `#cleanupFiles` | 回收失败时登记清理任务；未登记对象保留原平台，已登记的图库临时对象在标记放弃后重试，原图与缩略图分别处理 |
+| 图片替换与 `StorageCleanupService#enqueueReplacedFile` | 旧资源标记与清理任务在替换事务内提交；任务登记失败时回滚替换，旧对象在提交前不会被删除。提交后由定时任务重试删除 |
 | `PictureServiceImpl#clearPictureFile` | 存量对象只有地址、没有平台与对象键：登记为等待人工核对，不进入自动重试 |
 | `PictureFileServiceImpl#deleteFile` | 已被替换/已删除的记录直接收敛状态、不重复调用存储；同一对象键仍被别的有效记录引用时跳过删除 |
 | `AgentAttachmentService#removeObject` | 复用资源记录的删除入口（含引用核对与幂等），删除未确认时同时登记统一清理任务 |
 | `Space#activeKey` 上的 `@JsonIgnore` | `/space/get` 与 `/space/list/page` 直接返回实体：不屏蔽会把内部占位写进对外契约（验收的契约对账已抓到） |
 
 ## 迁移与回滚
+
+**上线前置条件：存量库完成回填并核验前，禁止恢复空间创建、删除及其他会写入 `space` 的流量。** 前向迁移只加列和索引；存量有效行的 `activeKey` 仍为 NULL，唯一索引不会约束这些行。仅执行前向迁移就启用新版本，不能保证同类有效空间唯一。
+
+在经批准的维护窗口内，先备份并停止所有实例、任务和其他写入方对空间数据的写入；执行前向迁移和只读清单。重复有效空间必须先经人工核对处置，配额偏差也须记录并按维护计划处理，不自动选择、合并或删除数据。确认重复组为零后执行 `2026-10-25-space-uniqueness-quota-backfill.sql`，并检查 `uk_space_active_key` 确为 `activeKey` 上的唯一索引。以下两项核验都必须为 0：
+
+```sql
+SELECT COUNT(*) AS invalid_live_keys FROM space
+WHERE isDelete = 0 AND (userId IS NULL OR spaceType IS NULL OR activeKey IS NULL
+    OR activeKey <> CONCAT(userId, ':', spaceType));
+
+SELECT COUNT(*) AS occupied_deleted_keys FROM space
+WHERE isDelete <> 0 AND activeKey IS NOT NULL;
+```
+
+再次确认没有重复有效空间、备份与回滚责任人明确，并确保恢复写入的所有实例均使用支持 `activeKey` 的版本后，才可恢复写入。任何迁移、回填或核验失败都应保持停写并按维护流程处理；不得以只完成建列和建索引视为放行。上述步骤是上线前置条件，本地测试不表示生产数据已处理。
 
 | 脚本 | 作用 |
 | --- | --- |
@@ -36,6 +52,8 @@
 | `sql/migrations/2026-10-25-space-uniqueness-quota-blocklist.sql` | 只读清单：重复有效空间（含有效图片数与成员数）、配额偏差与负数、未收敛清理任务 |
 
 ## 验收对照
+
+下表保留 2026-10-27 的历史测试记录；其中「已覆盖」只说明当时列出的场景已运行，不代表覆盖了本次复核发现的补偿重试、替换/删除交错和替换旧对象清理缺口。补充回归及本次验证结果以本文后续记录为准。
 
 | 验收项 | 证据 | 状态 |
 | --- | --- | --- |
@@ -51,6 +69,28 @@
 
 ## 本次实际执行的验证
 
+### 2026-11-04 两轴评审补充修复（第二轮）
+
+在上一节同一未提交工作区上，按 Standards + Spec 两轴评审补修剩余缺口；`head` 仍为 `faf9eb1`，不代表已提交。
+
+- **补偿任务登记不再静默丢失**：`pendingKey` 由 `platform|kind|objectKey` 明文拼接（列宽 255，对象键可达 768）改为 `SHA2(..., 256)` 定长 64 字符摘要；`enqueue` / `enqueueForReview` 登记失败改为抛错，各调用点逐个捕获并保留对象定位信息，缩略图、原图、预览图互不影响。前向迁移加幂等过程把已建旧表收敛到新列并补 `claimTime`，回滚守卫把「处理中」状态一并计入未收敛任务。
+- **清理重试跨实例幂等**：新增 `status=3`（已认领）与 `claimTime`；`claim` 用条件更新保证两个实例只有一个能处理同一任务，`markDone/markRetry/markBlocked` 全部带 `AND status = 3`，`listDue` 先回收超一小时未收敛的认领。避免重复删除对象与并发阻断结果被覆写。
+- **17.1 差额有了真实回归**：新增用例用 100→300→50 字节的替换分别走 `applyPictureSizeDelta` 的正差额、负差额分支，并验证增大超限时条件更新影响 0 行、已用大小不变；此前所有成功替换都用同一 22 字节夹具，差额恒为 0。
+- **迁移阻断语义固化**：新增用例验证前向迁移后存量有效行的 `activeKey` 仍为 NULL、唯一索引约束不到它们，且重复组存在时回填仍被阻断——只加列和索引不等于放行。
+- 新增 3 条用例：`#replacementAppliesBothSizeDeltasAndRejectsGrowthBeyondTheLimit`、`#longObjectKeyIsTrackedAndOnlyOneInstanceClaimsTheTask`（700 字符对象键 + 双线程认领，断言只删一次）、`#forwardMigrationLeavesLegacyRowsUnconstrainedUntilBackfill`。
+- 完整验收 12/12 PASS：后端 **550/550**、前端 **176/176**，隔离、扫描、前端安装/检查/类型/测试/构建、API 契约与清理全绿。首次运行因 npm 全局配置指向乱码旧用户目录（`C:\Users\钰玟\...`）导致前端关卡 BLOCKED_ENV；用 `npm_config_cache` 覆盖为可写路径后重跑全绿，未修改全局配置。
+- `productionAcceptance: NOT_RUN`，边界同上一节：真实对象存储、生产盘点回填、维护窗口与长周期重试均未执行。
+
+### 2026-11-04 审查修复与复验
+
+本次在 PR 原头 `faf9eb1` 的未提交工作区修复，下面的结果针对当时的工作区内容；验收摘要的 `head` 仍是基线提交，不表示这些修改已提交或远端 CI 已运行。
+
+- 回归先复现了已登记临时对象无法重试、登记前失败丢失平台、部分登记未回滚、替换与删除交错后剩余错误额度，以及替换成功后缺少旧对象任务；修复后相应专项测试通过。
+- 补偿测试实际驱动原图与缩略图任务重试，检查平台、任务状态及存储替身的删除；保留重新引用时阻断的回归。替换测试核对旧对象回收、新对象保留，以及任务登记失败时事务回滚和旧对象保留。并发测试固定删除预检、替换提交、删除继续的顺序，验证计数与大小归零。
+- 完整验收此前两轮各有一条测试失败：复用空间 ID 时，旧用例的图片或资源夹具残留干扰了全空间计数。现改用不复用的空间 ID、分配时检查已有数据，并清理测试用户资源；没有缩小全空间副作用断言。
+- 最终完整验收使用 Windows、JDK 23、隔离 MySQL 8.0.26 和 Redis 3.2.100：后端 **547/547**、前端 **176/176**；12 个结果分类（包括隔离、扫描、前端构建、API 契约与清理）全部 PASS。专项测试只选择部分后端用例，未生成完整契约，故专项脚本的契约关卡不能作为通过证据。
+- `productionAcceptance: NOT_RUN`。对象删除使用可控存储替身；真实 COS/OSS/MinIO、生产数据盘点及回填、维护窗口、长周期重试和生产部署均未执行。
+
 2026-10-27，Windows + JDK 23 / Maven / Node / PowerShell 7，原生隔离 MySQL 8.0.26 + Redis 3.2.100（本机 Docker 不可用，因此不是容器实测）：
 
 ```powershell
@@ -58,7 +98,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 `
   -MySqlBin '<MySQL 8.0.26 bin>' -RedisBin '<Redis-x64-3.2.100>'
 ```
 
-最终一轮（`head` 8dd98e0）十二个结果分类全部 PASS：
+本机原生模式那一轮的摘要记录 `head` 为 8dd98e0，十二个结果分类全部 PASS。该 HEAD 字段不能证明当时工作区是否有未提交修改；GitHub 上 PR 头 `faf9eb1` 的容器模式验收是另一轮：
 
 ```json
 {

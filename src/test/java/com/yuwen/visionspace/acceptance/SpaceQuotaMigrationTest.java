@@ -55,10 +55,14 @@ class SpaceQuotaMigrationTest {
             assertTrue(indexExists(SPACE, "uk_space_active_key"), "forward migration must add the unique index");
             assertTrue(tableExists(CLEANUP), "forward migration must create storage_cleanup_task");
             assertTrue(indexExists(CLEANUP, "uk_pending_object"), "cleanup tasks need a pending-unique key");
+            assertTrue(columnExists(CLEANUP, "pendingKey"), "cleanup tasks need a digest pending key");
+            assertTrue(columnExists(CLEANUP, "claimTime"), "cleanup tasks need a claim timestamp");
 
             // 第二次执行不应失败
             run(FORWARD);
             assertTrue(columnExists(SPACE, "activeKey"));
+            assertTrue(columnExists(CLEANUP, "pendingKey"));
+            assertTrue(columnExists(CLEANUP, "claimTime"));
         } finally {
             dropScratchTables();
         }
@@ -106,6 +110,27 @@ class SpaceQuotaMigrationTest {
                     "SELECT COUNT(*) FROM `" + SPACE + "` WHERE isDelete = 0", Integer.class),
                     "a blocked backfill must not delete or merge duplicates");
             assertTrue(tableExists(BACKFILL_GUARD), "the guard table stays behind for inspection");
+        } finally {
+            dropScratchTables();
+        }
+    }
+
+    @Test
+    void forwardMigrationLeavesLegacyRowsUnconstrainedUntilBackfill() throws Exception {
+        try {
+            createScratchSpace();
+            run(FORWARD);
+            // 前向迁移后未回填：两条同类有效空间都没有占位键，唯一索引约束不到它们。
+            // 这正说明「只加列和索引」不等于放行，必须由维护窗口在回填前保持停写。
+            insertSpace(1, 7, 0, 0);
+            insertSpace(2, 7, 0, 0);
+            assertNull(activeKeyOf(1), "forward migration must not silently claim a legacy space");
+            assertNull(activeKeyOf(2), "forward migration must not silently claim a legacy space");
+            assertEquals(2, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM `" + SPACE + "` WHERE isDelete = 0", Integer.class),
+                    "forward migration must not merge or delete duplicates");
+            assertThrows(Exception.class, () -> run(BACKFILL),
+                    "backfill must stay blocked while unresolved duplicates exist");
         } finally {
             dropScratchTables();
         }
@@ -210,6 +235,7 @@ class SpaceQuotaMigrationTest {
             jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
         }
         jdbc.execute("DROP PROCEDURE IF EXISTS `vs37_add_column_if_missing`");
+        jdbc.execute("DROP PROCEDURE IF EXISTS `vs37_normalize_cleanup_task`");
     }
 
     /**

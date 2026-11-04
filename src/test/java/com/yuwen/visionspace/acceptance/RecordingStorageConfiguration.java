@@ -28,6 +28,12 @@ public class RecordingStorageConfiguration {
 
     private static final byte[] CONTENT = "acceptance-image-bytes".getBytes(StandardCharsets.UTF_8);
 
+    private static final java.util.Set<String> OBJECTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    static boolean hasObject(String platform, String key) {
+        return OBJECTS.contains(platform + "|" + key);
+    }
+
     /**
      * 让对象删除失败，用于验证「删除未确认保留可重试状态」。
      *
@@ -41,6 +47,13 @@ public class RecordingStorageConfiguration {
      */
     private static final java.util.concurrent.atomic.AtomicBoolean FAIL_UPLOADS =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private static final java.util.concurrent.atomic.AtomicBoolean INVALID_THUMBNAIL_URL =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    static void invalidThumbnailUrl(boolean invalid) {
+        INVALID_THUMBNAIL_URL.set(invalid);
+    }
 
     /**
      * 上传返回的字节数。默认等于夹具内容长度；替换路径的差额判定需要
@@ -84,7 +97,11 @@ public class RecordingStorageConfiguration {
             public boolean deleteObject(String platform, String objectKey) {
                 recorder.record(new ExternalCallRecorder.Call("DELETE", platform, objectKey));
                 // 删除失败时返回 false：调用方必须保留可重试状态
-                return !FAIL_DELETES.get();
+                if (FAIL_DELETES.get()) {
+                    return false;
+                }
+                OBJECTS.remove(platform + "|" + objectKey);
+                return true;
             }
 
             @Override
@@ -133,7 +150,11 @@ public class RecordingStorageConfiguration {
                 info.setSize(UPLOAD_SIZE.get());
                 // 与原平台一致：缩略图键为文件名 + 后缀
                 info.setThFilename(name + ".min.jpg");
-                info.setThUrl("https://acceptance.invalid" + path + name + ".min.jpg");
+                info.setThUrl(INVALID_THUMBNAIL_URL.get()
+                        ? "https://acceptance.invalid/" + "x".repeat(1100)
+                        : "https://acceptance.invalid" + path + name + ".min.jpg");
+                OBJECTS.add(PLATFORM + "|" + PictureStorageService.objectKey(info));
+                OBJECTS.add(PLATFORM + "|" + PictureStorageService.thumbnailObjectKey(info));
                 return info;
             }
         };

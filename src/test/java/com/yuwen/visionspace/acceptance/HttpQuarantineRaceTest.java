@@ -3,7 +3,9 @@ package com.yuwen.visionspace.acceptance;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
+import com.yuwen.visionspace.model.entity.PictureFile;
 import com.yuwen.visionspace.service.ResourceIsolationService;
+import com.yuwen.visionspace.service.StorageCleanupService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 
 /**
  * 隔离与替换、删除之间的竞态。
@@ -78,6 +81,9 @@ class HttpQuarantineRaceTest {
     @SpyBean
     private PictureStorageService storageService;
 
+    @SpyBean
+    private StorageCleanupService cleanupService;
+
     private final AtomicBoolean preCheckArmed = new AtomicBoolean();
     private final AtomicBoolean uploadArmed = new AtomicBoolean();
     private CountDownLatch preCheckReached;
@@ -97,6 +103,7 @@ class HttpQuarantineRaceTest {
         preCheckArmed.set(false);
         uploadArmed.set(false);
 
+        jdbc.update("DELETE FROM storage_cleanup_task WHERE pictureId = ?", TEAM_PICTURE);
         jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", TEAM_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id = ?", TEAM_PICTURE);
         jdbc.update("DELETE FROM resource_isolation WHERE resourceId = ?", TEAM_PICTURE);
@@ -239,6 +246,61 @@ class HttpQuarantineRaceTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void deleteUsesTheLatestSizeWhenReplacementCommitsAfterItsPrecheck() throws Exception {
+        preCheckArmed.set(true);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        RecordingStorageConfiguration.uploadSize(50);
+        try {
+            Future<JsonNode> deleted = executor.submit(() -> {
+                try (var owner = client()) {
+                    login(owner, ownerId);
+                    return post(owner, "/picture/delete", Map.of("id", TEAM_PICTURE));
+                }
+            });
+            assertTrue(preCheckReached.await(30, TimeUnit.SECONDS),
+                    "delete must read the old picture before the replacement");
+            try (var owner = client()) {
+                login(owner, ownerId);
+                JsonNode replaced = upload(owner, "/picture/upload", "larger.png", "id",
+                        String.valueOf(TEAM_PICTURE));
+                assertEquals(0, replaced.path("code").asInt(), replaced.toString());
+            }
+            assertEquals(50L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?",
+                    Long.class, TEAM_SPACE));
+            quarantineCommitted.countDown();
+            JsonNode response = deleted.get(30, TimeUnit.SECONDS);
+            assertEquals(0, response.path("code").asInt(), response.toString());
+            assertEquals(0L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?",
+                    Long.class, TEAM_SPACE), "deleting the replacement must release its actual size");
+            assertEquals(0L, jdbc.queryForObject("SELECT totalCount FROM space WHERE id = ?",
+                    Long.class, TEAM_SPACE));
+        } finally {
+            quarantineCommitted.countDown();
+            RecordingStorageConfiguration.resetUploadSize();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void replacementRollsBackWhenOldObjectCleanupCannotBeRecorded() throws Exception {
+        doThrow(new IllegalStateException("injected cleanup task failure"))
+                .when(cleanupService).enqueueReplacedFile(any(PictureFile.class));
+        try (var owner = client()) {
+            login(owner, ownerId);
+            JsonNode replaced = upload(owner, "/picture/upload", "replacement.png", "id",
+                    String.valueOf(TEAM_PICTURE));
+            assertTrue(replaced.path("code").asInt() != 0, "replacement must fail if cleanup cannot be recorded");
+        }
+        assertEquals(ORIGINAL_URL, jdbc.queryForObject("SELECT url FROM picture WHERE id = ?",
+                String.class, TEAM_PICTURE));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file "
+                + "WHERE pictureId = ? AND status = 1 AND objectKey = ?", Integer.class,
+                TEAM_PICTURE, ORIGINAL_OBJECT_KEY));
+        assertEquals(0, deleteCallsFor(ORIGINAL_OBJECT_KEY), "rollback must keep the old object");
+        assertEquals(10L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?", Long.class, TEAM_SPACE));
     }
 
     // ---- helpers ----

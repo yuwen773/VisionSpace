@@ -26,6 +26,15 @@ public interface StorageCleanupService extends IService<StorageCleanupTask> {
      */
     void enqueue(PictureFile file, String key, String reason);
 
+    /** 登记尚无资源记录、但平台与对象键已知的上传对象。 */
+    void enqueueUploadedObject(String platform, String key, String kind, String reason);
+
+    /** 原子标记已放弃的图库临时上传并登记清理任务。 */
+    void enqueueAbandonedUpload(PictureFile file, String reason);
+
+    /** 在图片替换事务中登记旧对象；登记失败时必须回滚替换。 */
+    void enqueueReplacedFile(PictureFile file);
+
     /**
      * 登记一条等待人工处理的清理任务。
      *

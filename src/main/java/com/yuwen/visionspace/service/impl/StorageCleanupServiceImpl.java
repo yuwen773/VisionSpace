@@ -9,6 +9,7 @@ import com.yuwen.visionspace.model.entity.StorageCleanupTask;
 import com.yuwen.visionspace.service.StorageCleanupService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.time.Duration;
@@ -40,6 +41,34 @@ public class StorageCleanupServiceImpl extends ServiceImpl<StorageCleanupTaskMap
     private PictureFileMapper pictureFileMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void enqueueAbandonedUpload(PictureFile file, String reason) {
+        if (pictureFileMapper.markAbandonedGalleryUpload(file.getId()) != 1) {
+            throw new IllegalStateException("图库临时资源状态已改变，不能自动回收: " + file.getId());
+        }
+        baseMapper.insertPending(file.getId(), null, file.getPlatform(), file.getObjectKey(),
+                file.getKind(), reason);
+    }
+
+    @Override
+    public void enqueueReplacedFile(PictureFile file) {
+        if (file.getPlatform() == null || file.getPlatform().isBlank()
+                || file.getObjectKey() == null || file.getObjectKey().isBlank()) {
+            throw new IllegalStateException("被替换资源缺少平台或对象键: " + file.getId());
+        }
+        baseMapper.insertPending(file.getId(), file.getPictureId(), file.getPlatform(), file.getObjectKey(),
+                file.getKind(), "被替换的资源删除未完成");
+    }
+
+    @Override
+    public void enqueueUploadedObject(String platform, String key, String kind, String reason) {
+        PictureFile file = new PictureFile();
+        file.setPlatform(platform);
+        file.setKind(kind);
+        enqueue(file, key, reason);
+    }
+
+    @Override
     public void enqueue(PictureFile file, String key, String reason) {
         if (key == null || key.isBlank()) {
             return;
@@ -51,8 +80,11 @@ public class StorageCleanupServiceImpl extends ServiceImpl<StorageCleanupTaskMap
                     file == null ? null : file.getPictureId(),
                     platform, key, kind, reason);
         } catch (Exception e) {
-            // 登记失败不能让业务回滚：对象已经存在，日志里保留定位信息供人工处理
-            log.error("清理任务登记失败: platform={}, key={}, reason={}", platform, key, reason, e);
+            // 对象已经写进存储，登记失败不能只留一行日志：把失败交回调用方，
+            // 由它决定是否保留对象记录、抛错或进入人工清单。静默吞掉会让对象
+            // 成为没有任何线索可以找回的永久孤儿（父规格 D10）。
+            throw new IllegalStateException(
+                    "清理任务登记失败: platform=" + platform + ", key=" + key + ", reason=" + reason, e);
         }
     }
 
@@ -66,30 +98,31 @@ public class StorageCleanupServiceImpl extends ServiceImpl<StorageCleanupTaskMap
             return;
         }
         try {
-            baseMapper.insertPending(null, null, null, url, null, reason);
-            StorageCleanupTask task = this.lambdaQuery()
-                    .eq(StorageCleanupTask::getObjectKey, url)
-                    .eq(StorageCleanupTask::getStatus, StorageCleanupTask.STATUS_PENDING)
-                    .orderByDesc(StorageCleanupTask::getId)
-                    .last("LIMIT 1")
-                    .one();
-            if (task != null) {
-                baseMapper.markBlocked(task.getId(), "存量对象缺少平台标识，需人工核对后处理");
-            }
+            baseMapper.insertForReview(url, reason, "存量对象缺少平台标识，需人工核对后处理");
         } catch (Exception e) {
-            log.error("清理任务登记失败（需人工核对）: key={}, reason={}", url, reason, e);
+            throw new IllegalStateException(
+                    "清理任务登记失败（需人工核对）: key=" + url + ", reason=" + reason, e);
         }
     }
 
+    /** 认领超过一小时的视为实例已中断，放回待重试 */
+    private static final long CLAIM_TIMEOUT_SECONDS = 3600L;
+
     @Override
     public List<StorageCleanupTask> listDue(int limit) {
+        baseMapper.releaseStaleClaims(CLAIM_TIMEOUT_SECONDS);
         return baseMapper.selectDue(limit);
     }
 
     @Override
     public boolean retryOne(Long taskId) {
+        // 原子认领：两个实例同时选中同一条到期任务时只有一方能继续，
+        // 避免对同一个对象重复调用删除、或把并发阻断结果覆写成已确认。
+        if (baseMapper.claim(taskId) != 1) {
+            return false;
+        }
         StorageCleanupTask task = this.getById(taskId);
-        if (task == null || task.getStatus() == null || task.getStatus() != StorageCleanupTask.STATUS_PENDING) {
+        if (task == null || task.getStatus() == null || task.getStatus() != StorageCleanupTask.STATUS_CLAIMED) {
             return false;
         }
         String blockedReason = blockingReference(task);
@@ -106,6 +139,9 @@ public class StorageCleanupServiceImpl extends ServiceImpl<StorageCleanupTaskMap
             log.warn("清理任务删除未确认，稍后重试: id={}, key={}, attempts={}",
                     task.getId(), task.getObjectKey(), attempts);
             return false;
+        }
+        if (task.getPictureFileId() != null) {
+            pictureFileMapper.markSupersededDeleted(task.getPictureFileId());
         }
         baseMapper.markDone(task.getId());
         return true;

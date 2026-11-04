@@ -14,6 +14,7 @@ import com.yuwen.visionspace.model.enums.PictureFileStatusEnum;
 import com.yuwen.visionspace.service.PictureFileService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public class PictureFileServiceImpl extends ServiceImpl<PictureFileMapper, Pictu
     private PictureStorageService pictureStorageService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<PictureFile> registerUpload(User owner, PictureFilePurposeEnum purpose, Long spaceId,
                                             UploadPictureResult uploadResult) {
         ThrowUtils.throwIf(owner == null || owner.getId() == null, ErrorCode.NO_AUTH_ERROR);
