@@ -23,19 +23,25 @@
 5. **各实例确认（确认集合，非计数器）**：确认写入 `storage_switch_confirm`
    （主键 `(version, instanceId)`，`INSERT IGNORE`）。同一实例重复确认（重试、重启、双击）
    只占一席，晋升不可能被确认数虚增提前触发；发起实例与其余实例走同一条确认路径。
-   注意：实例标识为进程内 UUID，重启后产生新标识——旧行保留（如实反映该实例曾确认过），
-   新进程按新实例重新确认。
+   instanceId 为实例本地持久化的 UUID（`vs.instance-id-file`，默认工作目录
+   `storage-instance-id`；同机多实例须各自指定，验收第二实例由其入口类显式区分）：
+   同一物理实例跨重启复用同一标识，不会因重启在集合里占多席。
 6. **晋升**：确认集合大小 ≥ expectedInstances 后在同一事务里 `completeSwitch`
    （`WHERE pendingVersion=#{version}`，并发晋升唯一赢家）并 `deactivateOtherConfigs` +
    `activateConfig`（持久激活标记迁移），保证运行生效与 `storage_config.isActive` 一致提交。
    **单实例部署（expectedInstances=1）发起即确认即晋升**，不存在「1/1 卡 pending」状态。
-7. **回滚**：`/storage/config/switch/rollback` 原子清空 pending（`WHERE pendingVersion IS NOT NULL`），
+7. **残留确认清理**：回滚只清 pending 不清 confirm 集合，而 `claimSwitch` 会复用同一版本号；
+   占位事务内由赢家清空同版本号的全部确认行（`deleteByVersion`）。并发安全论证：
+   新确认行只可能在占位提交后产生（确认路径要求读到 pending = 该版本），故被清的全是
+   上次流产尝试的残留行；落败方（claimSwitch 影响 0 行）不做清理，不会误删并发赢家的
+   新确认。没有这层清理，「回滚 → 再发起」路径会继承流产确认并提前晋升。
+8. **回滚**：`/storage/config/switch/rollback` 原子清空 pending（`WHERE pendingVersion IS NOT NULL`），
    `activeVersion` 不变；本实例从持久激活配置重建快照。已应用候选的落后实例在下次
    状态读取/确认时**惰性自愈**（pending 为空且本地版本 ≠ activeVersion 时从持久配置重建；
    pending 非空期间的落后是待确认状态，绝不自动应用）。
-8. **旧资源不受影响**：切换不搬迁、不删除任何对象；资源的读取/删除/补偿始终按资源记录里的
+9. **旧资源不受影响**：切换不搬迁、不删除任何对象；资源的读取/删除/补偿始终按资源记录里的
    原平台与对象键定位（#34 已建立的行级归属）。
-9. **在途上传**：`putPictureObject`/`putObject` 在任务开始时解析并钉住平台
+10. **在途上传**：`putPictureObject`/`putObject` 在任务开始时解析并钉住平台
    （`setPlatform`），切换并发时在途上传按原配置完成；无默认平台时显式拒绝上传，
    不存在「不确定落到哪个平台」的暧昧状态。
 
@@ -56,18 +62,27 @@
 | 11 | P3 | 被撤销凭据「不长期沿用」 | 人工关卡：切换/候选验证保证新配置在启用前验证；撤销凭据的旧配置在切换后仍留在库里供旧资源读写（AC24.4 的要求），「停用/轮换」由 D20 运维交接流程承担 |
 | 12 | P3 | 阶段魔串 / 版本钉住重复 | 记录：phase 取值 `pending`/`completed` 集中在 `StorageSwitchService.buildStatus`；快照版本读取经由 `StorageSnapshotManager.currentVersion()` 单点，未做进一步抽象 |
 
+第二轮复核修复（增量复核发现的 2 新问题 + 1 低危）：
+
+| # | 级别 | 问题 | 处置 |
+| --- | --- | --- | --- |
+| R1 | 中高 | abortSwitch 只清 pending 不清 confirm 集合，claimSwitch 复用同版本号 → 流产尝试的残留确认行被继承，回滚→再发起路径上重现「未确认实例被跳过的提前晋升」 | **已修**：占位事务内由赢家执行 `deleteByVersion`（并发安全论证见上文语义第 7 条：新确认行只可能在占位提交后产生，被清的全是残留行；落败方不清理）。选占位侧而非 abort 侧清理：abort 侧删除与「新占位复用版本号」存在竞态（会误删重新发起后的合法确认）。回归：单测 `claimPurgesStaleConfirmRowsFromAbortedAttempt` / `failedClaimDoesNotPurgeConfirmRows`；验收 `reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows`（单实例即可实证：回滚→再发起后 confirmCount 必须 1 不得 2、不得提前晋升） |
+| R2 | 中 | instanceId 按进程生成，重启即换 ID，同一物理实例可占多席独自触发提前晋升 | **已修**：实例标识首次生成后持久化到本地文件（`vs.instance-id-file`，默认工作目录 `storage-instance-id`），重启复用；同机多实例各自指定文件（验收第二实例入口类显式 `storage-instance-id-second`）。读写失败以 error 日志显式退化（不静默吞掉）。单测 `StorageInstanceIdProviderTest`（跨进程复用 / 不同文件不同 ID / 损坏重生成 / 不可写退化） |
+| R3 | 低 | 跑过整改前迁移的环境残留 NOT NULL 的 confirmCount 死列 | **已修**：前向迁移追加条件 DROP（information_schema 判存 + PREPARE，幂等）；回滚脚本对称条件重建该列（DEFAULT 0，供回滚到中间版本的极端场景） |
+
 ## AC → 测试 → 状态
 
 | AC | 内容 | 测试 | 状态 |
 | --- | --- | --- | --- |
 | 24.1 | 候选完整验证后再原子切换；失败保留旧快照，不虚报完整成功 | 单测 `StorageSwitchServiceTest.candidateVerificationFailureKeepsOldSnapshotAndState` / `.alreadyActivePlatformIsRejectedWithoutClaiming`；单测 `DefaultStorageCandidateVerifierTest`（坏平台/缺字段/坏端点/坏 bucket 显式失败）；验收 `HttpStorageSwitchTest.singleSwitchKeepsOldSnapshotWhenCandidateFails` | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；确认集合达到期望才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.singleInstanceSwitchCompletesImmediatelyAndMovesActivation` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | NOT_RUN in isolation（单测 PASS 本地） |
+| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；确认集合达到期望才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies` / `.claimPurgesStaleConfirmRowsFromAbortedAttempt` / `.failedClaimDoesNotPurgeConfirmRows` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.singleInstanceSwitchCompletesImmediatelyAndMovesActivation` / `.reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | NOT_RUN in isolation（单测 PASS 本地） |
 | 24.3 | 在途上传用原配置、新任务用已验证配置；双实例竞争不产生多活或无活的暧昧默认状态 | 单测 `PictureStorageServicePlatformPinTest`（平台钉住 + 无默认显式拒绝）；单测 `StorageSwitchServiceTest.concurrentSwitchLosesWithExplicitError` / `.switchAbortsWhenClaimIsConcurrentlyRolledBack`；验收 `HttpStorageSwitchTest.uploadUsesVerifiedSnapshotAndRejectsNoDefaultState` | NOT_RUN in isolation（单测 PASS 本地） |
 | 24.4 | 读取/删除/补偿按资源原平台定位；切换不搬迁、不删除旧文件、不长期沿用已撤销凭据 | 验收 `HttpStorageSwitchTest.legacyResourcesKeepOriginalPlatformAcrossSwitch`（切换后旧资源平台/对象键未被改写、内容读取按原平台、删除按原平台、切换不触碰资源状态）；单测 `StorageSwitchServiceTest`（切换不触碰资源表） | NOT_RUN in isolation；撤销凭据轮换为人工关卡 |
 | 24.5 | UI 展示真实生效状态；密钥不输出；旧平台资源核对及维护回滚可执行 | 验收 `HttpStorageSwitchTest.statusEndpointShowsRealEffectAndNoSecrets` / `.statusReadSelfHealsLaggingInstanceAfterCompletedSwitch`（双实例自愈）；前端 `StorageConfigManagePage.vue`（本实例生效版本 / 版本漂移 / 确认进度与期望实例数（后端下发）/ 回滚按钮 / 运维填写期望实例数的切换弹窗）；单测 `StorageCredentialMaskerTest`（既有） | NOT_RUN in isolation；UI 为人工关卡 |
 
 状态说明：
-- **PASS 本地**：`StorageSwitchServiceTest`（13）、`PictureStorageServicePlatformPinTest`（4）、
+- **PASS 本地**：`StorageSwitchServiceTest`（15）、`StorageInstanceIdProviderTest`（4）、
+  `PictureStorageServicePlatformPinTest`（4）、
   `DefaultStorageCandidateVerifierTest`（6）在本 worktree 直接运行通过。
 - **NOT_RUN in isolation**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
   （及双实例用例的第二 JVM 端口），由编排者在交付后串行运行。
@@ -80,10 +95,12 @@
 后端（新增）：
 - `manager/storage/StorageCandidateVerifier.java` / `DefaultStorageCandidateVerifier.java`
 - `manager/storage/StorageSnapshotManager.java` / `StorageSwitchService.java`
-- `manager/storage/StorageInstanceIdProvider.java`（进程内实例标识，确认集合主键成分）
+- `manager/storage/StorageInstanceIdProvider.java`（实例标识：本地持久化，跨重启复用，
+  读写失败显式退化并记录 error 日志）
 - `manager/storage/init/StorageSnapshotAssembler.java`
 - `mapper/StorageSwitchStateMapper.java` / `mapper/StorageSwitchConfirmMapper.java`
-  + 对应 XML（原子占位 / 原子完成 / 原子回滚 / INSERT IGNORE 确认 / 集合计数）
+  + 对应 XML（原子占位 / 原子完成 / 原子回滚 / INSERT IGNORE 确认 / 集合计数 /
+  占位事务内清残留确认行）
 - `model/entity/StorageSwitchState.java`、`model/entity/StorageSwitchConfirm.java`、
   `model/vo/StorageSwitchStatusVO.java`、`model/dto/storage/StorageSwitchRequest.java`
 - `resources/mapper/StorageConfigMapper.xml`（受限查询 + 激活迁移原子语句）
@@ -117,8 +134,9 @@ SQL：
 
 - 双实例验收用例依赖编排脚本注入 `-Dvs.acceptance.second-port`（与 #39 相同机制），
   本机无法单独运行；脚本未注入端口时用例显式 BLOCKED_ENV，不冒充通过。
-- 实例标识为进程内 UUID：实例重启后旧确认行保留（如实记录），新进程按新实例重新确认；
-  重启风暴场景需运维把 expectedInstances 调到含重启的实例总数。
+- 实例标识的持久性依赖本地标识文件（`vs.instance-id-file`）：文件被删除或所在盘
+  不可写时退化为进程级 UUID（error 日志显式可见），此时重启后的实例会被确认集合
+  视为新实例；标识文件不属于任何持久化备份范围。同机多实例必须各自指定文件。
 - 凭据撤销后的「不能长期沿用旧凭据」由运维交接流程承担（D20 原文要求明确交接，
   不在本工单自动执行范围）；本工单提供的是旧平台资源仍可按原平台读写删除的能力。
 - 合并后需运行 `npm run openapi2ts` 重新生成前端 API 客户端（`set_active` 响应类型已变，
