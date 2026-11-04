@@ -1,7 +1,6 @@
 package com.yuwen.visionspace.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
@@ -25,11 +24,6 @@ public interface StorageConfigService extends IService<StorageConfig> {
      * 删除存储平台配置
      */
     boolean deleteStorageConfig(long id);
-
-    /**
-     * 设置激活平台
-     */
-    boolean setActivePlatform(StorageConfigActiveRequest request);
 
     /**
      * 设置默认平台

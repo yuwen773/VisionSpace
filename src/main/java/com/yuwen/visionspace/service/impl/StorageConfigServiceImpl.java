@@ -6,7 +6,6 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.mapper.StorageConfigMapper;
 import com.yuwen.visionspace.manager.storage.StorageCredentialMasker;
-import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
@@ -27,10 +26,8 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         // 新建时不允许把遮蔽值或占位文本当作真实密钥保存。
         rejectMaskedCredential(storageConfig.getAccessKey(), "AccessKey");
         rejectMaskedCredential(storageConfig.getSecretKey(), "SecretKey");
-        // 同一时刻仅一个激活平台
-        if (storageConfig.getIsActive() != null && storageConfig.getIsActive() == 1) {
-            deactivateAll();
-        }
+        // 激活平台必须走切换接口（候选验证 + 多实例确认），不允许绕过验证直接生效
+        rejectDirectActivation(storageConfig.getIsActive());
         boolean result = this.save(storageConfig);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "添加存储配置失败");
@@ -50,15 +47,24 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         // 只替换被显式改动过的凭据；遮蔽值、空白与 null 保留库中原值。
         storageConfig.setAccessKey(resolveCredential(storageConfig.getAccessKey(), oldConfig.getAccessKey()));
         storageConfig.setSecretKey(resolveCredential(storageConfig.getSecretKey(), oldConfig.getSecretKey()));
-        // 切换激活平台
-        if (storageConfig.getIsActive() != null && storageConfig.getIsActive() == 1) {
-            deactivateAll();
-        }
+        // 激活平台必须走切换接口（候选验证 + 多实例确认），不允许绕过验证直接生效
+        rejectDirectActivation(storageConfig.getIsActive());
         boolean result = this.updateById(storageConfig);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "更新存储配置失败");
         }
         return true;
+    }
+
+    /**
+     * 激活标记是切换的持久结果，只能由切换流程在晋升事务内变更；
+     * 直接写入会造成「未经验证的平台成为默认」的旁路。
+     */
+    private void rejectDirectActivation(Integer isActive) {
+        if (isActive != null && isActive == 1) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,
+                    "激活平台请使用切换接口（候选验证后生效）");
+        }
     }
 
     /**
@@ -84,20 +90,6 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
         return this.removeById(id);
-    }
-
-    @Override
-    public boolean setActivePlatform(StorageConfigActiveRequest request) {
-        StorageConfig config = this.getById(request.getId());
-        if (config == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
-        }
-        if (config.getStatus() == 0) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该平台已禁用，请先启用");
-        }
-        deactivateAll();
-        config.setIsActive(1);
-        return this.updateById(config);
     }
 
     @Override
@@ -169,14 +161,5 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
     public StorageConfig getActiveStorageConfig() {
         return this.getOne(new LambdaQueryWrapper<StorageConfig>()
                 .eq(StorageConfig::getIsActive, 1));
-    }
-
-    private void deactivateAll() {
-        List<StorageConfig> activeList = this.list(
-                new LambdaQueryWrapper<StorageConfig>().eq(StorageConfig::getIsActive, 1));
-        for (StorageConfig c : activeList) {
-            c.setIsActive(0);
-            this.updateById(c);
-        }
     }
 }
