@@ -132,8 +132,12 @@ public class UserPreferenceService {
                 return;
             }
         }
-        // 多次冲突后放弃：反馈请求本身已成功，学习失败必须可见而不是静默吞掉
+        // 多次冲突后放弃：反馈请求本身已成功，但学习失败不能静默吞掉——
+        // 写入 learnError 供用户与运维观察（学习成功或用户控制操作时清空）。
+        // 已知的权衡：本次反馈不会进入学习产物，也不会自动重试；
+        // 用户开启的下一次反馈会正常学习。
         log.warn("偏好学习多次 CAS 冲突，放弃本次学习, userId={}", userId);
+        userPreferenceMapper.recordLearnFailure(userId, "LEARN_GAVE_UP_CAS_CONFLICT");
     }
 
     /**
@@ -148,8 +152,11 @@ public class UserPreferenceService {
     /**
      * 显式修改偏好设置（用户直接编辑）。
      *
-     * <p>白名单外的键被忽略；写入按 (version, epoch) CAS，冲突时重读重试，
-     * 用尽后抛错让用户重试——用户输入不被静默丢弃。
+     * <p><b>整节替换语义</b>：入参完整覆盖 explicitContent 这一节——
+     * 未随请求携带的白名单键会被清掉（反馈历史与学习产物不受影响）。
+     * 客户端应先读视图、编辑后再整体提交。白名单外的键被忽略；
+     * 写入按 (version, epoch) CAS，冲突时重读重试，用尽后抛错让用户
+     * 重试——用户输入不被静默丢弃。
      */
     public PreferenceViewVO updateExplicit(Long userId, Map<String, Object> explicit) {
         Map<String, Object> sanitized = sanitizeExplicit(explicit);

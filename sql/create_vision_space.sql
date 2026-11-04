@@ -515,6 +515,7 @@ CREATE TABLE `user_preference` (
   `autoLearn` tinyint(4) NOT NULL DEFAULT 0 COMMENT '自动学习开关: 0-关闭（默认） 1-开启',
   `preferenceVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '偏好版本，单调递增，学习写入按它 CAS',
   `dataEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '数据纪元，用户控制操作递增，旧学习任务据此失效',
+  `learnError` varchar(200) NULL DEFAULT NULL COMMENT '最近一次学习放弃原因（短码）；学习成功或用户控制操作时清空',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,

@@ -48,6 +48,9 @@ public class UserPreference implements Serializable {
     /** 数据纪元，用户控制操作递增，旧学习任务据此失效 */
     private Long dataEpoch;
 
+    /** 最近一次学习放弃原因（短码）；学习成功或用户控制操作时清空 */
+    private String learnError;
+
     private Date createTime;
 
     private Date updateTime;

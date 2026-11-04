@@ -47,7 +47,7 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已写入，0 表示期间发生过别的写（版本/纪元已更替）
      */
-    @Update("UPDATE user_preference SET explicitContent = #{explicitJson}, " +
+    @Update("UPDATE user_preference SET explicitContent = #{explicitJson}, learnError = NULL, " +
             "preferenceVersion = preferenceVersion + 1, dataEpoch = dataEpoch + 1, updateTime = NOW() " +
             "WHERE userId = #{userId} AND preferenceVersion = #{expectedVersion} AND dataEpoch = #{expectedEpoch}")
     int updateExplicit(@Param("userId") Long userId,
@@ -65,7 +65,7 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      * @return 1 表示已写入，0 表示已清除、已关闭或期间发生过别的写
      */
     @Update("UPDATE user_preference SET learnedContent = #{learnedJson}, " +
-            "feedbackHistory = #{feedbackHistoryJson}, " +
+            "feedbackHistory = #{feedbackHistoryJson}, learnError = NULL, " +
             "preferenceVersion = preferenceVersion + 1, updateTime = NOW() " +
             "WHERE userId = #{userId} AND preferenceVersion = #{expectedVersion} " +
             "AND dataEpoch = #{expectedEpoch} AND autoLearn = 1")
@@ -85,7 +85,7 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      * @return 1 表示已清除，0 表示用户本就没有偏好行（视为已清除）
      */
     @Update("UPDATE user_preference SET explicitContent = NULL, learnedContent = NULL, " +
-            "feedbackHistory = NULL, preferenceVersion = preferenceVersion + 1, " +
+            "feedbackHistory = NULL, learnError = NULL, preferenceVersion = preferenceVersion + 1, " +
             "dataEpoch = dataEpoch + 1, updateTime = NOW() " +
             "WHERE userId = #{userId}")
     int clearData(@Param("userId") Long userId);
@@ -98,8 +98,21 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已写入，0 表示用户本就没有偏好行
      */
-    @Update("UPDATE user_preference SET autoLearn = #{enabled}, " +
+    @Update("UPDATE user_preference SET autoLearn = #{enabled}, learnError = NULL, " +
             "preferenceVersion = preferenceVersion + 1, dataEpoch = dataEpoch + 1, updateTime = NOW() " +
             "WHERE userId = #{userId}")
     int setAutoLearn(@Param("userId") Long userId, @Param("enabled") int enabled);
+
+    /**
+     * 记录一次学习放弃：失败必须可观察（learnError）而不是静默吞掉。
+     *
+     * <p>与 {@code agent_run_state.backupError} 同一纪律。只写短码原因，
+     * 不含反馈正文等用户内容；学习成功或用户的任何控制操作都会清空。
+     *
+     * <p>无条件更新（只按归属）：学习放弃本身就是已经让位的动作，
+     * 不再与用户控制操作竞争版本。
+     */
+    @Update("UPDATE user_preference SET learnError = #{error}, updateTime = NOW() " +
+            "WHERE userId = #{userId}")
+    int recordLearnFailure(@Param("userId") Long userId, @Param("error") String error);
 }

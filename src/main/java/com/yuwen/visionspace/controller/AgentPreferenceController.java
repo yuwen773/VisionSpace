@@ -48,6 +48,10 @@ public class AgentPreferenceController {
 
     /**
      * 显式修改偏好设置（用户直接编辑）。
+     *
+     * <p><b>整节替换语义</b>：请求里的 explicit 完整覆盖已有的显式设置——
+     * 未携带的白名单键会被清掉（不影响学习产物与反馈历史）；
+     * 白名单外的键被忽略。客户端应先 GET 视图、编辑后再整体提交。
      */
     @PostMapping("/update")
     public BaseResponse<PreferenceViewVO> updatePreference(@RequestBody PreferenceUpdateRequest requestBody,

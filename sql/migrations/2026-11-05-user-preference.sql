@@ -12,6 +12,10 @@
 --                      在途学习任务持有读取时的 (version, epoch)，清除或关闭后
 --                      两个条件都不再成立——旧任务写不回已清除的数据，也不会在
 --                      重读后被「重放」为一次新的学习。
+--   * learnError       最近一次自动学习放弃的原因（短码，不含正文）。学习写入
+--                      连续版本冲突被放弃时写入；下一次学习成功或用户的任何控制
+--                      操作都会清空。与 #41 agent_run_state.backupError 同一纪律：
+--                      失败必须可观察、可清除，不静默吞掉。
 --
 -- 存量数据迁移的诚实声明：旧实现把偏好放在进程内 MemoryStore
 -- （AgentStoreConfig#memoryStore，无任何磁盘形态），实例停止即丢失，
@@ -32,6 +36,7 @@ CREATE TABLE IF NOT EXISTS `user_preference` (
   `autoLearn` tinyint(4) NOT NULL DEFAULT 0 COMMENT '自动学习开关: 0-关闭（默认） 1-开启',
   `preferenceVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '偏好版本，单调递增，学习写入按它 CAS',
   `dataEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '数据纪元，用户控制操作递增，旧学习任务据此失效',
+  `learnError` varchar(200) NULL DEFAULT NULL COMMENT '最近一次学习放弃原因（短码）；学习成功或用户控制操作时清空',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
