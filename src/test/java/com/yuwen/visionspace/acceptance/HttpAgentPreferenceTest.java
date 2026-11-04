@@ -189,22 +189,23 @@ class HttpAgentPreferenceTest {
         }
     }
 
-    // ---- 27.4 重启及双实例读取一致 ----
+    // ---- 27.4 读取一致：全部读路径直达共享库，无进程内偏好缓存 ----
 
     @Test
-    void preferenceSurvivesRestartAndIsConsistentAcrossInstances() throws Exception {
+    void preferenceReadsGoToTheSharedStoreWithoutProcessLocalCaching() throws Exception {
         try (UserSession user = newUser()) {
             user.post("/agent/preference/update",
                     json.writeValueAsString(Map.of("explicit", Map.of("liked_styles", List.of("水彩")))));
             user.post("/agent/preference/auto-learn",
                     json.writeValueAsString(Map.of("enabled", true)));
 
-            // 「另一个实例」直接从共享数据库读，不经过本实例的任何进程内状态：
-            // 偏好只存 DB，重启与多实例读取天然一致
-            var fromSecondInstance = preferenceMapper.selectByUserId(user.id);
-            assertEquals("水彩", json.readTree(fromSecondInstance.getExplicitContent())
+            // 「另一个读取方」直接从共享数据库读，不经过本实例的任何进程内状态：
+            // 偏好只存 DB，读取一致性是结构性质；真实第二实例的断言见
+            // preferenceWrittenOnOneInstanceIsVisibleOnTheOther（BLOCKED_ENV 门控）
+            var fromSecondReader = preferenceMapper.selectByUserId(user.id);
+            assertEquals("水彩", json.readTree(fromSecondReader.getExplicitContent())
                     .path("liked_styles").elements().next().asText());
-            assertEquals(1, fromSecondInstance.getAutoLearn());
+            assertEquals(1, fromSecondReader.getAutoLearn());
 
             // 新建的 HTTP 会话（模拟重启后的客户端）读到同一份内容
             try (HttpClient freshClient = client()) {
@@ -213,6 +214,45 @@ class HttpAgentPreferenceTest {
                 assertEquals("水彩", view.path("data").path("explicit")
                         .path("liked_styles").elements().next().asText());
                 assertTrue(view.path("data").path("autoLearn").asBoolean());
+            }
+        }
+    }
+
+    /**
+     * #42 双实例读取一致：实例 A 是本测试进程，实例 B 是脚本启动的真实第二 JVM
+     * （见 {@link VipSecondInstanceMain}，端口经系统属性注入）。
+     *
+     * <p>A 上写入偏好，B 上必须原样读到；缺少第二实例端口时显式 BLOCKED_ENV，
+     * 不静默跳过、也不冒充通过。
+     */
+    @Test
+    void preferenceWrittenOnOneInstanceIsVisibleOnTheOther() throws Exception {
+        int secondPort = Integer.getInteger("vs.acceptance.second-port", 0);
+        if (secondPort <= 0) {
+            throw new IllegalStateException(
+                    "BLOCKED_ENV: 双实例验收需要 -Dvs.acceptance.second-port=<第二实例端口>"
+                            + "（由脚本启动 VipSecondInstanceMain 注入）");
+        }
+        try (UserSession writer = newUser()) {
+            assertEquals(0, writer.post("/agent/preference/update",
+                    json.writeValueAsString(Map.of("explicit", Map.of("notes", "双实例可见")))).path("code").asInt());
+            assertEquals(0, writer.post("/agent/preference/auto-learn",
+                    json.writeValueAsString(Map.of("enabled", true))).path("code").asInt());
+
+            // 同一账号在第二实例上的独立会话
+            try (HttpClient reader = client()) {
+                loginOn(reader, secondPort, writer.account);
+                JsonNode view = get(reader, "/agent/preference");
+                assertEquals(0, view.path("code").asInt(), view.toString());
+                assertEquals("双实例可见", view.path("data").path("explicit").path("notes").asText(),
+                        "实例 B 必须读到实例 A 写入的偏好");
+                assertTrue(view.path("data").path("autoLearn").asBoolean());
+
+                // 清除后另一实例同样读到空内容
+                assertEquals(0, writer.post("/agent/preference/clear", "").path("code").asInt());
+                JsonNode afterClear = get(reader, "/agent/preference");
+                assertTrue(afterClear.path("data").path("explicit").isEmpty(),
+                        "清除后另一实例不得再读到内容: " + afterClear);
             }
         }
     }
@@ -263,6 +303,12 @@ class HttpAgentPreferenceTest {
         assertEquals(0, post(client, "/user/login", body).path("code").asInt());
     }
 
+    private void loginOn(HttpClient client, int targetPort, String account) throws Exception {
+        String body = json.writeValueAsString(
+                Map.of("userAccount", account, "userPassword", PASSWORD, "checkPassword", PASSWORD));
+        assertEquals(0, post(client, targetPort, "/user/login", body).path("code").asInt());
+    }
+
     private HttpClient client() {
         return HttpClient.newBuilder().cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
                 .connectTimeout(Duration.ofSeconds(5)).build();
@@ -273,7 +319,11 @@ class HttpAgentPreferenceTest {
     }
 
     private JsonNode post(HttpClient client, String path, String body) throws Exception {
-        return send(client, HttpRequest.newBuilder(uri(path)).timeout(Duration.ofSeconds(10))
+        return post(client, port, path, body);
+    }
+
+    private JsonNode post(HttpClient client, int targetPort, String path, String body) throws Exception {
+        return send(client, HttpRequest.newBuilder(uri(targetPort, path)).timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 .header(CsrfToken.HEADER, CsrfToken.of(client))
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build());
@@ -286,6 +336,10 @@ class HttpAgentPreferenceTest {
     }
 
     private URI uri(String path) {
-        return URI.create("http://127.0.0.1:" + port + "/api" + path);
+        return uri(port, path);
+    }
+
+    private URI uri(int targetPort, String path) {
+        return URI.create("http://127.0.0.1:" + targetPort + "/api" + path);
     }
 }

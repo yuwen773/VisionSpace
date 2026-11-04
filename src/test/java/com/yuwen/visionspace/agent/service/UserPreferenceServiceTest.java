@@ -123,8 +123,10 @@ class UserPreferenceServiceTest {
 
         service.saveFeedback(USER_ID, ActionType.REGENERATE, "太暗了");
 
-        // 只写了一次且失败：清除后的重读绝不触发第二次写入
+        // 只写了一次且失败：清除后的重读绝不触发第二次写入，
+        // 纪元已更替的终止也不算学习失败——不得记 learnError
         verify(mapper, times(1)).applyLearned(anyLong(), anyString(), anyString(), anyLong(), anyLong());
+        verify(mapper, never()).recordLearnFailure(anyLong(), anyString());
     }
 
     @Test
@@ -149,6 +151,19 @@ class UserPreferenceServiceTest {
 
         verify(mapper).applyLearned(eq(USER_ID), anyString(), anyString(), eq(0L), eq(0L));
         verify(mapper).applyLearned(eq(USER_ID), anyString(), anyString(), eq(1L), eq(0L));
+    }
+
+    @Test
+    void saveFeedback_repeatedCasConflictWithSameEpoch_givesUpObservably() {
+        // 每次重读都是同纪元、开关仍开（真实的持续竞争）：放弃后必须留下
+        // 可观察的失败记录，而不是静默吞掉这次反馈的学习
+        when(mapper.selectByUserId(USER_ID)).thenReturn(row(0, 0, 1));
+        when(mapper.applyLearned(eq(USER_ID), anyString(), anyString(), eq(0L), eq(0L))).thenReturn(0);
+
+        service.saveFeedback(USER_ID, ActionType.REGENERATE, "太暗了");
+
+        verify(mapper, times(3)).applyLearned(eq(USER_ID), anyString(), anyString(), eq(0L), eq(0L));
+        verify(mapper).recordLearnFailure(eq(USER_ID), eq("LEARN_GAVE_UP_CAS_CONFLICT"));
     }
 
     // ---- 27.3 显式设置优先于模型推断 ----
