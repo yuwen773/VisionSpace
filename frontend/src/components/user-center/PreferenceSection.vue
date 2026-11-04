@@ -106,13 +106,19 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { Trash2 } from 'lucide-vue-next'
 import {
-  clearAgentPreference,
-  getAgentPreference,
-  setAgentAutoLearn,
-  updateAgentPreference,
-  type PreferenceExplicit,
-  type PreferenceView,
-} from '@/api/agentPreference'
+  clearPreferenceUsingPost,
+  getPreferenceUsingGet,
+  setAutoLearnUsingPost,
+  updatePreferenceUsingPost,
+} from '@/api/agentPreferenceController'
+
+/** 界面编辑用的显式设置形状（提交时包进 PreferenceUpdateRequest.explicit） */
+interface PreferenceExplicitForm {
+  liked_styles: string[]
+  disliked_styles: string[]
+  liked_colors: string[]
+  notes: string
+}
 
 const autoLearn = ref(false)
 const toggleLoading = ref(false)
@@ -120,7 +126,7 @@ const saving = ref(false)
 const clearing = ref(false)
 const feedbackHistory = ref<Record<string, unknown>[]>([])
 
-const explicitForm = reactive<PreferenceExplicit>({
+const explicitForm = reactive<PreferenceExplicitForm>({
   liked_styles: [],
   disliked_styles: [],
   liked_colors: [],
@@ -145,10 +151,10 @@ const hasLearned = computed(
     feedbackHistory.value.length > 0,
 )
 
-const lastView = ref<PreferenceView>()
+const lastView = ref<API.PreferenceViewVO>()
 
 const loadPreference = async () => {
-  const res = await getAgentPreference()
+  const res = await getPreferenceUsingGet()
   if (res.data?.code !== 0) {
     message.error(res.data?.message ?? '偏好加载失败')
     return
@@ -156,17 +162,24 @@ const loadPreference = async () => {
   const view = res.data.data
   lastView.value = view
   autoLearn.value = view?.autoLearn ?? false
-  explicitForm.liked_styles = view?.explicit?.liked_styles ?? []
-  explicitForm.disliked_styles = view?.explicit?.disliked_styles ?? []
-  explicitForm.liked_colors = view?.explicit?.liked_colors ?? []
-  explicitForm.notes = view?.explicit?.notes ?? ''
+  const explicit = view?.explicit ?? {}
+  explicitForm.liked_styles = Array.isArray(explicit['liked_styles'])
+    ? explicit['liked_styles'].map(String)
+    : []
+  explicitForm.disliked_styles = Array.isArray(explicit['disliked_styles'])
+    ? explicit['disliked_styles'].map(String)
+    : []
+  explicitForm.liked_colors = Array.isArray(explicit['liked_colors'])
+    ? explicit['liked_colors'].map(String)
+    : []
+  explicitForm.notes = typeof explicit['notes'] === 'string' ? explicit['notes'] : ''
   feedbackHistory.value = view?.feedbackHistory ?? []
 }
 
 const doToggleAutoLearn = async (checked: boolean | string | number) => {
   toggleLoading.value = true
   try {
-    const res = await setAgentAutoLearn(Boolean(checked))
+    const res = await setAutoLearnUsingPost({ enabled: Boolean(checked) })
     if (res.data?.code !== 0) {
       message.error(res.data?.message ?? '开关设置失败')
       return
@@ -182,11 +195,13 @@ const doToggleAutoLearn = async (checked: boolean | string | number) => {
 const doSaveExplicit = async () => {
   saving.value = true
   try {
-    const res = await updateAgentPreference({
-      liked_styles: explicitForm.liked_styles,
-      disliked_styles: explicitForm.disliked_styles,
-      liked_colors: explicitForm.liked_colors,
-      notes: explicitForm.notes,
+    const res = await updatePreferenceUsingPost({
+      explicit: {
+        liked_styles: explicitForm.liked_styles,
+        disliked_styles: explicitForm.disliked_styles,
+        liked_colors: explicitForm.liked_colors,
+        notes: explicitForm.notes,
+      },
     })
     if (res.data?.code !== 0) {
       message.error(res.data?.message ?? '保存失败')
@@ -202,7 +217,7 @@ const doSaveExplicit = async () => {
 const doClear = async () => {
   clearing.value = true
   try {
-    const res = await clearAgentPreference()
+    const res = await clearPreferenceUsingPost()
     if (res.data?.code !== 0) {
       message.error(res.data?.message ?? '清除失败')
       return
