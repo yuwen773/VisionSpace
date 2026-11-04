@@ -30,11 +30,15 @@
    （`WHERE pendingVersion=#{version}`，并发晋升唯一赢家）并 `deactivateOtherConfigs` +
    `activateConfig`（持久激活标记迁移），保证运行生效与 `storage_config.isActive` 一致提交。
    **单实例部署（expectedInstances=1）发起即确认即晋升**，不存在「1/1 卡 pending」状态。
-7. **残留确认清理**：回滚只清 pending 不清 confirm 集合，而 `claimSwitch` 会复用同一版本号；
-   占位事务内由赢家清空同版本号的全部确认行（`deleteByVersion`）。并发安全论证：
-   新确认行只可能在占位提交后产生（确认路径要求读到 pending = 该版本），故被清的全是
-   上次流产尝试的残留行；落败方（claimSwitch 影响 0 行）不做清理，不会误删并发赢家的
-   新确认。没有这层清理，「回滚 → 再发起」路径会继承流产确认并提前晋升。
+7. **残留确认清理 + 一次性占位令牌**：回滚只清 pending 不清 confirm 集合，而 `claimSwitch`
+   会复用同一版本号。两道防线配合：
+   - **占位事务内清理**：赢家清空同版本号的全部确认行（`deleteByVersion`），覆盖占位时刻
+     已存在的全部残留行。并发安全：落败方（影响 0 行）不清理，不会误删并发赢家的确认。
+   - **确认插入原子校验（`insertIfCurrent`）**：插入与校验是同一条原子语句——仅当状态行的
+     `pendingVersion` 与 `pendingToken`（占位语句内由 SQL 生成的一次性令牌，每次占位必不同）
+     都匹配本次尝试时才插入。这是必须的：确认线程在旧尝试中通过重读校验后，该尝试可能被
+     回滚、同版本号被重新占位，旧线程此时才落行——只校验版本号挡不住（版本号复用），
+     令牌跨 abort/再占位必变，旧线程持旧令牌无法把确认行落进新尝试的集合。
 8. **回滚**：`/storage/config/switch/rollback` 原子清空 pending（`WHERE pendingVersion IS NOT NULL`），
    `activeVersion` 不变；本实例从持久激活配置重建快照。已应用候选的落后实例在下次
    状态读取/确认时**惰性自愈**（pending 为空且本地版本 ≠ activeVersion 时从持久配置重建；
@@ -69,6 +73,28 @@
 | R1 | 中高 | abortSwitch 只清 pending 不清 confirm 集合，claimSwitch 复用同版本号 → 流产尝试的残留确认行被继承，回滚→再发起路径上重现「未确认实例被跳过的提前晋升」 | **已修**：占位事务内由赢家执行 `deleteByVersion`（并发安全论证见上文语义第 7 条：新确认行只可能在占位提交后产生，被清的全是残留行；落败方不清理）。选占位侧而非 abort 侧清理：abort 侧删除与「新占位复用版本号」存在竞态（会误删重新发起后的合法确认）。回归：单测 `claimPurgesStaleConfirmRowsFromAbortedAttempt` / `failedClaimDoesNotPurgeConfirmRows`；验收 `reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows`（单实例即可实证：回滚→再发起后 confirmCount 必须 1 不得 2、不得提前晋升） |
 | R2 | 中 | instanceId 按进程生成，重启即换 ID，同一物理实例可占多席独自触发提前晋升 | **已修**：实例标识首次生成后持久化到本地文件（`vs.instance-id-file`，默认工作目录 `storage-instance-id`），重启复用；同机多实例各自指定文件（验收第二实例入口类显式 `storage-instance-id-second`）。读写失败以 error 日志显式退化（不静默吞掉）。单测 `StorageInstanceIdProviderTest`（跨进程复用 / 不同文件不同 ID / 损坏重生成 / 不可写退化） |
 | R3 | 低 | 跑过整改前迁移的环境残留 NOT NULL 的 confirmCount 死列 | **已修**：前向迁移追加条件 DROP（information_schema 判存 + PREPARE，幂等）；回滚脚本对称条件重建该列（DEFAULT 0，供回滚到中间版本的极端场景） |
+| R4 | 中（窄窗口） | 二轮复核发现 R1 的清理存在 TOCTOU 窄窗口：确认线程在旧尝试读到 pending=V 并通过重读校验后，该尝试被回滚、同版本号 V 被重新占位（清理已先行提交），旧线程此时才执行 INSERT——残留行绕过清理落入新尝试的集合，若新尝试换了目标平台，该实例从未应用其候选却占一席，可能提前晋升。**原「新确认行只在占位提交后产生」的论证对跨 abort 存活的老线程不成立** | **已修**：确认写入改为单条原子语句 `insertIfCurrent`——`INSERT IGNORE ... SELECT ... FROM DUAL WHERE EXISTS(state.pendingVersion=#{version} AND state.pendingToken=#{token})`，插入与校验合一，不留读-写间隙。**未采用仅校验 pendingVersion 的条件插入**：版本号被重新发起复用，上述窗口（重新占位后才落行）恰好穿过该检查；改为占位一次性令牌 `pendingToken`（claimSwitch 的 SQL 内生成、abort/complete 清空，前向迁移幂等补列），旧线程持旧令牌无法落行。返回 0 行时由 maybeComplete 的状态重读兜底，不误报完整成功。mock 单测无法表达「读-写间隙内的 DB 侧交错」（服务侧总是传入它读到的最新令牌，竞态只存在于该读与 DB 写之间，已被单语句消除）；能表达该交错的思路：对真实库并发压测——线程 A 读状态后人为停顿，期间回滚+再占位同版本，恢复后确认，断言新尝试集合不含 A 的行（需可注入停顿的测试缝，属集成压测范畴，未在本工单实施） |
+
+第二轮隔离验收两处行为断言失败的定位（本地复现 + MySQL general log 取证，**测试侧缺陷，服务行为无缺陷**）：
+
+- **现象**：`dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess:313` 期望确认后
+  phase=completed 实际 pending；`switchReportsPendingUntilConfirmed:215` 期望 activeVersion=2
+  实际 1。
+- **取证**：起原生 MySQL（general_log=TABLE）+ Redis 手工搭建隔离环境复现，两断言失败逐字节
+  重现；general log 显示双实例用例的「第二实例确认」INSERT 落在**发起实例的连接池**上、
+  instanceId 是发起实例的 ID，第二实例的 ID 从未出现在任何 SQL 中。
+- **根因 1（313）**：`HttpStorageSwitchTest.dualInstanceSwitch…` 的确认与状态读取调用了
+  **不带目标端口的重载**（`post(adminOnSecond, path, body)` / `get(second, path)`）——它们替换
+  成默认 `port` 字段（发起实例端口），请求从未到达第二实例；发起实例重复确认被
+  (version, instanceId) 主键幂等挡下，集合停在 1/2，phase 如实保持 pending。**服务端的幂等与
+  集合计数行为完全正确**，反而证明了 R1/确认集合语义按设计工作。同期 `statusReadSelfHeals…`
+  的第二实例读取同样被错发到发起实例，该用例此前从未真正测过第二实例自愈——修正后第二实例
+  真实自愈并通过。
+- **根因 2（215）**：断言语义写错——pending 期间 `activeVersion` 保持旧值（晋升时才前进），
+  预占下一版本的是 `pendingVersion`；改为断言 activeVersion=1 且 pendingVersion=2。
+- **修复**：三处调用改用带端口的 `post(client, targetPort, …)` / `getOn(client, path, targetPort)`；
+  修正 215 断言。修复后本地复现环境全类 10/10 PASS（general log 确认第二实例 ID 落进确认集合、
+  计数到 2 晋升）。
 
 ## AC → 测试 → 状态
 
@@ -99,8 +125,8 @@
   读写失败显式退化并记录 error 日志）
 - `manager/storage/init/StorageSnapshotAssembler.java`
 - `mapper/StorageSwitchStateMapper.java` / `mapper/StorageSwitchConfirmMapper.java`
-  + 对应 XML（原子占位 / 原子完成 / 原子回滚 / INSERT IGNORE 确认 / 集合计数 /
-  占位事务内清残留确认行）
+  + 对应 XML（原子占位并生成一次性令牌 / 原子完成 / 原子回滚 /
+  条件确认插入 insertIfCurrent（版本+令牌原子校验） / 集合计数 / 占位事务内清残留确认行）
 - `model/entity/StorageSwitchState.java`、`model/entity/StorageSwitchConfirm.java`、
   `model/vo/StorageSwitchStatusVO.java`、`model/dto/storage/StorageSwitchRequest.java`
 - `resources/mapper/StorageConfigMapper.xml`（受限查询 + 激活迁移原子语句）

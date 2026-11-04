@@ -212,7 +212,10 @@ class HttpStorageSwitchTest {
             assertEquals("pending", status.path("data").path("phase").asText());
             assertEquals(OLD_PLATFORM, status.path("data").path("activePlatform").asText(),
                     "pending 期间持久激活不得提前迁移");
-            assertEquals(2L, status.path("data").path("activeVersion").asLong());
+            assertEquals(1L, status.path("data").path("activeVersion").asLong(),
+                    "pending 期间全局生效版本不得前进，只允许 pendingVersion 预占");
+            assertEquals(2L, status.path("data").path("pendingVersion").asLong(),
+                    "pendingVersion 必须预占下一版本号");
             assertEquals(2L, status.path("data").path("localEffectiveVersion").asLong());
             assertEquals(NEW_PLATFORM, status.path("data").path("localDefaultPlatform").asText());
             assertEquals(2, status.path("data").path("expectedInstances").asInt(),
@@ -308,7 +311,7 @@ class HttpStorageSwitchTest {
             // 第二实例确认：确认数达到期望但晋升由确认侧执行
             try (var adminOnSecond = clientOn(secondPort)) {
                 loginAsAdminOn(adminOnSecond, secondPort);
-                var confirmed = post(adminOnSecond, "/storage/config/switch/confirm", Map.of());
+                var confirmed = post(adminOnSecond, secondPort, "/storage/config/switch/confirm", Map.of());
                 assertEquals(0, confirmed.path("code").asInt(), confirmed.toString());
                 assertEquals("completed", confirmed.path("data").path("phase").asText());
             }
@@ -317,7 +320,7 @@ class HttpStorageSwitchTest {
             assertEquals("completed", first.path("data").path("phase").asText());
             try (var second = clientOn(secondPort)) {
                 loginAsAdminOn(second, secondPort);
-                var secondStatus = get(second, "/storage/config/switch/status");
+                var secondStatus = getOn(second, "/storage/config/switch/status", secondPort);
                 assertEquals("completed", secondStatus.path("data").path("phase").asText());
                 assertEquals(first.path("data").path("activeVersion").asLong(),
                         secondStatus.path("data").path("activeVersion").asLong(),
@@ -352,7 +355,7 @@ class HttpStorageSwitchTest {
             // 第二实例从未执行确认或刷新，直接读状态：响应必须是收敛后的真实状态
             try (var lagging = clientOn(secondPort)) {
                 loginAsAdminOn(lagging, secondPort);
-                var healed = get(lagging, "/storage/config/switch/status");
+                var healed = getOn(lagging, "/storage/config/switch/status", secondPort);
                 assertEquals("completed", healed.path("data").path("phase").asText(), healed.toString());
                 assertEquals(2L, healed.path("data").path("localEffectiveVersion").asLong(),
                         "落后实例的状态读取必须自愈到当前生效版本");
