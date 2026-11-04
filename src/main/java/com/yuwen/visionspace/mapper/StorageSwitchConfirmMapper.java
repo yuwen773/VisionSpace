@@ -25,4 +25,9 @@ public interface StorageSwitchConfirmMapper {
      * 候选版本的确认实例数。
      */
     long countByVersion(@Param("version") long version);
+
+    /**
+     * 清空某版本的全部确认行（占位赢家在同事务内清流产尝试的残留行）。
+     */
+    int deleteByVersion(@Param("version") long version);
 }

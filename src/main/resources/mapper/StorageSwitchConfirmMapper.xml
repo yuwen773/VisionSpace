@@ -16,4 +16,13 @@
     <select id="countByVersion" resultType="long">
         SELECT COUNT(*) FROM storage_switch_confirm WHERE version = #{version}
     </select>
+
+    <!--
+      清空某版本的全部确认行。仅在占位事务内由占位赢家调用：
+      占位提交前不可能产生该版本的新确认行（确认路径要求读到 pending = 该版本），
+      因此清掉的全是上次流产尝试的残留行，不会误删本次切换的有效确认。
+    -->
+    <delete id="deleteByVersion">
+        DELETE FROM storage_switch_confirm WHERE version = #{version}
+    </delete>
 </mapper>

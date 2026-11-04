@@ -30,6 +30,8 @@ import java.util.Objects;
  * <p>确认以「实例集合」记录而非次数：storage_switch_confirm 主键
  * (version, instanceId) + INSERT IGNORE 保证同一实例重复确认（重试、重启）
  * 只计一次，晋升不会被确认数虚增提前触发。发起实例与其他实例走同一条确认路径。
+ * 占位事务内由赢家清空同版本号的残留确认行：回滚只清 pending，重新发起时
+ * 若不清残留行，流产尝试的确认会被继承而提前晋升。
  *
  * <p>切换本身不搬迁、不删除任何旧平台对象；旧资源的读取、删除与补偿
  * 始终按资源记录里的原平台定位，与默认平台无关。
@@ -82,9 +84,23 @@ public class StorageSwitchService {
             throw e;
         }
 
-        // 2. 原子占位：两个实例同时切换时只有一个成功
-        int claimed = switchStateMapper.claimSwitch(target.getId(), target.getPlatform(), expectedInstances);
-        ThrowUtils.throwIf(claimed == 0, ErrorCode.OPERATION_ERROR,
+        // 2. 原子占位：两个实例同时切换时只有一个成功。占位赢家在同一事务里
+        //    清空同版本号的陈旧确认行——回滚只清 pending 不清 confirm 集合，
+        //    若上次流产尝试的残留行不清理，重新发起时同一版本号会继承旧确认，
+        //    造成其余实例从未确认就被提前晋升（虚报完整成功）。
+        //    清理放在占位事务内且只由赢家执行是并发安全的：新确认行只可能
+        //    在占位提交后产生（确认路径要求读到 pending = 该版本），因此被清的
+        //    全是残留行；落败方（claimSwitch 影响 0 行）不做任何清理。
+        Integer claimed = transactionTemplate.execute(transactionStatus -> {
+            int claimedRows = switchStateMapper.claimSwitch(target.getId(), target.getPlatform(), expectedInstances);
+            if (claimedRows == 1) {
+                // 本事务可见自己的占位结果，版本号取实际占位值而非事前推算，
+                // 避免与「占位→晋升→再占位」的完整并发周期产生版本错位
+                switchConfirmMapper.deleteByVersion(requireState().getPendingVersion());
+            }
+            return claimedRows;
+        });
+        ThrowUtils.throwIf(claimed == null || claimed == 0, ErrorCode.OPERATION_ERROR,
                 "已有存储切换进行中，请先完成确认或回滚");
 
         // 3. 占位与生效之间可能被并发回滚：应用前重读并校验占位仍是本次目标，
