@@ -465,7 +465,7 @@ public class ImageAgent {
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
-            userPreferenceService.saveFeedback(String.valueOf(userId), action, reason);
+            userPreferenceService.saveFeedback(userId, action, reason);
         }
 
         // 构造增强的反馈消息
