@@ -3,8 +3,8 @@ package com.yuwen.visionspace.controller;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
 import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
-import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.model.dto.agent.PreferenceAutoLearnRequest;
 import com.yuwen.visionspace.model.dto.agent.PreferenceUpdateRequest;
 import com.yuwen.visionspace.model.dto.agent.PreferenceViewVO;
@@ -57,9 +57,8 @@ public class AgentPreferenceController {
     public BaseResponse<PreferenceViewVO> updatePreference(@RequestBody PreferenceUpdateRequest requestBody,
                                                             HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
-        if (requestBody == null || requestBody.getExplicit() == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "偏好内容不能为空");
-        }
+        ThrowUtils.throwIf(requestBody == null || requestBody.getExplicit() == null,
+                ErrorCode.PARAMS_ERROR, "偏好内容不能为空");
         return ResultUtils.success(
                 userPreferenceService.updateExplicit(loginUser.getId(), requestBody.getExplicit()));
     }
@@ -81,9 +80,8 @@ public class AgentPreferenceController {
     public BaseResponse<PreferenceViewVO> setAutoLearn(@RequestBody PreferenceAutoLearnRequest requestBody,
                                                         HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
-        if (requestBody == null || requestBody.getEnabled() == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "开关状态不能为空");
-        }
+        ThrowUtils.throwIf(requestBody == null || requestBody.getEnabled() == null,
+                ErrorCode.PARAMS_ERROR, "开关状态不能为空");
         log.info("用户设置自动学习开关, userId={}, enabled={}", loginUser.getId(), requestBody.getEnabled());
         return ResultUtils.success(
                 userPreferenceService.setAutoLearn(loginUser.getId(), requestBody.getEnabled()));
