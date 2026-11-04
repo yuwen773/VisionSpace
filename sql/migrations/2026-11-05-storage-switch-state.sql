@@ -46,6 +46,7 @@ SET @ddl = IF(
   '  `pendingConfigId` bigint(20) NULL DEFAULT NULL COMMENT ''待生效配置 id'',\n' ||
   '  `pendingPlatform` varchar(32) NULL DEFAULT NULL COMMENT ''待生效平台'',\n' ||
   '  `pendingTime` datetime NULL DEFAULT NULL COMMENT ''切换占位时间'',\n' ||
+  '  `pendingToken` varchar(64) NULL DEFAULT NULL COMMENT ''本次占位的一次性令牌（确认写入的原子校验依据）'',\n' ||
   '  `expectedInstances` int(11) NOT NULL DEFAULT 1 COMMENT ''期望确认实例数'',\n' ||
   '  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT ''创建时间'',\n' ||
   '  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT ''更新时间'',\n' ||
@@ -92,6 +93,25 @@ SET @ddl = IF(
   @confirm_count_exists > 0,
   'ALTER TABLE `storage_switch_state` DROP COLUMN `confirmCount`',
   'SELECT ''storage_switch_state.confirmCount not present, nothing to do'''
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 前向清理（幂等）：跑过更早版本迁移的环境补齐 pendingToken 一次性令牌列。
+-- 确认插入以「pendingVersion + pendingToken 双等」做原子条件校验：版本号会被
+-- 回滚后的重新发起复用，令牌不会——跨 abort/再占位存活的旧确认线程持旧令牌，
+-- 无法把确认行落进新尝试的集合（否则可能造成未应用候选的实例被跳过的提前晋升）。
+SET @pending_token_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'storage_switch_state'
+    AND COLUMN_NAME = 'pendingToken'
+);
+SET @ddl = IF(
+  @pending_token_exists = 0,
+  'ALTER TABLE `storage_switch_state` ADD COLUMN `pendingToken` varchar(64) NULL DEFAULT NULL COMMENT ''本次占位的一次性令牌（确认写入的原子校验依据）'' AFTER `pendingTime`',
+  'SELECT ''storage_switch_state.pendingToken already present, nothing to do'''
 );
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;

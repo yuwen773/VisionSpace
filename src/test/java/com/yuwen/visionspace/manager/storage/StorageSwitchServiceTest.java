@@ -50,6 +50,8 @@ class StorageSwitchServiceTest {
 
     private static final long TARGET_ID = 2L;
     private static final String INSTANCE_ID = "instance-a";
+    /** 占位状态持有的一次性令牌（真实实现由 claimSwitch 的 SQL 生成） */
+    private static final String PENDING_TOKEN = "attempt-token";
 
     @Mock
     private StorageConfigMapper configMapper;
@@ -108,7 +110,8 @@ class StorageSwitchServiceTest {
             return null;
         }).when(snapshotManager).apply(any(), anyString(), anyLong());
         when(instanceIdProvider.get()).thenReturn(INSTANCE_ID);
-        when(confirmMapper.insertIgnore(anyLong(), anyString(), any(Long.class))).thenReturn(1);
+        when(confirmMapper.insertIfCurrent(anyLong(), anyString(), any(Long.class), anyString()))
+                .thenReturn(1);
     }
 
     @Test
@@ -167,7 +170,7 @@ class StorageSwitchServiceTest {
 
         assertEquals(50001, exception.getCode());
         verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
-        verify(confirmMapper, never()).insertIgnore(anyLong(), anyString(), any(Long.class));
+        verify(confirmMapper, never()).insertIfCurrent(anyLong(), anyString(), any(Long.class), anyString());
     }
 
     /**
@@ -192,7 +195,7 @@ class StorageSwitchServiceTest {
 
         assertEquals("completed", status.getPhase());
         verify(snapshotManager).apply(List.of(targetStorage), "oss", 6L);
-        verify(confirmMapper).insertIgnore(6L, INSTANCE_ID, TARGET_ID);
+        verify(confirmMapper).insertIfCurrent(6L, INSTANCE_ID, TARGET_ID, PENDING_TOKEN);
         verify(stateMapper).completeSwitch(6L);
         verify(configMapper).deactivateOtherConfigs(TARGET_ID);
         verify(configMapper).activateConfig(TARGET_ID);
@@ -235,7 +238,7 @@ class StorageSwitchServiceTest {
 
         assertEquals(50001, exception.getCode());
         verify(confirmMapper, never()).deleteByVersion(anyLong());
-        verify(confirmMapper, never()).insertIgnore(anyLong(), anyString(), any(Long.class));
+        verify(confirmMapper, never()).insertIfCurrent(anyLong(), anyString(), any(Long.class), anyString());
     }
 
     /**
@@ -271,14 +274,14 @@ class StorageSwitchServiceTest {
                 state(5L, 6L, TARGET_ID, "oss", 2),
                 state(5L, 6L, TARGET_ID, "oss", 2));
         when(snapshotManager.currentVersion()).thenReturn(6L);
-        when(confirmMapper.insertIgnore(6L, INSTANCE_ID, TARGET_ID)).thenReturn(0);
+        when(confirmMapper.insertIfCurrent(6L, INSTANCE_ID, TARGET_ID, PENDING_TOKEN)).thenReturn(0);
         when(confirmMapper.countByVersion(6L)).thenReturn(1L);
 
         StorageSwitchStatusVO status = service.confirmStorageSwitch();
 
         assertEquals("pending", status.getPhase());
         verify(snapshotManager, never()).apply(any(), anyString(), anyLong());
-        verify(confirmMapper).insertIgnore(6L, INSTANCE_ID, TARGET_ID);
+        verify(confirmMapper).insertIfCurrent(6L, INSTANCE_ID, TARGET_ID, PENDING_TOKEN);
         verify(stateMapper, never()).completeSwitch(anyLong());
     }
 
@@ -419,6 +422,10 @@ class StorageSwitchServiceTest {
         state.setPendingVersion(pendingVersion);
         state.setPendingConfigId(pendingConfigId);
         state.setPendingPlatform(pendingPlatform);
+        state.setPendingTime(new java.util.Date());
+        if (pendingVersion != null) {
+            state.setPendingToken(PENDING_TOKEN);
+        }
         state.setExpectedInstances(expectedInstances);
         return state;
     }

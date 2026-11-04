@@ -13,13 +13,19 @@ import org.apache.ibatis.annotations.Param;
 public interface StorageSwitchConfirmMapper {
 
     /**
-     * 记录本实例对候选版本的确认（幂等：重复确认影响 0 行）。
+     * 条件确认插入（单条原子语句，插入与校验合一）：仅当状态行的
+     * pendingVersion 与 pendingToken 都与本次尝试一致时插入。
      *
-     * @return 1 表示本实例首次确认，0 表示已确认过
+     * <p>版本号会被回滚后的重新发起复用，只校验版本号挡不住跨
+     * abort/再占位存活的旧确认线程；pendingToken 由每次占位语句生成、
+     * 必不相同，旧线程持旧令牌无法落行。
+     *
+     * @return 1 表示本实例首次确认，0 表示已确认过或占位已变化（非本次尝试）
      */
-    int insertIgnore(@Param("version") long version,
-                     @Param("instanceId") String instanceId,
-                     @Param("configId") Long configId);
+    int insertIfCurrent(@Param("version") long version,
+                        @Param("instanceId") String instanceId,
+                        @Param("configId") Long configId,
+                        @Param("pendingToken") String pendingToken);
 
     /**
      * 候选版本的确认实例数。

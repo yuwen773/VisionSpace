@@ -8,9 +8,25 @@
       （应用失败重试、重启后再次确认）只计一次，确认数不可能被虚增。
     -->
 
-    <insert id="insertIgnore">
+    <!--
+      条件确认插入：插入与校验是同一条原子语句，不留读-写间隙。
+      交错的成因：确认线程在旧尝试中读到 pending=V 并通过重读校验后，
+      该尝试可能被回滚、同版本号 V 被重新占位（占位事务里的 deleteByVersion
+      清理发生在此之前），旧线程此时才执行 INSERT——只校验 pendingVersion
+      挡不住它（版本号复用），残留行会落入新尝试的集合并可能提前晋升。
+      因此以占位一次性令牌 pendingToken 做条件：令牌由 claimSwitch 在
+      占位语句内生成、每次占位必不同，跨 abort/再占位存活的旧线程持有
+      旧令牌，条件不成立则 0 行插入。返回 0 也可能只是重复确认（主键幂等）。
+    -->
+    <insert id="insertIfCurrent">
         INSERT IGNORE INTO storage_switch_confirm (version, instanceId, configId)
-        VALUES (#{version}, #{instanceId}, #{configId})
+        SELECT #{version}, #{instanceId}, #{configId} FROM DUAL
+        WHERE EXISTS (
+            SELECT 1 FROM storage_switch_state
+            WHERE id = 1
+              AND pendingVersion = #{version}
+              AND pendingToken = #{pendingToken}
+        )
     </insert>
 
     <select id="countByVersion" resultType="long">

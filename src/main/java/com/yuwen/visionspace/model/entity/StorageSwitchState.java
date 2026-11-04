@@ -52,6 +52,12 @@ public class StorageSwitchState implements Serializable {
     private Date pendingTime;
 
     /**
+     * 本次占位的一次性令牌（占位时由 SQL 生成）：确认写入用它做原子条件校验，
+     * 防止跨 abort/再占位存活的旧确认线程把确认行落进复用同版本号的新尝试
+     */
+    private String pendingToken;
+
+    /**
      * 期望确认实例数
      */
     private Integer expectedInstances;

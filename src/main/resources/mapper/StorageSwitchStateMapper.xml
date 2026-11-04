@@ -13,13 +13,20 @@
         INSERT IGNORE INTO storage_switch_state (id, activeVersion) VALUES (1, 1)
     </insert>
 
-    <!-- 占位：activeVersion + 1 只在这里产生，pending 非空时不允许第二次占位 -->
+    <!--
+      占位：activeVersion + 1 只在这里产生，pending 非空时不允许第二次占位。
+      pendingToken 为本次占位的一次性令牌（SQL 侧生成）：确认写入以
+      「pendingVersion + pendingToken 双等」做原子条件校验。版本号会被
+      回滚后的重新发起复用，令牌不会——旧确认线程即使读到过同版本号，
+      也无法把确认行落进新尝试的集合。
+    -->
     <update id="claimSwitch">
         UPDATE storage_switch_state
         SET pendingVersion = activeVersion + 1,
             pendingConfigId = #{targetConfigId},
             pendingPlatform = #{targetPlatform},
             pendingTime = NOW(),
+            pendingToken = REPLACE(UUID(), '-', ''),
             expectedInstances = #{expectedInstances},
             updateTime = NOW()
         WHERE id = 1
@@ -34,6 +41,7 @@
             pendingConfigId = NULL,
             pendingPlatform = NULL,
             pendingTime = NULL,
+            pendingToken = NULL,
             expectedInstances = 1,
             updateTime = NOW()
         WHERE id = 1
@@ -46,6 +54,7 @@
             pendingConfigId = NULL,
             pendingPlatform = NULL,
             pendingTime = NULL,
+            pendingToken = NULL,
             expectedInstances = 1,
             updateTime = NOW()
         WHERE id = 1

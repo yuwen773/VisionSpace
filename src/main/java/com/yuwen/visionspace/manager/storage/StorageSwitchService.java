@@ -88,9 +88,10 @@ public class StorageSwitchService {
         //    清空同版本号的陈旧确认行——回滚只清 pending 不清 confirm 集合，
         //    若上次流产尝试的残留行不清理，重新发起时同一版本号会继承旧确认，
         //    造成其余实例从未确认就被提前晋升（虚报完整成功）。
-        //    清理放在占位事务内且只由赢家执行是并发安全的：新确认行只可能
-        //    在占位提交后产生（确认路径要求读到 pending = 该版本），因此被清的
-        //    全是残留行；落败方（claimSwitch 影响 0 行）不做任何清理。
+        //    清理只由占位赢家执行：落败方（claimSwitch 影响 0 行）不做任何清理，
+        //    不会误删并发赢家的新确认。清理覆盖占位时刻已存在的全部残留行；
+        //    跨 abort/再占位存活的旧确认线程可能在清理后才落行，由确认插入的
+        //    pendingToken 原子条件（insertIfCurrent）封堵——版本号会复用，令牌不会。
         Integer claimed = transactionTemplate.execute(transactionStatus -> {
             int claimedRows = switchStateMapper.claimSwitch(target.getId(), target.getPlatform(), expectedInstances);
             if (claimedRows == 1) {
@@ -114,7 +115,7 @@ public class StorageSwitchService {
         }
         long version = after.getPendingVersion();
         snapshotManager.apply(candidate.storages(), target.getPlatform(), version);
-        recordSelfConfirm(version, target.getId());
+        recordSelfConfirm(version, after.getPendingToken(), target.getId());
         return maybeComplete(version, target.getId());
     }
 
@@ -147,7 +148,10 @@ public class StorageSwitchService {
             if (snapshotManager.currentVersion() != version) {
                 snapshotManager.apply(candidate.storages(), target.getPlatform(), version);
             }
-            recordSelfConfirm(version, target.getId());
+            // 令牌取自本次重读的状态行：insertIfCurrent 在单条语句内原子校验
+            // pendingVersion + pendingToken，跨 abort/再占位存活的旧线程
+            // 持旧令牌无法落行（版本号会被重新发起复用，令牌不会）
+            recordSelfConfirm(version, current.getPendingToken(), target.getId());
             return maybeComplete(version, target.getId());
         }
     }
@@ -216,10 +220,17 @@ public class StorageSwitchService {
     }
 
     /**
-     * 登记本实例确认（幂等）：应用失败后的重试不会重复计数。
+     * 登记本实例确认：插入与「仍是本次占位尝试」的校验在同一条原子语句内
+     * （insertIfCurrent）。返回 0 行可能是重复确认（主键幂等），也可能是
+     * 读-写间隙内占位被回滚/重新占位——后者由 maybeComplete 的状态重读兜底，
+     * 不会误报完整成功。
      */
-    private void recordSelfConfirm(long version, Long targetConfigId) {
-        switchConfirmMapper.insertIgnore(version, instanceIdProvider.get(), targetConfigId);
+    private void recordSelfConfirm(long version, String pendingToken, Long targetConfigId) {
+        int inserted = switchConfirmMapper.insertIfCurrent(version, instanceIdProvider.get(),
+                targetConfigId, pendingToken);
+        if (inserted == 0) {
+            log.info("确认未新登记（重复确认或占位已变化）: version={}", version);
+        }
     }
 
     /**
