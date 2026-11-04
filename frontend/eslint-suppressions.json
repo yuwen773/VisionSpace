@@ -16,7 +16,7 @@
   },
   "src/api-custom/storage.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 14
+      "count": 9
     }
   },
   "src/apiOrigin.ts": {
@@ -230,7 +230,7 @@
   },
   "src/pages/admin/StorageConfigManagePage.vue": {
     "@typescript-eslint/no-unused-vars": {
-      "count": 8
+      "count": 7
     }
   },
   "src/pages/admin/UserManagePage.vue": {
