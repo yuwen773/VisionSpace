@@ -505,3 +505,18 @@ CREATE TABLE `resource_isolation` (
   UNIQUE INDEX `uk_active_key`(`activeKey`) USING BTREE,
   INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '违规资源隔离与恢复';
+
+CREATE TABLE `user_preference` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `userId` bigint(20) NOT NULL COMMENT '偏好归属用户；全部读写条件都带它',
+  `explicitContent` text NULL COMMENT '显式设置 JSON（用户直接编辑，优先于推断）',
+  `learnedContent` text NULL COMMENT '自动学习 JSON（反馈推断，可清除）',
+  `feedbackHistory` text NULL COMMENT '反馈历史 JSON（条数有上限）',
+  `autoLearn` tinyint(4) NOT NULL DEFAULT 0 COMMENT '自动学习开关: 0-关闭（默认） 1-开启',
+  `preferenceVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '偏好版本，单调递增，学习写入按它 CAS',
+  `dataEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '数据纪元，用户控制操作递增，旧学习任务据此失效',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_userId`(`userId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户长期偏好（显式设置 + 自动学习）';
