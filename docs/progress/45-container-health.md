@@ -11,6 +11,12 @@ Compose 显式传递图片识别服务地址与模型；覆盖值和默认值均
 
 本轮隔离候选实际构建并启动，配置传递、MySQL 初始化、覆盖栈回环正向连接和非回环拒绝、SQL 日志检查以及依赖故障/恢复和重试耗尽检查通过；完整脚本因上述四项宿主访问强化断言失败而退出 1，未通过整体门禁。测试资源已清理，生产环境未验收。
 
+后续修正：Docker 宿主可能直接路由内部网络的容器 IP；宿主已有服务也可能占用默认端口。这两个现象不能证明候选发布了端口。脚本改为检查候选端口发布，并用内部网络正向探针和独立 edge 网络反向探针检查容器间隔离。探针异常不能视为拒绝连接；真实公网路由与防火墙仍须在部署环境独立验证。上述历史失败保留作为原始证据，不代表修正后的脚本已通过。
+
+2026-11-05 本机复核：修正后的脚本以 `-SkipBuild` 复用本机已有后端镜像运行，整体 `ALL PASS`、退出码 0；包括内部网络正向与 edge 网络反向探针、覆盖栈、依赖故障和恢复。容器、网络与卷已清理。由于未重新构建，该结果不证明最新提交的镜像；最新代码构建后的 CI 和真实公网验证仍未运行。
+
+随后收紧后端容器：根文件系统只读，`/app/tmp` 使用专用 tmpfs，JVM 显式指向该目录。新构建镜像的只读根和临时目录权限已做独立容器检查；完整候选验收仍需重新构建并运行 CI。
+
 ## 改动结构
 
 | 位置 | 作用 |
@@ -22,7 +28,7 @@ Compose 显式传递图片识别服务地址与模型；覆盖值和默认值均
 | `application-prod.yml` | 管理端点独立端口 9081 且只绑 127.0.0.1；只暴露 health；`show-details/show-components: never`；readiness 组纳入 `db,redis`；Hikari `initialization-fail-timeout: 30000` 提供有限启动重试窗口：依赖延迟最多等 30 秒，耗尽即明确异常退出；Redis 健康检查超时 1 秒，故障时 readiness 秒级返回 503；MyBatis 改为 `NoLoggingImpl` |
 | `application.yml` | 补上 `vision-space.vision-recognition.base-url/model` 的非秘密默认值（可用环境变量覆盖）。这两个键此前只在被忽略的 `application-local/server.yml` 里，prod 启动会因占位符无法解析而失败 |
 | `pom.xml` | 新增 `spring-boot-starter-actuator`（唯一依赖变更） |
-| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密；启动顺序为先 mysql/redis → 以 root 导入业务表（复用 #27 的 DDL 提取约定；建表数校验改为「提取数 == 源文件声明数」，表结构演进不再阻塞）→ 再启动 backend；A1–A4 断言逐条产出证据；A2 另从宿主机对 DB/Redis 容器 IP 与回环默认端口发起 TCP 连接否定断言，并实跑 host-access 覆盖栈；A3 先以 `user` 表行数确认注册写 SQL 确实发生，再判定日志卫生；失败时保留三方日志与 `compose ps`，清理前也保留完整日志 |
+| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密；先启动 mysql/redis 并导入业务表，再启动 backend；A1–A4 断言逐条产出证据；A2 检查端口发布、内部和独立网络间的 TCP 可达性，并实跑 host-access 覆盖栈；A3 先确认注册写 SQL 确实发生，再判定日志卫生；失败时保留日志与 `compose ps` |
 | `scripts/tests/test-container-verification.ps1` | 容器验证脚本的控制流回归（8 个场景，含预期拒绝），不需要 Docker，随 `acceptance.ps1` 的 `runner-tests` 关卡执行 |
 | `.github/workflows/container-verification.yml` | 在 `ubuntu-24.04` 上实际构建并运行隔离候选；成功或失败都上传 `container-verification-evidence` |
 | `HttpHealthEndpointTest` | 健康端点契约回归：业务健康不含依赖细节；actuator health 为 UP 且不泄露组件与连接信息 |
@@ -57,8 +63,7 @@ Compose 显式传递图片识别服务地址与模型；覆盖值和默认值均
 
 | 组 | 新增断言 | 补强内容 |
 | --- | --- | --- |
-| A2 网络可达 | `A2-mysql-container-ip-unreachable`、`A2-redis-container-ip-unreachable` | 从宿主机对运行中候选的 DB/Redis 容器 IP 主动发起 TCP 连接，必须连不通——不再只凭 `compose ps` 元数据推断 |
-| A2 网络可达 | `A2-loopback-mysql-default-closed`、`A2-loopback-redis-default-closed` | 回环上的 3306/6379 默认端口未被默认栈占用 |
+| A2 网络可达 | `A2-*-internal-reachable`、`A2-*-edge-unreachable` | 从内部网络连接候选服务成功，从独立 edge 网络连接同一容器 IP 失败；不代表真实公网不可达 |
 | A2 覆盖栈 | `A2-host-access-loopback-and-nondefault`、`A2-host-access-mysql-lan-refused`、`A2-host-access-redis-lan-refused` | 实跑「默认栈 + host-access 覆盖」（独立 project + 随机回环端口），核对只绑 `127.0.0.1` + 非默认端口，并从非回环 IPv4 地址连接被拒 |
 | A3 日志卫生 | `A3-sql-probe-wrote-a-row` | 用 `user` 表行数 +1 作为正向控制，确认注册写 SQL 确实执行 |
 | A3 日志卫生 | `A3-no-sql-param-logging`（改为带前提） | 仅在正向控制成立时才判通过；原写法吞掉注册异常，SQL 未执行时也会「通过」 |
@@ -69,7 +74,7 @@ Compose 显式传递图片识别服务地址与模型；覆盖值和默认值均
 
 | 工单验收项 | 证据 | 结果 |
 | --- | --- | --- |
-| 45.1 数据库/Redis 默认内部网络，宿主访问需显式受限配置 | 原有 A2 组实测：两个服务无任何端口发布，`internal` 网络 `Internal=true`，backend 只发布 `127.0.0.1:<随机端口>`。评审补强（本轮新增、待 CI 实跑）：`A2-mysql-container-ip-unreachable` / `A2-redis-container-ip-unreachable` 从宿主机直接对容器 IP 建连被拒，`A2-loopback-*-default-closed` 验证回环默认端口未占用；`A2-host-access-*` 实跑覆盖栈，验证只绑 `127.0.0.1` + 非默认端口且 LAN 地址连不通 | 已覆盖（默认栈原有项为运行证据；补强项待本轮 CI 复核） |
+| 45.1 数据库/Redis 默认内部网络，宿主访问需显式受限配置 | A2 检查服务端口发布、网络内部标志、内部正向及独立网络反向连接；`A2-host-access-*` 实跑覆盖栈并检查回环绑定。真实公网访问仍需部署环境独立验证 | 修正后待本轮及 CI 复核 |
 | 45.2 非 root、可写目录受限、生产 profile 明确、敏感 SQL 参数日志关闭 | A1：实际 `id -u` 为 10001，`/app/tmp` 可写，`/app` 与 `/` 写入被拒；A3：容器内 `SPRING_PROFILES_ACTIVE=prod`，响应与日志均不含注入秘密。评审补强（本轮新增、待 CI 实跑）：`A3-sql-probe-wrote-a-row` 先以 `user` 表行数 +1 确认注册写 SQL 确实发生，`A3-no-sql-param-logging` 只有在该正向控制成立时才判通过，不再因请求被拦、SQL 未执行而静默通过。注意 `NoLoggingImpl` 在基线 `8dd98e0` 已存在，此项修复的是**验证缺陷**，不是新增生产配置 | 已覆盖（A1/A3 原有项为运行证据；正向控制待本轮 CI 复核） |
 | 45.3 数据库、Redis 和应用就绪/健康可判断，依赖延迟或故障有有限重试和明确失败结果 | A4：停 MySQL/Redis 后 readiness 转 unhealthy 并在恢复后回到 healthy；只停 MySQL 重启 backend，同一进程进入 Hikari 连接阶段、在 30 秒窗口内恢复依赖后回到 healthy（实测从观察到连接到 healthy 约 18 秒），进程未被替换；依赖持续缺失时应用在 150 秒上限内以非 0 退出（实测约 21 秒），且依赖保持停止 | 已覆盖（运行证据） |
 | 45.4 以隔离候选运行证据验证，不以配置文本或镜像构建成功代替 | 上述结果来自 `ubuntu-24.04` 上实际 `compose build` + 启动隔离候选 + 逐条断言；镜像构建成功本身不作为通过依据 | 已覆盖 |

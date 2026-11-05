@@ -39,4 +39,4 @@ EXPOSE 8081
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:9081/actuator/health/readiness || exit 1
 
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Djava.io.tmpdir=/app/tmp", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

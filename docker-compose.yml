@@ -2,7 +2,7 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
-    # 不发布 ports：数据库只留在 internal 网络，宿主与公网均不可达。
+    # 不发布 ports：数据库只留在 internal 网络；宿主可能直接路由容器 IP。
     # 确需宿主访问时叠加 docker-compose.host-access.yml，且只绑 127.0.0.1。
     expose:
       - "3306"
@@ -56,6 +56,9 @@ services:
       dockerfile: Dockerfile
     image: vision-space-backend:local
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /app/tmp:uid=10001,gid=10001,mode=0770
     # 只发布业务端口且只绑回环：管理端口 9081 绑定容器内 127.0.0.1，天然不对外
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8081}:8081"

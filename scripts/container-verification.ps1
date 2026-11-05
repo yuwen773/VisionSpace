@@ -76,6 +76,14 @@ function Get-ContainerIp([string]$Service) {
     return ("$raw".Trim() -split "`n" | Where-Object { $_ } | Select-Object -First 1)
 }
 
+function Test-ContainerNetworkTcp([string]$Network, [string]$TargetHost, [int]$Port) {
+    $output = & docker run --rm --network $Network redis:7-alpine sh -c "nc -z -w 3 $TargetHost $Port && echo CONNECTED || echo BLOCKED" 2>$null
+    if ($LASTEXITCODE -ne 0 -or @($output).Count -ne 1 -or "$output" -notin @('CONNECTED', 'BLOCKED')) {
+        throw "network probe failed for $Network to $TargetHost`:$Port"
+    }
+    return "$output" -eq 'CONNECTED'
+}
+
 function Get-BackendHealth {
     & docker inspect --format '{{.State.Health.Status}}' "$project-backend-1" 2>$null
 }
@@ -235,6 +243,11 @@ try {
     $writeRoot = & docker compose -f $composeYml -p $project --env-file $envFile exec -T backend sh -c 'touch /forbidden 2>/dev/null && echo WROTE || echo DENIED' 2>$null
     Assert ("$writeRoot".Trim() -eq 'DENIED') 'A1-root-readonly' 'write to / must be denied'
 
+    $writeDefaultTmp = & docker compose -f $composeYml -p $project --env-file $envFile exec -T backend sh -c 'touch /tmp/forbidden 2>/dev/null && echo WROTE || echo DENIED' 2>$null
+    Assert ("$writeDefaultTmp".Trim() -eq 'DENIED') 'A1-default-tmp-readonly' 'write to /tmp must be denied'
+    $jvmTmp = & docker compose -f $composeYml -p $project --env-file $envFile exec -T backend sh -c "tr '\000' '\n' < /proc/1/cmdline | grep -Fx -- '-Djava.io.tmpdir=/app/tmp'" 2>$null
+    Assert ("$jvmTmp".Trim() -eq '-Djava.io.tmpdir=/app/tmp') 'A1-jvm-tmp-configured' 'the application JVM must use /app/tmp'
+
     # ---- 验收 2：端口发布与网络可达范围 ----
     Write-Host '=== [3/4] port publishing & network reach ==='
     # compose ps --format json 为每个服务输出一行 JSON，逐行解析。
@@ -260,16 +273,18 @@ try {
     }
     Assert ($leaked.Count -eq 0) 'A2-db-redis-not-published-any' "services with host publishing: $($leaked -join ',')"
 
-    # 运行中的候选：从宿主机（容器网络之外）对 DB/Redis 容器 IP 主动发起连接，
-    # 必须连不通。compose ps 只能说明「没有端口发布」，不能证明网络层不可达；
-    # 对 internal 网络里的容器 IP 直接建连才是对隔离的运行证据。
+    # 内部网络正向探针证明服务在监听；独立 edge 网络反向探针验证跨网络隔离。
+    # Docker 宿主可能直接路由容器 IP；宿主其他服务也可能占用默认端口。
+    # 此检查不代替从真实外网验证部署环境的路由和防火墙。
     $mysqlIp = Get-ContainerIp 'mysql'
     $redisIp = Get-ContainerIp 'redis'
-    Assert (-not (Test-TcpConnect $mysqlIp 3306)) 'A2-mysql-container-ip-unreachable' "tcp connect to $mysqlIp`:3306 unexpectedly succeeded"
-    Assert (-not (Test-TcpConnect $redisIp 6379)) 'A2-redis-container-ip-unreachable' "tcp connect to $redisIp`:6379 unexpectedly succeeded"
-    # 宿主机回环上的默认端口也不该被默认栈占用。
-    Assert (-not (Test-TcpConnect '127.0.0.1' 3306)) 'A2-loopback-mysql-default-closed' 'tcp connect to 127.0.0.1:3306 unexpectedly succeeded'
-    Assert (-not (Test-TcpConnect '127.0.0.1' 6379)) 'A2-loopback-redis-default-closed' 'tcp connect to 127.0.0.1:6379 unexpectedly succeeded'
+    foreach ($target in @(@('mysql', $mysqlIp, 3306), @('redis', $redisIp, 6379))) {
+        $name, $address, $port = $target
+        $inside = Test-ContainerNetworkTcp "$($project)_internal" $address $port
+        $outside = Test-ContainerNetworkTcp "$($project)_edge" $address $port
+        Assert $inside "A2-$name-internal-reachable" "internal network cannot connect to $address`:$port"
+        Assert (-not $outside) "A2-$name-edge-unreachable" "edge network can connect to $address`:$port"
+    }
 
     # ---- 验收 3：健康端点不泄露秘密 + profile 与日志卫生 ----
     Write-Host '=== [4/4] profile, log hygiene & health ==='
