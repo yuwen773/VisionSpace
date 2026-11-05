@@ -39,6 +39,9 @@ public class PictureEditResponseMessage {
     /** 仅握手完成后的定向 INFO 携带本连接标识，不经总线广播。 */
     private String selfSessionId;
 
+    /** 仅定向发送给租约持有连接，不通过广播总线发送。 */
+    private String leaseToken;
+
     /** 仅确认租约已失效时为 true；可重试的消息错误不改变编辑权。 */
     private boolean leaseLost;
 }

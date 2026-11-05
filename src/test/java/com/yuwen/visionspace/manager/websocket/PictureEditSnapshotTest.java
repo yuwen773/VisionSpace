@@ -28,9 +28,12 @@ class PictureEditSnapshotTest {
         var handler = new PictureEditHandler(30);
         var leases = mock(PictureEditLeaseManager.class);
         var users = mock(UserService.class);
+        var checker = mock(WsEditAccessChecker.class);
+        when(checker.checkView(any(), eq(1L))).thenReturn(WsEditAccessChecker.AccessCheckResult.ok(new User()));
         when(users.getUserVO(any())).thenReturn(new UserVO());
         ReflectionTestUtils.setField(handler, "leaseManager", leases);
         ReflectionTestUtils.setField(handler, "userService", users);
+        ReflectionTestUtils.setField(handler, "accessChecker", checker);
         ReflectionTestUtils.setField(handler, "monitor", new PictureEditMonitor());
         ReflectionTestUtils.setField(handler, "broadcastBus", mock(PictureEditBroadcastBus.class));
         var socket = mock(WebSocketSession.class);

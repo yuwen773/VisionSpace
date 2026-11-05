@@ -50,7 +50,7 @@ class PictureEditLeaseManagerTest extends PictureEditLeaseTestBase {
         long pictureId = uniquePictureId();
         assertTrue(leaseManager.tryAcquire(pictureId, "session-A", 101L, shortTtl()).acquired());
         // 过期后（Redis TTL 自动淘汰），另一实例上的连接可以接管
-        awaitLeaseExpiry();
+        awaitLeaseExpiry(pictureId);
         assertTrue(leaseManager.tryAcquire(pictureId, "session-B", 202L, leaseTtl()).acquired());
         assertEquals(202L, leaseManager.holderUserId(pictureId).orElse(-1L));
         // 旧持有者的迟到释放不能夺回或误释放新租约

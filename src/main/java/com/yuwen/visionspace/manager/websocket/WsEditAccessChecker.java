@@ -63,6 +63,15 @@ public class WsEditAccessChecker {
      */
     @SuppressWarnings("unchecked")
     public AccessCheckResult check(WebSocketSessionLike session, Long pictureId) {
+        return checkPermission(session, pictureId, SpaceUserPermissionConstant.PICTURE_EDIT);
+    }
+
+    /** 发送协作消息前按当前会话和查看权限复核接收者。 */
+    public AccessCheckResult checkView(WebSocketSessionLike session, Long pictureId) {
+        return checkPermission(session, pictureId, SpaceUserPermissionConstant.PICTURE_VIEW);
+    }
+
+    private AccessCheckResult checkPermission(WebSocketSessionLike session, Long pictureId, String permission) {
         Object httpSessionId = session.getAttribute("httpSessionId");
         if (httpSessionId == null || pictureId == null) {
             return AccessCheckResult.denied("缺少会话标识");
@@ -95,8 +104,8 @@ public class WsEditAccessChecker {
             }
         }
         var permissionList = spaceUserAuthManager.getPermissionList(space, user);
-        if (!permissionList.contains(SpaceUserPermissionConstant.PICTURE_EDIT)) {
-            return AccessCheckResult.denied("没有编辑图片的权限");
+        if (!permissionList.contains(permission)) {
+            return AccessCheckResult.denied("没有图片访问权限");
         }
         return AccessCheckResult.ok(user);
     }

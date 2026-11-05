@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.yuwen.visionspace.manager.websocket.disruptor.PictureEditEventProducer;
 import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseCoordinator;
 import com.yuwen.visionspace.manager.websocket.model.PictureEditActionEnum;
 import com.yuwen.visionspace.manager.websocket.model.PictureEditRequestMessage;
 import com.yuwen.visionspace.manager.websocket.model.PictureEditMessageTypeEnum;
@@ -109,6 +110,9 @@ public class PictureEditHandler extends TextWebSocketHandler {
     private PictureEditLeaseManager leaseManager;
 
     @Resource
+    private PictureEditLeaseCoordinator leaseCoordinator;
+
+    @Resource
     private PictureEditMonitor monitor;
 
     @Resource
@@ -194,8 +198,27 @@ public class PictureEditHandler extends TextWebSocketHandler {
      * 进入编辑状态（Disruptor 消费线程调用，已经过访问复核）
      */
     public void handleEnterEditMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws IOException {
-        PictureEditLeaseManager.LeaseAcquireResult result =
-                leaseManager.tryAcquire(pictureId, session.getId(), user.getId(), leaseTtl);
+        if (!session.isOpen()) {
+            return;
+        }
+        String token = java.util.UUID.randomUUID().toString() + java.util.UUID.randomUUID();
+        PictureEditLeaseManager.LeaseAcquireResult result;
+        try {
+            result = leaseCoordinator.acquire(pictureId, session.getId(), user.getId(), leaseTtl, token);
+        } catch (RuntimeException e) {
+            leaseManager.release(pictureId, session.getId());
+            throw e;
+        }
+        if (result.acquired() && !session.isOpen()) {
+            leaseManager.release(pictureId, session.getId());
+            return;
+        }
+        if (result.acquired() && !accessChecker.check(session.getAttributes()::get, pictureId).allowed()) {
+            leaseManager.release(pictureId, session.getId());
+            monitor.onAuthRejection();
+            sendError(session, "编辑权限已失效，请重新连接", true);
+            return;
+        }
         if (!result.acquired()) {
             monitor.onLeaseConflict();
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
@@ -206,6 +229,17 @@ public class PictureEditHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(pictureEditResponseMessage)));
             }
             return;
+        }
+        try {
+            PictureEditResponseMessage credential = new PictureEditResponseMessage();
+            credential.setType(PictureEditMessageTypeEnum.INFO.getValue());
+            credential.setLeaseToken(token);
+            synchronized (session) {
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(credential)));
+            }
+        } catch (IOException | RuntimeException e) {
+            leaseManager.release(pictureId, session.getId());
+            throw e;
         }
         // 构造响应，发送进入编辑的消息通知
         PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
@@ -254,7 +288,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
      */
     public void handleExitEditMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws IOException {
         // 归属验证：只有租约持有连接能退出，旧连接的迟到 EXIT 不影响新租约
-        if (!leaseManager.release(pictureId, session.getId())) {
+        if (!leaseCoordinator.release(pictureId, session.getId())) {
             return;
         }
         // 构造响应，发送退出编辑的消息通知
@@ -278,7 +312,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
         Long pictureId = (Long) session.getAttributes().get("pictureId");
         // 只按连接释放租约（归属验证在租约管理器内）
         try {
-            if (leaseManager.release(pictureId, session.getId())) {
+            if (leaseCoordinator.release(pictureId, session.getId())) {
                 PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
                 pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
                 pictureEditResponseMessage.setSessionId(session.getId());
@@ -370,6 +404,10 @@ public class PictureEditHandler extends TextWebSocketHandler {
                 continue;
             }
             try {
+                if (!accessChecker.checkView(session.getAttributes()::get, pictureId).allowed()) {
+                    monitor.onAuthRejection();
+                    continue;
+                }
                 synchronized (session) {
                     session.sendMessage(textMessage);
                 }
@@ -422,7 +460,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
      * 收回指定连接持有的租约（复核拒绝时调用，防止续期任务给无权连接续租）。
      */
     public void revokeLeaseOf(Long pictureId, String sessionId) {
-        if (pictureId != null && leaseManager.release(pictureId, sessionId)) {
+        if (pictureId != null && leaseCoordinator.release(pictureId, sessionId)) {
             PictureEditResponseMessage state = new PictureEditResponseMessage();
             state.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
             state.setSessionId(sessionId);

@@ -72,7 +72,8 @@ try {
     $database = "vs44_collab_$nonce"
     $sourceDdl = Get-Content -Raw (Join-Path $repo 'sql\create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    if ($tables.Count -ne 15) { throw "schema table count changed: $($tables.Count)" }
+    $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
+    if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) { throw "schema extraction incomplete: $($tables.Count)/$declaredTables" }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

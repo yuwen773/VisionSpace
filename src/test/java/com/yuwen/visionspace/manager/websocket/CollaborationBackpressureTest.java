@@ -7,10 +7,16 @@ import com.yuwen.visionspace.manager.websocket.disruptor.PictureEditEvent;
 import com.yuwen.visionspace.manager.websocket.disruptor.PictureEditEventProducer;
 import com.yuwen.visionspace.manager.websocket.disruptor.PictureEditEventWorkHandler;
 import com.yuwen.visionspace.manager.websocket.model.PictureEditRequestMessage;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseCoordinator;
 import com.yuwen.visionspace.manager.websocket.monitor.PictureEditMonitor;
+import com.yuwen.visionspace.model.entity.User;
+import com.yuwen.visionspace.model.vo.UserVO;
+import com.yuwen.visionspace.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.CloseStatus;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -21,6 +27,86 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class CollaborationBackpressureTest {
+    @Test
+    void closingDuringAcquisitionReleasesTheNewLease() throws Exception {
+        var handler = new PictureEditHandler(30);
+        var leases = mock(PictureEditLeaseManager.class);
+        var coordinator = mock(PictureEditLeaseCoordinator.class);
+        var socket = mock(WebSocketSession.class);
+        var user = new User();
+        user.setId(9L);
+        when(socket.getId()).thenReturn("closed-during-acquire");
+        when(socket.isOpen()).thenReturn(true, false);
+        when(coordinator.acquire(eq(1L), eq("closed-during-acquire"), eq(9L), any(), anyString()))
+                .thenReturn(PictureEditLeaseManager.LeaseAcquireResult.acquired(9L));
+        ReflectionTestUtils.setField(handler, "leaseManager", leases);
+        ReflectionTestUtils.setField(handler, "leaseCoordinator", coordinator);
+        handler.handleEnterEditMessage(new PictureEditRequestMessage(), socket, user, 1L);
+        verify(leases).release(1L, "closed-during-acquire");
+        verify(socket, never()).sendMessage(any());
+    }
+
+    @Test
+    void revocationWhileWaitingForPictureLockDoesNotIssueCredential() throws Exception {
+        var handler = new PictureEditHandler(30);
+        var leases = mock(PictureEditLeaseManager.class);
+        var coordinator = mock(PictureEditLeaseCoordinator.class);
+        var checker = mock(WsEditAccessChecker.class);
+        var socket = mock(WebSocketSession.class);
+        var user = new User();
+        user.setId(9L);
+        when(socket.getId()).thenReturn("revoked-session");
+        when(socket.isOpen()).thenReturn(true);
+        when(socket.getAttributes()).thenReturn(Map.of());
+        when(coordinator.acquire(eq(1L), eq("revoked-session"), eq(9L), any(), anyString()))
+                .thenReturn(PictureEditLeaseManager.LeaseAcquireResult.acquired(9L));
+        when(checker.check(any(), eq(1L))).thenReturn(WsEditAccessChecker.AccessCheckResult.denied("revoked"));
+        ReflectionTestUtils.setField(handler, "leaseManager", leases);
+        ReflectionTestUtils.setField(handler, "leaseCoordinator", coordinator);
+        ReflectionTestUtils.setField(handler, "accessChecker", checker);
+        ReflectionTestUtils.setField(handler, "monitor", new PictureEditMonitor());
+        handler.handleEnterEditMessage(new PictureEditRequestMessage(), socket, user, 1L);
+        verify(leases).release(1L, "revoked-session");
+        verify(socket, never()).sendMessage(argThat(message -> message.getPayload().toString().contains("leaseToken\":\"")));
+    }
+
+    @Test
+    void closedConnectionCannotAcquireALeaseAfterAuthorization() throws Exception {
+        var handler = new PictureEditHandler(30);
+        var leases = mock(PictureEditLeaseManager.class);
+        var checker = mock(WsEditAccessChecker.class);
+        var coordinator = mock(PictureEditLeaseCoordinator.class);
+        var users = mock(UserService.class);
+        var socket = mock(WebSocketSession.class);
+        var user = new User();
+        user.setId(9L);
+        when(socket.getId()).thenReturn("closed-session");
+        when(socket.isOpen()).thenReturn(true, false);
+        when(socket.getAttributes()).thenReturn(Map.of("pictureId", 1L, "user", user));
+        when(users.getUserVO(any())).thenReturn(new UserVO());
+        ReflectionTestUtils.setField(handler, "leaseManager", leases);
+        ReflectionTestUtils.setField(handler, "leaseCoordinator", coordinator);
+        ReflectionTestUtils.setField(handler, "userService", users);
+        ReflectionTestUtils.setField(handler, "monitor", new PictureEditMonitor());
+        ReflectionTestUtils.setField(handler, "broadcastBus", mock(PictureEditBroadcastBus.class));
+        ReflectionTestUtils.setField(handler, "accessChecker", checker);
+        when(checker.check(any(), eq(1L))).thenAnswer(invocation -> {
+            handler.afterConnectionClosed(socket, CloseStatus.NORMAL);
+            return WsEditAccessChecker.AccessCheckResult.ok(user);
+        });
+        var worker = new PictureEditEventWorkHandler();
+        ReflectionTestUtils.setField(worker, "pictureEditHandler", handler);
+        ReflectionTestUtils.setField(worker, "accessChecker", checker);
+        var event = new PictureEditEvent();
+        var request = new PictureEditRequestMessage();
+        request.setType("ENTER_EDIT");
+        event.setPictureEditRequestMessage(request);
+        event.setSession(socket);
+        event.setPictureId(1L);
+        worker.onEvent(event);
+        verify(coordinator, never()).acquire(anyLong(), anyString(), anyLong(), any(), anyString());
+    }
+
     @Test
     void fullQueueRejectsWithoutBlockingAndAcceptsAfterDraining() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);

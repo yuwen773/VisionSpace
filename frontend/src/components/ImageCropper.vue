@@ -258,6 +258,7 @@ const closeModal = () => {
   editingUser.value = undefined
   editingSessionId.value = undefined
   selfSessionId.value = undefined
+  leaseToken.value = undefined
 }
 
 // 暴露函数给父组件
@@ -291,6 +292,7 @@ const rotateRight = () => {
 
 // 确认裁切
 const handleConfirm = () => {
+  if (isTeamSpace.value && !leaseToken.value) return
   cropperRef.value?.getCropBlob((blob: Blob) => {
     const fileName = (props.picture?.name || 'image') + '.png'
     const file = new File([blob], fileName, { type: blob.type })
@@ -305,15 +307,23 @@ const handleUpload = async ({ file }: any) => {
   loading.value = true
   try {
     const params: API.PictureUploadRequest = props.picture ? { id: props.picture.id } : {}
+    if (isTeamSpace.value) params.collaborationToken = leaseToken.value
     const spaceId = toId(props.spaceId)
     if (spaceId !== undefined) {
       params.spaceId = spaceId
     }
-    const res = await uploadPictureUsingPost({ pictureUploadRequest: params }, file)
+    const form = new FormData()
+    form.append('file', file)
+    if (params.id !== undefined) form.append('id', String(params.id))
+    if (params.spaceId !== undefined) form.append('spaceId', String(params.spaceId))
+    if (params.collaborationToken) form.append('collaborationToken', params.collaborationToken)
+    const res = await uploadPictureUsingPost({}, undefined, { data: form })
     if (res.data.code === 0 && res.data.data) {
       message.success('图片裁剪成功')
       props.onSuccess?.(res.data.data)
       closeModal()
+    } else {
+      message.error(res.data.message || '图片裁剪失败')
     }
   } catch (err: any) {
     message.error('图片上传失败：' + err.message)
@@ -326,6 +336,7 @@ const handleUpload = async ({ file }: any) => {
 const editingUser = ref<API.UserVO>()
 const editingSessionId = ref<string>()
 const selfSessionId = ref<string>()
+const leaseToken = ref<string>()
 
 //当前用户是否可以进入编辑
 const canEnterEdit = computed(() => {
@@ -342,7 +353,7 @@ const canEdit = computed(() => {
   if (!isTeamSpace.value) {
     return true
   }
-  return canExistEdit.value
+  return canExistEdit.value && !!leaseToken.value
 })
 
 //编写webSocket逻辑
@@ -364,7 +375,8 @@ const initWebsocket = () => {
   websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (msg) => {
     if (!msg) return
     if (msg.selfSessionId) selfSessionId.value = msg.selfSessionId
-    message.info(msg.message)
+    if (msg.leaseToken) leaseToken.value = msg.leaseToken
+    if (msg.message) message.info(msg.message)
   })
 
   websocket.on<PictureEditMessage>(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (msg) => {
@@ -375,6 +387,7 @@ const initWebsocket = () => {
     if (msg.leaseLost && canExistEdit.value) {
       editingUser.value = undefined
       editingSessionId.value = undefined
+      leaseToken.value = undefined
     }
   })
 
@@ -411,6 +424,7 @@ const initWebsocket = () => {
     if (msg.sessionId === editingSessionId.value) {
       editingUser.value = undefined
       editingSessionId.value = undefined
+      leaseToken.value = undefined
     }
   })
   websocket.on('close', () => {
@@ -418,6 +432,7 @@ const initWebsocket = () => {
     editingUser.value = undefined
     editingSessionId.value = undefined
     selfSessionId.value = undefined
+    leaseToken.value = undefined
   })
 }
 
@@ -430,6 +445,7 @@ onUnmounted(() => {
     websocket.disconnect()
   }
   editingUser.value = undefined
+  leaseToken.value = undefined
 })
 
 //进入编辑状态

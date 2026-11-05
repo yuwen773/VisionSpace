@@ -11,6 +11,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.net.CookieManager;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -30,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,6 +55,7 @@ class WsPictureEditContractTest {
     private StringRedisTemplate redis;
 
     private static final long BASE = 44900_000L;
+    private static final java.util.concurrent.atomic.AtomicLong FIXTURE_SEQUENCE = new java.util.concurrent.atomic.AtomicLong();
     private static final String PASSWORD = "acceptance-password";
     private final ConcurrentLinkedQueue<WebSocket> sockets = new ConcurrentLinkedQueue<>();
     private final AtomicInteger idSeq = new AtomicInteger();
@@ -59,7 +63,7 @@ class WsPictureEditContractTest {
 
     @BeforeEach
     void cleanFixtures() {
-        fixtureSeq = System.nanoTime() % 100_000;
+        fixtureSeq = FIXTURE_SEQUENCE.incrementAndGet();
         jdbc.update("DELETE FROM picture WHERE id >= ? AND id < ?", BASE, BASE + 10_000_000);
         jdbc.update("DELETE FROM space WHERE id >= ? AND id < ?", BASE, BASE + 10_000_000);
         jdbc.update("DELETE FROM space_user WHERE spaceId >= ? AND spaceId < ?", BASE, BASE + 10_000_000);
@@ -213,6 +217,143 @@ class WsPictureEditContractTest {
             assertTrue(owner.awaitType("ENTER_EDIT", 5).isPresent(), "owner must take over after demotion");
         }
         editor.socket().abort();
+    }
+
+    @Test
+    void removedObserverReceivesNoFurtherEditBroadcasts() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        long observerId = seedUser("observer_" + fixtureSeq);
+        joinTeam(spaceId, observerId, "editor");
+
+        try (WsClient observer = connect(observerId, pictureId);
+             WsClient owner = connect(ownerId, pictureId);
+             WsClient witness = connect(ownerId, pictureId)) {
+            owner.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(owner.awaitType("ENTER_EDIT", 5).isPresent());
+            jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", spaceId, observerId);
+            int before = observer.count("EDIT_ACTION");
+            owner.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
+            assertTrue(witness.awaitType("EDIT_ACTION", 5).isPresent(), "the authorized observer must receive the action");
+            Thread.sleep(300);
+            assertEquals(before, observer.count("EDIT_ACTION"),
+                    "a removed member must not receive later collaboration actions");
+        }
+    }
+
+    @Test
+    void observerDemotedToViewerStillReceivesAuthorizedBroadcasts() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        long observerId = seedUser("viewer_observer_" + fixtureSeq);
+        joinTeam(spaceId, observerId, "editor");
+        try (WsClient observer = connect(observerId, pictureId); WsClient owner = connect(ownerId, pictureId)) {
+            owner.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(owner.awaitType("ENTER_EDIT", 5).isPresent());
+            jdbc.update("UPDATE space_user SET spaceRole = 'viewer' WHERE spaceId = ? AND userId = ?", spaceId, observerId);
+            owner.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
+            assertTrue(observer.awaitType("EDIT_ACTION", 5).isPresent(),
+                    "a viewer retains permission to observe collaboration");
+        }
+    }
+
+    @Test
+    void staleCollaborativeSaveCannotOverwriteSuccessor() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        try (WsClient old = connect(ownerId, pictureId); WsClient successor = connect(ownerId, pictureId)) {
+            var withoutLease = uploadReplacement(old.http(), pictureId, "");
+            assertNotEquals(0, withoutLease.path("code").asInt(), "team replacement must require a lease");
+            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file WHERE ownerUserId = ?", Integer.class, ownerId),
+                    "an unauthorized replacement must not register uploaded resources");
+            old.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(old.awaitType("ENTER_EDIT", 5).isPresent());
+            assertTrue(successor.awaitType("ENTER_EDIT", 5).isPresent());
+            String oldToken = old.messages.stream().map(n -> n.path("leaseToken").asText(""))
+                    .filter(s -> !s.isEmpty()).findFirst().orElse("expired-fixture-token");
+            redis.delete("picture:edit:lease:" + pictureId);
+            successor.send(Map.of("type", "ENTER_EDIT"));
+            assertTrue(successor.awaitType("ENTER_EDIT", 5).isPresent());
+            var stale = uploadReplacement(old.http(), pictureId, oldToken);
+            assertNotEquals(0, stale.path("code").asInt(), "expired lease must not authorize a replacement");
+            assertEquals("original", jdbc.queryForObject("SELECT name FROM picture WHERE id = ?", String.class, pictureId));
+            String successorToken = successor.messages.stream().map(n -> n.path("leaseToken").asText(""))
+                    .filter(s -> !s.isEmpty()).findFirst().orElse("");
+            assertFalse(successorToken.isBlank(), "the holder needs a private save credential");
+            assertFalse(old.messages.stream().anyMatch(n -> successorToken.equals(n.path("leaseToken").asText(""))),
+                    "the save credential must not be broadcast to other connections");
+            var saved = uploadReplacement(successor.http(), pictureId, successorToken);
+            assertEquals(0, saved.path("code").asInt(), "the current holder must be able to save: " + saved);
+        }
+    }
+
+    private JsonNode uploadReplacement(HttpClient client, long pictureId, String token) throws Exception {
+        String boundary = "----collab" + System.nanoTime();
+        var body = new ByteArrayOutputStream();
+        body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"stale.png\"\r\n"
+                + "Content-Type: image/png\r\n\r\nacceptance-image-bytes\r\n--" + boundary
+                + "\r\nContent-Disposition: form-data; name=\"id\"\r\n\r\n" + pictureId
+                + "\r\n--" + boundary + "\r\nContent-Disposition: form-data; name=\"collaborationToken\"\r\n\r\n"
+                + token + "\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        var response = client.send(HttpRequest.newBuilder(uri("/picture/upload"))
+                        .timeout(Duration.ofSeconds(30)).header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                        .header(CsrfToken.HEADER, CsrfToken.of(client))
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+        return json.readTree(response.body());
+    }
+
+    @Test
+    void takeoverWaitsForThePictureWriteTransaction() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        try (WsClient successor = connect(ownerId, pictureId);
+             var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM picture WHERE id = ? FOR UPDATE")) {
+                lock.setLong(1, pictureId);
+                lock.executeQuery();
+            }
+            successor.send(Map.of("type", "ENTER_EDIT"));
+            Thread.sleep(500);
+            assertFalse(Boolean.TRUE.equals(redis.hasKey("picture:edit:lease:" + pictureId)),
+                    "a new lease must not be granted while the picture write holds its lock");
+            connection.commit();
+            assertTrue(successor.awaitType("ENTER_EDIT", 5).isPresent(), "takeover must proceed after commit");
+        }
+    }
+
+    @Test
+    void disconnectWaitsForThePictureWriteTransactionBeforeReleasingLease() throws Exception {
+        long spaceId = nextId();
+        long pictureId = nextId();
+        long ownerId = seedOwner();
+        seedTeamSpaceWithPicture(spaceId, pictureId, ownerId);
+        WsClient holder = connect(ownerId, pictureId);
+        holder.send(Map.of("type", "ENTER_EDIT"));
+        assertTrue(holder.awaitType("ENTER_EDIT", 5).isPresent());
+        try (var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM picture WHERE id = ? FOR UPDATE")) {
+                lock.setLong(1, pictureId);
+                lock.executeQuery();
+            }
+            holder.close();
+            Thread.sleep(300);
+            assertTrue(Boolean.TRUE.equals(redis.hasKey("picture:edit:lease:" + pictureId)),
+                    "the disconnect must not release its lease before an active write completes");
+            connection.commit();
+            awaitLeaseGone(pictureId);
+        }
     }
 
     // ---- 29.2 注销即时生效 ----

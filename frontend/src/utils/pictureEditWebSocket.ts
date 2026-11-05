@@ -6,6 +6,7 @@ export interface PictureEditMessage {
   message?: string
   sessionId?: string
   selfSessionId?: string
+  leaseToken?: string
   editAction?: string
   leaseLost?: boolean
   user?: API.UserVO
@@ -57,8 +58,6 @@ export default class PictureEditWebSocket {
         this.triggerEvent('ERROR', { type: 'ERROR', message: '协作消息类型缺失' })
         return
       }
-      console.log('收到消息:', message)
-
       // 根据消息类型触发对应事件
       const type = message.type
       this.triggerEvent(type, message)

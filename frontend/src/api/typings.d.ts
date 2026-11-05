@@ -884,6 +884,7 @@ declare namespace API {
   }
 
   type PictureUploadRequest = {
+    collaborationToken?: string
     fileUrl?: string
     id?: number
     picName?: string

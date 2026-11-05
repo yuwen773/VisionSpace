@@ -87,7 +87,8 @@ try {
     Wait-Port $mysqlPort; Wait-Port $redisPort
     $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    if ($tables.Count -ne 15) { throw 'FAIL: schema changed; review bootstrap.' }
+    $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
+    if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) { throw 'FAIL: schema extraction incomplete; review bootstrap.' }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

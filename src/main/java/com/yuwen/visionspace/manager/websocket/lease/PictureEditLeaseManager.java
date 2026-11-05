@@ -91,7 +91,11 @@ public class PictureEditLeaseManager {
      * @return 获取结果，失败时携带当前持有者信息
      */
     public LeaseAcquireResult tryAcquire(long pictureId, String sessionId, long userId, Duration ttl) {
-        String value = sessionId + "|" + userId;
+        return tryAcquireWithToken(pictureId, sessionId, userId, ttl, "");
+    }
+
+    public LeaseAcquireResult tryAcquireWithToken(long pictureId, String sessionId, long userId, Duration ttl, String token) {
+        String value = sessionId + "|" + userId + "|" + token;
         String result = stringRedisTemplate.execute(ACQUIRE_SCRIPT,
                 List.of(key(pictureId)), value, String.valueOf(ttl.toMillis()));
         if ("1".equals(result)) {
@@ -151,10 +155,24 @@ public class PictureEditLeaseManager {
         int sep = value.indexOf('|');
         if (sep < 0) return Optional.empty();
         try {
-            return Optional.of(new LeaseHolder(value.substring(0, sep), Long.parseLong(value.substring(sep + 1))));
+            int tokenSep = value.indexOf('|', sep + 1);
+            String user = tokenSep < 0 ? value.substring(sep + 1) : value.substring(sep + 1, tokenSep);
+            return Optional.of(new LeaseHolder(value.substring(0, sep), Long.parseLong(user)));
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
+    }
+
+    /** 团队图片替换只接受当前持有者的专用凭据。 */
+    public boolean canSave(long pictureId, long userId, String token) {
+        String value = stringRedisTemplate.opsForValue().get(key(pictureId));
+        if (value == null) return false;
+        int first = value.indexOf('|');
+        int second = first < 0 ? -1 : value.indexOf('|', first + 1);
+        if (second < 0 || token == null || token.isBlank()) return false;
+        return value.substring(first + 1, second).equals(Long.toString(userId))
+                && java.security.MessageDigest.isEqual(value.substring(second + 1).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public record LeaseHolder(String sessionId, long userId) { }

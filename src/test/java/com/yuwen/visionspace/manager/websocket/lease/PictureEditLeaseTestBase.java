@@ -29,8 +29,13 @@ abstract class PictureEditLeaseTestBase {
         return SHORT_TTL;
     }
 
-    protected void awaitLeaseExpiry() throws InterruptedException {
-        Thread.sleep(SHORT_TTL.toMillis() + 300);
+    protected void awaitLeaseExpiry(long pictureId) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+        while (Boolean.TRUE.equals(stringRedisTemplate.hasKey(leaseKey(pictureId))) && System.nanoTime() < deadline) {
+            Thread.sleep(50);
+        }
+        org.junit.jupiter.api.Assertions.assertFalse(Boolean.TRUE.equals(stringRedisTemplate.hasKey(leaseKey(pictureId))),
+                "the lease must actually expire before attempting takeover");
     }
 
     /** 每条用例独立 pictureId，避免用例间互相看到对方租约。 */
