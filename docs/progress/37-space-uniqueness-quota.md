@@ -15,8 +15,12 @@
 `canSave`）；`HttpQuarantineRaceTest` 同时保留两方新增用例与 #44 的租约
 fixture/multipart token，把「持有租约」提到 `@BeforeEach`，避免 #37 新增的
 团队空间替换用例被协作鉴权挡住、或把鉴权失败误判成清理失败。测试用空间为
-私有空间（`spaceType=0`）的配额用例不受租约约束。合并结果仅编译验证，
-完整隔离验收与 GitHub CI 以串行脚本结果为准。
+私有空间（`spaceType=0`）的配额用例不受租约约束。
+
+合并后串行重跑完整隔离验收：head `b080ad1`，`12/12` 门全 PASS，后端 585 项、
+前端门全绿、`frontend-api-contract` PASS、`productionAcceptance: NOT_RUN`。
+该 HEAD 尚未推送，GitHub CI 与 PR #68 远端 head 仍停在 `979a307`；
+真实生产/混版本部署与跨时区统计租约风险仍按原有边界保留。
 
 ## 改动结构
 
