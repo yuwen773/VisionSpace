@@ -74,6 +74,12 @@ productionAcceptance: NOT_RUN
 `pwsh -File scripts/acceptance.ps1 -MySqlBin 'D:\Work\Backend\MySQL-8.0.26\mysql-8.0.26-winx64\bin' -RedisBin 'D:\Work\Backend\Redis-x64-3.2.100'`。
 GitHub `acceptance` check 亦在 PR #71 head 上 success（2026-11-04 18:00 UTC）。
 
+回滚脚本改为归档/恢复后，编排者在本地合并最新 main 的 HEAD `ab34cb6` 上再次串行运行
+完整隔离验收：`12/12` 门全 PASS，后端 586 项（含新增 `UserPreferenceMigrationTest` 3 项），
+前端生成客户端契约门 PASS，`productionAcceptance: NOT_RUN`。该 HEAD 尚未推送，
+GitHub CI 与 PR #71 远端 head 仍停在修复前的 `34f6bec`；真实维护窗口的停写、
+备份与人工处置仍属人工关卡。
+
 ## 本次实际执行的验证
 
 2026-11-05，Windows 11 + JDK（`--release 21`）+ Maven：
