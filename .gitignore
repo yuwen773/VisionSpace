@@ -74,3 +74,6 @@ docker-compose.override.yml
 # 密码代理文件（compose env_file 用，含真实值，禁止提交）
 .env.secrets
 .env.secrets.*
+
+# 工单 44 隔离验收运行目录（本票专用脚本产物）
+.vs44-runs/
