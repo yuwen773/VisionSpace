@@ -313,6 +313,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseStorageSwitchStatusVO = {
+    code?: number
+    data?: StorageSwitchStatusVO
+    message?: string
+  }
+
   type BaseResponseString = {
     code?: number
     data?: string
@@ -1176,10 +1182,6 @@ declare namespace API {
     userId?: number
   }
 
-  type StorageConfigActiveRequest = {
-    id?: number
-  }
-
   type StorageConfigAddRequest = {
     accessKey?: string
     basePath?: string
@@ -1187,7 +1189,6 @@ declare namespace API {
     domain?: string
     endpoint?: string
     isActive?: number
-    isDefault?: number
     orderNum?: number
     platform?: string
     platformName?: string
@@ -1214,7 +1215,6 @@ declare namespace API {
     endpoint?: string
     id?: number
     isActive?: number
-    isDefault?: number
     orderNum?: number
     platform?: string
     platformName?: string
@@ -1234,7 +1234,6 @@ declare namespace API {
     hasSecretKey?: boolean
     id?: number
     isActive?: number
-    isDefault?: number
     orderNum?: number
     platform?: string
     platformName?: string
@@ -1242,6 +1241,27 @@ declare namespace API {
     secretKeyMasked?: string
     status?: number
     updateTime?: string
+  }
+
+  type StorageSwitchRequest = {
+    expectedInstances?: number
+    targetConfigId?: number
+  }
+
+  type StorageSwitchStatusVO = {
+    activeConfigId?: number
+    activePlatform?: string
+    activeVersion?: number
+    confirmCount?: number
+    expectedInstances?: number
+    localDefaultPlatform?: string
+    localEffectiveVersion?: number
+    localSynced?: boolean
+    pendingConfigId?: number
+    pendingPlatform?: string
+    pendingVersion?: number
+    phase?: string
+    registeredPlatforms?: string[]
   }
 
   type TaskMetrics = {
