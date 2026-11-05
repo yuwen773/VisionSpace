@@ -124,6 +124,12 @@
   `12/12` 门全 PASS，后端 594 项、前端门与 `frontend-api-contract` 全绿，
   `productionAcceptance: NOT_RUN`。该 HEAD 尚未推送，GitHub CI 与 PR #72 远端 head
   仍停在 `882d592`。
+- **#68/#71 合并后再次集成 main**（2026-11-05）：main 前进到 `c9b20d5` 后，
+  `sql/create_vision_space.sql` 出现追加式冲突——#40 的
+  `storage_switch_state` / `storage_switch_confirm` 与 #42 的 `user_preference`
+  都追加在 `resource_isolation` 之后。解冲突方式为**三段 DDL 全保留**，
+  不删任何一方建表；`frontend/src/api/typings.d.ts` 自动合并。合并 HEAD
+  `924c46a`，完整隔离验收与 GitHub CI 以本轮串行结果为准。
 - **NOT_RUN**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
   （及双实例用例的第二 JVM 端口），由编排者在交付后串行运行。
 - **人工关卡**：真实云凭据下的 bucketExists 探活（生产默认开启，隔离验收关闭）、
