@@ -32,5 +32,8 @@ public class PictureUploadRequest implements Serializable {
      */
     private Long spaceId;
 
+    /** 协作编辑连接的保存凭据。 */
+    private String collaborationToken;
+
     private static final long serialVersionUID = 1L;
 }

@@ -209,10 +209,12 @@ import {
   uploadPictureByUrlUsingPost,
 } from '@/api/pictureController.ts'
 import { toId } from '@/utils'
+import { acquirePictureEditLease } from '@/utils/acquirePictureEditLease'
 
 interface Props {
   picture?: API.PictureVO
   spaceId?: number | string
+  space?: API.SpaceVO
   onSuccess?: (newPicture: API.PictureVO) => void
 }
 
@@ -245,6 +247,7 @@ const handleUpload = async () => {
   if (!resultImageUrl.value) return
 
   uploadLoading.value = true
+  let lease: Awaited<ReturnType<typeof acquirePictureEditLease>> | undefined
   try {
     const params: API.PictureUploadRequest = {
       fileUrl: resultImageUrl.value,
@@ -253,16 +256,24 @@ const handleUpload = async () => {
     if (props.picture) {
       params.id = props.picture.id
     }
+    if (props.space?.spaceType === 1 && params.id) {
+      lease = await acquirePictureEditLease(params.id)
+      params.collaborationToken = lease.token
+    }
     const res = await uploadPictureByUrlUsingPost(params)
     if (res.data.code === 0 && res.data.data) {
       message.success('扩图应用成功')
       props.onSuccess?.(res.data.data)
       closeModal()
+    } else {
+      message.error(res.data.message || '图片上传失败')
     }
   } catch (err: any) {
     message.error('图片上传失败：' + err.message)
+  } finally {
+    lease?.release()
+    uploadLoading.value = false
   }
-  uploadLoading.value = false
 }
 
 // ai扩图

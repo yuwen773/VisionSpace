@@ -12,6 +12,7 @@ import * as mainController from './mainController'
 import * as mcpController from './mcpController'
 import * as resourceModerationController from './resourceModerationController'
 import * as pictureAction from './pictureAction'
+import * as pictureCollabMonitorController from './pictureCollabMonitorController'
 import * as pictureContentController from './pictureContentController'
 import * as pictureController from './pictureController'
 import * as pictureGrantController from './pictureGrantController'
@@ -32,6 +33,7 @@ export default {
   mcpController,
   resourceModerationController,
   pictureAction,
+  pictureCollabMonitorController,
   pictureContentController,
   pictureController,
   pictureGrantController,

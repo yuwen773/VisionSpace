@@ -9,6 +9,7 @@ import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.annotation.SaSpaceCheckPermission;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
+import com.yuwen.visionspace.manager.websocket.CollabLeaseRevoker;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserAddRequest;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserEditRequest;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserQueryRequest;
@@ -38,6 +39,9 @@ public class SpaceUserController {
 
     @Resource
     private SpaceUserService spaceUserService;
+
+    @Resource
+    private CollabLeaseRevoker collabLeaseRevoker;
 
     @Resource
     private UserService userService;
@@ -73,6 +77,8 @@ public class SpaceUserController {
         // 操作数据库
         boolean result = spaceUserService.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 成员被移除后立即收回其在空间内图片上持有的编辑租约
+        collabLeaseRevoker.revokeSpaceUserLeases(oldSpaceUser.getSpaceId(), oldSpaceUser.getUserId());
         return ResultUtils.success(true);
     }
 
@@ -136,6 +142,9 @@ public class SpaceUserController {
         // 操作数据库
         boolean result = spaceUserService.updateById(spaceUser);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 角色变更后立即收回该成员在空间内图片上持有的编辑租约：
+        // 不能等续期任务或成员的下一条消息才生效
+        collabLeaseRevoker.revokeSpaceUserLeases(oldSpaceUser.getSpaceId(), oldSpaceUser.getUserId());
         return ResultUtils.success(true);
     }
 

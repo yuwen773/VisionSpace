@@ -3,8 +3,10 @@ package com.yuwen.visionspace.acceptance;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -66,6 +68,9 @@ class HttpQuarantineRaceTest {
     @Autowired
     private ExternalCallRecorder recorder;
 
+    @Autowired
+    private PictureEditLeaseManager leaseManager;
+
     /**
      * 隔离判定的探针：删除请求的预检在这里停住，等隔离提交后再放行。
      */
@@ -88,8 +93,14 @@ class HttpQuarantineRaceTest {
     private long ownerId;
     private long moderatorId;
 
+    @AfterEach
+    void releaseTestLease() {
+        leaseManager.release(TEAM_PICTURE, "quarantine-test");
+    }
+
     @BeforeEach
     void fixture() throws Exception {
+        leaseManager.release(TEAM_PICTURE, "quarantine-test");
         preCheckReached = new CountDownLatch(1);
         uploadStored = new CountDownLatch(1);
         quarantineCommitted = new CountDownLatch(1);
@@ -200,6 +211,8 @@ class HttpQuarantineRaceTest {
 
     @Test
     void replaceIsRejectedWhenQuarantineCommitsDuringTheUpload() throws Exception {
+        assertTrue(leaseManager.tryAcquireWithToken(TEAM_PICTURE, "quarantine-test", ownerId,
+                Duration.ofMinutes(2), "quarantine-test-token").acquired());
         uploadArmed.set(true);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
@@ -293,6 +306,8 @@ class HttpQuarantineRaceTest {
         body.write(("\r\n--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"" + fieldName + "\"\r\n\r\n"
                 + fieldValue + "\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"collaborationToken\"\r\n\r\n"
+                + "quarantine-test-token\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         body.write(("--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         var response = client.send(HttpRequest.newBuilder(uri(path))
                         .timeout(Duration.ofSeconds(30))
