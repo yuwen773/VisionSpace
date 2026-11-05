@@ -3,6 +3,14 @@
 工单：[45](https://github.com/yuwen773/VisionSpace/issues/45)，父规格：[26](https://github.com/yuwen773/VisionSpace/issues/26)。
 分支：`codex/45-container-health`。本文只记录实际执行到的证据，未执行的部分单列在「未验证范围」。
 
+## 2026-11-05 评审修复（本地未提交）
+
+Compose 显式传递图片识别服务地址与模型；覆盖值和默认值均有配置渲染回归，并已用独立容器验证覆盖值进入容器。MySQL 初始化脚本通过本地 socket 调用客户端，兼容入口脚本按权限 `source` 或独立执行两种方式；两种方式的容器回归均通过。完整候选验收以本轮实际执行结果为准，不把下方历史 CI 结果当作本地新改动的验收。
+
+宿主访问覆盖栈额外给 MySQL 和 Redis 各接独立桥接网络，以兼容本机 Docker Desktop 对纯 internal 网络不建立端口映射的行为；两个服务仍只将指定端口发布到回环，但启用覆盖栈时容器可经该桥接网络出站。默认栈不使用这些网络。本机测试还观察到宿主可直连默认栈容器 IP，且宿主已有其他服务占用 3306/6379；相关强化断言失败，不能据此推断公网可达或不可达。
+
+本轮隔离候选实际构建并启动，配置传递、MySQL 初始化、覆盖栈回环正向连接和非回环拒绝、SQL 日志检查以及依赖故障/恢复和重试耗尽检查通过；完整脚本因上述四项宿主访问强化断言失败而退出 1，未通过整体门禁。测试资源已清理，生产环境未验收。
+
 ## 改动结构
 
 | 位置 | 作用 |
@@ -14,7 +22,7 @@
 | `application-prod.yml` | 管理端点独立端口 9081 且只绑 127.0.0.1；只暴露 health；`show-details/show-components: never`；readiness 组纳入 `db,redis`；Hikari `initialization-fail-timeout: 30000` 提供有限启动重试窗口：依赖延迟最多等 30 秒，耗尽即明确异常退出；Redis 健康检查超时 1 秒，故障时 readiness 秒级返回 503；MyBatis 改为 `NoLoggingImpl` |
 | `application.yml` | 补上 `vision-space.vision-recognition.base-url/model` 的非秘密默认值（可用环境变量覆盖）。这两个键此前只在被忽略的 `application-local/server.yml` 里，prod 启动会因占位符无法解析而失败 |
 | `pom.xml` | 新增 `spring-boot-starter-actuator`（唯一依赖变更） |
-| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密；启动顺序为先 mysql/redis → 以 root 导入业务表（复用 #27 的 DDL 提取约定；建表数校验改为「提取数 == 源文件声明数」，表结构演进不再阻塞）→ 再启动 backend；A1–A4 断言逐条产出证据；失败时保留三方日志与 `compose ps`，清理前也保留完整日志 |
+| `scripts/container-verification.ps1` | 本票专用隔离验证：唯一 Compose project + 随机回环端口 + 随机秘密；启动顺序为先 mysql/redis → 以 root 导入业务表（复用 #27 的 DDL 提取约定；建表数校验改为「提取数 == 源文件声明数」，表结构演进不再阻塞）→ 再启动 backend；A1–A4 断言逐条产出证据；A2 另从宿主机对 DB/Redis 容器 IP 与回环默认端口发起 TCP 连接否定断言，并实跑 host-access 覆盖栈；A3 先以 `user` 表行数确认注册写 SQL 确实发生，再判定日志卫生；失败时保留三方日志与 `compose ps`，清理前也保留完整日志 |
 | `scripts/tests/test-container-verification.ps1` | 容器验证脚本的控制流回归（8 个场景，含预期拒绝），不需要 Docker，随 `acceptance.ps1` 的 `runner-tests` 关卡执行 |
 | `.github/workflows/container-verification.yml` | 在 `ubuntu-24.04` 上实际构建并运行隔离候选；成功或失败都上传 `container-verification-evidence` |
 | `HttpHealthEndpointTest` | 健康端点契约回归：业务健康不含依赖细节；actuator health 为 UP 且不泄露组件与连接信息 |
@@ -27,8 +35,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 工作流 | [Container candidate verification run 40645057983](https://github.com/yuwen773/VisionSpace/actions/runs/40645057983) |
-| 提交 | `1c5b222` |
+| 工作流 | [Container candidate verification run 40646082174](https://github.com/yuwen773/VisionSpace/actions/runs/40646082174)，同一提交的 [Acceptance baseline run 40646082307](https://github.com/yuwen773/VisionSpace/actions/runs/40646082307) |
+| 提交 | `57086de`（当前头；较早一轮 `1c5b222` 的记录见下） |
 | 环境 | `ubuntu-24.04` runner，Docker + Compose；MySQL 8.0.46、Redis 7.4.12 |
 | 结果 | 26 项断言 **ALL PASS**，退出 0 |
 | 产物 | `container-verification-evidence`（backend/mysql/redis 完整日志、schema.sql、各步骤日志） |
@@ -43,14 +51,26 @@
 | A3 配置与日志 | `A3-prod-profile-active`、`A3-health-no-secrets`、`A3-no-sql-param-logging`、`A3-no-secret-in-logs` |
 | A4 健康与依赖故障 | `A4-healthy-before-failure`、`A4-readiness-down-on-mysql-stop`、`A4-recovers-after-mysql-restart`、`A4-readiness-down-on-redis-stop`、`A4-recovers-after-redis-restart`、`A4-late-connection-attempt-observed`、`A4-late-same-process-waiting`、`A4-late-mysql-stopped`、`A4-late-dependency-recovers`、`A4-late-same-process-recovered`、`A4-exhausted-retries-fail-clearly`、`A4-exhausted-mysql-stopped`、`A4-exhausted-redis-stopped` |
 
+### 评审后补强（本轮新增，待 CI 实跑留证）
+
+针对「证据缺口」而非「已发生暴露/泄漏」的两类评审意见，脚本新增以下断言。本机无 Docker，这些断言的**运行证据须由本轮 `container-verification` CI 产出**；本机只验证了语法与控制流回归（8/8 通过）。
+
+| 组 | 新增断言 | 补强内容 |
+| --- | --- | --- |
+| A2 网络可达 | `A2-mysql-container-ip-unreachable`、`A2-redis-container-ip-unreachable` | 从宿主机对运行中候选的 DB/Redis 容器 IP 主动发起 TCP 连接，必须连不通——不再只凭 `compose ps` 元数据推断 |
+| A2 网络可达 | `A2-loopback-mysql-default-closed`、`A2-loopback-redis-default-closed` | 回环上的 3306/6379 默认端口未被默认栈占用 |
+| A2 覆盖栈 | `A2-host-access-loopback-and-nondefault`、`A2-host-access-mysql-lan-refused`、`A2-host-access-redis-lan-refused` | 实跑「默认栈 + host-access 覆盖」（独立 project + 随机回环端口），核对只绑 `127.0.0.1` + 非默认端口，并从非回环 IPv4 地址连接被拒 |
+| A3 日志卫生 | `A3-sql-probe-wrote-a-row` | 用 `user` 表行数 +1 作为正向控制，确认注册写 SQL 确实执行 |
+| A3 日志卫生 | `A3-no-sql-param-logging`（改为带前提） | 仅在正向控制成立时才判通过；原写法吞掉注册异常，SQL 未执行时也会「通过」 |
+
 同一提交的验收基线（[run 40645058004](https://github.com/yuwen773/VisionSpace/actions/runs/40645058004)）也通过：原生隔离 MySQL/Redis、后端全部测试与打包、前端安装/格式/类型/测试/构建、容器验证脚本的 8 个控制流回归、资源清理。
 
 ## 验收对照
 
 | 工单验收项 | 证据 | 结果 |
 | --- | --- | --- |
-| 45.1 数据库/Redis 默认内部网络，宿主访问需显式受限配置 | A2 组实测：两个服务无任何端口发布，`internal` 网络 `Internal=true`，backend 只发布 `127.0.0.1:<随机端口>`。`docker-compose.host-access.yml` 以 `compose config` 核对：mysql `127.0.0.1:13306`、redis `127.0.0.1:16379`，仅回环 + 非默认端口 | 已覆盖（默认栈为运行证据；覆盖文件为静态渲染核对，未实际启动） |
-| 45.2 非 root、可写目录受限、生产 profile 明确、敏感 SQL 参数日志关闭 | A1：实际 `id -u` 为 10001，`/app/tmp` 可写，`/app` 与 `/` 写入被拒；A3：容器内 `SPRING_PROFILES_ACTIVE=prod`，触发真实注册写库后日志无 `Preparing:`/`Parameters:`，响应与日志均不含注入秘密 | 已覆盖（运行证据） |
+| 45.1 数据库/Redis 默认内部网络，宿主访问需显式受限配置 | 原有 A2 组实测：两个服务无任何端口发布，`internal` 网络 `Internal=true`，backend 只发布 `127.0.0.1:<随机端口>`。评审补强（本轮新增、待 CI 实跑）：`A2-mysql-container-ip-unreachable` / `A2-redis-container-ip-unreachable` 从宿主机直接对容器 IP 建连被拒，`A2-loopback-*-default-closed` 验证回环默认端口未占用；`A2-host-access-*` 实跑覆盖栈，验证只绑 `127.0.0.1` + 非默认端口且 LAN 地址连不通 | 已覆盖（默认栈原有项为运行证据；补强项待本轮 CI 复核） |
+| 45.2 非 root、可写目录受限、生产 profile 明确、敏感 SQL 参数日志关闭 | A1：实际 `id -u` 为 10001，`/app/tmp` 可写，`/app` 与 `/` 写入被拒；A3：容器内 `SPRING_PROFILES_ACTIVE=prod`，响应与日志均不含注入秘密。评审补强（本轮新增、待 CI 实跑）：`A3-sql-probe-wrote-a-row` 先以 `user` 表行数 +1 确认注册写 SQL 确实发生，`A3-no-sql-param-logging` 只有在该正向控制成立时才判通过，不再因请求被拦、SQL 未执行而静默通过。注意 `NoLoggingImpl` 在基线 `8dd98e0` 已存在，此项修复的是**验证缺陷**，不是新增生产配置 | 已覆盖（A1/A3 原有项为运行证据；正向控制待本轮 CI 复核） |
 | 45.3 数据库、Redis 和应用就绪/健康可判断，依赖延迟或故障有有限重试和明确失败结果 | A4：停 MySQL/Redis 后 readiness 转 unhealthy 并在恢复后回到 healthy；只停 MySQL 重启 backend，同一进程进入 Hikari 连接阶段、在 30 秒窗口内恢复依赖后回到 healthy（实测从观察到连接到 healthy 约 18 秒），进程未被替换；依赖持续缺失时应用在 150 秒上限内以非 0 退出（实测约 21 秒），且依赖保持停止 | 已覆盖（运行证据） |
 | 45.4 以隔离候选运行证据验证，不以配置文本或镜像构建成功代替 | 上述结果来自 `ubuntu-24.04` 上实际 `compose build` + 启动隔离候选 + 逐条断言；镜像构建成功本身不作为通过依据 | 已覆盖 |
 
@@ -68,7 +88,7 @@
 ## 未验证范围（诚实清单）
 
 - **本机 Docker 仍未实测。** 本地 daemon 不可用，所有容器运行证据来自 GitHub Actions 的 `ubuntu-24.04`。这不影响「隔离候选实跑」的结论，但本机原生模式的任何结果都不能当作容器实测。
-- **`docker-compose.host-access.yml` 未实际启动。** 只核对了 `compose config` 的绑定地址与端口；「确需宿主访问」的覆盖栈没有运行证据。
+- **`docker-compose.host-access.yml` 本轮改为实跑**：脚本用独立 project 与随机回环端口启动覆盖栈并做连接否定断言，不再只是 `compose config` 静态核对；该补强项待本轮 CI 实跑留证。
 - **真实公网可达性、TLS、反向代理超时、Cookie 属性。** 属部署证据，不在本票；不能从 Compose 文本推断公网不可达。
 - **生产凭据与真实外部服务。** 验收使用随机测试秘密，模型/外部服务地址不产生真实调用；未验证真实 DashScope、Pexels、对象存储。
 - **人工部署迁移。** 旧数据卷不会重跑 init 脚本，`vision_app` 需运维按 `SECRETS.md` 等价创建；本票未执行任何线上变更。

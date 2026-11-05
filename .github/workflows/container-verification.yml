@@ -15,6 +15,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Verify Compose vision configuration
+        shell: pwsh
+        run: ./scripts/tests/test-compose-vision-config.ps1
+      - name: Verify MySQL init execution modes
+        shell: pwsh
+        run: ./scripts/tests/test-mysql-init.ps1
       # 构建并启动隔离生产候选：随机回环端口与秘密，断言运行身份、可写范围、
       # 端口发布、生效 profile、SQL 日志卫生，以及依赖故障/恢复/重试耗尽。
       - name: Isolated production candidate (build, run, health)

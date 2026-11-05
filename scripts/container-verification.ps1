@@ -56,6 +56,26 @@ function Assert([bool]$Condition, [string]$Name, [string]$Detail) {
     }
 }
 
+# 有界 TCP 连接探测：从宿主机（容器网络之外）主动发起一次连接，
+# 返回是否连通。用于验证「不可达」不是只靠 compose 元数据推断。
+function Test-TcpConnect([string]$TargetHost, [int]$Port, [int]$TimeoutMs = 1500) {
+    $client = [Net.Sockets.TcpClient]::new()
+    try {
+        $task = $client.ConnectAsync($TargetHost, $Port)
+        return $task.Wait($TimeoutMs) -and $client.Connected
+    } catch {
+        return $false
+    } finally {
+        $client.Dispose()
+    }
+}
+
+function Get-ContainerIp([string]$Service) {
+    $raw = & docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$project-$Service-1" 2>$null
+    if ($LASTEXITCODE -ne 0) { throw "docker inspect failed for $Service IP" }
+    return ("$raw".Trim() -split "`n" | Where-Object { $_ } | Select-Object -First 1)
+}
+
 function Get-BackendHealth {
     & docker inspect --format '{{.State.Health.Status}}' "$project-backend-1" 2>$null
 }
@@ -150,6 +170,8 @@ SPRING_AI_OPENAI_API_KEY=$dashscopeKey
 ALI_YUN_AI_API_KEY=$dashscopeKey
 VISION_SPACE_PEXELS_API_KEY=$dashscopeKey
 VISION_SPACE_VISION_RECOGNITION_API_KEY=$dashscopeKey
+VISION_SPACE_VISION_RECOGNITION_BASE_URL=http://vision-fixture.invalid:8080
+VISION_SPACE_VISION_RECOGNITION_MODEL=fixture-model
 VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 "@ | Set-Content -LiteralPath $envFile -NoNewline
 
@@ -219,8 +241,8 @@ try {
     # 字段结构对照 Docker 官方文档：服务级 Service / 发布项级 URL（绑定地址）。
     $portsRaw = & docker compose -f $composeYml -p $project --env-file $envFile ps --format json 2>$null
     $portsJson = @($portsRaw | ForEach-Object { $_ | ConvertFrom-Json })
-    $mysqlPublished = @($portsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
-    $redisPublished = @($portsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
+    $mysqlPublished = @($portsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+    $redisPublished = @($portsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
     $backendPub = @($portsJson | Where-Object { $_.Service -eq 'backend' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
     Assert (($mysqlPublished.Count -eq 0) -and ($redisPublished.Count -eq 0)) 'A2-db-redis-not-published' 'mysql/redis must publish no ports'
     $backOk = ($backendPub.Count -eq 1) -and ($backendPub[0].PublishedPort -eq $backendPort) -and ("$($backendPub[0].URL)" -eq '127.0.0.1')
@@ -238,6 +260,17 @@ try {
     }
     Assert ($leaked.Count -eq 0) 'A2-db-redis-not-published-any' "services with host publishing: $($leaked -join ',')"
 
+    # 运行中的候选：从宿主机（容器网络之外）对 DB/Redis 容器 IP 主动发起连接，
+    # 必须连不通。compose ps 只能说明「没有端口发布」，不能证明网络层不可达；
+    # 对 internal 网络里的容器 IP 直接建连才是对隔离的运行证据。
+    $mysqlIp = Get-ContainerIp 'mysql'
+    $redisIp = Get-ContainerIp 'redis'
+    Assert (-not (Test-TcpConnect $mysqlIp 3306)) 'A2-mysql-container-ip-unreachable' "tcp connect to $mysqlIp`:3306 unexpectedly succeeded"
+    Assert (-not (Test-TcpConnect $redisIp 6379)) 'A2-redis-container-ip-unreachable' "tcp connect to $redisIp`:6379 unexpectedly succeeded"
+    # 宿主机回环上的默认端口也不该被默认栈占用。
+    Assert (-not (Test-TcpConnect '127.0.0.1' 3306)) 'A2-loopback-mysql-default-closed' 'tcp connect to 127.0.0.1:3306 unexpectedly succeeded'
+    Assert (-not (Test-TcpConnect '127.0.0.1' 6379)) 'A2-loopback-redis-default-closed' 'tcp connect to 127.0.0.1:6379 unexpectedly succeeded'
+
     # ---- 验收 3：健康端点不泄露秘密 + profile 与日志卫生 ----
     Write-Host '=== [4/4] profile, log hygiene & health ==='
     # 后端业务端点就绪后才开始 HTTP 验收（up -d 不等待 Spring 冷启动）。
@@ -245,21 +278,126 @@ try {
     $activeProfile = (& docker compose -f $composeYml -p $project --env-file $envFile exec -T backend sh -c 'echo $SPRING_PROFILES_ACTIVE' | Out-String).Trim()
     Assert ("$activeProfile" -eq 'prod') 'A3-prod-profile-active' "SPRING_PROFILES_ACTIVE=$activeProfile"
 
+    $visionConfig = @(& docker compose -f $composeYml -p $project --env-file $envFile exec -T backend `
+        sh -c 'printf "%s\n%s\n" "$VISION_SPACE_VISION_RECOGNITION_BASE_URL" "$VISION_SPACE_VISION_RECOGNITION_MODEL"')
+    Assert ($LASTEXITCODE -eq 0 -and $visionConfig.Count -eq 2 -and
+        $visionConfig[0] -eq 'http://vision-fixture.invalid:8080' -and $visionConfig[1] -eq 'fixture-model') `
+        'A3-vision-config-forwarded' 'backend container must receive the configured vision endpoint and model'
+
     $healthBody = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/health" -TimeoutSec 10).Content
     $healthClean = (-not $healthBody.Contains($mysqlRoot)) -and (-not $healthBody.Contains($dbPassword)) -and (-not $healthBody.Contains($redisPassword)) -and (-not $healthBody.Contains($dashscopeKey))
     Assert $healthClean 'A3-health-no-secrets' 'health response must not contain secrets'
 
-    # 触发一次真实 SQL（注册请求会写 user 表），再查日志
-    $regBody = '{"userAccount":"vs45_' + $nonce + '","userPassword":"' + $defaultPassword + '","checkPassword":"' + $defaultPassword + '"}'
+    # 触发一次真实写 SQL，并先用数据库行数确认写入确实发生，再判断日志卫生。
+    # 没有正向控制时，「日志里没有 Preparing:/Parameters:」也可能只是请求被 CSRF
+    # 或参数校验拦下、根本没有 SQL 执行，断言会静默通过。
+    $probeAccount = 'vs45_' + $nonce
+    $regBody = '{"userAccount":"' + $probeAccount + '","userPassword":"' + $defaultPassword + '","checkPassword":"' + $defaultPassword + '"}'
+    function Get-UserRowCount {
+        # 反引号是 MySQL 标识符引用；用单引号字符串，避免 PowerShell 把 `u 当作转义。
+        $sql = 'SELECT COUNT(*) FROM `user`;'
+        $raw = $sql | docker compose -f $composeYml -p $project --env-file $envFile exec -T `
+            -e "MYSQL_PWD=$mysqlRoot" mysql mysql -N -B "vs45_$nonce" 2>$null | Out-String
+        if ($LASTEXITCODE -ne 0) { throw 'user row count query failed' }
+        $matches = [regex]::Matches($raw, '(?m)^\s*(\d+)\s*$')
+        if ($matches.Count -eq 0) { throw "user row count query returned no number: $raw" }
+        return [int]$matches[$matches.Count - 1].Groups[1].Value
+    }
+    $rowsBefore = Get-UserRowCount
+    $registerStatus = 0
+    $registerBody = ''
     try {
-        Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/user/register" -Method Post -Body $regBody -ContentType 'application/json' -TimeoutSec 15 *> $null
-    } catch { }
+        $register = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/user/register" -Method Post -Body $regBody -ContentType 'application/json' -TimeoutSec 15
+        $registerStatus = [int]$register.StatusCode
+        $registerBody = $register.Content
+    } catch {
+        $response = $_.Exception.Response
+        if ($null -ne $response) {
+            $registerStatus = [int]$response.StatusCode
+            $registerBody = $_.ErrorDetails.Message
+        } else {
+            $registerStatus = -1
+            $registerBody = $_.Exception.Message
+        }
+    }
     Start-Sleep -Seconds 2
+    $rowsAfter = Get-UserRowCount
+    $wroteRow = $registerStatus -eq 200 -and $registerBody -match '"code"\s*:\s*0' -and $rowsAfter -eq $rowsBefore + 1
+    Assert $wroteRow 'A3-sql-probe-wrote-a-row' "register status=$registerStatus body=$registerBody rows=$rowsBefore->$rowsAfter"
     $backendLog = & docker compose -f $composeYml -p $project --env-file $envFile logs backend 2>&1 | Out-String
     $sqlLeak = ($backendLog -match 'Parameters:') -or ($backendLog -match 'Preparing:')
-    Assert (-not $sqlLeak) 'A3-no-sql-param-logging' 'backend log must not contain MyBatis SQL parameter lines'
+    # 只有在写 SQL 确实发生的前提下，「没有参数日志」才算有效证据。
+    Assert ($wroteRow -and -not $sqlLeak) 'A3-no-sql-param-logging' 'backend log must not contain MyBatis SQL parameter lines once a write is confirmed'
     $secretLeak = $backendLog.Contains($dbPassword) -or $backendLog.Contains($redisPassword)
     Assert (-not $secretLeak) 'A3-no-secret-in-logs' 'backend log must not contain injected secrets'
+
+    # ---- 验收 3b：宿主访问覆盖栈实跑（不再只是 compose config 静态核对）----
+    # 用独立 project 与随机回环端口启动「默认栈 + host-access 覆盖」，实际验证
+    # 覆盖文件只发布回环非默认端口，且从非回环地址连不通。不触碰主候选的依赖。
+    Write-Host '=== extra: host-access override stack ==='
+    $hostMysqlPort = Free-Port
+    $hostRedisPort = Free-Port
+    while ($hostRedisPort -eq $hostMysqlPort) { $hostRedisPort = Free-Port }
+    $hostProject = "vs45-host-$nonce"
+    $hostAccessYml = Join-Path $repo 'docker-compose.host-access.yml'
+    $hostEnvFile = Join-Path $runDir '.env.host-access'
+    @"
+MYSQL_ROOT_PASSWORD=$mysqlRoot
+MYSQL_DATABASE=vs45_host_$nonce
+SPRING_DATASOURCE_PASSWORD=$dbPassword
+REDIS_PASSWORD=$redisPassword
+HOST_MYSQL_PORT=$hostMysqlPort
+HOST_REDIS_PORT=$hostRedisPort
+SPRING_AI_DASHSCOPE_API_KEY=$dashscopeKey
+SPRING_AI_OPENAI_API_KEY=$dashscopeKey
+ALI_YUN_AI_API_KEY=$dashscopeKey
+VISION_SPACE_PEXELS_API_KEY=$dashscopeKey
+VISION_SPACE_VISION_RECOGNITION_API_KEY=$dashscopeKey
+VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
+"@ | Set-Content -LiteralPath $hostEnvFile -NoNewline
+    try {
+        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile up -d mysql redis *> (Join-Path $runDir 'host-access-up.log')
+        if ($LASTEXITCODE -ne 0) { throw 'host-access override stack failed to start' }
+        $hostDeadline = [DateTime]::UtcNow.AddSeconds(120)
+        $hostReady = $false
+        while ([DateTime]::UtcNow -lt $hostDeadline) {
+            $mysqlState = & docker inspect --format '{{.State.Health.Status}}' "$hostProject-mysql-1" 2>$null
+            $redisState = & docker inspect --format '{{.State.Health.Status}}' "$hostProject-redis-1" 2>$null
+            if ($mysqlState -eq 'healthy' -and $redisState -eq 'healthy') { $hostReady = $true; break }
+            Start-Sleep -Seconds 3
+        }
+        if (-not $hostReady) { throw 'host-access override dependencies did not become healthy' }
+        $hostPortsRaw = & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile ps --format json 2>$null
+        $hostPortsJson = @($hostPortsRaw | ForEach-Object { $_ | ConvertFrom-Json })
+        $mysqlHostPub = @($hostPortsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+        $redisHostPub = @($hostPortsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+        $hostOk = ($mysqlHostPub.Count -eq 1) -and ("$($mysqlHostPub[0].URL)" -eq '127.0.0.1') -and
+            ($mysqlHostPub[0].PublishedPort -eq $hostMysqlPort) -and ($mysqlHostPub[0].TargetPort -eq 3306) -and
+            ($redisHostPub.Count -eq 1) -and ("$($redisHostPub[0].URL)" -eq '127.0.0.1') -and
+            ($redisHostPub[0].PublishedPort -eq $hostRedisPort) -and ($redisHostPub[0].TargetPort -eq 6379)
+        Assert $hostOk 'A2-host-access-loopback-and-nondefault' "mysql=$($mysqlHostPub | ConvertTo-Json -Compress) redis=$($redisHostPub | ConvertTo-Json -Compress)"
+        Assert (Test-TcpConnect '127.0.0.1' $hostMysqlPort) 'A2-host-access-mysql-loopback-reachable' 'the explicitly published MySQL port must accept connections'
+        Assert (Test-TcpConnect '127.0.0.1' $hostRedisPort) 'A2-host-access-redis-loopback-reachable' 'the explicitly published Redis port must accept connections'
+        # 从非回环的本机地址连接必须失败：只绑 127.0.0.1 的运行证据。
+        $nonLoopback = @()
+        try {
+            $nonLoopback = @([Net.Dns]::GetHostAddresses([Net.Dns]::GetHostName()) |
+                Where-Object { $_.AddressFamily -eq 'InterNetwork' -and -not [Net.IPAddress]::IsLoopback($_) } |
+                Select-Object -First 1)
+        } catch {
+            Write-Host "non-loopback address lookup failed: $_"
+        }
+        if ($nonLoopback.Count -gt 0) {
+            $lanIp = $nonLoopback[0].ToString()
+            Assert (-not (Test-TcpConnect $lanIp $hostMysqlPort)) 'A2-host-access-mysql-lan-refused' "tcp connect to $lanIp`:$hostMysqlPort unexpectedly succeeded"
+            Assert (-not (Test-TcpConnect $lanIp $hostRedisPort)) 'A2-host-access-redis-lan-refused' "tcp connect to $lanIp`:$hostRedisPort unexpectedly succeeded"
+        } else {
+            Write-Host 'SKIP: no non-loopback IPv4 address on this runner; LAN refusal not probed'
+        }
+    } finally {
+        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile down -v --remove-orphans *> (Join-Path $runDir 'host-access-down.log')
+        Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
+    }
 
     # ---- 验收 4：健康状态与依赖故障（MySQL/Redis 故障、恢复、延迟启动、重试耗尽）----
     Write-Host '=== extra: dependency failure, recovery & retry exhaustion ==='
