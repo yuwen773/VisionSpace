@@ -19,13 +19,21 @@
 --
 -- 存量数据迁移的诚实声明：旧实现把偏好放在进程内 MemoryStore
 -- （AgentStoreConfig#memoryStore，无任何磁盘形态），实例停止即丢失，
--- 不存在可从磁盘恢复的存量数据。本脚本不做任何数据回填，也
--- 不把进程内旧值虚构为已迁移；升级后所有用户从空偏好开始，
--- 显式设置由用户重新录入，自动学习在重新开启后按新规则积累。
+-- 不存在可从磁盘恢复的存量数据。首次升级不回填任何旧值，也不把进程内
+-- 旧值虚构为已迁移；用户从空偏好开始，显式设置由用户重新录入。
 --
--- 回滚：执行同名 -rollback.sql 后回滚应用。回滚只删本表；
--- 回滚后新积累的偏好留在数据库里不随应用降级丢失，但旧版本
--- 应用读不到它们（继续用进程内 MemoryStore）。
+-- 回滚与重新部署：同名 -rollback.sql 把本表的数据搬进归档表
+-- `user_preference_rollback_archive` 后删除业务表，旧版本应用退回进程内
+-- MemoryStore，但已经落库的偏好不随应用降级丢失。再次执行本脚本时，
+-- 若归档表存在，会把归档行原样搬回新建的业务表（用户设置、开关、版本与
+-- 纪元保持原值，已清除的内容仍为空），再删除归档表。归档/恢复期间应用
+-- 必须停止写入偏好表（维护窗口）。脚本可重复执行。
+--
+-- 脚本必须在「遇错即停」的客户端执行（mysql 命令行默认行为、JDBC 逐条 execute），
+-- 不能加 --force。
+
+-- 连接字符集显式设为 utf8mb4：本脚本含中文注释，不能依赖客户端默认字符集。
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `user_preference` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -42,3 +50,47 @@ CREATE TABLE IF NOT EXISTS `user_preference` (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_userId`(`userId`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户长期偏好（显式设置 + 自动学习）';
+
+DROP PROCEDURE IF EXISTS `vs42_restore_preference`;
+
+DELIMITER $$
+CREATE PROCEDURE `vs42_restore_preference`()
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_preference_rollback_archive'
+  ) THEN
+    -- 只在业务表为空时搬回：非空说明应用已经开始写入，归档与在线数据不能合并。
+    -- 这种情况下守卫表阻断，归档留在库里供人工核对，不影响在线业务。
+    CREATE TABLE IF NOT EXISTS `_user_preference_restore_guard` (
+      `ok` tinyint NOT NULL,
+      CONSTRAINT `BLOCKED_user_preference_live_table_not_empty` CHECK (`ok` = 1)
+    ) ENGINE = InnoDB COMMENT = '#42 恢复守卫：仅脚本执行期间存在，成功恢复后自动删除';
+
+    INSERT INTO `_user_preference_restore_guard` (`ok`)
+    VALUES (IF((SELECT COUNT(*) FROM `user_preference`) = 0, 1, 0));
+
+    INSERT INTO `user_preference`
+      (`id`, `userId`, `explicitContent`, `learnedContent`, `feedbackHistory`,
+       `autoLearn`, `preferenceVersion`, `dataEpoch`, `learnError`, `createTime`, `updateTime`)
+    SELECT `id`, `userId`, `explicitContent`, `learnedContent`, `feedbackHistory`,
+           `autoLearn`, `preferenceVersion`, `dataEpoch`, `learnError`, `createTime`, `updateTime`
+    FROM `user_preference_rollback_archive`;
+
+    -- 校验：归档的每一行都必须已经回到业务表，否则不删归档
+    INSERT INTO `_user_preference_restore_guard` (`ok`)
+    VALUES (IF(EXISTS (
+      SELECT 1 FROM `user_preference_rollback_archive` AS archived
+      WHERE NOT EXISTS (
+        SELECT 1 FROM `user_preference` AS live WHERE live.`id` = archived.`id`
+      )
+    ), 0, 1));
+
+    DROP TABLE IF EXISTS `user_preference_rollback_archive`;
+    DROP TABLE IF EXISTS `_user_preference_restore_guard`;
+  END IF;
+END$$
+DELIMITER ;
+
+CALL `vs42_restore_preference`();
+DROP PROCEDURE IF EXISTS `vs42_restore_preference`;
