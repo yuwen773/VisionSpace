@@ -70,3 +70,6 @@ docker-compose.override.yml
 ## MUST BE IGNORED
 /sql/vision_space.sql
 /src/main/resources/application-server.yml
+
+# 工单 44 隔离验收运行目录（本票专用脚本产物）
+.vs44-runs/

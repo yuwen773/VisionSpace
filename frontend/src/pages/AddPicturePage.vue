@@ -420,6 +420,7 @@
       ref="imageOutPaintingRef"
       :picture="picture"
       :spaceId="spaceId"
+      :space="space"
       :onSuccess="onImageOutPaintingSuccess"
     />
   </div>
