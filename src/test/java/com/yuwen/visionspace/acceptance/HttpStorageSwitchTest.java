@@ -50,6 +50,9 @@ class HttpStorageSwitchTest {
     private static final String NEW_PLATFORM = "oss";
     private static final String OLD_RESOURCE_KEY = "legacy/8820/old-image.png";
     private static final String NEW_RESOURCE_KEY = "legacy/8820/new-image.png";
+    // 图库资源与 agent 资源是两条独立的 picture_file 记录，删其中一条时不能被
+    // #37 的「同一对象键仍被其他有效行引用则跳过删除」误判成共享同一个对象。
+    private static final String OLD_GALLERY_KEY = "legacy/8820/old-gallery-image.png";
     private static final long OLD_PICTURE_ID = 88203;
     private static final String PASSWORD = "acceptance-password";
 
@@ -86,7 +89,8 @@ class HttpStorageSwitchTest {
                 """);
         // 按 id 与平台双口径清理：库里可能存在引导种子或前序套件留下的同平台行
         // （platform 有唯一键，只按固定 id 删会撞 uk_platform）
-        jdbc.update("DELETE FROM picture_file WHERE objectKey IN (?, ?)", OLD_RESOURCE_KEY, NEW_RESOURCE_KEY);
+        jdbc.update("DELETE FROM picture_file WHERE objectKey IN (?, ?, ?)",
+                OLD_RESOURCE_KEY, NEW_RESOURCE_KEY, OLD_GALLERY_KEY);
         jdbc.update("DELETE FROM picture WHERE id = ?", OLD_PICTURE_ID);
         jdbc.update("DELETE FROM storage_config WHERE id IN (?, ?) OR platform IN (?, ?)",
                 OLD_CONFIG_ID, NEW_CONFIG_ID, OLD_PLATFORM, NEW_PLATFORM);
@@ -412,7 +416,7 @@ class HttpStorageSwitchTest {
                 long userId = registerAndLogin(owner);
                 long oldResource = seedResource(userId, OLD_PLATFORM, OLD_RESOURCE_KEY);
                 long newResource = seedResource(userId, NEW_PLATFORM, NEW_RESOURCE_KEY);
-                long oldPicture = seedGalleryResource(userId, OLD_PICTURE_ID, OLD_PLATFORM, OLD_RESOURCE_KEY);
+                long oldPicture = seedGalleryResource(userId, OLD_PICTURE_ID, OLD_PLATFORM, OLD_GALLERY_KEY);
 
                 assertEquals(0, post(admin, "/storage/config/set_active",
                         Map.of("targetConfigId", NEW_CONFIG_ID, "expectedInstances", 1))
@@ -438,7 +442,7 @@ class HttpStorageSwitchTest {
                 assertTrue(recorder.calls().subList(beforeRead, recorder.calls().size()).stream()
                                 .anyMatch(call -> "READ".equals(call.method())
                                         && OLD_PLATFORM.equals(call.path())
-                                        && OLD_RESOURCE_KEY.equals(call.body())),
+                                        && OLD_GALLERY_KEY.equals(call.body())),
                         "旧资源读取必须按原平台: " + recorder.calls().subList(beforeRead, recorder.calls().size()));
 
                 // 删除旧平台资源：仍按旧平台定位，不落到新默认平台
