@@ -145,7 +145,9 @@ CREATE TABLE `space`  (
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '鏇存柊鏃堕棿',
   `isDelete` tinyint(4) NOT NULL DEFAULT 0 COMMENT '鏄?惁鍒犻櫎',
   `spaceType` int(11) NOT NULL DEFAULT 0 COMMENT '绌洪棿绫诲瀷锛?-绉佹湁 1-鍥㈤槦',
+  `activeKey` varchar(64) NULL DEFAULT NULL COMMENT '有效空间唯一占位键 userId:spaceType，删除后置空',
   PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_space_active_key`(`activeKey`) USING BTREE,
   INDEX `idx_userId`(`userId`) USING BTREE,
   INDEX `idx_spaceName`(`spaceName`) USING BTREE,
   INDEX `idx_spaceLevel`(`spaceLevel`) USING BTREE,
@@ -326,6 +328,30 @@ CREATE TABLE `picture_file` (
   INDEX `idx_platform_key`(`platform`, `objectKey`(191)) USING BTREE,
   INDEX `idx_url`(`url`(191)) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '图片资源记录';
+
+-- ----------------------------
+-- Table structure for storage_cleanup_task（#37 存储清理补偿）
+-- ----------------------------
+CREATE TABLE `storage_cleanup_task` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '任务标识',
+  `pictureFileId` bigint(20) NULL DEFAULT NULL COMMENT '资源记录 id；上传失败时为空',
+  `pictureId` bigint(20) NULL DEFAULT NULL COMMENT '图片 id；临时资源为空',
+  `platform` varchar(32) NULL DEFAULT NULL COMMENT '存储平台标识',
+  `objectKey` varchar(768) NOT NULL COMMENT '存储对象键',
+  `kind` varchar(16) NULL DEFAULT NULL COMMENT '内容类型：original / thumbnail / preview',
+  `reason` varchar(128) NOT NULL COMMENT '触发清理的原因',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '0=待重试 1=已确认删除 2=引用复核不通过，等待人工处理',
+  `attempts` int(11) NOT NULL DEFAULT 0 COMMENT '已尝试次数',
+  `nextRetryTime` datetime NULL DEFAULT NULL COMMENT '下次重试时间（数据库时钟）',
+  `lastError` varchar(255) NULL DEFAULT NULL COMMENT '最近一次失败原因，不含秘密值',
+  `claimTime` datetime NULL DEFAULT NULL COMMENT '最近一次被实例认领的时间；超时后回收重试',
+  `pendingKey` char(64) NULL DEFAULT NULL COMMENT '待处理唯一键 SHA256(platform|kind|objectKey)；进入终态后置空',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_pending_object`(`pendingKey`) USING BTREE,
+  INDEX `idx_status_retry`(`status`, `nextRetryTime`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '对象存储清理任务';
 
 -- ----------------------------
 -- Table structure for agent_run_state (#41)
@@ -535,3 +561,19 @@ CREATE TABLE `storage_switch_confirm` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换确认实例集合';
 
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
+
+CREATE TABLE `user_preference` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `userId` bigint(20) NOT NULL COMMENT '偏好归属用户；全部读写条件都带它',
+  `explicitContent` text NULL COMMENT '显式设置 JSON（用户直接编辑，优先于推断）',
+  `learnedContent` text NULL COMMENT '自动学习 JSON（反馈推断，可清除）',
+  `feedbackHistory` text NULL COMMENT '反馈历史 JSON（条数有上限）',
+  `autoLearn` tinyint(4) NOT NULL DEFAULT 0 COMMENT '自动学习开关: 0-关闭（默认） 1-开启',
+  `preferenceVersion` bigint(20) NOT NULL DEFAULT 0 COMMENT '偏好版本，单调递增，学习写入按它 CAS',
+  `dataEpoch` bigint(20) NOT NULL DEFAULT 0 COMMENT '数据纪元，用户控制操作递增，旧学习任务据此失效',
+  `learnError` varchar(200) NULL DEFAULT NULL COMMENT '最近一次学习放弃原因（短码）；学习成功或用户控制操作时清空',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_userId`(`userId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户长期偏好（显式设置 + 自动学习）';

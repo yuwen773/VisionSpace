@@ -74,4 +74,17 @@ public interface PictureMapper extends BaseMapper<Picture> {
      */
     @Select("SELECT `id` FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
     Long selectIdForUpdate(@Param("id") Long id);
+
+    /**
+     * 锁定并读出图片当前行。
+     *
+     * <p>替换路径要按「新旧大小差额」调整空间额度：差额必须基于锁内读到的最新
+     * 大小，而不是请求开始前读到的值。两个实例先后替换同一张图时，后到的一方
+     * 在拿到行锁后才读，看到的是前一方已经提交的大小。
+     *
+     * @param id 图片标识
+     * @return 图片行；已删除或不存在时返回 null
+     */
+    @Select("SELECT * FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
+    Picture selectForUpdate(@Param("id") Long id);
 }
