@@ -271,6 +271,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponsePreferenceViewVO = {
+    code?: number
+    data?: PreferenceViewVO
+    message?: string
+  }
+
   type BaseResponseRecommendPageVO = {
     code?: number
     data?: RecommendPageVO
@@ -921,6 +927,23 @@ declare namespace API {
     user?: UserVO
     userId?: number
     viewCount?: number
+  }
+
+  type PreferenceAutoLearnRequest = {
+    enabled?: boolean
+  }
+
+  type PreferenceUpdateRequest = {
+    explicit?: Record<string, any>
+  }
+
+  type PreferenceViewVO = {
+    autoLearn?: boolean
+    dataEpoch?: number
+    explicit?: Record<string, any>
+    feedbackHistory?: Record<string, any>[]
+    learned?: Record<string, any>
+    preferenceVersion?: number
   }
 
   type previewUsingGetParams = {

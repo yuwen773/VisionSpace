@@ -43,6 +43,7 @@
             @goToPicture="goToPictureDetail"
           />
           <VipSection v-else-if="currentMenu[0] === 'vip'" key="vip" />
+          <PreferenceSection v-else-if="currentMenu[0] === 'preference'" key="preference" />
           <FeedbackSection v-else-if="currentMenu[0] === 'feedback'" key="feedback" />
         </Transition>
       </div>
@@ -57,13 +58,14 @@ import { useLoginUserStore } from '@/stores/userLogin'
 import ProfileSection from '@/components/user-center/ProfileSection.vue'
 import PicturesSection from '@/components/user-center/PicturesSection.vue'
 import VipSection from '@/components/user-center/VipSection.vue'
+import PreferenceSection from '@/components/user-center/PreferenceSection.vue'
 import FeedbackSection from '@/components/user-center/FeedbackSection.vue'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const loginUser = loginUserStore.loginUser
 
-type MenuKey = 'profile' | 'pictures' | 'vip' | 'feedback'
+type MenuKey = 'profile' | 'pictures' | 'vip' | 'preference' | 'feedback'
 const currentMenu = ref<MenuKey[]>(['profile'])
 
 interface MenuItem {
@@ -74,6 +76,7 @@ const menuItems: MenuItem[] = [
   { key: 'profile', label: '个人资料' },
   { key: 'pictures', label: '我的图片' },
   { key: 'vip', label: '会员权益' },
+  { key: 'preference', label: 'AI 偏好' },
   { key: 'feedback', label: '意见反馈' },
 ]
 

@@ -6,6 +6,7 @@ import * as adminStatsController from './adminStatsController'
 import * as agentAttachmentController from './agentAttachmentController'
 import * as agentController from './agentController'
 import * as agentImageUploadController from './agentImageUploadController'
+import * as agentPreferenceController from './agentPreferenceController'
 import * as feedbackController from './feedbackController'
 import * as mainController from './mainController'
 import * as mcpController from './mcpController'
@@ -26,6 +27,7 @@ export default {
   agentAttachmentController,
   agentController,
   agentImageUploadController,
+  agentPreferenceController,
   feedbackController,
   mainController,
   mcpController,
