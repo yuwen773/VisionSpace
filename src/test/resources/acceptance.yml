@@ -43,6 +43,11 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 vision-space:
+  websocket:
+    # 隔离验收用短租约期限：过期接管用例不必等 30s
+    lease-ttl-seconds: 3
+    # 续期节奏跟随期限（1/3），否则短租约会先于续期过期
+    lease-renew-interval-ms: 1000
   # 隔离验收同样走真实的 CSRF 与来源判定，不做放行
   web:
     trusted-origins: ""

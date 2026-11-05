@@ -18,6 +18,7 @@ import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.lock.ResourceLockManager;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.storage.UploadQuotaManager;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
@@ -137,6 +138,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private StorageCleanupService storageCleanupService;
 
+    @Resource
+    private PictureEditLeaseManager pictureEditLeaseManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -196,6 +200,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间 id 不一致");
                 }
             }
+        }
+        Space replacementSpace = pictureId != null && spaceId != null ? spaceService.getById(spaceId) : null;
+        boolean teamReplacement = replacementSpace != null
+                && Objects.equals(replacementSpace.getSpaceType(), SpaceTypeEnum.TEAM.getValue());
+        if (teamReplacement) {
+            ThrowUtils.throwIf(!pictureEditLeaseManager.canSave(pictureId, loginUser.getId(),
+                    pictureUploadRequest.getCollaborationToken()), ErrorCode.NO_AUTH_ERROR, "协作编辑权已失效");
         }
         // 上传图片，得到图片信息
         // 按照用户 id 划分目录 => 按照空间划分目录
@@ -283,6 +294,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     Picture locked = pictureMapper.selectForUpdate(finalPictureId);
                     ThrowUtils.throwIf(locked == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
                     oldSize = locked.getPicSize() == null ? 0L : locked.getPicSize();
+                    if (teamReplacement) {
+                        // 团队图片替换：锁内再复核归属与连接专属凭据，
+                        // 与 #44 的「过期租约迟到保存不得落库」保持同一判定点。
+                        checkPictureAuth(loginUser, locked);
+                        ThrowUtils.throwIf(!pictureEditLeaseManager.canSave(finalPictureId, loginUser.getId(),
+                                pictureUploadRequest.getCollaborationToken()), ErrorCode.NO_AUTH_ERROR, "协作编辑权已失效");
+                    }
                 }
                 // 先占额度再写图片：额度判定与写入是同一条条件更新，
                 // 超限时影响 0 行，后面的图片写入随事务一起回滚，不会留下超额的图片。

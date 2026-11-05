@@ -135,6 +135,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- 健康检查：readiness/liveness 供容器探活，组件健康含 db/redis -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- 切面编程 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

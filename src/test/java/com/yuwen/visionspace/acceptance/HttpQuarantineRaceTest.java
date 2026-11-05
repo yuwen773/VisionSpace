@@ -3,10 +3,12 @@ package com.yuwen.visionspace.acceptance;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
 import com.yuwen.visionspace.model.entity.PictureFile;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.StorageCleanupService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -69,6 +71,9 @@ class HttpQuarantineRaceTest {
     @Autowired
     private ExternalCallRecorder recorder;
 
+    @Autowired
+    private PictureEditLeaseManager leaseManager;
+
     /**
      * 隔离判定的探针：删除请求的预检在这里停住，等隔离提交后再放行。
      */
@@ -94,8 +99,17 @@ class HttpQuarantineRaceTest {
     private long ownerId;
     private long moderatorId;
 
+    @AfterEach
+    void releaseTestLease() {
+        leaseManager.release(TEAM_PICTURE, "quarantine-test");
+    }
+
     @BeforeEach
     void fixture() throws Exception {
+        leaseManager.release(TEAM_PICTURE, "quarantine-test");
+        // 团队图片替换需要连接专属租约凭据（#44）。测试关注的是 #37 的额度/
+        // 补偿与隔离竞态，因此在用户注册后统一持有租约、multipart helper 带上
+        // 同一 token——避免新增用例被协作鉴权挡住、或把鉴权失败误当成期望结果。
         preCheckReached = new CountDownLatch(1);
         uploadStored = new CountDownLatch(1);
         quarantineCommitted = new CountDownLatch(1);
@@ -112,6 +126,8 @@ class HttpQuarantineRaceTest {
 
         ownerId = register("race_owner_" + System.nanoTime());
         moderatorId = registerModerator("race_moderator_" + System.nanoTime());
+        assertTrue(leaseManager.tryAcquireWithToken(TEAM_PICTURE, "quarantine-test", ownerId,
+                Duration.ofMinutes(2), "quarantine-test-token").acquired());
 
         jdbc.update("""
                 INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
@@ -355,6 +371,8 @@ class HttpQuarantineRaceTest {
         body.write(("\r\n--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"" + fieldName + "\"\r\n\r\n"
                 + fieldValue + "\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"collaborationToken\"\r\n\r\n"
+                + "quarantine-test-token\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         body.write(("--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         var response = client.send(HttpRequest.newBuilder(uri(path))
                         .timeout(Duration.ofSeconds(30))
