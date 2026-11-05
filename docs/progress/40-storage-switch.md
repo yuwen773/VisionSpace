@@ -100,17 +100,24 @@
 
 | AC | 内容 | 测试 | 状态 |
 | --- | --- | --- | --- |
-| 24.1 | 候选完整验证后再原子切换；失败保留旧快照，不虚报完整成功 | 单测 `StorageSwitchServiceTest.candidateVerificationFailureKeepsOldSnapshotAndState` / `.alreadyActivePlatformIsRejectedWithoutClaiming`；单测 `DefaultStorageCandidateVerifierTest`（坏平台/缺字段/坏端点/坏 bucket 显式失败）；验收 `HttpStorageSwitchTest.singleSwitchKeepsOldSnapshotWhenCandidateFails` | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；确认集合达到期望才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies` / `.claimPurgesStaleConfirmRowsFromAbortedAttempt` / `.failedClaimDoesNotPurgeConfirmRows` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.singleInstanceSwitchCompletesImmediatelyAndMovesActivation` / `.reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.3 | 在途上传用原配置、新任务用已验证配置；双实例竞争不产生多活或无活的暧昧默认状态 | 单测 `PictureStorageServicePlatformPinTest`（平台钉住 + 无默认显式拒绝）；单测 `StorageSwitchServiceTest.concurrentSwitchLosesWithExplicitError` / `.switchAbortsWhenClaimIsConcurrentlyRolledBack`；验收 `HttpStorageSwitchTest.uploadUsesVerifiedSnapshotAndRejectsNoDefaultState` | NOT_RUN in isolation（单测 PASS 本地） |
-| 24.4 | 读取/删除/补偿按资源原平台定位；切换不搬迁、不删除旧文件、不长期沿用已撤销凭据 | 验收 `HttpStorageSwitchTest.legacyResourcesKeepOriginalPlatformAcrossSwitch`（切换后旧资源平台/对象键未被改写、内容读取按原平台、删除按原平台、切换不触碰资源状态）；单测 `StorageSwitchServiceTest`（切换不触碰资源表） | NOT_RUN in isolation；撤销凭据轮换为人工关卡 |
-| 24.5 | UI 展示真实生效状态；密钥不输出；旧平台资源核对及维护回滚可执行 | 验收 `HttpStorageSwitchTest.statusEndpointShowsRealEffectAndNoSecrets` / `.statusReadSelfHealsLaggingInstanceAfterCompletedSwitch`（双实例自愈）；前端 `StorageConfigManagePage.vue`（本实例生效版本 / 版本漂移 / 确认进度与期望实例数（后端下发）/ 回滚按钮 / 运维填写期望实例数的切换弹窗）；单测 `StorageCredentialMaskerTest`（既有） | NOT_RUN in isolation；UI 为人工关卡 |
+| 24.1 | 候选完整验证后再原子切换；失败保留旧快照，不虚报完整成功 | 单测 `StorageSwitchServiceTest.candidateVerificationFailureKeepsOldSnapshotAndState` / `.alreadyActivePlatformIsRejectedWithoutClaiming`；单测 `DefaultStorageCandidateVerifierTest`（坏平台/缺字段/坏端点/坏 bucket 显式失败）；验收 `HttpStorageSwitchTest.singleSwitchKeepsOldSnapshotWhenCandidateFails` | PASS（本地隔离验收 + 单测） |
+| 24.2 | 持久配置 / 全局版本 / 实例版本可区分；确认集合达到期望才报告成功；部分失败可见且可回滚 | 单测 `StorageSwitchServiceTest.reachingExpectedInstancesPromotesAndMovesActivationAtomically` / `.pendingSwitchWaitsUntilConfirmSetReachesExpectedInstances` / `.confirmIsIdempotentForSameInstanceAndNeverReapplies` / `.claimPurgesStaleConfirmRowsFromAbortedAttempt` / `.failedClaimDoesNotPurgeConfirmRows` / `.rollbackClearsPendingWithoutTouchingActiveVersion`；验收 `HttpStorageSwitchTest.switchReportsPendingUntilConfirmed` / `.singleInstanceSwitchCompletesImmediatelyAndMovesActivation` / `.reinitiatedSwitchAfterRollbackDoesNotInheritStaleConfirmRows` / `.rollbackRestoresPersistedSnapshotWithoutVersionRegression` / `.dualInstanceSwitchRequiresBothInstancesBeforeReportingSuccess`（双实例用例需第二 JVM，脚本未注入端口时显式 BLOCKED_ENV） | PASS（本地隔离验收 + 单测） |
+| 24.3 | 在途上传用原配置、新任务用已验证配置；双实例竞争不产生多活或无活的暧昧默认状态 | 单测 `PictureStorageServicePlatformPinTest`（平台钉住 + 无默认显式拒绝）；单测 `StorageSwitchServiceTest.concurrentSwitchLosesWithExplicitError` / `.switchAbortsWhenClaimIsConcurrentlyRolledBack`；验收 `HttpStorageSwitchTest.uploadUsesVerifiedSnapshotAndRejectsNoDefaultState` | PASS（本地隔离验收 + 单测） |
+| 24.4 | 读取/删除/补偿按资源原平台定位；切换不搬迁、不删除旧文件、不长期沿用已撤销凭据 | 验收 `HttpStorageSwitchTest.legacyResourcesKeepOriginalPlatformAcrossSwitch`（切换后旧资源平台/对象键未被改写、内容读取按原平台、删除按原平台、切换不触碰资源状态）；单测 `StorageSwitchServiceTest`（切换不触碰资源表） | PASS（本地隔离验收）；撤销凭据轮换为人工关卡 |
+| 24.5 | UI 展示真实生效状态；密钥不输出；旧平台资源核对及维护回滚可执行 | 验收 `HttpStorageSwitchTest.statusEndpointShowsRealEffectAndNoSecrets` / `.statusReadSelfHealsLaggingInstanceAfterCompletedSwitch`（双实例自愈）；前端 `StorageConfigManagePage.vue`（本实例生效版本 / 版本漂移 / 确认进度与期望实例数（后端下发）/ 回滚按钮 / 运维填写期望实例数的切换弹窗）；单测 `StorageCredentialMaskerTest`（既有） | PASS（本地隔离验收）；UI 实际渲染为人工关卡 |
 
 状态说明：
 - **PASS 本地**：`StorageSwitchServiceTest`（15）、`StorageInstanceIdProviderTest`（4）、
   `PictureStorageServicePlatformPinTest`（4）、
   `DefaultStorageCandidateVerifierTest`（6）在本 worktree 直接运行通过。
-- **NOT_RUN in isolation**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
+- **本地隔离验收已执行**（2026-11-05，原生 MySQL 8.0.26 / Redis 3.2.100）：
+  `scripts/acceptance.ps1` 在 HEAD `4549119` 上串行运行，12 门中 11 门 PASS
+  （runner-tests / secret-scan / isolation / backend 全套 / 前端 6 项 / cleanup），
+  唯一 FAIL 为 `frontend-api-contract`（`storageConfigController.ts` + `typings.d.ts`
+  未随接口变更重新生成），已用验收导出的 `target/openapi-contract.json` 离线重生成
+  并逐字节对账修复（`99243d2`）。`productionAcceptance: NOT_RUN`。
+  此前一次验收尝试被系统内存不足回收、无结果，本次为有效执行记录。
+- **NOT_RUN**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
   （及双实例用例的第二 JVM 端口），由编排者在交付后串行运行。
 - **人工关卡**：真实云凭据下的 bucketExists 探活（生产默认开启，隔离验收关闭）、
   密钥轮换与仍在使用旧配置任务的运维交接（D20 明确要求交接，不由本工单自动执行）、
