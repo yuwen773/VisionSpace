@@ -35,6 +35,9 @@ public interface StorageCleanupService extends IService<StorageCleanupTask> {
     /** 在图片替换事务中登记旧对象；登记失败时必须回滚替换。 */
     void enqueueReplacedFile(PictureFile file);
 
+    /** 图片已删除、对象删除失败时，原子释放资源记录并登记重试。 */
+    void enqueueDeletedPictureFile(PictureFile file, String reason);
+
     /**
      * 登记一条等待人工处理的清理任务。
      *

@@ -16,6 +16,11 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
             "WHERE id = #{id} AND status = 0 AND pictureId IS NULL AND purpose = 'gallery'")
     int markAbandonedGalleryUpload(@Param("id") Long id);
 
+    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
+            "WHERE id = #{id} AND pictureId = #{pictureId} AND status = 1 " +
+            "AND EXISTS (SELECT 1 FROM picture WHERE id = #{pictureId} AND isDelete = 1)")
+    int markDeletedPictureFile(@Param("id") Long id, @Param("pictureId") Long pictureId);
+
     @Update("UPDATE picture_file SET status = 2, updateTime = NOW() WHERE id = #{id} AND status = 3")
     int markSupersededDeleted(@Param("id") Long id);
 

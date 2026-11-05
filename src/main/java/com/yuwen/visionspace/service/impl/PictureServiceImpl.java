@@ -712,7 +712,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             if (!pictureFileService.deleteFile(file)) {
                 try {
                     // 删除未确认：登记可重试的清理任务，而不是只留一行日志
-                    storageCleanupService.enqueue(file, file.getObjectKey(), reason);
+                    storageCleanupService.enqueueDeletedPictureFile(file, reason);
                     log.warn("{}, fileId={}, kind={}", reason, file.getId(), file.getKind());
                 } catch (RuntimeException e) {
                     // 单个对象登记失败不影响其余对象；资源记录仍在，下一轮可再核对

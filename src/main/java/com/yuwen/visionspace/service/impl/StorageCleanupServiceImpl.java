@@ -61,6 +61,17 @@ public class StorageCleanupServiceImpl extends ServiceImpl<StorageCleanupTaskMap
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void enqueueDeletedPictureFile(PictureFile file, String reason) {
+        if (file.getPictureId() == null || file.getPlatform() == null || file.getPlatform().isBlank()
+                || file.getObjectKey() == null || file.getObjectKey().isBlank()
+                || pictureFileMapper.markDeletedPictureFile(file.getId(), file.getPictureId()) != 1) {
+            throw new IllegalStateException("图片资源状态已改变，不能自动回收: " + file.getId());
+        }
+        enqueue(file, file.getObjectKey(), reason);
+    }
+
+    @Override
     public void enqueueUploadedObject(String platform, String key, String kind, String reason) {
         PictureFile file = new PictureFile();
         file.setPlatform(platform);

@@ -327,6 +327,34 @@ class HttpSpaceQuotaConsistencyTest {
     }
 
     @Test
+    void deletedPictureObjectsAreRetriedAfterStorageRecovers() throws Exception {
+        long spaceId = seedSpace(ownerId, "deleted-retry", 0, 100, 1_000_000);
+        long pictureId;
+        try (var client = client()) {
+            login(client, ownerId);
+            JsonNode uploaded = upload(client, "/picture/upload", "delete-retry.png", "spaceId", String.valueOf(spaceId));
+            assertEquals(0, uploaded.path("code").asInt(), uploaded.toString());
+            pictureId = uploaded.path("data").path("id").asLong();
+            createdPictureIds.add(pictureId);
+            RecordingStorageConfiguration.failDeletes(true);
+            try {
+                JsonNode deleted = post(client, "/picture/delete", Map.of("id", pictureId));
+                assertEquals(0, deleted.path("code").asInt(), deleted.toString());
+            } finally {
+                RecordingStorageConfiguration.failDeletes(false);
+            }
+        }
+        List<Map<String, Object>> tasks = jdbc.queryForList(
+                "SELECT id, platform, objectKey FROM storage_cleanup_task WHERE pictureId = ? AND status = 0", pictureId);
+        assertEquals(2, tasks.size(), "original and thumbnail must both be queued");
+        for (var task : tasks) {
+            assertTrue(storageCleanupService.retryOne(((Number) task.get("id")).longValue()),
+                    "a deleted picture's own unreferenced object must be retried");
+            assertFalse(RecordingStorageConfiguration.hasObject((String) task.get("platform"), (String) task.get("objectKey")));
+        }
+    }
+
+    @Test
     void storageWriteFailureProducesNoPicture() throws Exception {
         long spaceId = seedSpace(ownerId, "storage-fail", 0, 100, 1_000_000);
         long picturesBefore = countPicturesIn(spaceId);
