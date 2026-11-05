@@ -117,6 +117,13 @@
   未随接口变更重新生成），已用验收导出的 `target/openapi-contract.json` 离线重生成
   并逐字节对账修复（`99243d2`）。`productionAcceptance: NOT_RUN`。
   此前一次验收尝试被系统内存不足回收、无结果，本次为有效执行记录。
+- **集成最新 main 后复验**（2026-11-05）：合并 `origin/main`（`10d6e5e`，含 #69/#70）
+  解决 `.gitignore` 与 `src/test/resources/acceptance.yml` 两处冲突——两边新增条目
+  全部保留（#40 的 `candidate-probe-enabled: false`、#44 的 `lease-ttl-seconds` /
+  `lease-renew-interval-ms`）。在合并 HEAD `c6f5dca` 上串行重跑完整隔离验收：
+  `12/12` 门全 PASS，后端 594 项、前端门与 `frontend-api-contract` 全绿，
+  `productionAcceptance: NOT_RUN`。该 HEAD 尚未推送，GitHub CI 与 PR #72 远端 head
+  仍停在 `882d592`。
 - **NOT_RUN**：验收测试需要 `scripts/acceptance.ps1` 注入的隔离 MySQL/Redis 环境
   （及双实例用例的第二 JVM 端口），由编排者在交付后串行运行。
 - **人工关卡**：真实云凭据下的 bucketExists 探活（生产默认开启，隔离验收关闭）、
