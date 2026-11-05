@@ -18,6 +18,7 @@ import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.lock.ResourceLockManager;
+import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
 import com.yuwen.visionspace.manager.storage.PictureStorageService;
 import com.yuwen.visionspace.manager.storage.UploadQuotaManager;
 import com.yuwen.visionspace.manager.upload.FilePictureUpload;
@@ -126,6 +127,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private ResourceLockManager resourceLockManager;
 
+    @Resource
+    private PictureEditLeaseManager pictureEditLeaseManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -189,6 +193,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间 id 不一致");
                 }
             }
+        }
+        Space replacementSpace = pictureId != null && spaceId != null ? spaceService.getById(spaceId) : null;
+        boolean teamReplacement = replacementSpace != null
+                && Objects.equals(replacementSpace.getSpaceType(), SpaceTypeEnum.TEAM.getValue());
+        if (teamReplacement) {
+            ThrowUtils.throwIf(!pictureEditLeaseManager.canSave(pictureId, loginUser.getId(),
+                    pictureUploadRequest.getCollaborationToken()), ErrorCode.NO_AUTH_ERROR, "协作编辑权已失效");
         }
         // 上传图片，得到图片信息
         // 按照用户 id 划分目录 => 按照空间划分目录
@@ -271,6 +282,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     ThrowUtils.throwIf(resourceIsolationService.isQuarantinedForUpdate(
                                     ResourceTypeEnum.PICTURE.getValue(), finalPictureId),
                             ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
+                    if (teamReplacement) {
+                        Picture current = this.getById(finalPictureId);
+                        ThrowUtils.throwIf(current == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+                        checkPictureAuth(loginUser, current);
+                        ThrowUtils.throwIf(!pictureEditLeaseManager.canSave(finalPictureId, loginUser.getId(),
+                                pictureUploadRequest.getCollaborationToken()), ErrorCode.NO_AUTH_ERROR, "协作编辑权已失效");
+                    }
                 }
                 // 插入数据
                 boolean result = this.saveOrUpdate(picture);

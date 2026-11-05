@@ -73,3 +73,10 @@ docker-compose.override.yml
 
 ## #40 实例标识运行时文件（验收/本地运行时生成，不入库）
 /storage-instance-id*
+
+# 密码代理文件（compose env_file 用，含真实值，禁止提交）
+.env.secrets
+.env.secrets.*
+
+# 工单 44 隔离验收运行目录（本票专用脚本产物）
+.vs44-runs/

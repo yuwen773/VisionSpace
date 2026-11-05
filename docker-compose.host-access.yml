@@ -1,0 +1,20 @@
+services:
+  # 显式宿主访问覆盖：docker compose -f docker-compose.yml -f docker-compose.host-access.yml up
+  # 仅绑回环 + 非默认端口，绝不复刻默认全接口发布。
+  # Docker Desktop 不会为只连接 internal 网络的容器建立实际端口映射。
+  # 覆盖栈额外给两个依赖各接一条独立桥接网络；这些网络允许容器出站，
+  # 因此只在确需宿主访问时启用。默认栈仍只连接 internal 网络。
+  mysql:
+    ports:
+      - "127.0.0.1:${HOST_MYSQL_PORT:-13306}:3306"
+    networks:
+      - mysql-host-access
+  redis:
+    ports:
+      - "127.0.0.1:${HOST_REDIS_PORT:-16379}:6379"
+    networks:
+      - redis-host-access
+
+networks:
+  mysql-host-access: {}
+  redis-host-access: {}
