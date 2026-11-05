@@ -12,6 +12,18 @@ import java.util.List;
 @Mapper
 public interface PictureFileMapper extends BaseMapper<PictureFile> {
 
+    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
+            "WHERE id = #{id} AND status = 0 AND pictureId IS NULL AND purpose = 'gallery'")
+    int markAbandonedGalleryUpload(@Param("id") Long id);
+
+    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
+            "WHERE id = #{id} AND pictureId = #{pictureId} AND status = 1 " +
+            "AND EXISTS (SELECT 1 FROM picture WHERE id = #{pictureId} AND isDelete = 1)")
+    int markDeletedPictureFile(@Param("id") Long id, @Param("pictureId") Long pictureId);
+
+    @Update("UPDATE picture_file SET status = 2, updateTime = NOW() WHERE id = #{id} AND status = 3")
+    int markSupersededDeleted(@Param("id") Long id);
+
     /**
      * 锁定读一条资源记录。
      *
@@ -20,6 +32,17 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      */
     @Select("SELECT * FROM picture_file WHERE id = #{id} FOR UPDATE")
     PictureFile selectForUpdate(@Param("id") Long id);
+
+    /**
+     * 锁定读一张图片当前的某状态资源记录。
+     *
+     * <p>替换路径用它挑出要被替换掉的旧记录：两个实例同时替换同一张图时，
+     * 后到的一方在拿到行锁之后才看到前一方提交后的状态，不会把同一批旧对象
+     * 再清理一遍。
+     */
+    @Select("SELECT * FROM picture_file WHERE pictureId = #{pictureId} AND status = #{status} FOR UPDATE")
+    List<PictureFile> selectByPictureAndStatusForUpdate(@Param("pictureId") Long pictureId,
+                                                       @Param("status") Integer status);
 
     /**
      * 回收候选：用途为 Agent 会话、仍是临时状态、且创建时间早于保留期截止点。
@@ -76,4 +99,35 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      */
     @Update("UPDATE picture_file SET status = 1, updateTime = NOW() WHERE id = #{id} AND status = 0")
     int markActive(@Param("id") Long id);
+
+    /**
+     * 同一对象键上仍占用存储的记录（临时或有效）。清理任务删除对象之前用它核对
+     * 引用：已被替换或已删除的记录不再占用，不会被当成新的引用者。
+     */
+    @Select("SELECT * FROM picture_file WHERE platform = #{platform} AND objectKey = #{objectKey} " +
+            "AND status IN (0, 1)")
+    List<PictureFile> selectLiveByPlatformAndKey(@Param("platform") String platform,
+                                                 @Param("objectKey") String objectKey);
+
+    /**
+     * 图片是否仍指向该资源地址，或资源地址缺失而无法确认引用已解除。
+     * 同一 pictureId 也会保留在替换后的历史记录上，不能仅凭图片仍存在就阻断清理。
+     */
+    @Select("SELECT COUNT(*) FROM picture p JOIN picture_file f ON f.pictureId = p.id " +
+            "WHERE f.id = #{fileId} AND p.isDelete = 0 AND " +
+            "(f.status IN (0, 1) OR f.url IS NULL OR f.url = '' OR p.url = f.url " +
+            "OR p.thumbnailUrl = f.url OR p.previewUrl = f.url)")
+    int countLivePictureBinding(@Param("fileId") Long fileId);
+
+    /**
+     * 除自己之外，同一对象键还有多少条占用存储的记录（临时或有效）。
+     *
+     * <p>删除对象之前用它确认没有别的记录指向同一个键：同一张图的历史记录、
+     * 或复制出来的记录都可能共用一个对象，删掉会让其余记录读到不存在的对象。
+     */
+    @Select("SELECT COUNT(*) FROM picture_file WHERE platform = #{platform} AND objectKey = #{objectKey} " +
+            "AND status IN (0, 1) AND id <> #{excludeId}")
+    int countLiveReferences(@Param("platform") String platform,
+                            @Param("objectKey") String objectKey,
+                            @Param("excludeId") Long excludeId);
 }

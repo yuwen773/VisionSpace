@@ -28,6 +28,14 @@ public interface SpaceService extends IService<Space> {
     long addSpace(SpaceAddRequest spaceAddRequest, User loginUser);
 
     /**
+     * 删除空间（逻辑删除），并释放有效空间唯一占位，之后可以重新创建。
+     *
+     * @param spaceId 空间 id
+     * @return 是否删除了这条空间；已删除或不存在时返回 false
+     */
+    boolean deleteSpace(Long spaceId);
+
+    /**
      * 校验空间
      *
      * @param space

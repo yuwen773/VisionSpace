@@ -28,6 +28,12 @@ public class RecordingStorageConfiguration {
 
     private static final byte[] CONTENT = "acceptance-image-bytes".getBytes(StandardCharsets.UTF_8);
 
+    private static final java.util.Set<String> OBJECTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    static boolean hasObject(String platform, String key) {
+        return OBJECTS.contains(platform + "|" + key);
+    }
+
     /**
      * 让对象删除失败，用于验证「删除未确认保留可重试状态」。
      *
@@ -36,8 +42,40 @@ public class RecordingStorageConfiguration {
     private static final java.util.concurrent.atomic.AtomicBoolean FAIL_DELETES =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
+    /**
+     * 让对象写入失败，用于验证「存储写失败不产生成功图片」。
+     */
+    private static final java.util.concurrent.atomic.AtomicBoolean FAIL_UPLOADS =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private static final java.util.concurrent.atomic.AtomicBoolean INVALID_THUMBNAIL_URL =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    static void invalidThumbnailUrl(boolean invalid) {
+        INVALID_THUMBNAIL_URL.set(invalid);
+    }
+
+    /**
+     * 上传返回的字节数。默认等于夹具内容长度；替换路径的差额判定需要
+     * 「新图更大」这种情形，由用例显式调大。
+     */
+    private static final java.util.concurrent.atomic.AtomicLong UPLOAD_SIZE =
+            new java.util.concurrent.atomic.AtomicLong(CONTENT.length);
+
     static void failDeletes(boolean fail) {
         FAIL_DELETES.set(fail);
+    }
+
+    static void failUploads(boolean fail) {
+        FAIL_UPLOADS.set(fail);
+    }
+
+    static void uploadSize(long size) {
+        UPLOAD_SIZE.set(size);
+    }
+
+    static void resetUploadSize() {
+        UPLOAD_SIZE.set(CONTENT.length);
     }
 
     @Bean
@@ -59,16 +97,29 @@ public class RecordingStorageConfiguration {
             public boolean deleteObject(String platform, String objectKey) {
                 recorder.record(new ExternalCallRecorder.Call("DELETE", platform, objectKey));
                 // 删除失败时返回 false：调用方必须保留可重试状态
-                return !FAIL_DELETES.get();
+                if (FAIL_DELETES.get()) {
+                    return false;
+                }
+                OBJECTS.remove(platform + "|" + objectKey);
+                return true;
             }
 
             @Override
             public FileInfo putPictureObject(File file, String path, String name) {
+                if (FAIL_UPLOADS.get()) {
+                    // 与原平台一致：存储写失败抛业务异常，调用方不得继续落库
+                    throw new com.yuwen.visionspace.exception.BusinessException(
+                            com.yuwen.visionspace.exception.ErrorCode.SYSTEM_ERROR, "上传失败");
+                }
                 return synthetic(path, name);
             }
 
             @Override
             public FileInfo putObject(File file, String path, String name) {
+                if (FAIL_UPLOADS.get()) {
+                    throw new com.yuwen.visionspace.exception.BusinessException(
+                            com.yuwen.visionspace.exception.ErrorCode.SYSTEM_ERROR, "上传失败");
+                }
                 return synthetic(path, name);
             }
 
@@ -96,10 +147,14 @@ public class RecordingStorageConfiguration {
                 info.setPath(path);
                 info.setFilename(name);
                 info.setUrl("https://acceptance.invalid" + path + name);
-                info.setSize((long) CONTENT.length);
+                info.setSize(UPLOAD_SIZE.get());
                 // 与原平台一致：缩略图键为文件名 + 后缀
                 info.setThFilename(name + ".min.jpg");
-                info.setThUrl("https://acceptance.invalid" + path + name + ".min.jpg");
+                info.setThUrl(INVALID_THUMBNAIL_URL.get()
+                        ? "https://acceptance.invalid/" + "x".repeat(1100)
+                        : "https://acceptance.invalid" + path + name + ".min.jpg");
+                OBJECTS.add(PLATFORM + "|" + PictureStorageService.objectKey(info));
+                OBJECTS.add(PLATFORM + "|" + PictureStorageService.thumbnailObjectKey(info));
                 return info;
             }
         };

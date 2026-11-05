@@ -66,8 +66,8 @@ public class SpaceController {
         ThrowUtils.throwIf(oldSpace == null, ErrorCode.NOT_FOUND_ERROR);
         // 仅本人或者管理员可删除
         spaceService.checkSpaceAuth(loginUser, oldSpace);
-        // 操作数据库
-        boolean result = spaceService.removeById(id);
+        // 操作数据库：逻辑删除的同时释放唯一占位，之后可以重新创建同类空间
+        boolean result = spaceService.deleteSpace(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }
