@@ -20,7 +20,6 @@ export interface StorageConfigVO {
   domain?: string
   basePath?: string
   isActive?: number
-  isDefault?: number
   orderNum?: number
   status?: number
   createTime?: string
@@ -38,7 +37,6 @@ export interface StorageConfigAddRequest {
   domain?: string
   basePath?: string
   isActive?: number
-  isDefault?: number
   orderNum?: number
   status?: number
 }
@@ -56,13 +54,9 @@ export interface StorageConfigQueryRequest {
   status?: number
 }
 
-export interface StorageConfigActiveRequest {
-  id: number
-}
-
 export function getStorageConfigListUsingGet(
   params: StorageConfigQueryRequest,
-  options?: { [key: string]: any },
+  options?: { [key: string]: unknown },
 ) {
   return request<any>('/api/storage/config/list', {
     method: 'GET',
@@ -73,7 +67,7 @@ export function getStorageConfigListUsingGet(
 
 export function addStorageConfigUsingPost(
   body: StorageConfigAddRequest,
-  options?: { [key: string]: any },
+  options?: { [key: string]: unknown },
 ) {
   return request<any>('/api/storage/config/add', {
     method: 'POST',
@@ -85,7 +79,7 @@ export function addStorageConfigUsingPost(
 
 export function updateStorageConfigUsingPost(
   body: StorageConfigUpdateRequest,
-  options?: { [key: string]: any },
+  options?: { [key: string]: unknown },
 ) {
   return request<any>('/api/storage/config/update', {
     method: 'POST',
@@ -97,7 +91,7 @@ export function updateStorageConfigUsingPost(
 
 export function deleteStorageConfigUsingPost(
   body: { id: number },
-  options?: { [key: string]: any },
+  options?: { [key: string]: unknown },
 ) {
   return request<any>('/api/storage/config/delete', {
     method: 'POST',
@@ -108,27 +102,70 @@ export function deleteStorageConfigUsingPost(
 }
 
 export function setActivePlatformUsingPost(
-  body: StorageConfigActiveRequest,
-  options?: { [key: string]: any },
+  body: StorageSwitchRequest,
+  options?: { [key: string]: unknown },
 ) {
-  return request<any>('/api/storage/config/set_active', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: body,
-    ...(options || {}),
-  })
+  return request<{ code: number; data: StorageSwitchStatus; message: string }>(
+    '/api/storage/config/set_active',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      ...(options || {}),
+    },
+  )
 }
 
-export function setDefaultPlatformUsingPost(
-  body: StorageConfigActiveRequest,
-  options?: { [key: string]: any },
-) {
-  return request<any>('/api/storage/config/set_default', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: body,
-    ...(options || {}),
-  })
+// #40 存储切换：候选验证后原子占位并本实例生效；expectedInstances 为期望确认实例数
+export interface StorageSwitchRequest {
+  targetConfigId: number
+  expectedInstances?: number
+}
+
+export interface StorageSwitchStatus {
+  phase: 'completed' | 'pending'
+  activeVersion: number
+  pendingVersion?: number
+  pendingConfigId?: number
+  pendingPlatform?: string
+  confirmCount?: number
+  expectedInstances?: number
+  localEffectiveVersion: number
+  localSynced: boolean
+  localDefaultPlatform?: string
+  registeredPlatforms?: string[]
+  activePlatform?: string
+  activeConfigId?: number
+}
+
+export function confirmStorageSwitchUsingPost(options?: { [key: string]: any }) {
+  return request<{ code: number; data: StorageSwitchStatus; message: string }>(
+    '/api/storage/config/switch/confirm',
+    {
+      method: 'POST',
+      ...(options || {}),
+    },
+  )
+}
+
+export function rollbackStorageSwitchUsingPost(options?: { [key: string]: any }) {
+  return request<{ code: number; data: StorageSwitchStatus; message: string }>(
+    '/api/storage/config/switch/rollback',
+    {
+      method: 'POST',
+      ...(options || {}),
+    },
+  )
+}
+
+export function getStorageSwitchStatusUsingGet(options?: { [key: string]: any }) {
+  return request<{ code: number; data: StorageSwitchStatus; message: string }>(
+    '/api/storage/config/switch/status',
+    {
+      method: 'GET',
+      ...(options || {}),
+    },
+  )
 }
 
 export function refreshStorageConfigUsingPost(options?: { [key: string]: any }) {

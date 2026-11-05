@@ -532,6 +532,36 @@ CREATE TABLE `resource_isolation` (
   INDEX `idx_resource_status`(`resourceType`, `resourceId`, `status`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '违规资源隔离与恢复';
 
+-- ----------------------------
+-- Table structure for storage_switch_state (#40 存储切换版本状态，单行)
+-- ----------------------------
+CREATE TABLE `storage_switch_state` (
+  `id` bigint(20) NOT NULL COMMENT '固定为 1 的单行',
+  `activeVersion` bigint(20) NOT NULL DEFAULT 1 COMMENT '最近完整生效的快照版本',
+  `pendingVersion` bigint(20) NULL DEFAULT NULL COMMENT '待确认的候选版本',
+  `pendingConfigId` bigint(20) NULL DEFAULT NULL COMMENT '待生效配置 id',
+  `pendingPlatform` varchar(32) NULL DEFAULT NULL COMMENT '待生效平台',
+  `pendingTime` datetime NULL DEFAULT NULL COMMENT '切换占位时间',
+  `pendingToken` varchar(64) NULL DEFAULT NULL COMMENT '本次占位的一次性令牌（确认写入的原子校验依据）',
+  `expectedInstances` int(11) NOT NULL DEFAULT 1 COMMENT '期望确认实例数',
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换版本状态（单行）';
+
+-- ----------------------------
+-- Table structure for storage_switch_confirm (#40 切换确认实例集合)
+-- ----------------------------
+CREATE TABLE `storage_switch_confirm` (
+  `version` bigint(20) NOT NULL COMMENT '候选版本',
+  `instanceId` varchar(64) NOT NULL COMMENT '确认实例标识（实例本地持久化）',
+  `configId` bigint(20) NULL DEFAULT NULL COMMENT '确认时的待生效配置 id（审计）',
+  `confirmTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '确认时间',
+  PRIMARY KEY (`version`, `instanceId`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '存储切换确认实例集合';
+
+INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
+
 CREATE TABLE `user_preference` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `userId` bigint(20) NOT NULL COMMENT '偏好归属用户；全部读写条件都带它',

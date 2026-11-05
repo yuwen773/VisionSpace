@@ -21,6 +21,11 @@ sa-token:
     same-site: strict
 ## 项目自定义配置
 vision-space:
+  # 存储切换（#40）：候选验证在完整构建后进行，MinIO 执行 bucketExists 探活。
+  # 默认开启（fail-closed）：坏 bucket 名/被撤销凭据在切换前显式失败；
+  # 隔离验收环境在 acceptance.yml 显式关闭（不产生真实存储网络请求）。
+  storage:
+    candidate-probe-enabled: ${VISION_SPACE_STORAGE_CANDIDATE_PROBE:true}
   # 安全配置
   security:
     # 创建用户时使用的初始密码。生产必须通过环境变量注入，不提供默认值。

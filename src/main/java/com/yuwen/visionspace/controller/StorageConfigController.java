@@ -8,13 +8,14 @@ import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
-import com.yuwen.visionspace.manager.storage.init.FileStorageInit;
-import com.yuwen.visionspace.model.dto.storage.StorageConfigActiveRequest;
+import com.yuwen.visionspace.manager.storage.StorageSwitchService;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigAddRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigQueryRequest;
 import com.yuwen.visionspace.model.dto.storage.StorageConfigUpdateRequest;
+import com.yuwen.visionspace.model.dto.storage.StorageSwitchRequest;
 import com.yuwen.visionspace.model.entity.StorageConfig;
 import com.yuwen.visionspace.model.vo.StorageConfigVO;
+import com.yuwen.visionspace.model.vo.StorageSwitchStatusVO;
 import com.yuwen.visionspace.service.StorageConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +31,7 @@ import java.util.List;
 public class StorageConfigController {
 
     private final StorageConfigService storageConfigService;
-
-    @jakarta.annotation.Resource
-    private FileStorageInit fileStorageInit;
+    private final StorageSwitchService storageSwitchService;
 
     /**
      * 获取存储配置列表（仅管理员）
@@ -83,34 +82,54 @@ public class StorageConfigController {
     }
 
     /**
-     * 激活指定平台
+     * 切换默认存储平台（唯一的平台切换入口）。
+     *
+     * <p>候选完整验证 + 原子占位 + 本实例生效；响应是切换状态而非布尔值：
+     * expectedInstances 大于 1 时返回 pending 状态，需要其余实例确认后才
+     * 晋升为完整成功。单实例部署省略 expectedInstances 即立即晋升。
      */
     @PostMapping("/set_active")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> setActivePlatform(@RequestBody StorageConfigActiveRequest request) {
-        ThrowUtils.throwIf(request == null || request.getId() == null, ErrorCode.PARAMS_ERROR);
-        boolean result = storageConfigService.setActivePlatform(request);
-        return ResultUtils.success(result);
+    public BaseResponse<StorageSwitchStatusVO> setActivePlatform(@RequestBody StorageSwitchRequest request) {
+        ThrowUtils.throwIf(request == null || request.getTargetConfigId() == null, ErrorCode.PARAMS_ERROR);
+        return ResultUtils.success(storageSwitchService.switchToStoragePlatform(request));
     }
 
     /**
-     * 设置默认平台
+     * 本实例确认候选版本生效；全部期望实例确认后晋升为完整成功
      */
-    @PostMapping("/set_default")
+    @PostMapping("/switch/confirm")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> setDefaultPlatform(@RequestBody StorageConfigActiveRequest request) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
-        boolean result = storageConfigService.setDefaultPlatform(request.getId());
-        return ResultUtils.success(result);
+    public BaseResponse<StorageSwitchStatusVO> confirmStorageSwitch() {
+        return ResultUtils.success(storageSwitchService.confirmStorageSwitch());
     }
 
     /**
-     * 刷新存储平台缓存（重新加载配置到 x-file-storage）
+     * 回滚进行中的切换：保留旧快照，activeVersion 不变
+     */
+    @PostMapping("/switch/rollback")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<StorageSwitchStatusVO> rollbackStorageSwitch() {
+        return ResultUtils.success(storageSwitchService.rollbackStorageSwitch());
+    }
+
+    /**
+     * 查询真实生效状态：持久激活配置、全局版本与本实例版本（不含任何凭据）
+     */
+    @GetMapping("/switch/status")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<StorageSwitchStatusVO> getStorageSwitchStatus() {
+        return ResultUtils.success(storageSwitchService.getStorageSwitchStatus());
+    }
+
+    /**
+     * 从持久配置重建本实例运行快照（版本对齐 activeVersion）。
+     * 构建失败保留旧快照并显式报错。
      */
     @PostMapping("/refresh")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> refreshStorageConfig() {
-        fileStorageInit.refresh();
+        storageSwitchService.reloadPersistedSnapshot();
         return ResultUtils.success(true);
     }
 }

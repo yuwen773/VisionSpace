@@ -53,6 +53,9 @@ public final class VipSecondInstanceMain {
         // 与测试实例一致的 servlet 容器与随机端口；实际端口经就绪文件交回脚本
         props.put("spring.main.web-application-type", "servlet");
         props.put("server.port", "0");
+        // 第二实例与主实例共用工作目录：实例标识文件必须区分，
+        // 否则两个实例在确认集合里会被视为同一实例（#40）
+        props.put("vs.instance-id-file", "storage-instance-id-second");
         return props;
     }
 }

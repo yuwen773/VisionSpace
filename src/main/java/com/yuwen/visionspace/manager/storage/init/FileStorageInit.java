@@ -1,113 +1,39 @@
 package com.yuwen.visionspace.manager.storage.init;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.yuwen.visionspace.mapper.StorageConfigMapper;
-import com.yuwen.visionspace.model.entity.StorageConfig;
-import com.yuwen.visionspace.model.enums.StoragePlatformEnum;
+import com.yuwen.visionspace.manager.storage.StorageSwitchService;
+import com.yuwen.visionspace.mapper.StorageSwitchStateMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.dromara.x.file.storage.core.FileStorageProperties;
-import org.dromara.x.file.storage.core.FileStorageService;
-import org.dromara.x.file.storage.core.FileStorageServiceBuilder;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
-import java.util.Collections;
 
 /**
- * 从数据库加载存储平台配置，动态添加到 FileStorageService
+ * 启动时初始化存储运行时（#40）。
+ *
+ * <p>启动流程：保证切换状态单行存在 → 从持久配置完整构建候选快照并原子应用。
+ * 构建或验证失败时保持空快照并显式报错：上传会被明确拒绝（无默认平台），
+ * 不回退到任何默认凭据或跳过失败项的半快照。
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class FileStorageInit {
 
-    private final StorageConfigMapper storageConfigMapper;
-    private final FileStorageService fileStorageService;
+    private final StorageSwitchStateMapper storageSwitchStateMapper;
+    private final StorageSwitchService storageSwitchService;
 
     @PostConstruct
     public void init() {
-        refresh();
-    }
-
-    public void refresh() {
-        // 清空现有存储平台列表
-        fileStorageService.getFileStorageList().clear();
-
-        for (StorageConfig config : storageConfigMapper.selectList(
-                new LambdaQueryWrapper<StorageConfig>().eq(StorageConfig::getStatus, 1))) {
-            String platform = config.getPlatform();
-            try {
-                StoragePlatformEnum platformEnum = StoragePlatformEnum.getEnumByCode(platform);
-                if (platformEnum == null) {
-                    log.warn("不支持的平台类型: {}", platform);
-                    continue;
-                }
-                switch (platformEnum) {
-                    case MINIO: {
-                        FileStorageProperties.MinioConfig c = new FileStorageProperties.MinioConfig();
-                        c.setPlatform(config.getPlatform());
-                        c.setAccessKey(config.getAccessKey());
-                        c.setSecretKey(config.getSecretKey());
-                        c.setEndPoint(config.getEndpoint());
-                        c.setBucketName(config.getBucket());
-                        c.setDomain(config.getDomain());
-                        c.setBasePath(config.getBasePath());
-                        fileStorageService.getFileStorageList().addAll(
-                                FileStorageServiceBuilder.buildMinioFileStorage(Collections.singletonList(c), null));
-                        break;
-                    }
-                    case COS: {
-                        FileStorageProperties.TencentCosConfig c = new FileStorageProperties.TencentCosConfig();
-                        c.setPlatform(config.getPlatform());
-                        c.setSecretId(config.getAccessKey());
-                        c.setSecretKey(config.getSecretKey());
-                        c.setRegion(config.getRegion());
-                        c.setBucketName(config.getBucket());
-                        c.setDomain(config.getDomain());
-                        c.setBasePath(config.getBasePath());
-                        fileStorageService.getFileStorageList().addAll(
-                                FileStorageServiceBuilder.buildTencentCosFileStorage(Collections.singletonList(c), null));
-                        break;
-                    }
-                    case OSS: {
-                        FileStorageProperties.AliyunOssConfig c = new FileStorageProperties.AliyunOssConfig();
-                        c.setPlatform(config.getPlatform());
-                        c.setAccessKey(config.getAccessKey());
-                        c.setSecretKey(config.getSecretKey());
-                        c.setEndPoint(config.getEndpoint());
-                        c.setBucketName(config.getBucket());
-                        c.setDomain(config.getDomain());
-                        c.setBasePath(config.getBasePath());
-                        fileStorageService.getFileStorageList().addAll(
-                                FileStorageServiceBuilder.buildAliyunOssFileStorage(Collections.singletonList(c), null));
-                        break;
-                    }
-                    case OBS: {
-                        FileStorageProperties.HuaweiObsConfig c = new FileStorageProperties.HuaweiObsConfig();
-                        c.setPlatform(config.getPlatform());
-                        c.setAccessKey(config.getAccessKey());
-                        c.setSecretKey(config.getSecretKey());
-                        c.setEndPoint(config.getEndpoint());
-                        c.setBucketName(config.getBucket());
-                        c.setDomain(config.getDomain());
-                        c.setBasePath(config.getBasePath());
-                        fileStorageService.getFileStorageList().addAll(
-                                FileStorageServiceBuilder.buildHuaweiObsFileStorage(Collections.singletonList(c), null));
-                        break;
-                    }
-                }
-
-                if (config.getIsActive() != null && config.getIsActive() == 1) {
-                    fileStorageService.getProperties().setDefaultPlatform(platform);
-                    log.info("激活存储平台: {}", platform);
-                }
-                log.info("注册存储平台成功: {} ({})", config.getPlatformName(), platform);
-            } catch (Exception e) {
-                log.error("注册存储平台失败: {} ({})", config.getPlatformName(), platform, e);
-            }
+        storageSwitchStateMapper.ensureRow();
+        try {
+            storageSwitchService.reloadPersistedSnapshot();
+            log.info("存储平台初始化完成，version={}, defaultPlatform={}",
+                    storageSwitchService.getStorageSwitchStatus().getActiveVersion(),
+                    storageSwitchService.getStorageSwitchStatus().getLocalDefaultPlatform());
+        } catch (Exception e) {
+            // 失败保留空快照：显式拒绝上传，等待管理员修复配置后执行刷新
+            log.error("存储平台初始化失败，运行时保持空快照，上传将被拒绝直至配置修复", e);
         }
-
-        log.info("存储平台初始化完成，共加载 {} 个平台配置", fileStorageService.getFileStorageList().size());
     }
 }

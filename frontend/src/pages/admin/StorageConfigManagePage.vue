@@ -58,7 +58,43 @@
           <span class="stat-label">已激活</span>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" v-if="switchStatus">
+        <div class="stat-icon" :class="switchStatus.phase === 'pending' ? 'warning' : 'active'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ switchStatus.localDefaultPlatform || '—' }}</span>
+          <span class="stat-label">
+            本实例生效（v{{ switchStatus.localEffectiveVersion }}）
+            <template v-if="!switchStatus.localSynced">· 版本漂移</template>
+          </span>
+        </div>
+      </div>
+      <div class="stat-card" v-if="switchStatus && switchStatus.phase === 'pending'">
+        <div class="stat-icon warning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">
+            {{ switchStatus.confirmCount }}/{{ switchStatus.expectedInstances }}
+          </span>
+          <span class="stat-label">
+            切换确认中 → {{ switchStatus.pendingPlatform }}（v{{ switchStatus.pendingVersion }}）
+          </span>
+          <div class="pending-actions">
+            <a-button size="small" type="primary" @click="handleConfirmSwitch">确认生效</a-button>
+            <a-button size="small" danger @click="handleRollbackSwitch">回滚</a-button>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" v-else-if="switchStatus">
         <div class="stat-icon warning">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
@@ -177,23 +213,11 @@
           <button
             class="action-btn success"
             :disabled="item.isActive === 1"
-            @click="handleSetActive(item)"
-            title="激活"
+            @click="openSwitchModal(item)"
+            title="切换到此平台（候选验证后生效）"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </button>
-          <button
-            class="action-btn"
-            :disabled="item.isDefault === 1"
-            @click="handleSetDefault(item)"
-            title="设为默认"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon
-                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-              ></polygon>
             </svg>
           </button>
           <a-popconfirm
@@ -379,6 +403,31 @@
       </div>
     </a-modal>
   </div>
+  <!-- 切换确认弹窗：期望实例数由运维按部署实例数填写，不在此硬编码 -->
+  <a-modal
+    v-model:open="switchModalVisible"
+    title="切换生效平台"
+    class="storage-modal"
+    :confirm-loading="switchLoading"
+    ok-text="验证并切换"
+    cancel-text="取消"
+    @ok="handleSetActive"
+  >
+    <p class="switch-hint">
+      切换前服务端会完整验证候选配置；失败将保留当前生效平台。多实例部署时，
+      每个实例都需确认后切换才晋升为完整生效。
+    </p>
+    <div class="form-item">
+      <label class="form-label">期望确认实例数</label>
+      <a-input-number
+        v-model:value="expectedInstancesInput"
+        :min="1"
+        :max="1000"
+        class="form-input"
+      />
+      <span class="form-hint">单实例部署保持 1 即可；与部署的实例总数一致。</span>
+    </div>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -390,17 +439,33 @@ import {
   updateStorageConfigUsingPost,
   deleteStorageConfigUsingPost,
   setActivePlatformUsingPost,
-  setDefaultPlatformUsingPost,
   refreshStorageConfigUsingPost,
+  confirmStorageSwitchUsingPost,
+  rollbackStorageSwitchUsingPost,
+  getStorageSwitchStatusUsingGet,
   type StorageConfigVO,
   type StorageConfigAddRequest,
   type StorageConfigUpdateRequest,
+  type StorageSwitchStatus,
 } from '@/api-custom/storage'
 
 const configList = ref<StorageConfigVO[]>([])
 const modalVisible = ref(false)
 const editingConfig = ref<StorageConfigVO | null>(null)
 const submitLoading = ref(false)
+// 真实生效状态：区分持久激活配置与运行时快照（#40）
+const switchStatus = ref<StorageSwitchStatus | null>(null)
+// 切换弹窗：目标配置与运维填写的期望实例数（P2-8：不在前端硬编码实例数）
+const switchModalVisible = ref(false)
+const switchLoading = ref(false)
+const switchTarget = ref<StorageConfigVO | null>(null)
+const expectedInstancesInput = ref<number>(1)
+
+const openSwitchModal = (item: StorageConfigVO) => {
+  switchTarget.value = item
+  expectedInstancesInput.value = 1
+  switchModalVisible.value = true
+}
 
 const activeCount = computed(() => configList.value.filter((item) => item.isActive === 1).length)
 
@@ -461,6 +526,17 @@ const loadConfigList = async () => {
     }
   } catch (e) {
     message.error('加载配置列表失败')
+  }
+}
+
+const loadSwitchStatus = async () => {
+  try {
+    const res = await getStorageSwitchStatusUsingGet()
+    if (res.data.code === 0) {
+      switchStatus.value = res.data.data
+    }
+  } catch (e) {
+    // 状态加载失败不阻塞配置管理，仅在下一次操作时暴露
   }
 }
 
@@ -552,31 +628,70 @@ const handleSubmit = async () => {
   }
 }
 
-const handleSetActive = async (item: StorageConfigVO) => {
+const handleSetActive = async () => {
+  if (!switchTarget.value?.id) return
+  switchLoading.value = true
   try {
-    const res = await setActivePlatformUsingPost({ id: item.id! })
+    // 候选验证在服务端完成：失败保留当前生效平台，响应呈现真实切换状态；
+    // 期望实例数由运维在弹窗中按部署规模填写，不由前端硬编码
+    const res = await setActivePlatformUsingPost({
+      targetConfigId: switchTarget.value.id,
+      expectedInstances: expectedInstancesInput.value,
+    })
     if (res.data.code === 0) {
-      message.success('激活成功')
-      await loadConfigList()
+      const status: StorageSwitchStatus = res.data.data
+      if (status.phase === 'pending') {
+        message.info(
+          `切换已生效于本实例（v${status.localEffectiveVersion}），等待其余实例确认` +
+            `（${status.confirmCount}/${status.expectedInstances}）`,
+        )
+      } else {
+        message.success(
+          `已切换到 ${switchTarget.value.platformName}（v${status.localEffectiveVersion}）`,
+        )
+      }
+      switchModalVisible.value = false
+      await Promise.all([loadConfigList(), loadSwitchStatus()])
     } else {
-      message.error(res.data.message || '激活失败')
+      message.error(res.data.message || '切换失败：已保留当前生效平台')
     }
-  } catch (e) {
-    message.error('激活失败')
+  } catch {
+    message.error('切换失败：已保留当前生效平台')
+  } finally {
+    switchLoading.value = false
   }
 }
 
-const handleSetDefault = async (item: StorageConfigVO) => {
+const handleConfirmSwitch = async () => {
   try {
-    const res = await setDefaultPlatformUsingPost({ id: item.id! })
+    const res = await confirmStorageSwitchUsingPost()
     if (res.data.code === 0) {
-      message.success('设置默认成功')
-      await loadConfigList()
+      const status: StorageSwitchStatus = res.data.data
+      if (status.phase === 'completed') {
+        message.success(`切换已确认生效（v${status.activeVersion}）`)
+      } else {
+        message.info(`确认已记录（${status.confirmCount}/${status.expectedInstances}）`)
+      }
+      await Promise.all([loadConfigList(), loadSwitchStatus()])
     } else {
-      message.error(res.data.message || '设置失败')
+      message.error(res.data.message || '确认失败')
     }
-  } catch (e) {
-    message.error('设置失败')
+  } catch {
+    message.error('确认失败')
+  }
+}
+
+const handleRollbackSwitch = async () => {
+  try {
+    const res = await rollbackStorageSwitchUsingPost()
+    if (res.data.code === 0) {
+      message.success('已回滚：保留旧快照')
+      await Promise.all([loadConfigList(), loadSwitchStatus()])
+    } else {
+      message.error(res.data.message || '回滚失败')
+    }
+  } catch {
+    message.error('回滚失败')
   }
 }
 
@@ -610,6 +725,7 @@ const handleRefresh = async () => {
 
 onMounted(() => {
   loadConfigList()
+  loadSwitchStatus()
 })
 </script>
 
@@ -727,6 +843,12 @@ onMounted(() => {
 .stat-label {
   font-size: var(--admin-text-sm);
   color: var(--admin-text-secondary);
+}
+
+.pending-actions {
+  display: flex;
+  gap: var(--admin-space-2);
+  margin-top: var(--admin-space-2);
 }
 
 /* ========== 配置卡片网格 ========== */
@@ -1058,6 +1180,13 @@ onMounted(() => {
 
 .modal-form {
   padding: var(--admin-space-2) 0;
+}
+
+.switch-hint {
+  font-size: var(--admin-text-sm);
+  color: var(--admin-text-secondary);
+  margin: 0 0 var(--admin-space-4) 0;
+  line-height: 1.5;
 }
 
 .form-section {

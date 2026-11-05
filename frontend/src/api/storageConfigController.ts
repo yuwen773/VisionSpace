@@ -59,10 +59,10 @@ export async function refreshStorageConfigUsingPost(options?: { [key: string]: a
 
 /** 此处后端没有提供注释 POST /storage/config/set_active */
 export async function setActivePlatformUsingPost(
-  body: API.StorageConfigActiveRequest,
+  body: API.StorageSwitchRequest,
   options?: { [key: string]: any },
 ) {
-  return request<API.BaseResponseBoolean>('/storage/config/set_active', {
+  return request<API.BaseResponseStorageSwitchStatusVO>('/storage/config/set_active', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -72,17 +72,26 @@ export async function setActivePlatformUsingPost(
   })
 }
 
-/** 此处后端没有提供注释 POST /storage/config/set_default */
-export async function setDefaultPlatformUsingPost(
-  body: API.StorageConfigActiveRequest,
-  options?: { [key: string]: any },
-) {
-  return request<API.BaseResponseBoolean>('/storage/config/set_default', {
+/** 此处后端没有提供注释 POST /storage/config/switch/confirm */
+export async function confirmStorageSwitchUsingPost(options?: { [key: string]: any }) {
+  return request<API.BaseResponseStorageSwitchStatusVO>('/storage/config/switch/confirm', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 POST /storage/config/switch/rollback */
+export async function rollbackStorageSwitchUsingPost(options?: { [key: string]: any }) {
+  return request<API.BaseResponseStorageSwitchStatusVO>('/storage/config/switch/rollback', {
+    method: 'POST',
+    ...(options || {}),
+  })
+}
+
+/** 此处后端没有提供注释 GET /storage/config/switch/status */
+export async function getStorageSwitchStatusUsingGet(options?: { [key: string]: any }) {
+  return request<API.BaseResponseStorageSwitchStatusVO>('/storage/config/switch/status', {
+    method: 'GET',
     ...(options || {}),
   })
 }

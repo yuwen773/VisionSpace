@@ -49,6 +49,8 @@ public class PictureStorageService {
      * @return FileInfo 包含 url, thumbnailUrl 等
      */
     public FileInfo putPictureObject(File file, String uploadPathPrefix, String uploadFilename) {
+        // 任务开始时钉住平台：切换并发时在途上传仍按原配置完成（D20）
+        String platform = requireDefaultPlatform();
         try {
             log.info("开始上传文件: file uploadPathPrefix={}, file uploadFilename={}", uploadPathPrefix, uploadFilename);
             log.info("FileStorageService 状态: platformListSize={}, defaultPlatform={}",
@@ -56,10 +58,13 @@ public class PictureStorageService {
                     fileStorageService.getProperties().getDefaultPlatform());
 
             return fileStorageService.of(file)
+                    .setPlatform(platform)
                     .thumbnail(256, 256)
                     .setPath(uploadPathPrefix)
                     .setSaveFilename(uploadFilename)
                     .upload();
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("图片上传失败: uploadPathPrefix={}", uploadPathPrefix, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片上传失败");
@@ -70,15 +75,34 @@ public class PictureStorageService {
      * 上传原始文件
      */
     public FileInfo putObject(File file, String uploadPathPrefix, String uploadFilename) {
+        // 任务开始时钉住平台：切换并发时在途上传仍按原配置完成（D20）
+        String platform = requireDefaultPlatform();
         try {
             return fileStorageService.of(file)
+                    .setPlatform(platform)
                     .setPath(uploadPathPrefix)
                     .setSaveFilename(uploadFilename)
                     .upload();
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("文件上传失败: uploadPathPrefix={}", uploadPathPrefix, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败");
         }
+    }
+
+    /**
+     * 解析当前默认平台并拒绝无默认状态。
+     *
+     * <p>双实例竞争或配置缺失不允许出现「不确定用哪个平台」的暧昧状态：
+     * 没有生效平台时上传显式失败，而不是落到未知平台。
+     */
+    private String requireDefaultPlatform() {
+        String platform = fileStorageService.getProperties().getDefaultPlatform();
+        if (platform == null || platform.isBlank()) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "当前没有生效的存储平台，上传被拒绝");
+        }
+        return platform;
     }
 
     /**
