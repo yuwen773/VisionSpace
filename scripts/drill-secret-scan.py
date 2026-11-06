@@ -15,6 +15,7 @@ RULES = [
 FILES = [
     "docs/progress/46-maintenance-window-drill.md",
     "scripts/drill-isolated-run.py",
+    "scripts/drill-secret-scan.py",
     "sql/migrations/2026-11-05-maintenance-window-blocklist.sql",
     "sql/migrations/maintenance-window.manifest.json",
     "src/test/java/com/yuwen/visionspace/acceptance/MaintenanceWindowDrillTest.java",

@@ -244,12 +244,24 @@ class MaintenanceWindowDrillTest {
         assertEquals(callsBefore, recorder.calls().size(),
                 "生成脱敏清单不得读取源站对象：零未授权副作用");
         List<Map<String, Object>> summary = blocklistSection(blocklist, 6);
+        Map<String, Long> summaryCounts = new LinkedHashMap<>();
         for (Map<String, Object> row : summary) {
             for (Object value : row.values()) {
                 assertFalse(String.valueOf(value).contains("https://"),
                         "清单输出不得泄露源站地址: " + row);
             }
+            summaryCounts.put(String.valueOf(row.get("dimension")),
+                    ((Number) row.get("blockingCount")).longValue());
         }
+        // M3 阻断项必须在汇总里给出可读计数；BLOCKING 维度全为零才允许放行。
+        for (String dimension : List.of("unknown-ownership", "duplicate-valid-space",
+                "unrecoverable-state", "unresolved-compensation", "quota-deviation", "event-backlog")) {
+            assertTrue(summaryCounts.containsKey(dimension), "汇总缺少 M3 阻断维度 " + dimension);
+        }
+        assertEquals(0L, summaryCounts.getOrDefault("quota-deviation", 0L),
+                "脱敏快照不应残留配额偏差");
+        assertEquals(0L, summaryCounts.getOrDefault("event-backlog", 0L),
+                "脱敏快照不应残留事件积压");
         assertNoRawUrlsOrSecrets("2026-11-05-maintenance-window-blocklist.sql");
 
         assertEquals(before, backupLedger(), "盘点前后行数不变（只读）");
@@ -282,15 +294,23 @@ class MaintenanceWindowDrillTest {
         assertThrows(Exception.class,
                 () -> runDelivered("2026-10-25-space-uniqueness-quota-backfill.sql"),
                 "重复有效空间必须阻断回填");
-        closeWindowAfterBlockedRollback();
         assertEquals(spacesBefore, countRows("space"), "阻断后一行不删、不合并");
         assertEquals(0L, countRowsWhere(renamed("space"), "activeKey IS NOT NULL"),
                 "阻断后不得写入任何占位键");
         assertTrue(tableExists(GUARDS.get(0)), "被阻断时守卫表留库供人工核对");
 
-        // 跨领域清单把四类冲突全部报出，且只输出脱敏值。
+        // 跨领域清单把四类冲突全部报出，且只输出脱敏值。明细里的重复空间按
+        // ownerHashPrefix 分组，不泄露原始 userId，仍可人工按组内 id 回查。
         String blocklist = Files.readString(
                 MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"), StandardCharsets.UTF_8);
+        List<Map<String, Object>> duplicateSpaces = blocklistSection(blocklist, 2);
+        assertFalse(duplicateSpaces.isEmpty(), "重复有效空间必须进入脱敏清单");
+        assertTrue(duplicateSpaces.stream().allMatch(row -> row.containsKey("ownerHashPrefix")
+                        && !row.containsKey("userId")
+                        && String.valueOf(row.get("ownerHashPrefix")).matches("[0-9a-f]{12}")),
+                "重复空间只能输出归属摘要前缀，不得泄露原始 userId: " + duplicateSpaces);
+        assertTrue(duplicateSpaces.stream().map(row -> row.get("ownerHashPrefix")).distinct().count() == 1,
+                "同一归属的重复空间必须能按摘要前缀归为一组: " + duplicateSpaces);
         List<Map<String, Object>> blocking = blocklistSection(blocklist, 6);
         assertTrue(blocking.size() >= 4, "四类阻断维度都要出现在汇总里: " + blocking);
         Map<String, Long> counts = new LinkedHashMap<>();
@@ -324,17 +344,20 @@ class MaintenanceWindowDrillTest {
         assertThrows(Exception.class,
                 () -> runDelivered("2026-10-25-space-uniqueness-quota-rollback.sql"),
                 "未收敛清理任务必须阻断空间回滚");
+        // 守卫失败后编排自行落回停写；为独立验证第二条守卫，重新模拟一次 M7 批准。
+        openWindowForDrill();
         assertThrows(Exception.class,
                 () -> runDelivered("2026-10-23-private-resource-protection-rollback.sql"),
                 "未解除隔离必须阻断私有资源回滚");
-        // 两次守卫失败后编排重新落回停写：不自动续跑、不恢复写入。
-        closeWindowAfterBlockedRollback();
-
+        // 两次守卫失败后编排落回停写完全由编排器负责，测试不再手动置位。
         assertTrue(tableExists(renamed("storage_cleanup_task")), "阻断后清理任务表仍在，事实不丢");
         assertTrue(columnExists(renamed("space"), "activeKey"), "阻断后 activeKey 列不删");
         assertTrue(tableExists(renamed("resource_isolation")), "阻断后隔离表仍在");
-        // 无法安全回退时保持维护状态：不自动续跑、不恢复写入。
-        assertTrue(writesPaused, "阻断场景必须保持停写/维护状态");
+        // 无法安全回退时保持维护状态：用行为断言证明闸门确实关闭，而不是读一个刚被
+        // 手动置位的布尔值。阻断后再发起任何迁移步骤都必须被拒绝，编排不自动续跑。
+        assertThrows(IllegalStateException.class,
+                () -> runStepUnderGate("2026-10-25-space-uniqueness-quota-backfill.sql"),
+                "阻断后编排保持停写，后续迁移步骤必须被拒绝，不自动续跑/不恢复写入");
     }
 
     // ------------------------------------------------------------------
@@ -532,7 +555,14 @@ class MaintenanceWindowDrillTest {
             throw new IllegalStateException("维护窗口停写：迁移步骤未获人工批准，拒绝执行 " + file);
         }
         // 在单一连接上按原文执行现成脚本：会话变量 / PREPARE / DELIMITER 与 mysql CLI 一致。
-        runScript(MIGRATIONS.resolve(file), true);
+        try {
+            runScript(MIGRATIONS.resolve(file), true);
+        } catch (RuntimeException blocked) {
+            // 守卫（CHECK 约束）失败时编排落回停写，等待 M7 重新批准；不自动续跑。
+            // 这样「无法安全回退时保持维护状态」是编排器的真实行为，而非测试手动置位。
+            writesPaused = true;
+            throw blocked;
+        }
     }
 
     /**
@@ -541,11 +571,6 @@ class MaintenanceWindowDrillTest {
      */
     private void openWindowForDrill() {
         writesPaused = false;
-    }
-
-    /** 守卫阻断后不自动续跑：编排落回停写，等待 M7 重新批准。 */
-    private void closeWindowAfterBlockedRollback() {
-        writesPaused = true;
     }
 
     /** 在单一连接上按原文执行现成脚本：会话变量 / PREPARE / DELIMITER 与 mysql CLI 一致。 */
@@ -758,11 +783,6 @@ class MaintenanceWindowDrillTest {
         jdbc.execute("CREATE TABLE `" + renamed("storage_switch_confirm") + "` ("
                 + " version bigint NOT NULL, instanceId varchar(64) NOT NULL, confirmTime datetime DEFAULT CURRENT_TIMESTAMP,"
                 + " PRIMARY KEY (version, instanceId))");
-        jdbc.execute("CREATE TABLE `picture_file_drill_46` ("
-                + " id bigint NOT NULL PRIMARY KEY, ownerUserId bigint NOT NULL, pictureId bigint NULL,"
-                + " purpose varchar(32) NOT NULL, kind varchar(16) NOT NULL, platform varchar(32) NOT NULL,"
-                + " objectKey varchar(768) NOT NULL, url varchar(1024) NULL, status int NOT NULL DEFAULT 1,"
-                + " deleteState int NOT NULL DEFAULT 0)");
     }
 
     private void insertSpace(long id, long userId, int spaceType, int isDelete) {
@@ -843,7 +863,7 @@ class MaintenanceWindowDrillTest {
             jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
         }
         for (String table : List.of("feedback_attachment_archive_drill_46",
-                "user_preference_rollback_archive_drill_46", "picture_file_drill_46")) {
+                "user_preference_rollback_archive_drill_46")) {
             jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
         }
         for (String guard : GUARDS) {

@@ -11,6 +11,7 @@ processes. It never reads existing MySQL/Redis config and never uses 3306/6379.
 import argparse
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -235,6 +236,15 @@ def main():
                 proc.kill()
             out.close()
             err.close()
+        # The initialized MySQL datadir is hundreds of MB; without removing it every
+        # drill/--full run leaks a full datadir into %TEMP% and the next
+        # mysqld --initialize-insecure fails with "Disk is full" (same failure mode
+        # as the sibling acceptance.ps1 temp dirs). Logs/reports are small and are
+        # kept as evidence, so drop only the datadir once mysqld has fully stopped.
+        try:
+            shutil.rmtree(data_dir, ignore_errors=True)
+        except Exception:
+            pass
     sys.exit(exit_code)
 
 

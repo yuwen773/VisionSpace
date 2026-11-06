@@ -11,7 +11,7 @@
   },
   "phases": ["BACKUP", "PAUSE_WRITES", "MIGRATE", "RECONCILE", "RESUME", "ROLLBACK_REHEARSAL", "RE_DEPLOY"],
   "window": {
-    "backup": "逐表记录行数与校验和形成备份台账；回滚演练自同一台账恢复，不依赖未验证的外部备份",
+    "backup": "隔离演练逐表记录行数形成备份台账；回滚演练自同一台账恢复，不依赖未验证的外部备份。真实环境必须另有逐表校验和与独立实例还原证据（M1），演练台账不宣称等价",
     "pause": "演练用停写闸门表达维护窗口：闸门关闭时任何写入步骤都被拒绝；真实环境由运维停止全部实例、定时任务与其他写入方",
     "resume": "只有核对全部通过、人工批准后才允许恢复写入；冲突未处置时保持维护状态，不自动续跑"
   },
@@ -82,7 +82,8 @@
     "environment": "RecordingStorageConfiguration 录制的受控存储替身 + 隔离 Redis；不连接真实 COS/OSS/MinIO 或 CDN",
     "assertion": "旧源站地址只作为脱敏摘要登记；contentUrl 对无资源记录的存量图返回 null；直接按 URL 读取/删除只匹配本人精确记录，未授权零调用",
     "controlledCacheCheck": "RecommendCacheManager.invalidateRecommendCache() 在隔离 Redis 上删除全部 recommend:* 键；失效后无残留，撤权后 contentUrl 仍返回 null，残留缓存不会让私人直链复活",
-    "notCovered": "真实桶 ACL、CDN 缓存、公网可达性、浏览器历史副本、本地 Caffeine 多实例一致性；这些必须在 M4/M5 由真实环境证据闭环"
+    "inventorySummary": "跨领域清单第 6 节给出 M3 的六类 BLOCKING 计数（含配额偏差、事件积压）与 HOLD 核对计数；BLOCKING 任一非零即保持停写，HOLD 只核对不得清零",
+    "notCovered": "真实桶 ACL、CDN 缓存、公网可达性、浏览器历史副本、本地 Caffeine 多实例一致性、逐表校验和与生产规模备份还原；这些必须在 M1/M4/M5 由真实环境证据闭环"
   },
   "productionAcceptance": "NOT_RUN"
 }

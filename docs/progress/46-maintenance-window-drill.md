@@ -48,10 +48,10 @@
 | `MaintenanceWindowManifestTest`（`mvn -Dtest=MaintenanceWindowManifestTest test`，无需隔离库） | PASS：7/7，0 失败/错误/跳过 |
 | `MaintenanceWindowDrillTest`（`scripts/drill-isolated-run.py`，真实隔离 MySQL/Redis + 完整 Spring 上下文） | PASS：7/7，0 失败/错误/跳过；最终轮见下方完整门禁记录 |
 | 本票用例 + 全部 7 个既有迁移用例同轮串行 | PASS：44/44，0 失败/错误/跳过（无表名/守卫/归档互相污染） |
-| 完整后端门禁 `mvn verify`（`--full`，真实第二 JVM 共享同一隔离库） | 最终轮 PASS：669/669，0 失败/错误/跳过，打包成功，用时 2m59s |
-| 秘密扫描（按 `scripts/secret-scan.ps1` 六条规则复核本票新增 6 个文件） | PASS：0 命中；`scripts/drill-secret-scan.py` 为等价的跨平台复核入口 |
+| 完整后端门禁 `mvn verify`（`--full`，真实第二 JVM 共享同一隔离库） | 最终轮 PASS：669/669，0 失败/错误/跳过，打包成功，用时 3m03s |
+| 秘密扫描（按 `scripts/secret-scan.ps1` 六条规则复核本票文件） | PASS：0 命中；`scripts/drill-secret-scan.py` 为等价的跨平台复核入口；`secret-scan.ps1` 的 `Include` 补上 `*.py` |
 | 隔离身份 | 每轮随机 nonce、随机端口（>10000）、专用库 `vs_acceptance_<nonce>`、专用账号；连接前只读核对 `@@datadir` 与本轮目录一致；MySQL/Redis 实例标记均校验 |
-| 清理 | 每轮 MySQL 收到 `SHUTDOWN`，`mysql-error.log` 记录 `Shutdown complete`；第二实例收到 stop 文件自行退出；`wmic` 核对无 `visionspace-drill-*` 关联残留 mysqld 与 `VipSecondInstanceMain` 进程；临时目录用后清理 |
+| 清理 | 每轮 MySQL 收到 `SHUTDOWN`，`mysql-error.log` 记录 `Shutdown complete`；第二实例收到 stop 文件自行退出；`wmic` 核对无 `visionspace-drill-*` 关联残留 mysqld 与 `VipSecondInstanceMain` 进程；runner 在 `finally` 删除数百 MB 的初始化 datadir，只保留小体积日志/报告 |
 | 复跑入口 | `python -I scripts/drill-isolated-run.py --mysql-bin '<MySQL bin>' --redis-bin '<Redis bin>' --test MaintenanceWindowDrillTest`；完整后端用 `--full` |
 
 红→绿过程如实保留：首轮 6 条中 3 条失败（清单引用临时归档表、重复插入快照偏好行、阻断汇总子查询未改名），
@@ -121,7 +121,33 @@ ADR 0003）。
   与 manifest 的 `controlledCacheCheck`，把 34.5 的「受控缓存环境」落到真实隔离 Redis 执行。
 - `CONTEXT.md` 术语在非引用性文案里统一为「VIP 权益 / 已暴露兑换码」；验收项 34.2/34.4 保留工单原文。
 
-评审后同轮复跑：本票 + 7 个既有迁移用例 **44/44 PASS**；最终完整门禁见下方。
+评审后同轮复跑：本票 + 7 个既有迁移用例 **44/44 PASS**；最终完整门禁见上方。
+
+## PR #73 的 `/code-review` 补记
+
+针对 PR 的 10 项发现，逐一处理如下：
+
+- **runner 泄漏 datadir**：`finally` 里在进程停止后 `shutil.rmtree(data_dir)`，只保留小体积日志/报告，
+  避免 `%TEMP%` 的数百 MB datadir 攒满 C 盘。
+- **等价扫描漏扫自身**：`drill-secret-scan.py` 的 `FILES` 补上自己；`secret-scan.ps1` 的 `Include`
+  补上 `*.py`，使两个扫描器覆盖本票新增的 Python 文件。
+- **维护状态断言恒真**：删掉测试手动置位，改由 `runStepUnderGate` 在守卫失败时自行落回停写；
+  用「阻断后再发起迁移必须被拒绝」的行为断言替代读布尔值。
+- **死表 / 清单完整性**：删除无人引用的 `picture_file_drill_46`；manifest 用例补齐 M1–M8 与
+  六类 `riskReopenInvariants` 的逐项校验。
+- **M3 阻断项不完整**：跨领域清单第 6 节补上 `quota-deviation`、`event-backlog` 两个 BLOCKING 计数；
+  「不得复活」明确为 HOLD 核对项（不得清零）；重复空间明细用 `ownerHashPrefix` 分组，
+  既脱敏又能人工按组归类；测试逐维度断言。
+- **备份台账口径**：manifest 把「行数与校验和」改为「隔离演练逐表行数台账」，逐表校验和与
+  生产规模还原明确归入 M1 的真实环境证据，不把演练台账说成等价。
+- **受控资源记录写在引导库真实表**：这是 `contentUrl` 必须经 `pictureFileService` 读真实
+  `picture_file` 的既有架构约束；测试用唯一哑值 id 且 `dropScratch()` 前后清理，
+  与 7 个既有迁移用例同轮 44/44 无污染。重定向到改名表需改生产服务，不在本票范围。
+- **第 8 份 `statements()` / `rename()` 重复**：属 7 个既有迁移测试的共同约定，
+  抽公共 helper 要改 7 个类，超出本 PR 范围，保留。
+
+复跑：定向 **44/44 PASS**、完整后端门禁 **669/669 PASS**（3m03s、打包成功）、
+秘密扫描 **0 命中**、Java/Python 编译通过。
 
 ## 已知取舍
 

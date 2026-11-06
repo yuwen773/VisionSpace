@@ -186,9 +186,25 @@ class MaintenanceWindowManifestTest {
             assertTrue(gate.path("approver").asText().length() > 0, gate.path("id").asText() + " 必须指定批准角色");
         }
         assertEquals(ids.size(), new HashSet<>(ids).size(), "人工批准点编号不得重复");
-        assertTrue(ids.size() >= 6, "真实环境的精确检查清单至少覆盖桶 ACL、CDN、缓存、旧地址、凭据与回滚放行");
+        for (String required : List.of("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8")) {
+            assertTrue(ids.contains(required), "人工批准点缺少 " + required);
+        }
         assertTrue(root.path("productionAcceptance").asText("").equals("NOT_RUN"),
                 "本票不得把隔离演练表述为生产验收完成");
+
+        // 六类「不重新开放风险」不变量是 M7 放行前必须逐条核对的安全事实，同样不能
+        // 被悄悄删掉或写空断言；与人工批准点一起纳入同一完整性用例。
+        List<String> invariantIds = new ArrayList<>();
+        for (JsonNode invariant : root.path("riskReopenInvariants")) {
+            invariantIds.add(invariant.path("id").asText());
+            assertTrue(invariant.path("assertion").asText("").length() > 0,
+                    invariant.path("id").asText() + " 必须给出不重新开放风险的断言");
+        }
+        assertEquals(invariantIds.size(), new HashSet<>(invariantIds).size(), "风险不变量编号不得重复");
+        for (String required : List.of("exposedCodes", "revokedGrants", "oldSecrets",
+                "privateDirectLinks", "quarantine", "unrecoverableState")) {
+            assertTrue(invariantIds.contains(required), "风险不变量缺少 " + required);
+        }
     }
 
     private static List<String> textList(JsonNode array) {

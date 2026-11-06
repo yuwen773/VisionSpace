@@ -5,7 +5,7 @@
 [CmdletBinding()]
 param(
     [string]$Root = (Split-Path $PSScriptRoot -Parent),
-    [string[]]$Include = @('*.yml', '*.yaml', '*.properties', '*.env', '*.example', '*.json', '*.md', '*.xml', '*.java', '*.ts', '*.sql')
+    [string[]]$Include = @('*.yml', '*.yaml', '*.properties', '*.env', '*.example', '*.json', '*.md', '*.xml', '*.java', '*.ts', '*.sql', '*.py')
 )
 
 $ErrorActionPreference = 'Stop'
