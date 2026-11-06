@@ -5,19 +5,26 @@
 [CmdletBinding()]
 param(
     [string]$Root = (Split-Path $PSScriptRoot -Parent),
-    [string[]]$Include = @('*.yml', '*.yaml', '*.properties', '*.env', '*.example', '*.json', '*.md', '*.xml', '*.java', '*.ts', '*.sql', '*.py')
+    # 默认扫描所有文本文件，只排除已知二进制类型；扩展名白名单会让新增文件类型静默漏扫。
+    [string[]]$Exclude = @('*.png', '*.jpg', '*.jpeg', '*.gif', '*.ico', '*.webp', '*.pdf',
+                          '*.jar', '*.class', '*.zip', '*.gz', '*.woff', '*.woff2', '*.ttf',
+                          '*.eot', '*.otf', '*.mp4', '*.mp3', '*.wav', '*.xlsx', '*.docx', '*.pyc')
 )
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
-# 规则只匹配"像真实凭据"的形态，不匹配占位说明与测试假值。
+# 规则只匹配"像真实凭据"的形态，不匹配占位说明、测试假值与表达式引用。
+# 口令分两条：带引号的字面量（最常见泄漏形态），以及不带引号但必须是字面量、
+# 不能是变量/常量/cmdlet/属性访问等表达式。
+$placeholder = 'your_|example|placeholder|xxx|changeme|acceptance|test'
 $rules = @(
     @{ Name = 'private-key-block'; Pattern = '-----BEGIN [A-Z ]*PRIVATE KEY-----' },
     @{ Name = 'aliyun-access-key-id'; Pattern = 'LTAI[0-9A-Za-z]{12,}' },
     @{ Name = 'aws-access-key-id'; Pattern = '(AKIA|ASIA)[0-9A-Z]{16}' },
     @{ Name = 'dashscope-or-openai-key'; Pattern = 'sk-[A-Za-z0-9_.-]{24,}' },
-    @{ Name = 'hardcoded-password'; Pattern = '(?i)\b(password|passwd)\s*[:=]\s*["'']?(?!\$\{|your_|example|placeholder|xxx|changeme|acceptance|test)[^\s"''#]{8,}' },
+    @{ Name = 'hardcoded-password-quoted'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*[""'](?!(?:$placeholder))[^""'\s]{8,}[""']" },
+    @{ Name = 'hardcoded-password-bare'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*(?!\$\{|[""']|\$|(?-i:[A-Z_]{2,})\b|Get-|Set-|New-|Read-|Write-|ConvertTo-|ConvertFrom-|Select-|Where-|ForEach-|Invoke-|env\.|process\.|System\.|require\(|import\s|$placeholder)[^\s""'#,;{}()\[\]]{8,}" },
     @{ Name = 'hardcoded-api-key'; Pattern = '(?i)\b(api[-_]?key|secret[-_]?key|access[-_]?key)\s*[:=]\s*["'']?(?!\$\{|your_|example|placeholder|xxx|changeme|acceptance|test)[^\s"''#]{16,}' }
 )
 
@@ -42,11 +49,11 @@ try {
     Pop-Location
 }
 
-$extensions = $Include | ForEach-Object { $_.TrimStart('*') }
+$excluded = $Exclude | ForEach-Object { $_.TrimStart('*') }
 $files = $candidates |
     Where-Object {
         $_ -notmatch '[\\/](node_modules|target|\.git|\.worktrees)[\\/]' -and
-        $extensions -contains ([IO.Path]::GetExtension($_))
+        $excluded -notcontains ([IO.Path]::GetExtension($_).ToLowerInvariant())
     } |
     ForEach-Object { Get-Item -LiteralPath (Join-Path $Root $_) -ErrorAction SilentlyContinue } |
     Where-Object { $_ -ne $null }

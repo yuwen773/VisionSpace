@@ -91,7 +91,9 @@ Multi-layered architecture with cross-cutting managers:
 - **Shell paths** — Git Bash `/tmp` is `%TEMP%`. Tools that are not Git Bash (gh, pwsh, docker) need the Windows path: pass `$TEMP/x.md`, not `/tmp/x.md`.
 - **Jakarta EE imports** — Use `jakarta.*` not `javax.*` (Spring Boot 3)
 - **Commit style** — Use `git-commit-cn` skill for Chinese conventional commits
-- **Feature development** — Create a worktree, PR to `main`, never commit directly
+- **Feature development** — Create a worktree, PR to `main`, never commit directly. Fetch `origin main` first: local `main` is often stale; base the worktree on `origin/main`.
+- **Worktree test runs** — The worktree shell guard blocks `pwsh`/`cmd`. Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated MySQL/Redis and removes its datadir on exit.
+- **Before code review** — Run `python -I scripts/tests/check-review-target.py`; commit first so the review sees HEAD, not a stale index. Judgment-call standards are in `CODING_STANDARDS.md`.
 - **Design docs** — Plans saved to `docs/plans/` (gitignored, use `git add -f`)
 - **API regeneration** — After backend endpoint changes, run `npm run openapi2ts` in frontend
 
