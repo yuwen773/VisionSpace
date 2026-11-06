@@ -162,3 +162,85 @@ ADR 0003）。
 - **不重复建设第二套验收框架。** 沿用 `@IsolatedSpringBootTest`、语句切分/单一连接执行、
   录制型存储替身与各业务票既有约定；`scripts/drill-isolated-run.py` 只是单类复跑的隔离环境入口，
   不替代 `scripts/acceptance.ps1` 的完整门禁。
+
+## PR #73 合并后的 #46 收尾
+
+基线：`aaccbe0`；分支：`codex/46-acceptance-followup`。
+
+- 跨领域清单的 `quota-deviation` 明细与 BLOCKING 汇总同时核对 `totalCount` 和
+  `totalSize`，排除逻辑删除图片及无空间归属图片；负容量也阻断。此前数量正确时会漏掉容量偏差。
+- `event-backlog` 与 #38 已交付清单采用相同的有效图片口径，逻辑删除图片的未处理事件也按孤儿事件阻断。
+- 既有回滚演练增加旧资源 `platform` / `objectKey` 的实际数据库前后对账，以及零存储调用断言，
+  覆盖回滚与重新部署两个检查点。使用隔离库中的哑值，不连接真实存储。
+
+真实环境 M1–M8 继续保持 NOT_RUN，由 #29/#48 的
+实际执行证据闭环；#46 的隔离演练通过不代表生产迁移、凭据轮换或发布放行通过。
+
+### 2026-11-06 收尾验证
+
+| 检查 | 本轮实际结果 |
+| --- | --- |
+| 容量漏报红→绿 | 原 SQL 预期明细 `[9001, 9002]`、实际 `[]`；修复后单用例 PASS |
+| 逻辑删除事件漏报红→绿 | 原 SQL 预期 BLOCKING=1、实际 0；修复后单用例 PASS |
+| 原平台对账红→绿 | 原风险快照缺失资源定位；补入实际数据库读取后，回滚与重新部署的定位及安全状态对账 PASS，零存储调用 |
+| #46 定向 | `MaintenanceWindowDrillTest` 9/9 + `MaintenanceWindowManifestTest` 7/7，0 失败/错误/跳过 |
+| 完整后端 | `scripts/acceptance.ps1` 原生隔离 MySQL/Redis + 真实第二 JVM：671/671，0 失败/错误/跳过，打包成功 |
+| 脚本、扫描与隔离 | runner-tests、secret-scan、isolation、cleanup 均 PASS；本轮隔离进程退出后删除自有 datadir，保留日志与报告 |
+| 前端重跑 | install、lint、format、typecheck、测试 186/186、build、API contract 全部 PASS |
+| 双轴审查 | Standards 0 项，Spec 0 项；固定基线 `aaccbe0`，审查本轮未提交 diff |
+
+完整入口首次因本机 npm 缓存目录 EPERM 在 frontend-install 退出 1，原报告保持原状；
+改用本次进程的可写临时缓存后，只重跑上述前端步骤，没有重复跑已通过的完整后端。
+原始报告：`target/acceptance/3beadc861c974455a21c0bdcc57374bc/summary.json`；
+前端重跑报告：同目录 `frontend-retry-summary.json`。
+
+验收时为 `aaccbe0` 上的未提交工作区，原报告中的 `head` 是基线，不冒充最终提交。
+实际验收源文件 SHA-256：
+
+- `2026-11-05-maintenance-window-blocklist.sql`：`8afaae5081a80c8c4c62ec95b115203d12ca0ac5caa6238fb9ad23f09fdfaa61`
+- `MaintenanceWindowDrillTest.java`：`0fc7daf3b0fb824e9da539ea63ccc61f0c9c32fc678246d2b4e93c23b1bdd3ba`
+
+## 合并 #74 护栏后的复核（2026-11-06 推进 PR #75）
+
+本 PR 的 CI 在 #74（仓库护栏）合入 `main` 之前跑完，因此新落地的
+`check-repo-hygiene.py` / `check-review-target.py` / `verify-secret-scan.py` /
+`CODING_STANDARDS.md` 从未针对本 PR 的树执行。本次把 `origin/main`（`deb8f12`）
+合入 PR 分支（合并提交 `b4b2c80`，无冲突），在下表所列的合并后 HEAD 上重跑门禁。
+净 diff 仍是本 PR 的三个文件，未改写业务代码。
+
+| 检查 | 合并后 HEAD 的实际结果 |
+| --- | --- |
+| 护栏（本地直跑） | `check-repo-hygiene.py` PASS；`check-review-target.py` PASS；`verify-secret-scan.py` `RULES=7 SCANNED=805 HITS=0` |
+| 真实秘密扫描 | `pwsh -File scripts/secret-scan.ps1`：803 个候选文件 0 命中 |
+| #46 定向 | `drill-isolated-run.py --test 'MaintenanceWindowDrillTest,MaintenanceWindowManifestTest'`：16/16（9+7），0 失败/错误/跳过，`exit=0` |
+| 完整后端 | `acceptance.ps1` 原生隔离 MySQL/Redis + 真实第二 JVM：671/671，0 失败/错误/跳过，`head=b4b2c80` |
+| 脚本、扫描、隔离、清理 | runner-tests / secret-scan / isolation / cleanup 均 PASS |
+| 前端 | `frontend-install` 仍因本机 npm 缓存目录 EPERM 在完整入口内 FAIL（后续级联 BLOCKED_ENV）；指定进程内可写 `npm_config_cache` 后单独重跑 install、lint、format、type-check、测试 186/186、build、API contract 全部 PASS |
+
+完整入口报告：`target/acceptance/1c67af9017284753b70674bb0df80667/summary.json`
+（`head=b4b2c80`）。前端 FAIL 与上一节首轮同一根因，是本机 Windows npm 缓存路径的
+EPERM，不是代码回归；CI 的 `acceptance` 在 `ubuntu-24.04` 上用自带缓存执行并通过。
+本机以 `native-explicit` 模式验收，不是容器实测；容器证据由 CI 的 `container` job 提供。
+真实环境 M1–M8、凭据轮换、桶 ACL/CDN、生产迁移及发布放行仍为 NOT_RUN。
+
+### 双轴审查（对合并后 HEAD，非阻塞）
+
+对 `git diff origin/main...HEAD`（净三文件）做 Standards / Spec 双轴审查。
+两处 SQL 修复与 #37 配额清单、`#38` B 类孤儿事件清单的已交付口径一致，SQL 本身无正确性阻塞项。
+以下为已确认但未在本票改动的证据强度限制，留待后续工单处理，不冒充已通过：
+
+- 旧资源 `platform` / `objectKey` 对账是「前后读回同一行」的等值断言；本次回放的四份回滚脚本
+  都不改写 `picture_file` 的这两个字段（`#35` 回滚注释明确声明保留资源记录），因此该断言
+  证明的是「本演练所回放脚本不改写定位」，不能证伪「某个会改写定位的脚本」。证据强度按此理解，
+  不表述为覆盖所有回滚路径。
+- `event-backlog` 汇总子查询与 `#38` 交付清单各写一份有效图片口径，没有单一事实来源；
+  口径若变，两处需同步。跨领域清单是汇总计数、各域清单是分类明细，二者目前靠人工对齐。
+- `SUM(picSize)` 忽略 NULL：`picSize` 可空（沿用 #37 已交付口径）。单独在本票补
+  `COALESCE` 会与 #37 口径产生新的漂移，因此不在本票改动，需与 #37 一起处理。
+- 新增两个用例证明「清单报出偏差」，未把非零 BLOCKING 回灌编排闸门证明「偏差阻断迁移」；
+  34.3 的阻断行为由既有 `unresolvedConflictsProduceADesensitizedListAndBlockTheMigration`
+  等用例覆盖其它维度，本票新增维度未单独回灌。
+- 新增用例以 `SELECT *` 前后等值做零副作用断言，弱于录制型替身的 `recorder.calls()` 行为断言；
+  且对账读取引导库真实 `picture_file`（哑值 `88002`），依赖串行执行与 `dropScratch()` 清理。
+- 早期小节仍写 `7/7`、`44/44`、`669/669`（PR #73 当时口径），与本节 `9/9`、`16/16`、
+  `671/671` 是不同批次的历史记录；数字差异来自本票新增两个用例，不是同一轮的矛盾结论。
