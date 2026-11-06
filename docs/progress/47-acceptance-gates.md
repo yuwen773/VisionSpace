@@ -63,4 +63,10 @@ GitHub 对 hosted generic patterns 有[仓库类型/产品范围限制](https://
 
 初步完整扫描命中 125 条包-公告记录（18 CRITICAL、107 HIGH；不是独立 CVE 数），涉及既有 Spring/MCP/Tomcat/Tika 等依赖，包含主版本迁移和无修复版本项。保留真实失败，不抑制旧风险、不把安全扫描连通失败算作干净。该计数对应本轮本地依赖快照；漏洞库更新后可能变化，以新生成的脱敏公告清单为准。
 
-完整候选执行、最终候选版本、容器运行结果及双轴评审将在实际执行后补记；当前不宣称全量自动矩阵或远程 CI PASS。
+初轮完整候选 `74cd6c2` 实际执行：672 条后端中 1 条租约断言失败；runner 出口和生成目录 lint 失败；浏览器全部通过；容器因 Docker Hub 获取构建基镜像时 EOF 而 BLOCKED_ENV；秘密扫描通过、依赖扫描失败。保留该轮 `.srf-runs/final/6a1cd14590fe47c18ffa5672599242d1/`，不能提升为 PASS。
+
+双轴评审发现并修正：从 manifest 派生关卡并校验 workflow 同步；将 Docker 适配器回归接入 runner 清单；移除本次产生的旧不可达 Docker 分支；使用唯一运行 ID（Actions 同时包含 run attempt）、清除旧 summary，并让真实子进程失败覆盖报告状态；在启动边界移除继承的应用/JVM配置覆盖，明确固定数据库、Hikari 与 Redis URL 别名，以及受控模型配置。CI 原始诊断留在 runner 临时文件，不进入控制台或 artifacts。
+
+首轮失败另有三项已定位：脚本负向夹具遗留的 native exit code 通过显式成功出口修正；`dist-harness` 作为生成产物加入 ESLint 忽略；同一隔离 MySQL、无第二实例的受控时区复现中，上海 JVM 失败而 UTC JVM 通过，因此将验收 JVM 固定为 UTC。Docker 基镜像重试拉取成功，仍须重跑容器验证才能判定。
+
+修正后的完整候选执行、最终版本及评审复核将在实际执行后补记；当前不宣称全量自动矩阵或远程 CI PASS。

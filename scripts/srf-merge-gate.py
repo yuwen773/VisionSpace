@@ -2,8 +2,9 @@
 import json
 import os
 import sys
+from pathlib import Path
 
-REQUIRED_JOBS = ("acceptance", "browser", "container", "security", "evidence")
+REQUIRED_JOBS = (*json.loads(Path(__file__).with_name("srf-matrix.json").read_text(encoding="utf-8"))["gates"], "evidence")
 
 
 def main():
@@ -17,7 +18,7 @@ def main():
         print("BLOCKED_ENV: required job results are unavailable or malformed")
         return 2
     # Print only our fixed check names. Never echo arbitrary job outputs or input.
-    if blocked:
+    if blocked or any(not isinstance(value, dict) or value.get("result") != "success" for value in jobs.values()):
         print("FAIL: required checks: " + ", ".join(blocked))
         return 1
     print("PASS: all required engineering checks succeeded; production release remains BLOCKED")

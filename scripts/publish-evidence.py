@@ -22,7 +22,7 @@ def project(value):
     for key in ("head", "candidate"):
         if re.fullmatch(r"[a-f0-9]{40}", str(value.get(key, ""))):
             out[key] = value[key]
-    if re.fullmatch(r"local|[0-9]+", str(value.get("runId", ""))):
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,80}", str(value.get("runId", ""))):
         out["runId"] = value["runId"]
     if value.get("infrastructure") in {"docker", "native-explicit"}:
         out["infrastructure"] = value["infrastructure"]

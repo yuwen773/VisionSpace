@@ -31,7 +31,6 @@ $runDir = Join-Path ([IO.Path]::GetTempPath()) "visionspace-browser-$nonce"
 $database = "vs_browser_$nonce"
 $results = [ordered]@{}
 $ownedProcesses = @()
-$ownedContainers = @()
 $environmentNames = @(
     'VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD',
     'VS_E2E_API_TARGET', 'VS_E2E_HTTPS_CERT', 'VS_E2E_HTTPS_KEY', 'VS_E2E_ARTIFACTS'
@@ -152,7 +151,6 @@ $ddl
 "@
     $bootstrapPath = Join-Path $runDir 'bootstrap.sql'
     [IO.File]::WriteAllText($bootstrapPath, $bootstrap, [Text.UTF8Encoding]::new($false))
-    if ($MySqlBin) {
         if (-not $IsWindows) { throw 'Native binaries mode requires Windows.' }
         $mysqld = Join-Path $MySqlBin 'mysqld.exe'
         $mysql = Join-Path $MySqlBin 'mysql.exe'
@@ -173,22 +171,6 @@ $ddl
         if ($LASTEXITCODE -ne 0) { throw 'FAIL: isolated schema bootstrap failed.' }
         & $redisCli -h 127.0.0.1 -p $redisPort -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
         if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
-    } else {
-        & docker info *> (Join-Path $runDir 'docker-info.log')
-        if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: Docker engine unavailable. Provide MySqlBin/RedisBin on Windows.' }
-        $mysqlContainer = "vs-browser-mysql-$nonce"
-        $redisContainer = "vs-browser-redis-$nonce"
-        $ownedContainers += $mysqlContainer
-        & docker run -d --name $mysqlContainer -p "127.0.0.1:${mysqlPort}:3306" -e "MYSQL_ROOT_PASSWORD=$nonce" --mount "type=bind,source=$bootstrapPath,target=/docker-entrypoint-initdb.d/acceptance.sql,readonly" mysql:8.0.36 *> (Join-Path $runDir 'mysql-container.log')
-        if ($LASTEXITCODE -ne 0) { throw 'MySQL container startup failed.' }
-        $ownedContainers += $redisContainer
-        & docker run -d --name $redisContainer -p "127.0.0.1:${redisPort}:6379" redis:7.2.4 redis-server --requirepass $nonce *> (Join-Path $runDir 'redis-container.log')
-        if ($LASTEXITCODE -ne 0) { throw 'Redis container startup failed.' }
-        Wait-Port $mysqlPort
-        Wait-Port $redisPort
-        & docker exec $redisContainer redis-cli -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
-        if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
-    }
     }
     $results['isolation'] = 'PASS'
 
@@ -201,15 +183,12 @@ $ddl
     } finally { Pop-Location }
     $backendPort = Free-Port
     $backendArgs = @(
+        '-Duser.timezone=UTC',
         '-jar', (Join-Path $repo 'target/vision-space-0.0.1-SNAPSHOT.jar'),
         '--spring.profiles.active=browser',
         "--spring.config.additional-location=file:$(Join-Path $repo 'e2e/application-browser.yml')",
-        "--server.port=$backendPort",
-        "--spring.datasource.url=jdbc:mysql://127.0.0.1:$mysqlPort/$database`?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
-        '--spring.datasource.username=vs_acceptance', "--spring.datasource.password=$nonce",
-        '--spring.data.redis.host=127.0.0.1', "--spring.data.redis.port=$redisPort",
-        "--spring.data.redis.password=$nonce", '--spring.data.redis.database=15'
-    )
+        "--server.port=$backendPort"
+    ) + @(Get-AcceptanceApplicationArguments $mysqlPort $redisPort $database $nonce)
     $java = Resolve-Java
     $backendProcess = Start-Process @processWindow -FilePath $java -ArgumentList $backendArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
     $ownedProcesses += $backendProcess
@@ -273,15 +252,11 @@ $ddl
         }
     }
     if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $results['cleanup'] = 'FAIL' } }
-    foreach ($container in $ownedContainers) {
-        & docker rm -f -v $container *> $null
-        if ($LASTEXITCODE -ne 0) { $results['cleanup'] = 'FAIL' }
-    }
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
 
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
-        runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' })
+        runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') })
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
         results = $results
         logs = $runDir

@@ -40,7 +40,7 @@ try {
 } catch {
     Write-Host 'BLOCKED_ENV: security verification incomplete; raw diagnostics retained locally.'
 } finally {
-    $summary = @{ head = (git rev-parse HEAD); runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }); results = $results; productionAcceptance = 'NOT_RUN' }
+    $summary = @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); results = $results; productionAcceptance = 'NOT_RUN' }
     $reportDir = Join-Path $repo 'target/security-verification'
     New-Item -ItemType Directory -Force $reportDir | Out-Null
     $summary | ConvertTo-Json | Set-Content (Join-Path $reportDir 'summary.json')

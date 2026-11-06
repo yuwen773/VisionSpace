@@ -12,6 +12,7 @@ HEAD = "1" * 40
 
 class EvidenceTest(unittest.TestCase):
     def fixture(self, directory):
+        (directory / "outcomes.json").write_text(json.dumps({gate: "PASS" for gate in POLICY["gates"]}))
         for gate, keys in POLICY["gates"].items():
             path = directory / gate
             path.mkdir()
@@ -20,7 +21,7 @@ class EvidenceTest(unittest.TestCase):
             (directory / "acceptance" / f"TEST-{suite}.xml").write_text(f'<testsuite><testcase classname="{suite}" name="publicBehavior" /></testsuite>')
 
     def run_report(self, directory):
-        result = subprocess.run([sys.executable, "-I", "scripts/srf-evidence.py", "--root", str(directory), "--candidate", HEAD, "--output", str(directory / "report.json")], cwd=ROOT, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-I", "scripts/srf-evidence.py", "--root", str(directory), "--candidate", HEAD, "--run-id", "local", "--output", str(directory / "report.json")], cwd=ROOT, capture_output=True, text=True)
         report = json.loads((directory / "report.json").read_text())
         return result, report
 
@@ -58,6 +59,15 @@ class EvidenceTest(unittest.TestCase):
                     path.write_text(json.dumps(data))
                 result, _ = self.run_report(directory)
                 self.assertEqual(result.returncode, 1)
+
+    def test_command_failure_overrides_successful_report(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            self.fixture(directory)
+            (directory / "outcomes.json").write_text(json.dumps({gate: "FAIL" if gate == "acceptance" else "PASS" for gate in POLICY["gates"]}))
+            result, report = self.run_report(directory)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(report["gates"]["acceptance"], "BLOCKED")
 
 
 if __name__ == "__main__":

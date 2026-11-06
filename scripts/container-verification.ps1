@@ -513,7 +513,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
     $reportDir = Join-Path $repo 'target/container-verification'
     New-Item -ItemType Directory -Force $reportDir | Out-Null
-    @{ head = (git rev-parse HEAD); runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $reportDir 'summary.json')
     if ($results['cleanup'] -ne 'PASS') { exit 1 }
 }

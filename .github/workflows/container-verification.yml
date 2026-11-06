@@ -7,6 +7,9 @@ on:
 permissions:
   contents: read
 
+env:
+  VS_SRF_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
   container:
     runs-on: ubuntu-24.04
@@ -23,7 +26,11 @@ jobs:
       # 端口发布、生效 profile、SQL 日志卫生，以及依赖故障/恢复/重试耗尽。
       - name: Isolated production candidate (build, run, health)
         shell: pwsh
-        run: ./scripts/container-verification.ps1
+        run: |
+          ./scripts/container-verification.ps1 *> "$env:RUNNER_TEMP/srf-container.raw.log"
+          $gateExit = $LASTEXITCODE
+          Write-Host "container exit: $gateExit"
+          exit $gateExit
       - name: Preserve container evidence on success or failure
         if: always()
         run: |

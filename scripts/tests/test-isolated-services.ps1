@@ -20,3 +20,4 @@ try {
     }
 }
 Write-Host 'PASS: isolated service command entry, current schema and owned-resource cleanup'
+exit 0

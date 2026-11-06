@@ -132,19 +132,16 @@ $ddl
     } finally { Pop-Location }
     $backendPort = Free-Port
     $backendArgs = @(
+        '-Duser.timezone=UTC',
         '-Xmx256m', '-Xms128m',
         '-jar', (Join-Path $repo 'target/vision-space-0.0.1-SNAPSHOT.jar'),
         '--spring.profiles.active=browser',
         "--spring.config.additional-location=file:$(Join-Path $repo 'e2e/application-browser.yml')",
         "--server.port=$backendPort",
-        "--spring.datasource.url=jdbc:mysql://127.0.0.1:$mysqlPort/$database`?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
-        '--spring.datasource.username=vs_acceptance', "--spring.datasource.password=$nonce",
-        '--spring.data.redis.host=127.0.0.1', "--spring.data.redis.port=$redisPort",
-        "--spring.data.redis.password=$nonce", '--spring.data.redis.database=15',
         # 协作用短租约与快续期
         '--vision-space.websocket.lease-ttl-seconds=5',
         '--vision-space.websocket.lease-renew-interval-ms=1500'
-    )
+    ) + @(Get-AcceptanceApplicationArguments $mysqlPort $redisPort $database $nonce)
     $java = Resolve-Java
     $backendProcess = Start-Process @processWindow -FilePath $java -ArgumentList $backendArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
     $ownedProcesses += $backendProcess
@@ -256,7 +253,7 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     $results | ConvertTo-Json | Write-Host
     $report = Join-Path $repo 'target/collab-browser'
     New-Item -ItemType Directory -Force $report | Out-Null
-    @{ head = (git rev-parse HEAD); runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = $results; productionAcceptance = 'NOT_RUN' } |
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = $results; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $report 'summary.json')
     if (Test-Path (Join-Path $runDir 'artifacts/browser-results.json')) {
         Copy-Item (Join-Path $runDir 'artifacts/browser-results.json') $report

@@ -6,6 +6,7 @@ import { spawnSync, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -43,5 +44,5 @@ for (const configured of [false, true]) {
     }
   }
 }
-fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify({ head: candidate, runId: process.env.GITHUB_RUN_ID || 'local', results, productionAcceptance: 'NOT_RUN' }, null, 2))
+fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify({ head: candidate, runId: process.env.VS_SRF_RUN_ID || randomUUID(), results, productionAcceptance: 'NOT_RUN' }, null, 2))
 process.exit(Object.values(results).every((result) => result === 'PASS') ? 0 : 1)

@@ -3,6 +3,29 @@ $ErrorActionPreference = 'Stop'
 
 function Set-AcceptanceDockerServices($Services) { $script:DockerServices = $Services }
 
+function Get-AcceptanceApplicationArguments([int]$MySqlPort, [int]$RedisPort, [string]$Database, [string]$Nonce) {
+    # Child processes must not inherit production property overrides or JVM -D options.
+    foreach ($entry in @(Get-ChildItem Env:)) {
+        if ($entry.Name -match '^(SPRING_|VISION_SPACE_|ALIYUNAI_|OPENAI_|DASHSCOPE_|DROMARA_)|^(JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS)$') {
+            [Environment]::SetEnvironmentVariable($entry.Name, $null)
+        }
+    }
+    $jdbc = "jdbc:mysql://127.0.0.1:$MySqlPort/$Database`?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    @(
+        "--spring.datasource.url=$jdbc", '--spring.datasource.username=vs_acceptance', "--spring.datasource.password=$Nonce",
+        "--spring.datasource.hikari.jdbc-url=$jdbc", '--spring.datasource.hikari.username=vs_acceptance', "--spring.datasource.hikari.password=$Nonce",
+        '--spring.data.redis.host=127.0.0.1', "--spring.data.redis.port=$RedisPort", "--spring.data.redis.password=$Nonce", '--spring.data.redis.database=15',
+        "--spring.data.redis.url=redis://:$Nonce@127.0.0.1:$RedisPort/15",
+        '--spring.ai.openai.base-url=http://127.0.0.1:9', '--spring.ai.openai.chat.base-url=http://127.0.0.1:9',
+        '--spring.ai.openai.api-key=acceptance-dummy', '--spring.ai.dashscope.api-key=acceptance-dummy',
+        '--spring.ai.dashscope.base-url=http://127.0.0.1:9', '--spring.ai.mcp.client.enabled=false',
+        '--vision-space.vision-recognition.base-url=http://127.0.0.1:9', '--vision-space.vision-recognition.api-key=acceptance-dummy',
+        '--vision-space.vision-recognition.model=acceptance-model', '--vision-space.pexels.api-key=acceptance-dummy', '--aliYunAi.apiKey=acceptance-dummy',
+        '--vision-space.aliyun-ai.create-out-painting-task=http://127.0.0.1:9/out-painting',
+        '--vision-space.aliyun-ai.get-out-painting-task=http://127.0.0.1:9/tasks/%s'
+    )
+}
+
 function Invoke-AcceptanceMySql {
     # Keep the existing mysql command boundary, including SQL on stdin. No host services.
     $clientArgs = @('--no-defaults', '--default-character-set=utf8mb4') + @($args | Where-Object { $_ -notmatch '^--(host|port|password)=' -and $_ -ne '--no-defaults' })
@@ -82,4 +105,4 @@ function Stop-AcceptanceDockerServices($Services) {
     }
 }
 
-Export-ModuleMember -Function Start-AcceptanceDockerServices, Stop-AcceptanceDockerServices, Set-AcceptanceDockerServices, Invoke-AcceptanceMySql
+Export-ModuleMember -Function Start-AcceptanceDockerServices, Stop-AcceptanceDockerServices, Set-AcceptanceDockerServices, Invoke-AcceptanceMySql, Get-AcceptanceApplicationArguments

@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  VS_SRF_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
   acceptance:
     uses: ./.github/workflows/acceptance.yml
@@ -89,7 +92,9 @@ jobs:
           merge-multiple: true
           path: evidence
       - name: Same-candidate T01-T24 engineering ledger
-        run: python3 -I scripts/srf-evidence.py --root evidence --candidate "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --output srf-evidence.json
+        env:
+          SRF_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: python3 -I scripts/srf-evidence.py --root evidence --candidate "$GITHUB_SHA" --run-id "$VS_SRF_RUN_ID" --output srf-evidence.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

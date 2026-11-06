@@ -39,6 +39,11 @@ class MergeGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertNotIn("do-not-echo-this", result.stdout + result.stderr)
 
+    def test_additional_failed_job_never_disappears(self):
+        jobs = {name: {"result": "success"} for name in ("acceptance", "browser", "container", "security", "evidence")}
+        jobs["new-regression"] = {"result": "failure"}
+        self.assertEqual(self.run_gate(jobs).returncode, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

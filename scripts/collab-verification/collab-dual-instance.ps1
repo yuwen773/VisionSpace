@@ -148,7 +148,7 @@ spring:
 "@, [Text.UTF8Encoding]::new($false))
     $commonArgs = @(
         # 验收实例内存占用收敛：协作验收不需要大堆，两实例 + MySQL + Redis 同机并存
-        '-Xmx256m', '-Xms128m',
+        '-Duser.timezone=UTC', '-Xmx256m', '-Xms128m',
         '-jar', $jar.FullName,
         "--server.port=$portA",
         # 不用 local profile（它依赖 gitignore 的本地配置文件），占位密钥走命令行
@@ -157,18 +157,8 @@ spring:
         '--spring.session.store-type=redis', '--spring.session.timeout=600',
         '--vision-space.websocket.lease-ttl-seconds=5',
         '--vision-space.websocket.lease-renew-interval-ms=1500',
-        '--spring.ai.mcp.client.enabled=false',
-        '--spring.ai.openai.base-url=http://127.0.0.1:9',
-        '--spring.ai.dashscope.base-url=http://127.0.0.1:9',
-        '--spring.ai.openai.api-key=collab-dummy',
-        '--spring.ai.dashscope.api-key=collab-dummy',
-        '--vision-space.vision-recognition.api-key=collab-dummy', '--vision-space.vision-recognition.base-url=http://127.0.0.1:1',
-        '--vision-space.vision-recognition.model=acceptance-model',
-        '--vision-space.pexels.api-key=collab-dummy', '--aliYunAi.apiKey=collab-dummy',
-        '--vision-space.aliyun-ai.create-out-painting-task=http://127.0.0.1:1/out-painting',
-        '--vision-space.aliyun-ai.get-out-painting-task=http://127.0.0.1:1/tasks/%s',
         '--vision-space.security.default-password=acceptance-only'
-    )
+    ) + @(Get-AcceptanceApplicationArguments $mysqlPort $redisPort $database $nonce)
     $argsB = $commonArgs -replace "--server\.port=$portA", "--server.port=$portB"
     $java = Resolve-Java
     # backend 启动前用 JDBC（与后端相同驱动与参数）预检凭据：失败立即停止而不是让 backend 报出难定位的 Access denied
@@ -326,7 +316,7 @@ SELECT spaceRole FROM space_user WHERE spaceId = 9441001 AND userId = $idEditor;
     if ($cleanup -ne 'PASS') { $exitCode = 1 }
     $report = Join-Path $repo 'target/collab-protocol'
     New-Item -ItemType Directory -Force $report | Out-Null
-    @{ head = (git rev-parse HEAD); runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = @{ protocol = $(if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }); cleanup = $cleanup }; productionAcceptance = 'NOT_RUN' } |
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = @{ protocol = $(if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }); cleanup = $cleanup }; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $report 'summary.json')
     if (Test-Path (Join-Path $artifacts 'protocol-results.json')) {
         Copy-Item (Join-Path $artifacts 'protocol-results.json') $report

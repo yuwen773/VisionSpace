@@ -17,8 +17,10 @@ $ownedProcesses = @()
 $ownedContainers = @()
 $mysql = $null
 $savedEnvironment = @{}
-$environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD')
+$environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD', 'JAVA_TOOL_OPTIONS')
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
+# MySQL Docker uses UTC. Match every application/test JVM, regardless of host timezone.
+$env:JAVA_TOOL_OPTIONS = '-Duser.timezone=UTC'
 
 function Free-Port {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -59,12 +61,11 @@ New-Item -ItemType Directory -Path $runDir | Out-Null
 Push-Location $repo
 try {
     Run-Gate 'runner-tests' {
-        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-acceptance-results.ps1')
-        if ($LASTEXITCODE -ne 0) { throw "test-acceptance-results exited $LASTEXITCODE" }
-        # 容器验证脚本的控制流回归：只跑脚本自身的判定逻辑，不需要 Docker。
-        # 真正的容器运行验收仍需 Docker（见 scripts/container-verification.ps1）。
-        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-container-verification.ps1')
-        if ($LASTEXITCODE -ne 0) { throw "test-container-verification exited $LASTEXITCODE" }
+        $policy = Get-Content -Raw (Join-Path $PSScriptRoot 'srf-matrix.json') | ConvertFrom-Json
+        foreach ($test in $policy.runnerTests) {
+            & pwsh -NoLogo -NoProfile -File (Join-Path $repo $test)
+            if ($LASTEXITCODE -ne 0) { throw "$test exited $LASTEXITCODE" }
+        }
         # 仓库护栏回归：评审基点漂移、秘密扫描漏文件类型、恒真断言、文档/manifest 漂移。
         # 纯 Python，不需要隔离数据库或 PowerShell 执行策略。
         $python = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' }
@@ -338,7 +339,7 @@ $ddl
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
-        runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' })
+        runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') })
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
         results = $results
         logs = $runDir

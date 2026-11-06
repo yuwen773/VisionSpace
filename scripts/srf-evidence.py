@@ -1,6 +1,7 @@
 """Combine same-candidate outcome artifacts into the T01-T24 engineering ledger."""
 import argparse
 import json
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -11,20 +12,30 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--candidate", required=True)
-    parser.add_argument("--run-id", default="local")
+    parser.add_argument("--run-id", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if not re.fullmatch(r"[a-f0-9]{40}", args.candidate):
         print("BLOCKED_ENV: invalid candidate identity")
         return 2
     policy = json.loads(Path(__file__).with_name("srf-matrix.json").read_text(encoding="utf-8"))
+    try:
+        outcome_path = args.root / "outcomes.json"
+        outcomes = json.loads(outcome_path.read_text(encoding="utf-8-sig")) if outcome_path.exists() else json.loads(os.environ.get("SRF_JOB_RESULTS", "{}"))
+        if not isinstance(outcomes, dict):
+            outcomes = {}
+    except (OSError, ValueError):
+        outcomes = {}
     gates = {}
     runtime = {}
     for gate, required in policy["gates"].items():
         try:
             summary = json.loads((args.root / gate / "summary.json").read_text(encoding="utf-8-sig"))
             results = summary["results"]
+            outcome = outcomes.get(gate)
+            executed = outcome == "PASS" or isinstance(outcome, dict) and outcome.get("result") == "success"
             gates[gate] = "PASS" if (summary["head"] == args.candidate and summary.get("runId") == args.run_id and isinstance(results, dict)
+                and executed
                 and all(results.get(key) == "PASS" for key in required)
                 and all(value == "PASS" for value in results.values())) else "BLOCKED"
         except (OSError, ValueError, KeyError, TypeError):

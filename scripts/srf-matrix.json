@@ -1,4 +1,11 @@
 {
+  "runnerTests": ["scripts/tests/test-acceptance-results.ps1", "scripts/tests/test-container-verification.ps1", "scripts/tests/test-isolated-services.ps1"],
+  "entries": {
+    "acceptance": {"script":"scripts/acceptance.ps1", "report":"acceptance"},
+    "browser": {"script":"scripts/srf-browser.ps1", "report":"srf-browser"},
+    "container": {"script":"scripts/container-verification.ps1", "report":"container-verification"},
+    "security": {"script":"scripts/security-verification.ps1", "report":"security-verification"}
+  },
   "gates": {
     "acceptance": ["runner-tests", "secret-scan", "isolation", "backend", "frontend-install", "frontend-lint", "frontend-format", "frontend-typecheck", "frontend-tests", "frontend-build", "frontend-api-contract", "cleanup"],
     "browser": ["https-browser", "collab-protocol", "collab-browser", "diagram-browser"],
