@@ -1,0 +1,111 @@
+name: SRF final candidate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    uses: ./.github/workflows/acceptance.yml
+  container:
+    uses: ./.github/workflows/container-verification.yml
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.21.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefix frontend --no-audit --no-fund
+      - run: node frontend/node_modules/playwright-core/cli.js install --with-deps chromium
+      - name: HTTPS, dual-instance collaboration, UI and diagram DOM/network matrix
+        shell: pwsh
+        run: ./scripts/srf-browser.ps1
+      - name: Project safe browser outcomes
+        if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/srf-browser "$RUNNER_TEMP/srf-artifacts/browser"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/browser/runtime.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: srf-browser
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.76.2
+          cache: true
+      - name: Candidate secrets and resolved Maven/npm dependencies
+        shell: pwsh
+        run: ./scripts/security-verification.ps1
+      - name: Project safe scan outcomes
+        if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/security-verification "$RUNNER_TEMP/srf-artifacts/security"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/security/runtime.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: srf-security
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+  evidence:
+    if: always()
+    needs: [acceptance, browser, container, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: srf-*
+          merge-multiple: true
+          path: evidence
+      - name: Same-candidate T01-T24 engineering ledger
+        run: python3 -I scripts/srf-evidence.py --root evidence --candidate "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --output srf-evidence.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: srf-ledger
+          path: srf-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+  merge-gate:
+    name: SRF merge gate
+    if: always()
+    needs: [acceptance, browser, container, security, evidence]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require every constituent check to succeed
+        env:
+          SRF_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: python3 -I scripts/srf-merge-gate.py

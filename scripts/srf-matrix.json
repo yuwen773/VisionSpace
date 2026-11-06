@@ -1,0 +1,34 @@
+{
+  "gates": {
+    "acceptance": ["runner-tests", "secret-scan", "isolation", "backend", "frontend-install", "frontend-lint", "frontend-format", "frontend-typecheck", "frontend-tests", "frontend-build", "frontend-api-contract", "cleanup"],
+    "browser": ["https-browser", "collab-protocol", "collab-browser", "diagram-browser"],
+    "container": ["execution", "cleanup"],
+    "security": ["secret-scan", "dependencies"]
+  },
+  "matrix": [
+    {"id":"T01", "audit":["A4","A5","A10"], "tickets":[30,36], "suites":["HttpPermissionContractTest","HttpForgedAuthorizationTest","HttpSpaceAuthorizationTest"]},
+    {"id":"T02", "audit":["A4","A6"], "tickets":[34,36], "suites":["HttpPictureContentAuthTest","HttpFeedbackProtectionTest"]},
+    {"id":"T03", "audit":["A6"], "tickets":[34,36], "suites":["HttpPictureContentAuthTest","HttpPictureGrantTest","HttpResourceQuarantineTest","HttpQuarantineRaceTest"]},
+    {"id":"T04", "audit":["A0","A9"], "tickets":[28], "suites":["HttpStorageConfigSecurityTest","ProductionSecretsGuardTest"]},
+    {"id":"T05", "audit":["A8","A30"], "tickets":[32], "suites":["HttpAccountSecurityTest"], "gates":["browser"]},
+    {"id":"T06", "audit":["A3"], "tickets":[31], "suites":["HttpAgentSessionIsolationTest"]},
+    {"id":"T07", "audit":["A1","A2"], "tickets":[33], "suites":["HttpMcpAndUrlSecurityTest","MCPManagerStdioBanTest","McpToolCallbackAuthorizationTest"]},
+    {"id":"T08", "audit":["A7"], "tickets":[33], "suites":["HttpMcpAndUrlSecurityTest","OutboundDownloaderTest","OutboundPolicyTest","OutboundAddressRulesTest"]},
+    {"id":"T09", "audit":["A6","A20"], "tickets":[35], "suites":["HttpAgentAttachmentLifecycleTest","AgentAttachmentMigrationTest"]},
+    {"id":"T10", "audit":["A11","A12"], "tickets":[27,37], "suites":["HttpBaselineTest","HttpSpaceQuotaConsistencyTest","HttpSpaceDualInstanceTest"]},
+    {"id":"T11", "audit":["A13","A14"], "tickets":[38], "suites":["HttpPictureStatsAssociationTest","HttpPictureStatsAggregationTest","HttpPictureStatsObservabilityTest"]},
+    {"id":"T12", "audit":["A15"], "tickets":[38], "suites":["HttpRecommendPaginationTest","HttpRecommendCandidateBoundTest"]},
+    {"id":"T13", "audit":["A16"], "tickets":[37], "suites":["HttpSpaceDualInstanceTest","SpaceQuotaMigrationTest"]},
+    {"id":"T14", "audit":["A24"], "tickets":[38], "suites":["HttpPictureActionReportingTest"]},
+    {"id":"T15", "audit":["A25"], "tickets":[39], "suites":["HttpVipRedemptionTest","HttpVipRedemptionDualInstanceTest","VipRedemptionMigrationTest"]},
+    {"id":"T16", "audit":["A17"], "tickets":[41], "suites":["HttpAgentRecoveryTest","AgentActionConcurrencyTest","AgentGenerationFailureTest","AgentToolChainFailureTest","McpToolChainFailureTest"]},
+    {"id":"T17", "audit":["A18","A19"], "tickets":[27,42], "suites":["ChatHistoryCursorIntegrationTest","HttpAgentPreferenceTest","UserPreferenceMigrationTest"]},
+    {"id":"T18", "audit":["A21","A22"], "tickets":[44], "suites":["WsPictureEditContractTest","CollaborationBackpressureTest","PictureEditLeaseManagerTest"], "gates":["browser"]},
+    {"id":"T19", "audit":["A23"], "tickets":[43], "suites":[], "gates":["browser"]},
+    {"id":"T20", "audit":["A9","A27"], "tickets":[40], "suites":["HttpStorageSwitchTest","StorageSwitchServiceTest","DefaultStorageCandidateVerifierTest"]},
+    {"id":"T21", "audit":["A26","A30","A31"], "tickets":[27,32], "suites":["SortKeyWhitelistIntegrationTest","HttpAccountSecurityTest"], "gates":["browser"]},
+    {"id":"T22", "audit":["A0","A28","A29"], "tickets":[45,47], "suites":["HttpHealthEndpointTest"], "gates":["container","security"]},
+    {"id":"T23", "audit":["A0","A25"], "tickets":[46], "suites":["MaintenanceWindowDrillTest","MaintenanceWindowManifestTest","PrivateResourceMigrationTest","PictureFileMigrationTest"], "manual":"BLOCKED"},
+    {"id":"T24", "audit":["A0","A29"], "tickets":[29,47,48], "suites":[], "gates":["acceptance","browser","container","security"], "manual":"BLOCKED"}
+  ]
+}

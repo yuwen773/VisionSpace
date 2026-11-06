@@ -41,6 +41,9 @@ function Run-Gate([string]$Name, [scriptblock]$Command) {
     try {
         & $Command *> $log
         if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
+        if ($Name -eq 'backend' -and (Get-BackendTestStatus -ExitCode 0 -ReportDirectory (Join-Path $runDir 'surefire')) -ne 'PASS') {
+            throw 'Backend reports are missing, skipped or unsuccessful.'
+        }
         $results[$Name] = 'PASS'
     } catch {
         $results[$Name] = if ($_.Exception -is [System.Management.Automation.CommandNotFoundException]) {
@@ -61,6 +64,7 @@ try {
         # 容器验证脚本的控制流回归：只跑脚本自身的判定逻辑，不需要 Docker。
         # 真正的容器运行验收仍需 Docker（见 scripts/container-verification.ps1）。
         & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-container-verification.ps1')
+        if ($LASTEXITCODE -ne 0) { throw "test-container-verification exited $LASTEXITCODE" }
         # 仓库护栏回归：评审基点漂移、秘密扫描漏文件类型、恒真断言、文档/manifest 漂移。
         # 纯 Python，不需要隔离数据库或 PowerShell 执行策略。
         $python = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' }
@@ -70,6 +74,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "check-repo-hygiene exited $LASTEXITCODE" }
         & $python -I (Join-Path $PSScriptRoot 'tests/verify-secret-scan.py')
         if ($LASTEXITCODE -ne 0) { throw "verify-secret-scan exited $LASTEXITCODE" }
+        foreach ($test in Get-ChildItem (Join-Path $PSScriptRoot 'tests/test-*.py')) {
+            & $python -I $test.FullName
+            if ($LASTEXITCODE -ne 0) { throw "$($test.Name) exited $LASTEXITCODE" }
+        }
     }
     # 候选内容脱敏扫描：只记录文件:行号:规则名，不输出命中内容。
     Run-Gate 'secret-scan' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'secret-scan.ps1') }
@@ -330,6 +338,7 @@ $ddl
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
+        runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' })
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
         results = $results
         logs = $runDir

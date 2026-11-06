@@ -20,13 +20,18 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = Split-Path $PSScriptRoot -Parent
+$processWindow = @{}
+if ($IsWindows) { $processWindow['WindowStyle'] = 'Hidden' }
+Import-Module (Join-Path $repo 'scripts/acceptance-environment.psm1') -Force
+$services = $null
+$savedEnvironment = @{}
+foreach ($entry in Get-ChildItem Env:) { $savedEnvironment[$entry.Name] = $entry.Value }
 $nonce = [Guid]::NewGuid().ToString('N')
 $runDir = Join-Path ([IO.Path]::GetTempPath()) "visionspace-browser-$nonce"
 $database = "vs_browser_$nonce"
 $results = [ordered]@{}
 $ownedProcesses = @()
 $ownedContainers = @()
-$savedEnvironment = @{}
 $environmentNames = @(
     'VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD',
     'VS_E2E_API_TARGET', 'VS_E2E_HTTPS_CERT', 'VS_E2E_HTTPS_KEY', 'VS_E2E_ARTIFACTS'
@@ -53,13 +58,13 @@ function Wait-Port([int]$Port) {
 # 并拒绝无法启动的候选，避免把「java 起不来」误报成「后端启动超时」。
 function Resolve-Java {
     $candidates = @()
-    if ($env:JAVA_HOME) { $candidates += (Join-Path $env:JAVA_HOME 'bin/java.exe') }
+    if ($env:JAVA_HOME) { $candidates += (Join-Path $env:JAVA_HOME $(if ($IsWindows) { 'bin/java.exe' } else { 'bin/java' })) }
     $command = Get-Command java -ErrorAction SilentlyContinue
     if ($command) { $candidates += $command.Source }
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         if (-not $candidate -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         $probe = Join-Path $runDir 'java-probe.log'
-        $process = Start-Process -FilePath $candidate -ArgumentList @('-version') -PassThru -WindowStyle Hidden -RedirectStandardOutput ($probe + '.out') -RedirectStandardError ($probe + '.err')
+        $process = Start-Process @processWindow -FilePath $candidate -ArgumentList @('-version') -PassThru -RedirectStandardOutput ($probe + '.out') -RedirectStandardError ($probe + '.err')
         if ($process.WaitForExit(30000) -and $process.ExitCode -eq 0) { return $candidate }
     }
     throw "BLOCKED_ENV: no working Java runtime found (JAVA_HOME=$($env:JAVA_HOME))"
@@ -106,10 +111,20 @@ try {
 
     $certPath = Join-Path $runDir 'entry.crt'
     $keyPath = Join-Path $runDir 'entry.key'
-    & openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' `
+    $certConfig = Join-Path $runDir 'openssl.cnf'
+    "[req]`ndistinguished_name = req_dn`n[req_dn]" | Set-Content $certConfig
+    & openssl req -config $certConfig -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' `
         -addext 'subjectAltName=IP:127.0.0.1' -keyout $keyPath -out $certPath *> (Join-Path $runDir 'cert.log')
     if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: openssl unavailable for a local TLS certificate' }
 
+    if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both native binary directories, or neither.' }
+    if (-not $MySqlBin) {
+        $database = $database
+        $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
+        $mysqlPort = $services.MySqlPort
+        $redisPort = $services.RedisPort
+        $mysql = 'Invoke-AcceptanceMySql'
+    } else {
     # 隔离 MySQL 与 Redis
     $mysqlPort = Free-Port
     $redisPort = Free-Port
@@ -124,7 +139,7 @@ try {
     # #35 新增 agent_session_attachment / agent_legacy_attachment，表数由 12 变为 17。
     # #36 新增 feedback_attachment / resource_access_grant / resource_isolation，表数由 17 变为 20。
     # #39 新增 vip_redemption_code / vip_redemption_record，表数由 20 变为 22。
-    if ($tables.Count -ne 22) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
+    if ($tables.Count -eq 0 -or $tables.Count -ne [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
     $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
     $bootstrap = @"
 CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -149,8 +164,8 @@ $ddl
         $dataDir = Join-Path $runDir 'mysql'
         & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
         if ($LASTEXITCODE -ne 0) { throw 'Isolated MySQL initialization failed.' }
-        $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
-        $ownedProcesses += Start-Process -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
+        $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
+        $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
         Wait-Port $mysqlPort
         Wait-Port $redisPort
         $env:MYSQL_PWD = ''
@@ -174,6 +189,7 @@ $ddl
         & docker exec $redisContainer redis-cli -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
         if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
     }
+    }
     $results['isolation'] = 'PASS'
 
     # 后端在随机端口启动，数据源与 Redis 指向本轮实例。
@@ -195,7 +211,7 @@ $ddl
         "--spring.data.redis.password=$nonce", '--spring.data.redis.database=15'
     )
     $java = Resolve-Java
-    $backendProcess = Start-Process -FilePath $java -ArgumentList $backendArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
+    $backendProcess = Start-Process @processWindow -FilePath $java -ArgumentList $backendArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
     $ownedProcesses += $backendProcess
     try {
         Wait-Http "http://127.0.0.1:$backendPort/api/user/get/login" $backendProcess
@@ -256,6 +272,7 @@ $ddl
             $_ | Out-String | Add-Content (Join-Path $runDir 'process-cleanup.log')
         }
     }
+    if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $results['cleanup'] = 'FAIL' } }
     foreach ($container in $ownedContainers) {
         & docker rm -f -v $container *> $null
         if ($LASTEXITCODE -ne 0) { $results['cleanup'] = 'FAIL' }
@@ -264,6 +281,7 @@ $ddl
 
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
+        runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' })
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
         results = $results
         logs = $runDir
@@ -280,6 +298,7 @@ $ddl
     $summary | ConvertTo-Json -Depth 5 | Write-Host
     Pop-Location
 }
+if ($results.Values -contains 'FAIL') { exit 1 }
 if ($results.Values -contains 'BLOCKED_ENV') { exit 2 }
 if ($failed) { exit 1 }
 exit 0

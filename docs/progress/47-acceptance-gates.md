@@ -1,0 +1,66 @@
+# #47 全量自动验收与强制合并门禁
+
+工单：[47](https://github.com/yuwen773/VisionSpace/issues/47)，父规格：[26](https://github.com/yuwen773/VisionSpace/issues/26)。起点：`003e487cd8105b2c0bc3908c09faeda87a3b3a7c`。
+
+## 状态与边界
+
+工程实现已接通，但工单保持 **BLOCKED**：依赖扫描发现既有 HIGH / CRITICAL 风险，远程完整候选 CI 尚未执行。没有删除、跳过、忽略这些失败，也没有为获得绿灯进行业务依赖主版本迁移。
+
+本票只运行随机端口、随机数据库与凭据的隔离环境，模型/MCP/存储使用既有受控替身或回环失败端点。不执行生产部署、真实迁移、凭据轮换、真实桶 ACL/CDN 验证、付费模型调用、历史重写或主分支合并。#29/#48 及真实环境批准点继续 BLOCKED / NOT_RUN。
+
+## 单一执行约定
+
+保留 Maven Surefire 的正常测试发现与现有 Vitest/HTTP/浏览器驱动；没有另建业务测试框架。新增回归仍在现有 `HttpPictureContentAuthTest` 中发现，新增脚本回归由现有 `acceptance.ps1` 执行 `scripts/tests/test-*.py`。有跳过用例、损坏/缺失报告或零发现时拒绝 PASS。
+
+准备 JDK 21、Maven、Node 22.21.0、PowerShell 7、Docker、OpenSSL 和 Trivy 0.76.2，安装锁定依赖及对应 Chromium 后，运行：
+
+```powershell
+npm ci --prefix frontend --no-audit --no-fund
+node frontend/node_modules/playwright-core/cli.js install chromium
+pwsh.exe -NoLogo -NoProfile -File scripts/srf-verification.ps1 -Trivy '<Trivy executable>'
+```
+
+完整入口顺序运行四个公共入口：
+
+| 关卡 | 命令入口 | 证据 |
+| --- | --- | --- |
+| acceptance | `scripts/acceptance.ps1` | 全量后端与专用数据库、真实第二 JVM、前端类型/组件/构建、OpenAPI、秘密扫描及 runner 回归 |
+| browser | `scripts/srf-browser.ps1` | HTTPS/API/SSE/WSS、真实协作协议与 UI、图表最终 DOM/网络四组合 |
+| container | `scripts/container-verification.ps1` | 非 root、可写范围、端口发布、健康、依赖延迟/恢复与耗尽 |
+| security | `scripts/security-verification.ps1` | 候选通用秘密扫描、解析后的 Maven SBOM、含开发依赖的 npm 锁文件漏洞扫描 |
+
+每个入口非零都会保留失败；其他独立关卡继续执行。原始诊断留在本轮忽略目录；`.srf-runs/final/<run>/ledger.json` 汇总 T01–T24。每组关联审计标识、实施票、实际执行的测试类与所需关卡；缺报告、跳过、不同提交或不同运行批次均阻断。人工项始终单列，自动替身通过不能提升为生产 PASS。
+
+Trivy 版本固定为 [0.76.2](https://github.com/aquasecurity/trivy/releases/tag/v0.76.2)，Maven SBOM 生成器固定为 CycloneDX 2.9.1；扫描数据库按运行时更新。扫描报告保留公告标识、包坐标、版本与级别，不上传原始扫描输入。原始 POM 扫描可能缺失受 BOM 管理的版本，因此正式关卡只扫描实际解析后的 SBOM。
+
+## CI 与证据卫生
+
+`.github/workflows/srf.yml` 在 PR、main push、merge queue 与手动触发中复用原验收和容器工作流，补上浏览器、安全扫描、同候选证据汇总，最终形成稳定检查名 **`SRF merge gate`**。缺失、失败、取消、跳过或仍待定的子关卡均不能使它成功。原工作流支持复用与单独手动诊断，避免同一事件重复运行整套业务测试。
+
+上传前通过 `publish-evidence.py` 生成允许字段投影：保留 JUnit 测试身份和结果、状态汇总及公开依赖公告。原始日志、SQL、配置、Cookie、异常正文、临时凭据和私钥均不进入 CI artifact。完整原始诊断只保留在本地/runner 的本轮目录。`runtime-versions.py` 仅提取工具版本号，不导出环境变量或工具路径。
+
+## 已实施的远程治理（2026-11-06）
+
+GitHub 插件没有仓库治理接口，使用仓库既有 `gh` 登录执行并读回：
+
+| 设置 / 验证 | 结果 |
+| --- | --- |
+| Ruleset `SRF required engineering checks` / ID `26689446` | active，main，零 bypass actor，禁止删除/非快进，要求 PR 与已解决的评审讨论 |
+| 必需检查 | `SRF merge gate`，绑定 GitHub Actions app `15368`，严格要求最新基线 |
+| 不合格候选受控验证 | 同一 Ruleset 临时覆盖独立 probe 分支；与 main 同树的空提交缺少该检查，更新被 HTTP 422 拒绝，响应明确命名该检查；从未尝试更新 main |
+| 清理 | 恢复 Ruleset 仅覆盖 main，删除 probe 分支，读回有效主分支规则 |
+| Secret Scanning / Push Protection | 保持 enabled |
+| Dependabot alerts / security updates | 从 disabled 开启并读回 enabled；另有 npm/Maven/Actions 每周更新配置 |
+| GitHub hosted generic patterns | 读回仍为 disabled，不能把 API 请求成功当成设置已生效；候选通用秘密覆盖由必需的 `secret-scan.ps1` 提供 |
+
+GitHub 对 hosted generic patterns 有[仓库类型/产品范围限制](https://docs.github.com/en/code-security/how-tos/secure-your-secrets/detect-secret-leaks/enabling-secret-scanning-for-generic-patterns)。本票不购买或变更账户产品。原始治理读回和受控拒绝证据位于 `.srf-runs/governance.json`。
+
+启用主分支必需检查不会给尚未运行的新工作流制造成功记录。现有 PR 必须包含新工作流并实际满足全部子关卡；不得绕过 Ruleset 合并。此轮没有推送源分支或发布 PR。
+
+## 执行证据
+
+实现阶段已完成：结果分类/门禁/证据投影回归、真实 Docker 隔离服务身份与清理、HTTPS 浏览器 9 场景、双实例协作 21 场景、协作浏览器 10 场景、图表两主题 × 配置/未配置四组合；新增实际内容读取场景已红→绿，授权读取四种内容，陌生人与撤权后读取均拒绝，存储仅收到四次授权读取。
+
+初步完整扫描命中 125 条包-公告记录（18 CRITICAL、107 HIGH；不是独立 CVE 数），涉及既有 Spring/MCP/Tomcat/Tika 等依赖，包含主版本迁移和无修复版本项。保留真实失败，不抑制旧风险、不把安全扫描连通失败算作干净。该计数对应本轮本地依赖快照；漏洞库更新后可能变化，以新生成的脱敏公告清单为准。
+
+完整候选执行、最终候选版本、容器运行结果及双轴评审将在实际执行后补记；当前不宣称全量自动矩阵或远程 CI PASS。

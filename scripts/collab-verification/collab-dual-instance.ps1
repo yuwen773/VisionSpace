@@ -12,13 +12,19 @@
 #   pwsh.exe -NoLogo -NoProfile -File scripts/collab-verification/collab-dual-instance.ps1
 [CmdletBinding()]
 param(
-    [string]$MySqlBin = 'D:\Work\Backend\MySQL-8.0.26\mysql-8.0.26-winx64\bin',
-    [string]$RedisBin = 'D:\Work\Backend\Redis-x64-3.2.100'
+    [string]$MySqlBin,
+    [string]$RedisBin
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$processWindow = @{}
+if ($IsWindows) { $processWindow['WindowStyle'] = 'Hidden' }
+Import-Module (Join-Path $repo 'scripts/acceptance-environment.psm1') -Force
+$services = $null
+$savedEnvironment = @{}
+foreach ($entry in Get-ChildItem Env:) { $savedEnvironment[$entry.Name] = $entry.Value }
 $nonce = [Guid]::NewGuid().ToString('N')
 # C 盘空间紧张：运行目录（含 MySQL 数据目录）放 D 盘，且必须不存在（initialize 要求空目录）
 $runDir = Join-Path (Join-Path $repo '.vs44-runs') "vs44-collab-$nonce"
@@ -44,13 +50,13 @@ function Wait-Port([int]$Port, [string]$Name) {
 # 显式优先 JAVA_HOME 并逐个探测，避免把「java 起不来」误报成「后端启动超时」。
 function Resolve-Java {
     $candidates = @()
-    if ($env:JAVA_HOME) { $candidates += (Join-Path $env:JAVA_HOME 'bin/java.exe') }
+    if ($env:JAVA_HOME) { $candidates += (Join-Path $env:JAVA_HOME $(if ($IsWindows) { 'bin/java.exe' } else { 'bin/java' })) }
     $command = Get-Command java -ErrorAction SilentlyContinue
     if ($command) { $candidates += $command.Source }
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         if (-not $candidate -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         $probe = Join-Path $runDir 'java-probe.log'
-        $p = Start-Process -FilePath $candidate -ArgumentList @('-version') -PassThru -WindowStyle Hidden -RedirectStandardOutput ($probe + '.out') -RedirectStandardError ($probe + '.err')
+        $p = Start-Process @processWindow -FilePath $candidate -ArgumentList @('-version') -PassThru -RedirectStandardOutput ($probe + '.out') -RedirectStandardError ($probe + '.err')
         if ($p.WaitForExit(30000) -and $p.ExitCode -eq 0) { return $candidate }
     }
     throw 'BLOCKED_ENV: no working Java runtime found'
@@ -58,6 +64,14 @@ function Resolve-Java {
 
 try {
     Write-Host "== [1/6] isolated MySQL/Redis =="
+    if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both native binary directories, or neither.' }
+    if (-not $MySqlBin) {
+        $database = "vs44_collab_$nonce"
+        $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
+        $mysqlPort = $services.MySqlPort
+        $redisPort = $services.RedisPort
+        $mysql = 'Invoke-AcceptanceMySql'
+    } else {
     $mysqlPort = Free-Port; $redisPort = Free-Port
     while ($redisPort -eq $mysqlPort -or $mysqlPort -lt 10000 -or $redisPort -lt 10000) { $mysqlPort = Free-Port; $redisPort = Free-Port }
     $mysqld = Join-Path $MySqlBin 'mysqld.exe'; $mysql = Join-Path $MySqlBin 'mysql.exe'
@@ -66,11 +80,11 @@ try {
     $dataDir = Join-Path $runDir 'mysql'
     & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
     if ($LASTEXITCODE -ne 0) { throw 'mysql init failed' }
-    $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console', '--general-log=1', "--general-log-file=$(Join-Path $runDir 'mysql-general.log')") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
-    $ownedProcesses += Start-Process -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-err.log')
+    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console', '--general-log=1', "--general-log-file=$(Join-Path $runDir 'mysql-general.log')") -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
+    $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-err.log')
     Wait-Port $mysqlPort 'mysql'; Wait-Port $redisPort 'redis'
     $database = "vs44_collab_$nonce"
-    $sourceDdl = Get-Content -Raw (Join-Path $repo 'sql\create_vision_space.sql')
+    $sourceDdl = Get-Content -Raw (Join-Path $repo 'sql/create_vision_space.sql')
     $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
     $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
     if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) { throw "schema extraction incomplete: $($tables.Count)/$declaredTables" }
@@ -95,6 +109,7 @@ $ddl
     if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: vs_acceptance auth check failed right after bootstrap' }
     $env:MYSQL_PWD = ''
     & $redisCli -h 127.0.0.1 -p $redisPort -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
+    }
     Write-Host "   mysql=$mysqlPort redis=$redisPort"
 
     Write-Host "== [2/6] package backend jar =="
@@ -103,7 +118,7 @@ $ddl
     if ($LASTEXITCODE -ne 0 -or -not (Select-String -LiteralPath (Join-Path $runDir 'package.log') -SimpleMatch 'BUILD SUCCESS')) {
         throw 'mvn package failed or Maven did not execute; see package.log'
     }
-    $jar = Get-ChildItem (Join-Path $repo 'target\*.jar') | Where-Object { $_.Name -notmatch '\.original\.jar$' } | Select-Object -First 1
+    $jar = Get-ChildItem (Join-Path $repo 'target/*.jar') | Where-Object { $_.Name -notmatch '\.original\.jar$' } | Select-Object -First 1
     if (-not $jar) { throw 'no jar produced' }
     Pop-Location
 
@@ -143,6 +158,8 @@ spring:
         '--vision-space.websocket.lease-ttl-seconds=5',
         '--vision-space.websocket.lease-renew-interval-ms=1500',
         '--spring.ai.mcp.client.enabled=false',
+        '--spring.ai.openai.base-url=http://127.0.0.1:9',
+        '--spring.ai.dashscope.base-url=http://127.0.0.1:9',
         '--spring.ai.openai.api-key=collab-dummy',
         '--spring.ai.dashscope.api-key=collab-dummy',
         '--vision-space.vision-recognition.api-key=collab-dummy', '--vision-space.vision-recognition.base-url=http://127.0.0.1:1',
@@ -155,14 +172,8 @@ spring:
     $argsB = $commonArgs -replace "--server\.port=$portA", "--server.port=$portB"
     $java = Resolve-Java
     # backend 启动前用 JDBC（与后端相同驱动与参数）预检凭据：失败立即停止而不是让 backend 报出难定位的 Access denied
-    if (Test-Path 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs\JdbcProbe.class') {
-        $preUrl = "jdbc:mysql://127.0.0.1:$mysqlPort/$database" + '?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-        $pre = & $java -cp 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs;D:\maven-repository\com\mysql\mysql-connector-j\9.7.0\mysql-connector-j-9.7.0.jar' JdbcProbe $preUrl vs_acceptance $nonce 2>&1
-        $pre | Set-Content (Join-Path $runDir 'jdbc-probe-before.log')
-        if ($LASTEXITCODE -ne 0 -or -not (($pre -join ' ') -match 'CONNECTED')) { throw "BLOCKED_ENV: JDBC precheck failed: $($pre -join ' ')" }
-    }
-    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $commonArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-a.log') -RedirectStandardError (Join-Path $runDir 'backend-a-err.log') -Environment $backendEnv
-    $ownedProcesses += Start-Process -FilePath $java -ArgumentList $argsB -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-b.log') -RedirectStandardError (Join-Path $runDir 'backend-b-err.log') -Environment $backendEnv
+    $ownedProcesses += Start-Process @processWindow -FilePath $java -ArgumentList $commonArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-a.log') -RedirectStandardError (Join-Path $runDir 'backend-a-err.log') -Environment $backendEnv
+    $ownedProcesses += Start-Process @processWindow -FilePath $java -ArgumentList $argsB -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend-b.log') -RedirectStandardError (Join-Path $runDir 'backend-b-err.log') -Environment $backendEnv
     # 低内存环境下 JVM 启动可能超过 120s；同时监测进程是否被杀
     foreach ($pair in @(@($portA, 'backend A', 0), @($portB, 'backend B', 1))) {
         $p = $ownedProcesses[$pair[2]]
@@ -176,11 +187,6 @@ spring:
         if (-not $opened) {
             # 诊断：backend 失败时用 JDBC probe 直接验证 mysql 端凭据状态
             # （区分「mysql 端拒绝」与「backend 属性被覆盖」两种可能）
-            if (Test-Path 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs\JdbcProbe.class') {
-                $probeUrl = "jdbc:mysql://127.0.0.1:$mysqlPort/$database" + '?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-                $probe = & $java -cp 'D:\Work\code\VisionSpace\.worktrees\44-collaboration-stability\.vs44-runs;D:\maven-repository\com\mysql\mysql-connector-j\9.7.0\mysql-connector-j-9.7.0.jar' JdbcProbe $probeUrl vs_acceptance $nonce 2>&1
-                $probe | Set-Content (Join-Path $runDir 'jdbc-probe-after-failure.log')
-            }
             throw "BLOCKED_ENV: $($pair[1]) did not open port $($pair[0])"
         }
     }
@@ -247,7 +253,8 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     $env:VS44_DEMOTE_DONE_FILE = (Join-Path $artifacts 'demote.done')
     # 降权触发文件由 mjs 写入（带真实 editor userId）；这里起一个轮询 job 执行 SQL 并写 done
     $demoteJob = Start-Job -ScriptBlock {
-        param($mysql, $mysqlPort, $database, $nonce, $trigger, $done)
+        param($mysql, $mysqlPort, $database, $nonce, $trigger, $done, $modulePath, $serviceContext)
+        if ($serviceContext) { Import-Module $modulePath; Set-AcceptanceDockerServices $serviceContext }
         $env:MYSQL_PWD = ''
         while ($true) {
             if (Test-Path $trigger) {
@@ -255,18 +262,21 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
                 # JS 侧雪花 id 会精度丢失，用 account 反查真实 id
                 $account = $triggerData.user.account
                 $uid = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$account';"
+                if ($LASTEXITCODE -ne 0 -or -not $uid) { throw 'Could not locate the isolated fixture user.' }
                 & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database -e "UPDATE space_user SET spaceRole='viewer' WHERE spaceId=$($triggerData.spaceId) AND userId=$uid;" *> $null
+                if ($LASTEXITCODE -ne 0) { throw 'Fixture demotion did not execute.' }
                 Set-Content -Path $done -Value "demoted userId=$uid account=$account"
                 break
             }
             Start-Sleep -Milliseconds 200
         }
-    } -ArgumentList $mysql, $mysqlPort, $database, $nonce, (Join-Path $artifacts 'demote.trigger'), (Join-Path $artifacts 'demote.done')
+    } -ArgumentList $mysql, $mysqlPort, $database, $nonce, (Join-Path $artifacts 'demote.trigger'), (Join-Path $artifacts 'demote.done'), (Join-Path $repo 'scripts/acceptance-environment.psm1'), $services
 
     Push-Location (Join-Path $repo 'frontend')
     & node --experimental-default-type=module (Join-Path $PSScriptRoot 'collab-dual-instance.mjs')
     $protocolExit = $LASTEXITCODE
     Pop-Location
+    Receive-Job $demoteJob -ErrorAction Continue *> (Join-Path $runDir 'demote-job.log')
     Stop-Job $demoteJob -ErrorAction SilentlyContinue; Remove-Job $demoteJob -Force -ErrorAction SilentlyContinue
 
     Write-Host "== [6/6] final data assertions =="
@@ -294,15 +304,33 @@ SELECT spaceRole FROM space_user WHERE spaceId = 9441001 AND userId = $idEditor;
     $_ | Out-String | Set-Content (Join-Path $runDir 'driver-error.log')
     $exitCode = 2
 } finally {
-    foreach ($p in $ownedProcesses) {
-        try { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } } catch {}
+    $cleanup = 'PASS'
+    foreach ($ownedProcess in $ownedProcesses) {
+        try {
+            if (-not $ownedProcess.HasExited) { Stop-Process -Id $ownedProcess.Id -Force -ErrorAction Stop }
+            if (-not $ownedProcess.WaitForExit(10000)) { throw 'Owned process did not exit.' }
+        } catch { $cleanup = 'FAIL' }
     }
-    # Windows mysqld 会派生 server 子进程：按 datadir 特征找齐再停
-    try {
-        $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
-        foreach ($s in $servers) { Stop-Process -Id $s.ProcessId -Force -ErrorAction SilentlyContinue }
-    } catch {}
-    foreach ($j in @($demoteJob)) { if ($j) { Stop-Job $j -ErrorAction SilentlyContinue; Remove-Job $j -Force -ErrorAction SilentlyContinue } }
+    if ($MySqlBin -and $dataDir) {
+        try {
+            $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
+            foreach ($server in $servers) { Stop-Process -Id $server.ProcessId -Force -ErrorAction Stop; Wait-Process -Id $server.ProcessId -Timeout 10 -ErrorAction Stop }
+        } catch { $cleanup = 'FAIL' }
+    }
+    if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $cleanup = 'FAIL' } }
+    if ($demoteJob) { Stop-Job $demoteJob -ErrorAction SilentlyContinue; Remove-Job $demoteJob -Force -ErrorAction SilentlyContinue }
+    foreach ($entry in @(Get-ChildItem Env:)) {
+        if (-not $savedEnvironment.ContainsKey($entry.Name)) { [Environment]::SetEnvironmentVariable($entry.Name, $null) }
+    }
+    foreach ($key in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key, $savedEnvironment[$key]) }
+    if ($cleanup -ne 'PASS') { $exitCode = 1 }
+    $report = Join-Path $repo 'target/collab-protocol'
+    New-Item -ItemType Directory -Force $report | Out-Null
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = @{ protocol = $(if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }); cleanup = $cleanup }; productionAcceptance = 'NOT_RUN' } |
+        ConvertTo-Json | Set-Content (Join-Path $report 'summary.json')
+    if (Test-Path (Join-Path $artifacts 'protocol-results.json')) {
+        Copy-Item (Join-Path $artifacts 'protocol-results.json') $report
+    }
     Write-Host "artifacts: $artifacts"
     Write-Host "rundir:    $runDir"
 }

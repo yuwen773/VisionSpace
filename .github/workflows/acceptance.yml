@@ -1,9 +1,7 @@
 name: Acceptance baseline
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -27,12 +25,20 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Isolated MySQL, Redis, HTTP regressions and frontend checks
         shell: pwsh
-        run: ./scripts/acceptance.ps1
+        run: |
+          npm ci --prefix frontend --no-audit --no-fund
+          node frontend/node_modules/playwright-core/cli.js install --with-deps chromium
+          ./scripts/acceptance.ps1
+      - name: Project safe outcome evidence
+        if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/acceptance "$RUNNER_TEMP/srf-artifacts/acceptance"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/acceptance/runtime.json"
       - name: Preserve evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: acceptance-evidence
-          path: |
-            target/acceptance/
+          name: srf-acceptance
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
           retention-days: 14

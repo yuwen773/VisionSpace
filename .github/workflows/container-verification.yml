@@ -1,9 +1,7 @@
 name: Container candidate verification
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -28,10 +26,14 @@ jobs:
         run: ./scripts/container-verification.ps1
       - name: Preserve container evidence on success or failure
         if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/container-verification "$RUNNER_TEMP/srf-artifacts/container"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/container/runtime.json"
+      - name: Upload safe container outcomes
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: container-verification-evidence
-          path: |
-            /tmp/visionspace-container-*/
-          if-no-files-found: warn
+          name: srf-container
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
           retention-days: 14
