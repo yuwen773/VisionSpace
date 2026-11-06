@@ -44,7 +44,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: srf-acceptance
+          name: srf-acceptance-${{ github.run_attempt }}
           path: ${{ runner.temp }}/srf-artifacts/
           if-no-files-found: error
           retention-days: 14

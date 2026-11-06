@@ -46,7 +46,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: srf-browser
+          name: srf-browser-${{ github.run_attempt }}
           path: ${{ runner.temp }}/srf-artifacts/
           if-no-files-found: error
           retention-days: 14
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: srf-security
+          name: srf-security-${{ github.run_attempt }}
           path: ${{ runner.temp }}/srf-artifacts/
           if-no-files-found: error
           retention-days: 14
@@ -88,7 +88,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: srf-*
+          pattern: srf-*-${{ github.run_attempt }}
           merge-multiple: true
           path: evidence
       - name: Same-candidate T01-T24 engineering ledger
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: srf-ledger
+          name: srf-ledger-${{ github.run_attempt }}
           path: srf-evidence.json
           if-no-files-found: error
           retention-days: 14

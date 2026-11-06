@@ -28,6 +28,13 @@ class PolicyTest(unittest.TestCase):
         discovered = {path.relative_to(ROOT).as_posix() for path in (ROOT / "scripts/tests").glob("test-*.ps1")}
         self.assertEqual(discovered, wired)
 
+    def test_artifact_selection_cannot_mix_workflow_attempts(self):
+        workflows = "\n".join(path.read_text(encoding="utf-8") for path in (ROOT / ".github/workflows").glob("*.yml"))
+        names = re.findall(r"^\s+name: (srf-.+)$", workflows, re.M)
+        self.assertTrue(names)
+        self.assertTrue(all("${{ github.run_attempt }}" in name for name in names))
+        self.assertIn("pattern: srf-*-${{ github.run_attempt }}", workflows)
+
 
 if __name__ == "__main__":
     unittest.main()

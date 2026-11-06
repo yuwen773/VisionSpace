@@ -39,6 +39,8 @@ Trivy 版本固定为 [0.76.2](https://github.com/aquasecurity/trivy/releases/ta
 
 `.github/workflows/srf.yml` 在 PR、main push、merge queue 与手动触发中复用原验收和容器工作流，补上浏览器、安全扫描、同候选证据汇总，最终形成稳定检查名 **`SRF merge gate`**。缺失、失败、取消、跳过或仍待定的子关卡均不能使它成功。原工作流支持复用与单独手动诊断，避免同一事件重复运行整套业务测试。
 
+Artifacts 的上传名称和下载 pattern 均包含 `run_attempt`，与台账的运行 ID 一起隔离重跑批次，避免同名冲突或混入早先 attempt 的报告。重试完整验收应选择重跑整个 workflow；只重跑失败 job 而缺少同一 attempt 的其他证据时，汇总继续阻断。[上传 action 的命名/覆盖契约](https://github.com/actions/upload-artifact/tree/v4#overwriting-an-artifact)作为配置依据。
+
 上传前通过 `publish-evidence.py` 生成允许字段投影：保留 JUnit 测试身份和结果、状态汇总及公开依赖公告。原始日志、SQL、配置、Cookie、异常正文、临时凭据和私钥均不进入 CI artifact。完整原始诊断只保留在本地/runner 的本轮目录。`runtime-versions.py` 仅提取工具版本号，不导出环境变量或工具路径。
 
 ## 已实施的远程治理（2026-11-06）
