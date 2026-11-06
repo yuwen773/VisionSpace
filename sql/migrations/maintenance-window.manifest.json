@@ -1,0 +1,89 @@
+{
+  "ticket": "#46",
+  "title": "维护窗口迁移与安全回滚演练",
+  "parent": "#26",
+  "integrationBase": "8a92d22 (origin/main: #32/#35/#36/#37/#38/#39/#40/#41/#42 全部合并)",
+  "snapshot": {
+    "desensitized": true,
+    "source": "scripts/acceptance.ps1 的隔离 MySQL 8.0.26 / Redis 3.2.100 引导库；库名、账号、口令逐次随机，不读取开发或生产配置",
+    "rule": "演练只使用随机 id、摘要地址与哑值；不导入任何真实图片、兑换码、凭据、账号资料或会话正文",
+    "tables": "sql/create_vision_space.sql 的 26 张表（含各业务票已交付的结构）作为脱敏快照；迁移脚本在 *_drill_* 临时表上重放，绝不改动引导库的真实表"
+  },
+  "phases": ["BACKUP", "PAUSE_WRITES", "MIGRATE", "RECONCILE", "RESUME", "ROLLBACK_REHEARSAL", "RE_DEPLOY"],
+  "window": {
+    "backup": "隔离演练逐表记录行数形成备份台账；回滚演练自同一台账恢复，不依赖未验证的外部备份。真实环境必须另有逐表校验和与独立实例还原证据（M1），演练台账不宣称等价",
+    "pause": "演练用停写闸门表达维护窗口：闸门关闭时任何写入步骤都被拒绝；真实环境由运维停止全部实例、定时任务与其他写入方",
+    "resume": "只有核对全部通过、人工批准后才允许恢复写入；冲突未处置时保持维护状态，不自动续跑"
+  },
+  "steps": [
+    { "order": 1,  "file": "2026-10-22-picture-file.sql", "ticket": "#34", "phase": "MIGRATE", "kind": "forward", "replayable": false, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-22-picture-file-rollback.sql", "provides": "picture_file 资源记录表（归属、原平台、对象键）", "note": "CREATE TABLE IF NOT EXISTS；引导库已含此表，演练改名重放" },
+    { "order": 2,  "file": "2026-10-23-agent-run-state.sql", "ticket": "#41", "phase": "MIGRATE", "kind": "forward", "replayable": false, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-23-agent-run-state-rollback.sql", "provides": "agent_run_state / agent_action_record 完整执行状态与动作台账" },
+    { "order": 3,  "file": "2026-10-23-agent-run-state-claim-columns.sql", "ticket": "#41", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-23-agent-run-state-claim-columns-rollback.sql", "provides": "认领凭据、续跑租约与 MCP code 列（条件 DDL，幂等）" },
+    { "order": 4,  "file": "2026-10-23-agent-run-state-epoch.sql", "ticket": "#41", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-23-agent-run-state-epoch-rollback.sql", "provides": "runEpoch 执行世代列（条件 DDL，幂等）" },
+    { "order": 5,  "file": "2026-10-23-agent-session-attachment.sql", "ticket": "#35", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-23-agent-session-attachment-rollback.sql", "provides": "会话绑定表、存量清单表与删除重试列" },
+    { "order": 6,  "file": "2026-10-23-agent-session-attachment-legacy.sql", "ticket": "#35", "phase": "MIGRATE", "kind": "backfill", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": true, "rollback": "2026-10-23-agent-session-attachment-legacy-rollback.sql", "provides": "存量会话图片清单回填；归属不明登记 status=0 阻断，不自动认领", "blockingCondition": "归属无法确认的条目只登记为待核对，不公开、不删除、不建立绑定" },
+    { "order": 7,  "file": "2026-10-23-private-resource-protection.sql", "ticket": "#36", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": true, "rollback": "2026-10-23-private-resource-protection-rollback.sql", "provides": "反馈附件、限时只读授权、违规隔离、回滚归档表", "blockingCondition": "旧附件归属无法确认时登记 status=3 BLOCKED，不对外提供读取入口" },
+    { "order": 8,  "file": "2026-10-23-stats-action-event.sql", "ticket": "#38", "phase": "MIGRATE", "kind": "forward", "replayable": false, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-23-stats-action-event-rollback.sql", "provides": "事件幂等键、持久领取状态与幂等台账" },
+    { "order": 9,  "file": "2026-10-24-vip-redemption.sql", "ticket": "#39", "phase": "MIGRATE", "kind": "forward", "replayable": false, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-24-vip-redemption-rollback.sql", "provides": "兑换码摘要台账与兑换流水", "blockingCondition": "回滚放行前必须完成导入工具与删除运行时 vipCode.json 副本两步人工关卡" },
+    { "order": 10, "file": "2026-10-25-space-uniqueness-quota.sql", "ticket": "#37", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-10-25-space-uniqueness-quota-rollback.sql", "provides": "space.activeKey 唯一占位与 storage_cleanup_task" },
+    { "order": 11, "file": "2026-10-25-space-uniqueness-quota-backfill.sql", "ticket": "#37", "phase": "MIGRATE", "kind": "backfill", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-10-25-space-uniqueness-quota-rollback.sql", "provides": "有效空间 activeKey 回填", "blockingCondition": "重复有效空间由 CHECK 守卫在改动任何数据前失败，不自动选择/合并/删除" },
+    { "order": 12, "file": "2026-11-05-storage-switch-state.sql", "ticket": "#40", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-11-05-storage-switch-state-rollback.sql", "provides": "存储切换版本状态与确认实例集合（单行初始化）" },
+    { "order": 13, "file": "2026-11-05-user-preference.sql", "ticket": "#42", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-11-05-user-preference-rollback.sql", "provides": "持久化长期偏好表与从归档恢复", "blockingCondition": "业务表已有新写入时 CHECK 守卫阻断恢复，归档留库供人工核对" },
+
+    { "order": 20, "file": "2026-10-23-agent-session-attachment-blocklist.sql", "ticket": "#35", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "存量会话图片待核对清单（SHA2 前缀，无原始地址）" },
+    { "order": 21, "file": "2026-10-23-private-resource-protection-blocklist.sql", "ticket": "#36", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "旧反馈附件脱敏阻断清单（SHA2 前缀，无直链）" },
+    { "order": 22, "file": "2026-10-25-space-uniqueness-quota-blocklist.sql", "ticket": "#37", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "重复有效空间、配额偏差、未收敛清理任务三份只读清单" },
+    { "order": 23, "file": "2026-10-23-stats-action-event-maintenance.sql", "ticket": "#38", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "A–E 五类存量事件冲突与积压清单，不自动改写" },
+    { "order": 24, "file": "2026-11-05-maintenance-window-blocklist.sql", "ticket": "#46", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "本票新增：把归属未知、重复有效空间、无法安全恢复状态、未收敛补偿与不得复活的安全状态汇总成一张跨领域脱敏阻断清单，并给出阻断计数", "blockingCondition": "任一 blockingCount 非零时编排保持停写，不自动认领/合并/删除/续跑" },
+
+    { "order": 30, "file": "2026-10-22-picture-file-rollback.sql", "ticket": "#34", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "只删除新增资源记录表；旧图数据保留，应用须退回到不读取该表的版本，否则内容入口拒绝读取" },
+    { "order": 31, "file": "2026-10-23-agent-run-state-rollback.sql", "ticket": "#41", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "删除执行状态与动作台账；旧轻量归档只可展示不可续跑，不得据此自动恢复外部动作" },
+    { "order": 32, "file": "2026-10-23-agent-run-state-claim-columns-rollback.sql", "ticket": "#41", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "只移除认领/租约列；不恢复任何已确认动作或待核对结论" },
+    { "order": 33, "file": "2026-10-23-agent-run-state-epoch-rollback.sql", "ticket": "#41", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "只移除 runEpoch 列；旧世代的迟到写入仍须由应用拒绝" },
+    { "order": 34, "file": "2026-10-23-agent-session-attachment-legacy-rollback.sql", "ticket": "#35", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "撤销回填绑定与清单；不删除资源记录、不重新公开已关闭的私人直链、不恢复已删除对象" },
+    { "order": 35, "file": "2026-10-23-agent-session-attachment-rollback.sql", "ticket": "#35", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "先执行 legacy 回滚再执行本脚本；不重新公开私人直链" },
+    { "order": 36, "file": "2026-10-23-private-resource-protection-rollback.sql", "ticket": "#36", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "CHECK 守卫在仍有未解除隔离时阻断回滚；不恢复已撤销授权、不解除隔离、不重新公开违规内容" },
+    { "order": 37, "file": "2026-10-23-stats-action-event-rollback.sql", "ticket": "#38", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "先收敛状态再删列；幂等台账只增不减，不得清理以免重复事件二次入账" },
+    { "order": 38, "file": "2026-10-24-vip-redemption-rollback.sql", "ticket": "#39", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "不删除两张码表、不改状态行；已作废/已用码不复活，user.vipCode 保持 NULL；放行前须先删除运行时 vipCode.json 副本" },
+    { "order": 39, "file": "2026-10-25-space-uniqueness-quota-rollback.sql", "ticket": "#37", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "CHECK 守卫在存在未收敛清理任务时阻断回滚；删列不解除已有数据约束，不复活重复空间" },
+    { "order": 40, "file": "2026-11-05-storage-switch-state-rollback.sql", "ticket": "#40", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "保留两张状态表与全部行；不恢复已撤销凭据、不改写 activeVersion/pendingVersion" },
+    { "order": 41, "file": "2026-11-05-user-preference-rollback.sql", "ticket": "#42", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "偏好行先归档再删表、CHECK 守卫阻断不完整归档；不重新公开已清除的数据，旧学习任务不能复活" }
+  ],
+  "inventoryDimensions": [
+    { "id": "pictureOwnership", "label": "图片与附件归属", "tables": ["picture", "picture_file"], "check": "资源记录数、ownerUserId 非空、归属未知条目登记为阻断", "script": "2026-10-23-private-resource-protection-blocklist.sql" },
+    { "id": "attachmentOwnership", "label": "存量会话图片与反馈附件归属", "tables": ["agent_legacy_attachment", "feedback_attachment"], "check": "status=0/3 的待核对条目全部进入脱敏清单，零自动认领", "script": "2026-10-23-agent-session-attachment-blocklist.sql" },
+    { "id": "originalPlatform", "label": "原平台与对象定位", "tables": ["picture_file", "storage_config", "storage_switch_state"], "check": "platform/objectKey 保留原值；切换不改写旧资源、不删除旧文件", "script": "2026-11-05-storage-switch-state.sql" },
+    { "id": "spaceQuota", "label": "空间配额", "tables": ["space", "picture"], "check": "totalCount/totalSize 与 picture 实际条数/字节数的偏差形成清单，不静默覆盖", "script": "2026-10-25-space-uniqueness-quota-blocklist.sql" },
+    { "id": "validSpaces", "label": "有效空间唯一性", "tables": ["space"], "check": "重复有效空间组数必须为 0 才能回填 activeKey", "script": "2026-10-25-space-uniqueness-quota-backfill.sql" },
+    { "id": "actionEvents", "label": "行为事件与幂等台账", "tables": ["user_picture_action", "picture_action_event_dedupe", "picture_stats"], "check": "A–E 五类冲突形成可留档清单，未处理事件不被静默丢弃", "script": "2026-10-23-stats-action-event-maintenance.sql" },
+    { "id": "vipEntitlement", "label": "VIP 权益与兑换状态", "tables": ["vip_redemption_code", "vip_redemption_record", "user"], "check": "已兑权益保留；已用 status=1、已作废 status=2 不被改回可用；明文码不复活", "script": "2026-10-24-vip-redemption-rollback.sql" },
+    { "id": "runState", "label": "执行状态与动作台账", "tables": ["agent_run_state", "agent_action_record"], "check": "PAUSED_UNRECOVERABLE / UNKNOWN_NEEDS_REVIEW 不得被自动续跑；已确认动作不重放", "script": "2026-10-23-agent-run-state.sql" },
+    { "id": "userPreference", "label": "长期偏好", "tables": ["user_preference", "user_preference_rollback_archive"], "check": "显式设置、开关、版本与纪元原样保留；已清除内容仍为空", "script": "2026-11-05-user-preference-rollback.sql" }
+  ],
+  "riskReopenInvariants": [
+    { "id": "exposedCodes", "assertion": "status=2 已作废与 status=1 已用的兑换码在任何回滚后仍不可兑换；user.vipCode 恒为 NULL" },
+    { "id": "revokedGrants", "assertion": "status=2 REVOKED 的授权不会回到 ACTIVE；activeKey 不重新占用唯一槽位" },
+    { "id": "oldSecrets", "assertion": "回滚不写回任何明文凭据、码值或 vipCode.json 副本" },
+    { "id": "privateDirectLinks", "assertion": "BLOCKED 旧附件与 status=0 待核对会话图片不提供读取入口；contentUrl 对无资源记录的旧图返回 null" },
+    { "id": "quarantine", "assertion": "未解除隔离时回滚脚本以 CHECK 守卫失败，业务表不删" },
+    { "id": "unrecoverableState", "assertion": "无法安全恢复的执行状态保持暂停，不自动认领为可续跑" }
+  ],
+  "manualApprovalPoints": [
+    { "id": "M1", "check": "备份可恢复性：在独立实例上还原本轮备份台账，逐表行数与校验和一致，记录还原时间与操作者", "evidence": "备份文件哈希、还原后行数对照表、操作者签字", "approver": "运维负责人" },
+    { "id": "M2", "check": "停写完整性：全部应用实例、定时任务、队列消费者与其他写入方已停止；以只读账号验证无新写入", "evidence": "实例清单、进程/任务停止记录、停写窗口起止时间", "approver": "运维负责人" },
+    { "id": "M3", "check": "冲突清单处置：归属未知、重复有效空间、配额偏差、事件积压、无法安全恢复状态逐条人工判定；阻断项未清零不得放行", "evidence": "脱敏清单留档、逐条处置结论、剩余阻断项为 0 的核对结果", "approver": "数据负责人" },
+    { "id": "M4", "check": "旧地址失效：核对桶 ACL、CDN/回源策略、对象是否可匿名访问；对原图、缩略图、预览、下载、附件逐类直接请求旧地址均应拒绝；不能只删数据库地址", "evidence": "每类内容 3 条旧地址的匿名直接请求响应、桶策略变更记录、CDN 刷新记录", "approver": "安全负责人" },
+    { "id": "M5", "check": "缓存失效：Redis 与本地 Caffeine 中的推荐/会话/内容缓存键逐一核对失效，撤权后的下一次请求仍拒绝", "evidence": "缓存键清单、失效前后响应对照、双实例一致性记录", "approver": "运维负责人" },
+    { "id": "M6", "check": "凭据与已暴露兑换码：真实凭据已轮换、历史访问日志已核查、网络边界已收紧、运行时 vipCode.json 副本已整体删除（不是置空）", "evidence": "轮换记录、日志核查结论、旧副本删除清单", "approver": "安全负责人" },
+    { "id": "M7", "check": "回滚放行：仅在备份可恢复、阻断项为零、旧地址已失效、已暴露兑换码与已撤权限不会复活时批准；否则保持维护/受限状态", "evidence": "六类不重新开放风险的核对结果、批准时间、回滚责任人", "approver": "发布负责人" },
+    { "id": "M8", "check": "恢复写入：确认全部实例使用支持新结构的版本、双实例读取一致、健康检查通过后，才恢复写入", "evidence": "实例版本清单、双实例读取对账、健康检查响应", "approver": "发布负责人" }
+  ],
+  "controlledOldAddressCheck": {
+    "environment": "RecordingStorageConfiguration 录制的受控存储替身 + 隔离 Redis；不连接真实 COS/OSS/MinIO 或 CDN",
+    "assertion": "旧源站地址只作为脱敏摘要登记；contentUrl 对无资源记录的存量图返回 null；直接按 URL 读取/删除只匹配本人精确记录，未授权零调用",
+    "controlledCacheCheck": "RecommendCacheManager.invalidateRecommendCache() 在隔离 Redis 上删除全部 recommend:* 键；失效后无残留，撤权后 contentUrl 仍返回 null，残留缓存不会让私人直链复活",
+    "inventorySummary": "跨领域清单第 6 节给出 M3 的六类 BLOCKING 计数（含配额偏差、事件积压）与 HOLD 核对计数；BLOCKING 任一非零即保持停写，HOLD 只核对不得清零",
+    "notCovered": "真实桶 ACL、CDN 缓存、公网可达性、浏览器历史副本、本地 Caffeine 多实例一致性、逐表校验和与生产规模备份还原；这些必须在 M1/M4/M5 由真实环境证据闭环"
+  },
+  "productionAcceptance": "NOT_RUN"
+}
