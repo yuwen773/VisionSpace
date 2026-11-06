@@ -20,6 +20,8 @@ node frontend/node_modules/playwright-core/cli.js install chromium
 pwsh.exe -NoLogo -NoProfile -File scripts/srf-verification.ps1 -Trivy '<Trivy executable>'
 ```
 
+完整入口要求干净的候选工作树，未提交源码会在执行任何关卡前退出 2。Windows 选择经过版本探测的 Python 3.9+ 实体程序，避免误用应用商店别名。既有 `acceptance.ps1 -MySqlBin/-RedisBin` 保留为 native-explicit 组件验证；该模式不使用 Docker 适配器，其专项测试标为不适用，不能替代本票必需的 Docker 全矩阵。隔离原生 MySQL 与 JVM 统一使用 UTC，不改变系统时区或现有数据库服务。
+
 完整入口顺序运行四个公共入口：
 
 | 关卡 | 命令入口 | 证据 |
@@ -69,4 +71,24 @@ GitHub 对 hosted generic patterns 有[仓库类型/产品范围限制](https://
 
 首轮失败另有三项已定位：脚本负向夹具遗留的 native exit code 通过显式成功出口修正；`dist-harness` 作为生成产物加入 ESLint 忽略；同一隔离 MySQL、无第二实例的受控时区复现中，上海 JVM 失败而 UTC JVM 通过，因此将验收 JVM 固定为 UTC。Docker 基镜像重试拉取成功，仍须重跑容器验证才能判定。
 
-修正后的完整候选执行、最终版本及评审复核将在实际执行后补记；当前不宣称全量自动矩阵或远程 CI PASS。
+修正后完整候选 `f1f48021c7de37dde0f5407da91501668d124f79`、唯一批次 `b9bdd2c89c13409bacca9198a2df125b`：
+
+| 实际执行项 | 结果 |
+| --- | --- |
+| 后端完整 Surefire 与构建 | 672 / 672，0 failure、error、skip，PASS |
+| 前端组件 | 22 文件、186 / 186，PASS |
+| 前端 lint / format / typecheck / build / OpenAPI contract | 全部 PASS |
+| HTTPS 9 场景 / 双实例协议 21 场景 / 协作 UI 10 场景 / 图表四组合 | 全部 PASS；同时注入了指向拒绝端口的 Hikari/Redis/模型覆盖变量，仍只使用本轮隔离服务 |
+| 容器构建、非 root、端口/写入边界、健康、延迟恢复及重试耗尽 | ALL PASS，cleanup PASS |
+| 候选秘密扫描 | PASS |
+| Maven/npm 依赖扫描 | FAIL，仍有既有 HIGH / CRITICAL 命中 |
+| runner Python 入口 | FAIL：本机 `python3` 为应用商店别名；保留该失败，没有修改该轮报告 |
+| 整体 / 生产 / 远程完整 CI | 工程 BLOCKED；生产 NOT_RUN；远程 CI NOT_RUN |
+
+该轮完整证据保留于 `.srf-runs/final/134243677fcf44ff876004b9f004a7b7/`。其 runner 失败由后续解释器探测修正，并通过定向执行验证：三个清单内 PowerShell 回归入口、12 个 Python 用例、仓库卫生和扫描规则回归均通过。没有将这些后续结果改写到 `f1f4802` 的旧台账中。
+
+最后收尾还完成：通用浏览器完整恢复调用者环境（真实执行九场景后断言四类继承变量恢复，PASS）；配置 PlantUML 的图表测试改用本轮拥有的随机回环服务，不访问固定端口上的未知进程；四组合定向执行 PASS；原生 MySQL UTC 参数经实际程序帮助入口验证；隔离运行目录与并行工作树排除出 Docker 构建上下文。
+
+本地主机工具版本实测：Python 3.14.7、JDK 21.0.7、Maven 3.9.9、Node 22.21.0、npm 10.9.4、PowerShell 7.6.9、Docker Engine 29.2.1、Trivy 0.76.2。Docker 服务使用 MySQL 8.0.36 / Redis 7.2.4；主机版本不等同于容器内每个工具的版本。版本投影位于 `.srf-runs/runtime-final.json`，最终治理 PASS/422 拒绝与 probe 清理证据位于 `.srf-runs/governance-final.json`。
+
+最后收尾没有改变 Java 后端/后端测试与 `frontend/src` 业务源码；完整基准仍以明确记录的 `f1f4802` 为准。最终修正版本的完整远程 CI 尚未运行，不能把定向回归升级为新候选全矩阵 PASS。依赖风险仍须后续整改，#47 保持 BLOCKED，不关闭工单、不放行部署。

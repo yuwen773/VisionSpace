@@ -80,7 +80,7 @@ try {
     $dataDir = Join-Path $runDir 'mysql'
     & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
     if ($LASTEXITCODE -ne 0) { throw 'mysql init failed' }
-    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console', '--general-log=1', "--general-log-file=$(Join-Path $runDir 'mysql-general.log')") -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
+    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console', '--general-log=1', "--general-log-file=$(Join-Path $runDir 'mysql-general.log')") -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-err.log')
     $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-err.log')
     Wait-Port $mysqlPort 'mysql'; Wait-Port $redisPort 'redis'
     $database = "vs44_collab_$nonce"
@@ -301,7 +301,7 @@ SELECT spaceRole FROM space_user WHERE spaceId = 9441001 AND userId = $idEditor;
             if (-not $ownedProcess.WaitForExit(10000)) { throw 'Owned process did not exit.' }
         } catch { $cleanup = 'FAIL' }
     }
-    if ($MySqlBin -and $dataDir) {
+    if ($MySqlBin -and $ownedProcesses.Count -gt 0 -and $dataDir) {
         try {
             $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
             foreach ($server in $servers) { Stop-Process -Id $server.ProcessId -Force -ErrorAction Stop; Wait-Process -Id $server.ProcessId -Timeout 10 -ErrorAction Stop }

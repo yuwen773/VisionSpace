@@ -8,11 +8,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-versions = {"os": platform.system(), "arch": platform.machine()}
+versions = {"os": platform.system(), "arch": platform.machine(), "python": platform.python_version()}
 for name, arguments in {"java": ["-version"], "mvn": ["-v"], "node": ["--version"],
                         "npm": ["--version"], "trivy": ["--version"], "docker": ["version", "--format", "{{.Server.Version}}"],
                         "pwsh": ["-NoLogo", "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"]}.items():
     executable = shutil.which(name)
+    if name == "trivy" and len(sys.argv) > 2:
+        executable = sys.argv[2]
     if name == "java" and os.environ.get("JAVA_HOME"):
         executable = str(Path(os.environ["JAVA_HOME"]) / "bin" / ("java.exe" if os.name == "nt" else "java"))
     try:

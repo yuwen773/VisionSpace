@@ -162,7 +162,7 @@ $ddl
         $dataDir = Join-Path $runDir 'mysql'
         & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
         if ($LASTEXITCODE -ne 0) { throw 'Isolated MySQL initialization failed.' }
-        $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
+        $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
         $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
         Wait-Port $mysqlPort
         Wait-Port $redisPort
@@ -252,7 +252,10 @@ $ddl
         }
     }
     if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $results['cleanup'] = 'FAIL' } }
-    foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
+    foreach ($entry in @(Get-ChildItem Env:)) {
+        if (-not $savedEnvironment.ContainsKey($entry.Name)) { [Environment]::SetEnvironmentVariable($entry.Name, $null) }
+    }
+    foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
 
     $summary = [ordered]@{
         head = (git rev-parse HEAD)

@@ -23,7 +23,7 @@ class PolicyTest(unittest.TestCase):
 
     def test_every_powershell_regression_has_a_manifest_or_workflow_entry(self):
         workflows = "\n".join(path.read_text(encoding="utf-8") for path in (ROOT / ".github/workflows").glob("*.yml"))
-        wired = set(POLICY["runnerTests"])
+        wired = {entry["path"] for entry in POLICY["runnerTests"]}
         wired.update(re.findall(r"scripts/tests/test-[a-zA-Z0-9_-]+\.ps1", workflows))
         discovered = {path.relative_to(ROOT).as_posix() for path in (ROOT / "scripts/tests").glob("test-*.ps1")}
         self.assertEqual(discovered, wired)

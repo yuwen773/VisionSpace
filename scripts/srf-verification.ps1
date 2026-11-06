@@ -4,6 +4,11 @@ param([string]$Trivy = 'trivy')
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = Split-Path $PSScriptRoot -Parent
+$candidateStatus = git -C $repo status --porcelain=v1 --untracked-files=all
+if ($LASTEXITCODE -ne 0 -or $candidateStatus) {
+    Write-Host 'BLOCKED_ENV: commit the candidate before running the full SRF matrix.'
+    exit 2
+}
 $run = Join-Path $repo ('.srf-runs/final/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $run | Out-Null
 $pwsh = (Get-Process -Id $PID).Path
@@ -25,7 +30,7 @@ try {
         $results[$name] = if ($LASTEXITCODE -eq 0) { 'PASS' } elseif ($LASTEXITCODE -eq 2) { 'BLOCKED_ENV' } else { 'FAIL' }
         python -I scripts/publish-evidence.py (Join-Path $repo "target/$($entry.report)") (Join-Path $run $name)
         if ($LASTEXITCODE -ne 0) { $results[$name] = 'BLOCKED_ENV' }
-        python -I scripts/runtime-versions.py (Join-Path $run "$name/runtime.json")
+        python -I scripts/runtime-versions.py (Join-Path $run "$name/runtime.json") $Trivy
         if ($LASTEXITCODE -ne 0) { $results[$name] = 'BLOCKED_ENV' }
         Write-Host "$name : $($results[$name])"
     }

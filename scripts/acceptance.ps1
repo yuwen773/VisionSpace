@@ -63,14 +63,23 @@ try {
     Run-Gate 'runner-tests' {
         $policy = Get-Content -Raw (Join-Path $PSScriptRoot 'srf-matrix.json') | ConvertFrom-Json
         foreach ($test in $policy.runnerTests) {
-            & pwsh -NoLogo -NoProfile -File (Join-Path $repo $test)
-            if ($LASTEXITCODE -ne 0) { throw "$test exited $LASTEXITCODE" }
+            if ($MySqlBin -and $test.infrastructure -eq 'docker') {
+                Write-Host "NOT_APPLICABLE: $($test.path) (Docker adapter is not used in native-explicit mode)"
+                continue
+            }
+            & pwsh -NoLogo -NoProfile -File (Join-Path $repo $test.path)
+            if ($LASTEXITCODE -ne 0) { throw "$($test.path) exited $LASTEXITCODE" }
         }
         # 仓库护栏回归：评审基点漂移、秘密扫描漏文件类型、恒真断言、文档/manifest 漂移。
         # 纯 Python，不需要隔离数据库或 PowerShell 执行策略。
-        $python = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' }
-                  elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' }
-                  else { throw 'BLOCKED_ENV: python is required for repo hygiene gates' }
+        $python = $null
+        foreach ($candidate in @('python', 'python3')) {
+            $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $command -or $command.Source -match '[\\/]WindowsApps[\\/]') { continue }
+            $supported = & $command.Source -I -c 'import sys; print(sys.version_info >= (3, 9))' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $supported -eq 'True') { $python = $command.Source; break }
+        }
+        if (-not $python) { throw [System.Management.Automation.CommandNotFoundException]::new('BLOCKED_ENV: working Python 3.9+ is required') }
         & $python -I (Join-Path $PSScriptRoot 'tests/check-repo-hygiene.py')
         if ($LASTEXITCODE -ne 0) { throw "check-repo-hygiene exited $LASTEXITCODE" }
         & $python -I (Join-Path $PSScriptRoot 'tests/verify-secret-scan.py')
@@ -123,7 +132,7 @@ $ddl
             $dataDir = Join-Path $runDir 'mysql'
             & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
             if ($LASTEXITCODE -ne 0) { throw 'Isolated MySQL initialization failed.' }
-            $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
+            $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
             $ownedProcesses += Start-Process -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
             Wait-Port $mysqlPort
             Wait-Port $redisPort

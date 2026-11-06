@@ -96,7 +96,7 @@ try {
     $dataDir = Join-Path $runDir 'mysql'
     & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
     if ($LASTEXITCODE -ne 0) { throw 'mysql init failed' }
-    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
+    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
     $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
     Wait-Port $mysqlPort; Wait-Port $redisPort
     $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
@@ -236,7 +236,7 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
             if (-not $ownedProcess.WaitForExit(10000)) { throw 'Owned process did not exit.' }
         } catch { $cleanup = 'FAIL' }
     }
-    if ($MySqlBin -and $dataDir) {
+    if ($MySqlBin -and $ownedProcesses.Count -gt 0 -and $dataDir) {
         try {
             $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
             foreach ($server in $servers) { Stop-Process -Id $server.ProcessId -Force -ErrorAction Stop; Wait-Process -Id $server.ProcessId -Timeout 10 -ErrorAction Stop }
