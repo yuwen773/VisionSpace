@@ -94,9 +94,12 @@ LEFT JOIN (
   WHERE `isDelete` = 0 AND `spaceId` IS NOT NULL
   GROUP BY `spaceId`
 ) p ON p.`spaceId` = s.`id`
+-- stored 配额列在 DDL 里可空：NULL <> 0 既非真也非假，会让不一致的空间静默漏报。
+-- 明细仍输出原始值（NULL 要能被人工看见），判定一律先按 0 归一；expected* 由
+-- COALESCE(SUM(picSize), 0) 保证 >= 0，因此负值必然满足 <>，无需再单列 < 0 分支。
 WHERE s.`isDelete` = 0
-  AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0
-    OR s.`totalSize` <> COALESCE(p.`actualSize`, 0) OR s.`totalSize` < 0)
+  AND (COALESCE(s.`totalCount`, 0) <> COALESCE(p.`actualCount`, 0)
+    OR COALESCE(s.`totalSize`, 0) <> COALESCE(p.`actualSize`, 0))
 ORDER BY s.`id` ASC;
 
 -- ---------- 5. 不得复活的安全状态（只给计数，不给行内值） ----------
@@ -157,8 +160,8 @@ SELECT 'BLOCKING', 'quota-deviation',
            WHERE `isDelete` = 0 AND `spaceId` IS NOT NULL GROUP BY `spaceId`
          ) p ON p.`spaceId` = s.`id`
          WHERE s.`isDelete` = 0
-           AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0
-             OR s.`totalSize` <> COALESCE(p.`actualSize`, 0) OR s.`totalSize` < 0)) d)
+           AND (COALESCE(s.`totalCount`, 0) <> COALESCE(p.`actualCount`, 0)
+             OR COALESCE(s.`totalSize`, 0) <> COALESCE(p.`actualSize`, 0))) d)
 UNION ALL
 SELECT 'BLOCKING', 'event-backlog',
        (SELECT COUNT(*) FROM `user_picture_action` a

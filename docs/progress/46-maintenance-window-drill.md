@@ -235,12 +235,67 @@ EPERM，不是代码回归；CI 的 `acceptance` 在 `ubuntu-24.04` 上用自带
   不表述为覆盖所有回滚路径。
 - `event-backlog` 汇总子查询与 `#38` 交付清单各写一份有效图片口径，没有单一事实来源；
   口径若变，两处需同步。跨领域清单是汇总计数、各域清单是分类明细，二者目前靠人工对齐。
-- `SUM(picSize)` 忽略 NULL：`picSize` 可空（沿用 #37 已交付口径）。单独在本票补
-  `COALESCE` 会与 #37 口径产生新的漂移，因此不在本票改动，需与 #37 一起处理。
-- 新增两个用例证明「清单报出偏差」，未把非零 BLOCKING 回灌编排闸门证明「偏差阻断迁移」；
-  34.3 的阻断行为由既有 `unresolvedConflictsProduceADesensitizedListAndBlockTheMigration`
-  等用例覆盖其它维度，本票新增维度未单独回灌。
 - 新增用例以 `SELECT *` 前后等值做零副作用断言，弱于录制型替身的 `recorder.calls()` 行为断言；
   且对账读取引导库真实 `picture_file`（哑值 `88002`），依赖串行执行与 `dropScratch()` 清理。
 - 早期小节仍写 `7/7`、`44/44`、`669/669`（PR #73 当时口径），与本节 `9/9`、`16/16`、
   `671/671` 是不同批次的历史记录；数字差异来自本票新增两个用例，不是同一轮的矛盾结论。
+
+> 其中「NULL 配额漏报」「配额/SQL 口径漂移」「非零 BLOCKING 未回灌编排」三项已由后续
+> `fix/46-quota-null-and-simplify` 修复，见下一节；此处保留 PR #75 合并时的原始审查记录。
+
+## 合并后的缺陷修复与简化（fix/46-quota-null-and-simplify）
+
+基线：`origin/main` squash 提交 `003e487`（PR #75 已合入）。本分支从 `origin/main` 新建，
+只改清单 SQL、既有演练测试、护栏脚本与本文档；不新增迁移脚本、不碰生产数据。
+
+### 修复一：配额偏差判定对 NULL stored 值漏报（正确性）
+
+`space.totalSize` / `totalCount` 在生产 DDL 是 `bigint NULL`。`s.col <> COALESCE(actual, 0)`
+在 stored 为 NULL 时求值为 NULL（非 TRUE），`s.col < 0` 同样为 NULL，该空间被静默排除在
+明细和 BLOCKING 汇总之外，`blockingCount` 保持 0，M3 闸门会错误放行。红测
+`quotaBlocklistReportsNullStoredQuotaAsADeviation` 先复现：预期明细 `[9001]`、实际 `[]`。
+
+修法：判定谓词统一改为 `COALESCE(s.col, 0) <> COALESCE(p.actual, 0)`，明细输出列仍保留
+原始 `s.col`（NULL 要能被人工看见）；同时删掉永假的 `< 0` 分支（`expected*` 恒 >= 0，
+负值必然满足 `<>`）。三处手写谓词（#37 明细、#46 明细、#46 汇总）同步修改，避免单侧修复
+制造新的口径漂移。新增 `quotaBlocklistKeepsCountOnlyDeviationsAndAgreesBetweenDetailAndSummary`
+断言旧的按数量检测路径不被吃掉、且明细行数与汇总计数一致。
+
+### 修复二：口径漂移护栏
+
+`scripts/tests/check-repo-hygiene.py` 从两份 SQL 抽取全部配额 WHERE 谓词（明细以 `ORDER BY`
+收尾、汇总以 `)) d)` 收尾），按空白归一化后要求完全一致，且必须含 `COALESCE(s.col, 0)`。
+负向实测：单独改 #46 明细或汇总谓词时护栏各报 2 项并退出 1，还原后 PASS。该脚本已在
+`acceptance.ps1` 的 `runner-tests` 门禁里，无需新增接线。
+
+### 修复三：非零 BLOCKING 回灌编排闸门（34.3）
+
+manifest 第 24 步声明「任一 blockingCount 非零时编排保持停写」，但此前
+`runStepUnderGate()` 只看 `writesPaused` 布尔，与清单计数无接线。新增
+`resumeWritesIfInventoryClear()` 并接入 `windowRunsInManifestOrder...` 的 RECONCILE → RESUME
+之间：实跑清单第 6 节，从 `kind = 'BLOCKING' 且 blockingCount > 0` 的结果派生阻断项
+（不另写一份维度名单），任一非零即落回停写并拒绝恢复。红测
+`nonZeroBlockingInventoryKeepsTheWindowPausedAndRejectsResume` 制造一条仅新维度（容量偏差）
+的阻断项，断言恢复与后续迁移步骤都被拒绝，清零后才放行。
+
+### 简化
+
+去掉三处配额谓词里的死条件 `< 0`；清掉 `check-repo-hygiene.py` 重复的 `JAVA_TESTS` 赋值。
+
+### 本轮验证（隔离 MySQL/Redis，原生模式）
+
+| 检查 | 结果 |
+| --- | --- |
+| 红→绿 | NULL 配额红测（`expected <[9001]> but was <[]>`）→ 修复后 3/3 PASS |
+| 定向回归 | `MaintenanceWindowDrillTest` 12/12 + `MaintenanceWindowManifestTest` 7/7 + `SpaceQuotaMigrationTest` 6/6 = 25/25，0 失败/错误/跳过 |
+| 护栏正/负向 | `check-repo-hygiene.py` 漂移注入 EXIT=1、还原 PASS；`verify-secret-scan.py` `SCANNED=805 HITS=0`；真实 `secret-scan.ps1` 803 文件 0 命中 |
+| 完整后端 | 本机 `acceptance.ps1` 因系统内存压力被中止，未重跑；以本 PR 的 GitHub Actions `acceptance` / `container` 为准 |
+| 前端 | 本轮未改前端文件；本机完整入口前端步骤同样随中止未执行，以 CI 为准 |
+
+上面的定向 25/25 跑在「把 `resumeWritesIfInventoryClear()` 接入 `windowRunsInManifestOrder...`
+的 RESUME 流程」这次一行接线之前；该接线让编排测试也会实跑清单第 6 节，尚未在本机
+单独复跑，由 CI 的完整后端覆盖。红→绿与护栏负向实测均在本机完成。
+
+真实环境 M1–M8、凭据轮换、桶 ACL/CDN、生产迁移及发布放行仍为 NOT_RUN。
+`event-backlog` 与 `#38` 的有效图片口径双份、旧资源对账的覆盖边界、`SELECT *` 零副作用
+断言强度仍未改动，保持上一节记录的限制，不冒充已通过。
