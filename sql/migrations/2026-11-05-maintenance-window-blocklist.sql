@@ -84,16 +84,19 @@ ORDER BY t.`id` ASC;
 SELECT 'quota-deviation' AS `dimension`,
        s.`id`            AS `recordId`,
        s.`totalCount`    AS `storedCount`,
-       COALESCE(p.`actualCount`, 0) AS `expectedCount`
+       COALESCE(p.`actualCount`, 0) AS `expectedCount`,
+       s.`totalSize`     AS `storedSize`,
+       COALESCE(p.`actualSize`, 0) AS `expectedSize`
 FROM `space` s
 LEFT JOIN (
-  SELECT `spaceId`, COUNT(*) AS `actualCount`
+  SELECT `spaceId`, COUNT(*) AS `actualCount`, COALESCE(SUM(`picSize`), 0) AS `actualSize`
   FROM `picture`
   WHERE `isDelete` = 0 AND `spaceId` IS NOT NULL
   GROUP BY `spaceId`
 ) p ON p.`spaceId` = s.`id`
 WHERE s.`isDelete` = 0
-  AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0)
+  AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0
+    OR s.`totalSize` <> COALESCE(p.`actualSize`, 0) OR s.`totalSize` < 0)
 ORDER BY s.`id` ASC;
 
 -- ---------- 5. 不得复活的安全状态（只给计数，不给行内值） ----------
@@ -149,16 +152,18 @@ SELECT 'BLOCKING', 'quota-deviation',
        (SELECT COUNT(*) FROM (
          SELECT s.`id` FROM `space` s
          LEFT JOIN (
-           SELECT `spaceId`, COUNT(*) AS `actualCount` FROM `picture`
+           SELECT `spaceId`, COUNT(*) AS `actualCount`, COALESCE(SUM(`picSize`), 0) AS `actualSize`
+           FROM `picture`
            WHERE `isDelete` = 0 AND `spaceId` IS NOT NULL GROUP BY `spaceId`
          ) p ON p.`spaceId` = s.`id`
          WHERE s.`isDelete` = 0
-           AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0)) d)
+           AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0) OR s.`totalCount` < 0
+             OR s.`totalSize` <> COALESCE(p.`actualSize`, 0) OR s.`totalSize` < 0)) d)
 UNION ALL
 SELECT 'BLOCKING', 'event-backlog',
        (SELECT COUNT(*) FROM `user_picture_action` a
         LEFT JOIN `picture_stats` s ON s.`pictureId` = a.`pictureId`
-        LEFT JOIN `picture` p ON p.`id` = a.`pictureId`
+        LEFT JOIN `picture` p ON p.`id` = a.`pictureId` AND p.`isDelete` = 0
         WHERE (a.`isProcessed` = 1 AND s.`pictureId` IS NULL)
            OR (a.`isProcessed` = 0 AND p.`id` IS NULL)
            OR (a.`isProcessed` = 0 AND a.`attemptCount` >= 3));

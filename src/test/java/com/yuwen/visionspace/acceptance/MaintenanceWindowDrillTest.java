@@ -213,6 +213,56 @@ class MaintenanceWindowDrillTest {
     // ------------------------------------------------------------------
 
     @Test
+    void quotaBlocklistReportsByteDeviationsWhenPictureCountsMatch() throws Exception {
+        jdbc.update("UPDATE space_drill_46 SET totalCount = 1, totalSize = 9 WHERE id = 9001");
+        jdbc.update("UPDATE space_drill_46 SET totalSize = -1 WHERE id = 9002");
+        insertSpace(9003, 7003, 0, 0);
+        jdbc.update("UPDATE space_drill_46 SET totalCount = 1, totalSize = 10 WHERE id = 9003");
+        insertSpace(9004, 7004, 0, 1);
+        jdbc.update("UPDATE space_drill_46 SET totalSize = -1 WHERE id = 9004");
+        jdbc.update("INSERT INTO picture_drill_46 (id, url, userId, picSize, spaceId, isDelete) VALUES "
+                + "(88101, 'dummy', 7001, 10, 9001, 0), (88102, 'dummy', 7001, 99, 9001, 1), "
+                + "(88103, 'dummy', 7003, 10, 9003, 0), (88104, 'dummy', 7001, 99, NULL, 0)");
+        List<Map<String, Object>> spacesBefore = jdbc.queryForList("SELECT * FROM space_drill_46 ORDER BY id");
+        List<Map<String, Object>> picturesBefore = jdbc.queryForList("SELECT * FROM picture_drill_46 ORDER BY id");
+        int callsBefore = recorder.calls().size();
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        String detailSql = statements(sql).stream().filter(s -> s.contains("AS `storedCount`"))
+                .findFirst().orElseThrow();
+        List<Map<String, Object>> detail = jdbc.queryForList(rename(detailSql));
+        assertEquals(List.of(9001L, 9002L), detail.stream().map(row -> row.get("recordId")).toList(),
+                "数量正确但容量错误或为负的有效空间仍须阻断；已删除空间不计入");
+        assertEquals(9L, ((Number) detail.get(0).get("storedSize")).longValue());
+        assertEquals(10L, ((Number) detail.get(0).get("expectedSize")).longValue());
+        assertEquals(-1L, ((Number) detail.get(1).get("storedSize")).longValue());
+        assertEquals(0L, ((Number) detail.get(1).get("expectedSize")).longValue());
+        Map<String, Object> summary = blocklistSection(sql, 6).stream()
+                .filter(row -> "quota-deviation".equals(row.get("dimension"))).findFirst().orElseThrow();
+        assertEquals("BLOCKING", summary.get("kind"));
+        assertEquals(2L, ((Number) summary.get("blockingCount")).longValue());
+        assertEquals(spacesBefore, jdbc.queryForList("SELECT * FROM space_drill_46 ORDER BY id"));
+        assertEquals(picturesBefore, jdbc.queryForList("SELECT * FROM picture_drill_46 ORDER BY id"));
+        assertEquals(callsBefore, recorder.calls().size(), "配额盘点零存储副作用");
+    }
+
+    @Test
+    void eventBlocklistReportsPendingEventsForLogicallyDeletedPictures() throws Exception {
+        jdbc.update("INSERT INTO picture_drill_46 (id, url, userId, picSize, isDelete) VALUES "
+                + "(88201, 'dummy', 7001, 10, 1), (88202, 'dummy', 7001, 10, 0)");
+        jdbc.update("INSERT INTO user_picture_action_drill_46 (id, userId, pictureId, isProcessed, attemptCount) "
+                + "VALUES (88301, 7001, 88201, 0, 0), (88302, 7001, 88202, 0, 0)");
+        List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM user_picture_action_drill_46 ORDER BY id");
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        Map<String, Object> summary = blocklistSection(sql, 6).stream()
+                .filter(row -> "event-backlog".equals(row.get("dimension"))).findFirst().orElseThrow();
+        assertEquals("BLOCKING", summary.get("kind"));
+        assertEquals(1L, ((Number) summary.get("blockingCount")).longValue(),
+                "逻辑删除图片的未处理事件必须阻断；有效图片的正常待处理事件不阻断");
+        assertEquals(before, jdbc.queryForList("SELECT * FROM user_picture_action_drill_46 ORDER BY id"),
+                "事件盘点不能自动标记完成或丢弃孤儿事件");
+    }
+
+    @Test
     void inventoryCoversEveryNamedDimensionAndIsDesensitized() throws Exception {
         // 归档表是回滚时临时存在的表，不算基线维度；其余表必须在快照或引导库里存在。
         Set<String> transientTables = Set.of("user_preference_rollback_archive");
@@ -372,6 +422,11 @@ class MaintenanceWindowDrillTest {
         insertCode(9801, "a".repeat(64), 1);
         insertCode(9802, "b".repeat(64), 2);
         insertRevokedGrant(9901);
+        insertPicture(88002, 7001);
+        insertActiveResource(88002, 7001);
+        jdbc.update("UPDATE picture_file SET platform = 'drill-legacy', objectKey = 'legacy/original-88002.jpg' "
+                + "WHERE pictureId = 88002");
+        int callsBefore = recorder.calls().size();
         Picture closedLink = new Picture();
         closedLink.setId(88001L);
         closedLink.setUrl("https://legacy.invalid/closed.jpg");
@@ -379,6 +434,8 @@ class MaintenanceWindowDrillTest {
                 "演练前私人直链已关闭");
         // 快照已含一条「已清除内容」的偏好行（91001），这里不再重复插入。
         Map<String, Object> risksBefore = riskSnapshot();
+        assertEquals(List.of(Map.of("platform", "drill-legacy", "objectKey", "legacy/original-88002.jpg")),
+                risksBefore.get("resourceLocations"), "对账必须包含旧资源的原平台与对象定位");
 
         // ROLLBACK_REHEARSAL：M7 批准后在维护窗口内执行 #39 / #35 / #42 回滚。
         openWindowForDrill();
@@ -421,6 +478,8 @@ class MaintenanceWindowDrillTest {
                 "重新部署不复活已清除的偏好");
         assertFalse(tableExists("user_preference_rollback_archive_drill_46"),
                 "恢复成功后归档被消费");
+        assertEquals(risksBefore, riskSnapshot(), "重新部署后旧资源定位与已关闭安全状态原样保留");
+        assertEquals(callsBefore, recorder.calls().size(), "回滚及重新部署零存储读取或删除调用");
     }
 
     // ------------------------------------------------------------------
@@ -528,6 +587,8 @@ class MaintenanceWindowDrillTest {
 
     private Map<String, Object> riskSnapshot() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("resourceLocations", jdbc.queryForList(
+                "SELECT platform, objectKey FROM picture_file WHERE pictureId = 88002 ORDER BY id"));
         snapshot.put("codes", jdbc.queryForList(
                 "SELECT id, codeHash, status FROM `" + renamed("vip_redemption_code") + "` ORDER BY id"));
         snapshot.put("grants", jdbc.queryForList(
