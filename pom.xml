@@ -296,7 +296,7 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.2</version>
+            <version>8.6.0</version>
         </dependency>
         <!-- Color Thief: 图片主色调提取（Median Cut 算法）-->
         <dependency>
