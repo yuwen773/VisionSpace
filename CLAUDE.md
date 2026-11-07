@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # without the isolated MySQL/Redis instances this script provisions.
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1   # ~5-15 min; see ACCEPTANCE.md
 
-# Backend (Spring Boot 3.5.8 + Java 21)
+# Backend (Spring Boot 3.5.16 + Java 21)
 mvn spring-boot:run          # Run application (port 8081, context-path /api)
 mvn compile                  # Compile
 mvn test -Dtest=ClassName    # Run one test class (still needs the acceptance env above)
@@ -34,9 +34,9 @@ docker-compose up -d         # MySQL 8.0 + Redis 7 + backend
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Spring Boot 3.5.8, Java 21 (virtual threads), MyBatis Plus 3.5.16, Sa-Token 1.45.0 |
+| Backend | Spring Boot 3.5.16, Java 21 (virtual threads), MyBatis Plus 3.5.16, Sa-Token 1.45.0 |
 | Database | MySQL 8.0, Redis 7 (session + cache + Caffeine local) |
-| AI | Spring AI 1.1.2 + Spring AI Alibaba (DashScope), MCP client |
+| AI | Spring AI 1.1.8 + Spring AI Alibaba 1.1.2.4-security-fix (DashScope), native MCP SDK 1.1.5 |
 | Frontend | Vue 3.5, TypeScript 5.6, Vite 6, Ant Design Vue 4, Pinia, ECharts 6 |
 | Icons | lucide-vue-next (stroke-based, `currentColor` inherits theme) |
 | Storage | x-file-storage (COS/OSS/MinIO) |
