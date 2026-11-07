@@ -248,3 +248,4 @@ try {
     Get-ChildItem -LiteralPath $runDir -File | Remove-Item -Force
     Remove-Item -LiteralPath $runDir
 }
+exit 0

@@ -17,8 +17,10 @@ $ownedProcesses = @()
 $ownedContainers = @()
 $mysql = $null
 $savedEnvironment = @{}
-$environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD')
+$environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD', 'JAVA_TOOL_OPTIONS')
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
+# MySQL Docker uses UTC. Match every application/test JVM, regardless of host timezone.
+$env:JAVA_TOOL_OPTIONS = '-Duser.timezone=UTC'
 
 function Free-Port {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -41,6 +43,9 @@ function Run-Gate([string]$Name, [scriptblock]$Command) {
     try {
         & $Command *> $log
         if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
+        if ($Name -eq 'backend' -and (Get-BackendTestStatus -ExitCode 0 -ReportDirectory (Join-Path $runDir 'surefire')) -ne 'PASS') {
+            throw 'Backend reports are missing, skipped or unsuccessful.'
+        }
         $results[$Name] = 'PASS'
     } catch {
         $results[$Name] = if ($_.Exception -is [System.Management.Automation.CommandNotFoundException]) {
@@ -56,20 +61,33 @@ New-Item -ItemType Directory -Path $runDir | Out-Null
 Push-Location $repo
 try {
     Run-Gate 'runner-tests' {
-        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-acceptance-results.ps1')
-        if ($LASTEXITCODE -ne 0) { throw "test-acceptance-results exited $LASTEXITCODE" }
-        # 容器验证脚本的控制流回归：只跑脚本自身的判定逻辑，不需要 Docker。
-        # 真正的容器运行验收仍需 Docker（见 scripts/container-verification.ps1）。
-        & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'tests/test-container-verification.ps1')
+        $policy = Get-Content -Raw (Join-Path $PSScriptRoot 'srf-matrix.json') | ConvertFrom-Json
+        foreach ($test in $policy.runnerTests) {
+            if ($MySqlBin -and $test.infrastructure -eq 'docker') {
+                Write-Host "NOT_APPLICABLE: $($test.path) (Docker adapter is not used in native-explicit mode)"
+                continue
+            }
+            & pwsh -NoLogo -NoProfile -File (Join-Path $repo $test.path)
+            if ($LASTEXITCODE -ne 0) { throw "$($test.path) exited $LASTEXITCODE" }
+        }
         # 仓库护栏回归：评审基点漂移、秘密扫描漏文件类型、恒真断言、文档/manifest 漂移。
         # 纯 Python，不需要隔离数据库或 PowerShell 执行策略。
-        $python = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' }
-                  elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' }
-                  else { throw 'BLOCKED_ENV: python is required for repo hygiene gates' }
+        $python = $null
+        foreach ($candidate in @('python', 'python3')) {
+            $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $command -or $command.Source -match '[\\/]WindowsApps[\\/]') { continue }
+            $supported = & $command.Source -I -c 'import sys; print(sys.version_info >= (3, 9))' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $supported -eq 'True') { $python = $command.Source; break }
+        }
+        if (-not $python) { throw [System.Management.Automation.CommandNotFoundException]::new('BLOCKED_ENV: working Python 3.9+ is required') }
         & $python -I (Join-Path $PSScriptRoot 'tests/check-repo-hygiene.py')
         if ($LASTEXITCODE -ne 0) { throw "check-repo-hygiene exited $LASTEXITCODE" }
         & $python -I (Join-Path $PSScriptRoot 'tests/verify-secret-scan.py')
         if ($LASTEXITCODE -ne 0) { throw "verify-secret-scan exited $LASTEXITCODE" }
+        foreach ($test in Get-ChildItem (Join-Path $PSScriptRoot 'tests/test-*.py')) {
+            & $python -I $test.FullName
+            if ($LASTEXITCODE -ne 0) { throw "$($test.Name) exited $LASTEXITCODE" }
+        }
     }
     # 候选内容脱敏扫描：只记录文件:行号:规则名，不输出命中内容。
     Run-Gate 'secret-scan' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'secret-scan.ps1') }
@@ -114,7 +132,7 @@ $ddl
             $dataDir = Join-Path $runDir 'mysql'
             & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
             if ($LASTEXITCODE -ne 0) { throw 'Isolated MySQL initialization failed.' }
-            $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
+            $ownedProcesses += Start-Process -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
             $ownedProcesses += Start-Process -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
             Wait-Port $mysqlPort
             Wait-Port $redisPort
@@ -330,6 +348,7 @@ $ddl
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
+        runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') })
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
         results = $results
         logs = $runDir
