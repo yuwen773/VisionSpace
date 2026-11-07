@@ -121,31 +121,44 @@ public class AssetSearchService {
     }
 
     public AssetSearchResult readResult(String resultId, User viewer) {
+        StoredSnapshot stored = decodeSnapshot(requireOwnedSnapshot(resultId, viewer));
+        AssetSearchResult original = stored.result();
+        List<Item> projected = original.items().stream().map(item -> projectItem(stored, item, viewer)).toList();
+        return new AssetSearchResult(1, original.resultId(), original.spaceId(), original.observedAt(),
+                original.criteria(), original.ruleVersion(), projected);
+    }
+
+    private AssetSearchSnapshot requireOwnedSnapshot(String resultId, User viewer) {
         ThrowUtils.throwIf(viewer == null || viewer.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         AssetSearchSnapshot snapshot = snapshots.selectOwned(resultId, viewer.getId());
         ThrowUtils.throwIf(snapshot == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        requireSnapshotAccess(snapshot, viewer);
+        return snapshot;
+    }
+
+    private void requireSnapshotAccess(AssetSearchSnapshot snapshot, User viewer) {
         requireSpace(snapshot.getSpaceId(), viewer);
         if (snapshot.getThreadId() != null) sessions.requireOwned(snapshot.getThreadId(), viewer.getId());
-        try {
-            StoredSnapshot stored = json.readValue(snapshot.getPayload(), StoredSnapshot.class);
-            AssetSearchResult original = stored.result();
-            List<Item> projected = new ArrayList<>();
-            for (Item item : original.items()) {
-                Picture current = pictures.getById(Long.valueOf(item.assetRef().pictureId()));
-                if (current == null || !snapshot.getSpaceId().equals(current.getSpaceId())
-                        || !contentAuth.canReadContent(current, viewer)
-                        || !stored.contentVersions().get(item.position()).equals(contentVersion(current))) {
-                    projected.add(new Item(item.position(), "UNAVAILABLE", null, null, null, null, null, null));
-                } else {
-                    String status = item.sourceVersion().equals(sourceVersion(current, contentVersion(current))) ? "AVAILABLE" : "STALE";
-                    projected.add(new Item(item.position(), status, item.assetRef(), item.sourceVersion(),
-                            item.verifiedFacts(), item.matches(), item.interpretations(), item.display()));
-                }
-            }
-            return new AssetSearchResult(1, original.resultId(), original.spaceId(), original.observedAt(),
-                    original.criteria(), original.ruleVersion(), projected);
-        }
+    }
+
+    private StoredSnapshot decodeSnapshot(AssetSearchSnapshot snapshot) {
+        try { return json.readValue(snapshot.getPayload(), StoredSnapshot.class); }
         catch (JsonProcessingException e) { throw new BusinessException(ErrorCode.SYSTEM_ERROR); }
+    }
+
+    private Item projectItem(StoredSnapshot stored, Item item, User viewer) {
+        Picture current = pictures.getById(Long.valueOf(item.assetRef().pictureId()));
+        if (current == null || !stored.result().spaceId().equals(String.valueOf(current.getSpaceId()))
+                || !contentAuth.canReadContent(current, viewer)) {
+            return new Item(item.position(), "UNAVAILABLE", null, null, null, null, null, null);
+        }
+        String currentContentVersion = contentVersion(current);
+        if (!stored.contentVersions().get(item.position()).equals(currentContentVersion)) {
+            return new Item(item.position(), "UNAVAILABLE", null, null, null, null, null, null);
+        }
+        String status = item.sourceVersion().equals(sourceVersion(current, currentContentVersion)) ? "AVAILABLE" : "STALE";
+        return new Item(item.position(), status, item.assetRef(), item.sourceVersion(),
+                item.verifiedFacts(), item.matches(), item.interpretations(), item.display());
     }
 
     private String contentVersion(Picture picture) {
@@ -160,14 +173,14 @@ public class AssetSearchService {
     /** 图片行锁与替换/删除共用，避免校验旧版本后读取到替换内容。 */
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
     public PictureContentService.Content loadPreview(String resultId, int position, User viewer) {
-        AssetSearchResult result = readResult(resultId, viewer);
-        ThrowUtils.throwIf(position < 0 || position >= result.items().size(), ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
-        Item item = result.items().get(position);
-        ThrowUtils.throwIf(item.assetRef() == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        AssetSearchSnapshot snapshot = requireOwnedSnapshot(resultId, viewer);
+        StoredSnapshot stored = decodeSnapshot(snapshot);
+        ThrowUtils.throwIf(position < 0 || position >= stored.result().items().size(), ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        Item item = stored.result().items().get(position);
         Long id = Long.valueOf(item.assetRef().pictureId());
         ThrowUtils.throwIf(pictureMapper.selectForUpdate(id) == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
-        ThrowUtils.throwIf(readResult(resultId, viewer).items().get(position).assetRef() == null,
-                ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        requireSnapshotAccess(snapshot, viewer);
+        ThrowUtils.throwIf(projectItem(stored, item, viewer).assetRef() == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
         return contents.loadContent(id, PictureContentService.ContentKind.PREVIEW, viewer, false);
     }
 

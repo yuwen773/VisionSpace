@@ -67,9 +67,17 @@ try {
 
   const owner = await offlinePage()
   await login(owner, ownerAccount)
+  const deniedMetadata = page.waitForResponse(async (response) => {
+    const url = new URL(response.url())
+    if (!/^\/api\/agent\/asset-results\/[^/]+$/.test(url.pathname)) return false
+    const body = await response.json().catch(() => null)
+    return body?.code === 40101
+  })
   assert.equal((await post(owner, '/spaceUser/delete', { id: memberId })).code, 0)
   await page.bringToFront()
-  await page.getByRole('button', { name: '刷新状态', exact: true }).first().click().catch(() => {})
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await deniedMetadata
+  await page.getByRole('status').filter({ hasText: '检索结果不可用，请检查当前权限或重新查找' }).waitFor()
   await page.waitForFunction(() => document.querySelectorAll('[data-result-id] img').length === 0)
   assert.equal(await page.locator('[data-result-id]').count(), 0)
   assert.equal(await page.evaluate(async (url) => (await fetch(url, { credentials: 'include' })).status, contentRef), 403)

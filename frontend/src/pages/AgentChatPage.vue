@@ -239,6 +239,41 @@ let assetEpoch = 0
 const route = useRoute()
 const router = useRouter()
 const loginStore = useLoginUserStore()
+let teamRequestEpoch = 0
+let assetPageActive = true
+
+const loadAssetTeams = async () => {
+  const epoch = ++teamRequestEpoch
+  const accountId = loginStore.loginUser.id
+  try {
+    const response = await listMyTeamSpaceUsingPost()
+    if (!assetPageActive || epoch !== teamRequestEpoch || accountId !== loginStore.loginUser.id)
+      return
+    assetTeams.value =
+      response.data.code === 0
+        ? (response.data.data ?? [])
+            .filter((team) => team.spaceId)
+            .map((team) => ({
+              id: String(team.spaceId),
+              name: team.space?.spaceName || '团队空间',
+            }))
+        : []
+  } catch {
+    if (epoch === teamRequestEpoch) assetTeams.value = []
+  }
+}
+
+const assetFailureMessage = (reason?: string, code?: number) => {
+  if (code === 40100) return '请登录后再查找团队素材'
+  if (code === 40101) return '当前素材或会话不可用，请检查权限或新建对话'
+  const messages: Record<string, string> = {
+    RULE_NOT_READY: '颜色筛选规则尚未就绪，请先使用横图筛选',
+    INVALID_OPERATION_STATE: '当前会话有未完成任务，请新建对话后找图',
+    INVALID_REQUEST: '请选择横图或蓝 / 紫主色条件，或重新描述找图需求',
+    RESOURCE_UNAVAILABLE: '当前素材或会话不可用，请检查权限或新建对话',
+  }
+  return messages[reason ?? ''] ?? '站内找图失败，请稍后重试'
+}
 
 const clearAssetResults = () => {
   assetEpoch++
@@ -294,10 +329,7 @@ const handleAssetSearch = async () => {
     if (epoch !== assetEpoch) return
     if (res.data.code !== 0 || res.data.data?.schemaVersion !== 1) {
       clearAssetResults()
-      assetError.value =
-        res.data.message === 'RULE_NOT_READY'
-          ? '颜色筛选规则尚未就绪，请先使用横图筛选'
-          : '无法查找素材，请检查空间权限与筛选条件'
+      assetError.value = assetFailureMessage(res.data.message, res.data.code)
       return
     }
     const result = res.data.data
@@ -483,17 +515,8 @@ onMounted(async () => {
   if (savedThreadId) {
     await loadRecoveryState()
   }
-  try {
-    const teams = await listMyTeamSpaceUsingPost()
-    assetTeams.value = (teams.data.data ?? [])
-      .filter((team) => team.spaceId)
-      .map((team) => ({
-        id: String(team.spaceId),
-        name: team.space?.spaceName || '团队空间',
-      }))
-  } catch {
-    assetTeams.value = []
-  }
+  await loadAssetTeams()
+  if (!assetPageActive) return
   if (typeof route.query.assetResult === 'string') {
     const id = route.query.assetResult
     await refreshAsset(id)
@@ -510,7 +533,12 @@ const refreshVisibleAssets = () => {
     void Promise.all(Object.keys(assetResults.value).map(refreshAsset))
   }
 }
-onUnmounted(() => window.removeEventListener('focus', refreshVisibleAssets))
+onUnmounted(() => {
+  assetPageActive = false
+  teamRequestEpoch++
+  clearAssetResults()
+  window.removeEventListener('focus', refreshVisibleAssets)
+})
 
 // Todo steps
 const todoSteps = ref([
@@ -546,10 +574,13 @@ watch(
 watch(
   () => loginStore.loginUser.id,
   () => {
+    teamRequestEpoch++
     clearAssetResults()
     abort()
     resetStream()
     assetTeams.value = []
+    assetSpaceId.value = ''
+    if (loginStore.loginUser.id) void loadAssetTeams()
   },
 )
 watch(resourcePanelVisible, (visible) => {
@@ -601,7 +632,16 @@ const handleSend = async (text: string, files: File[] = []) => {
     currentThreadId.value = threadId.value
   } catch (error) {
     // 业务拒绝（未登录、会话不属于当前用户）给出后端文案，其余按网络失败处理
-    message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
+    if (assetMode.value) {
+      clearAssetResults()
+      assetError.value = assetFailureMessage(
+        error instanceof Error ? error.message : undefined,
+        error instanceof AgentStreamError ? error.code : undefined,
+      )
+      message.warning(assetError.value)
+    } else {
+      message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
+    }
   } finally {
     // 执行可能停在待确认或待核对，刷新一次状态让提示与实际一致
     await loadRecoveryState()
