@@ -320,6 +320,39 @@ class HttpPictureContentAuthTest {
 
     // ---- fixtures ----
 
+    @Test
+    void browserReadsActualBytesAndRevocationPreventsEveryFurtherStorageRead() throws Exception {
+        joinTeam(ownerId, "admin");
+        long membershipId = jdbc.queryForObject("SELECT id FROM space_user WHERE spaceId = ? AND userId = ?",
+                Long.class, TEAM_SPACE, viewerId);
+        var browserLog = java.nio.file.Files.createTempFile("vs47-browser-content-", ".log");
+        var process = new ProcessBuilder("node", "frontend/e2e/content-read.mjs")
+                .redirectErrorStream(true).redirectOutput(browserLog.toFile());
+        var environment = process.environment();
+        environment.put("VS_CONTENT_API", "http://127.0.0.1:" + port);
+        environment.put("VS_CONTENT_PICTURE", Long.toString(TEAM_PICTURE));
+        environment.put("VS_CONTENT_MEMBERSHIP", Long.toString(membershipId));
+        for (var entry : Map.of("OWNER", ownerId, "VIEWER", viewerId, "STRANGER", strangerId).entrySet()) {
+            environment.put("VS_CONTENT_" + entry.getKey(), jdbc.queryForObject(
+                    "SELECT userAccount FROM user WHERE id = ?", String.class, entry.getValue()));
+        }
+        int before = recorder.calls().size();
+        Process browser = process.start();
+        try {
+            assertTrue(browser.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "browser content matrix timed out");
+            assertEquals(0, browser.exitValue(), "real browser content matrix must execute successfully; diagnostics: " + browserLog);
+            var reads = recorder.calls().subList(before, recorder.calls().size());
+            assertEquals(4, reads.size(), "only the four authorized content reads may reach storage");
+            assertTrue(reads.stream().allMatch(call -> "READ".equals(call.method()) || "READ-LEGACY".equals(call.method())),
+                    "denials and membership removal must not mutate objects or invoke other tools");
+        } finally {
+            if (browser.isAlive()) {
+                browser.destroyForcibly();
+                assertTrue(browser.waitFor(10, java.util.concurrent.TimeUnit.SECONDS), "browser driver must exit");
+            }
+        }
+    }
+
     private void seedTeamSpace() {
         jdbc.update("""
                 INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,

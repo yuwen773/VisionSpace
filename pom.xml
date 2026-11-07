@@ -11,20 +11,110 @@
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <spring-boot.version>3.5.8</spring-boot.version>
-        <spring-ai.version>1.1.2</spring-ai.version>
+        <spring-boot.version>3.5.16</spring-boot.version>
+        <spring-ai.version>1.1.8</spring-ai.version>
 
-        <spring-ai-alibaba.version>1.1.2.2</spring-ai-alibaba.version>
+        <spring-ai-alibaba.version>1.1.2.4-security-fix</spring-ai-alibaba.version>
         <lombok.version>1.18.36</lombok.version>
         <!-- knife4j 4.4.0 传递依赖 springdoc 2.3.0，与 Spring Boot 3.5 不兼容
              （ControllerAdviceBean 构造函数已变更，/v3/api-docs 报 NoSuchMethodError）。
              此处显式提升到与 Spring Boot 3.5.x 对齐的版本。 -->
         <springdoc.version>2.8.17</springdoc.version>
+        <tomcat.version>10.1.61</tomcat.version>
         <acceptance.reportsDirectory>${project.build.directory}/surefire-reports</acceptance.reportsDirectory>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.1.140.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bc-jdk18on-bom</artifactId>
+                <version>1.85</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.modelcontextprotocol.sdk</groupId>
+                <artifactId>mcp-bom</artifactId>
+                <version>1.1.5</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Align the resolved Jackson modules on the security patch line. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>2.22.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>2.0.66</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aliyun</groupId>
+                <artifactId>aliyun-java-sdk-core</artifactId>
+                <version>4.7.10</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tika</groupId>
+                <artifactId>tika-core</artifactId>
+                <version>3.3.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.opennlp</groupId>
+                <artifactId>opennlp-tools</artifactId>
+                <version>2.5.12</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.2-jre</version>
+            </dependency>
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>1.1.10.9</version>
+            </dependency>
+            <dependency>
+                <groupId>com.thoughtworks.xstream</groupId>
+                <artifactId>xstream</artifactId>
+                <version>1.4.21</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.jettison</groupId>
+                <artifactId>jettison</artifactId>
+                <version>1.5.4</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.21.0</version>
+            </dependency>
             <!-- Spring Boot Dependencies -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -149,6 +239,13 @@
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-agent-framework</artifactId>
+            <exclusions>
+                <!-- The application supplies the native Jackson 2 MCP client below. -->
+                <exclusion>
+                    <groupId>io.modelcontextprotocol.sdk</groupId>
+                    <artifactId>mcp</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!--alibaba 操作sdk-->
         <dependency>
@@ -234,7 +331,7 @@
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.15.3</version>
+            <version>1.23.2</version>
         </dependency>
         <!-- 对象存储 -->
         <dependency>
@@ -291,7 +388,7 @@
         <dependency>
             <groupId>com.aliyun.oss</groupId>
             <artifactId>aliyun-sdk-oss</artifactId>
-            <version>3.16.1</version>
+            <version>3.18.5</version>
         </dependency>
         <dependency>
             <groupId>io.minio</groupId>
@@ -311,8 +408,12 @@
         </dependency>
         <!-- MCP Client SDK -->
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-client</artifactId>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-json-jackson2</artifactId>
         </dependency>
     </dependencies>
 
