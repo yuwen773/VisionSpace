@@ -98,7 +98,7 @@ def main():
 
         mysql_proc = spawn(mysqld, ["--no-defaults", f"--datadir={data_dir}",
                                     "--bind-address=127.0.0.1", f"--port={mysql_port}",
-                                    "--mysqlx=OFF", "--console"],
+                                    "--mysqlx=OFF", "--default-time-zone=+00:00", "--console"],
                            "mysql-out.log", "mysql-error.log")
         redis_proc = spawn(redis_server, ["--bind", "127.0.0.1", "--port", str(redis_port),
                                           "--requirepass", nonce, "--save", "", "--appendonly", "no",
