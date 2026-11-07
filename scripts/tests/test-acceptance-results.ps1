@@ -10,12 +10,16 @@ try {
     if ((Get-BackendTestStatus -ExitCode 1 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'An assertion failure must take precedence over isolation errors' }
     '<testsuite><testcase><error>BLOCKED_ENV</error></testcase><testcase><error>NullPointerException</error></testcase></testsuite>' | Set-Content $report
     if ((Get-BackendTestStatus -ExitCode 1 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'A genuine test error must take precedence over isolation errors' }
+    '<testsuite><testcase name="ran" /></testsuite>' | Set-Content $report
     if ((Get-BackendTestStatus -ExitCode 0 -ReportDirectory $fixtures) -ne 'PASS') { throw 'Successful execution must be PASS' }
+    '<testsuite><testcase name="not-run"><skipped /></testcase></testsuite>' | Set-Content $report
+    if ((Get-BackendTestStatus -ExitCode 0 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'Skipped coverage must not pass the final matrix' }
     '<testsuite><testcase>' | Set-Content $report
     if ((Get-BackendTestStatus -ExitCode 1 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'An incomplete test report must remain FAIL' }
     Remove-Item -LiteralPath $report
+    if ((Get-BackendTestStatus -ExitCode 0 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'Zero discovered tests must not pass' }
     if ((Get-BackendTestStatus -ExitCode 1 -ReportDirectory $fixtures) -ne 'FAIL') { throw 'A build failure without test reports must remain FAIL' }
-    Write-Host 'PASS: six acceptance result scenarios'
+    Write-Host 'PASS: acceptance result scenarios including missing and skipped coverage'
 } finally {
     # This exact, freshly-created directory contains only the fixture file.
     if (Test-Path -LiteralPath (Join-Path $fixtures 'TEST-example.xml')) { Remove-Item -LiteralPath (Join-Path $fixtures 'TEST-example.xml') }

@@ -480,12 +480,15 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
     Write-Host "=== summary (artifacts: $runDir) ==="
     $failed = @($results.GetEnumerator() | Where-Object { $_.Value -ne 'PASS' })
     if ($failed.Count -eq 0) {
+        $results['execution'] = 'PASS'
         Write-Host 'ALL PASS'
         exit 0
     }
+    $results['execution'] = 'FAIL'
     Write-Host "FAILED: $($failed.Name -join ', ')"
     exit 1
 } catch {
+    $results['execution'] = 'BLOCKED_ENV'
     Write-Host "BLOCKED_ENV/ERROR: $_"
     # 失败诊断：容器日志与状态落到本轮目录并回显尾部，避免只看到超时结果。
     try {
@@ -506,5 +509,11 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "$service.log")
     }
     & docker compose -f $composeYml -p $project --env-file $envFile down -v --remove-orphans *> (Join-Path $runDir 'down.log')
+    $results['cleanup'] = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
+    $reportDir = Join-Path $repo 'target/container-verification'
+    New-Item -ItemType Directory -Force $reportDir | Out-Null
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
+        ConvertTo-Json | Set-Content (Join-Path $reportDir 'summary.json')
+    if ($results['cleanup'] -ne 'PASS') { exit 1 }
 }
