@@ -8,17 +8,17 @@
 
 | 类别 | 技术/版本 |
 |------|-----------|
-| 框架 | Spring Boot 3.5.8 |
+| 框架 | Spring Boot 3.5.16 |
 | Java | 21 (虚拟线程) |
 | 数据库 | MySQL 8.0 |
 | ORM | MyBatis Plus 3.5.16 |
 | 缓存 | Redis 7 + Caffeine |
 | 认证 | Sa-Token 1.45.0 |
-| AI | Spring AI 1.1.2 + Spring AI Alibaba 1.1.2.2 (DashScope) |
+| AI | Spring AI 1.1.8 + Spring AI Alibaba 1.1.2.4-security-fix (DashScope) |
 | 接口文档 | Knife4j 4.4.0 |
 | 高性能队列 | LMAX Disruptor 3.4.2 |
 | 文件存储 | x-file-storage 2.2.1 (COS/OSS/MinIO) |
-| MCP 客户端 | Spring AI MCP Client |
+| MCP 客户端 | MCP Java SDK 1.1.5（原生客户端） |
 
 ### 前端
 

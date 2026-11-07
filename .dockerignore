@@ -61,3 +61,8 @@ application-prod.properties
 
 # Claude
 .claude/
+
+# Isolated verification artifacts and parallel checkouts are not build inputs.
+.srf-runs/
+.vs44-runs/
+.worktrees/
