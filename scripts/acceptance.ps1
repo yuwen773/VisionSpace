@@ -229,6 +229,21 @@ $ddl
             Run-Gate 'frontend-typecheck' { npm run type-check }
             Run-Gate 'frontend-tests' { npm test }
             Run-Gate 'frontend-build' { npm run build-only }
+            if ($results['frontend-build'] -eq 'PASS' -and $results['backend'] -eq 'PASS') {
+                Run-Gate 'asset-color-calibration' {
+                    $colorPython = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' } else { 'python' }
+                    & $colorPython -I (Join-Path $repo 'scripts/calibrate-asset-colors.py')
+                }
+                Run-Gate 'asset-search-browser' {
+                    Push-Location $repo
+                    try {
+                        mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/browser-surefire" -Dtest=AssetSearchBrowserIT test
+                    } finally { Pop-Location }
+                }
+            } else {
+                $results['asset-color-calibration'] = 'BLOCKED_ENV'
+                $results['asset-search-browser'] = 'BLOCKED_ENV'
+            }
             # 后端接口变更后未重新生成客户端，是反复出现的 review 发现；这里用契约自动对账。
             if ($results['backend'] -eq 'PASS') {
                 Run-Gate 'frontend-api-contract' { & pwsh -NoLogo -NoProfile -File (Join-Path $repo 'scripts/openapi-contract.ps1') }
@@ -236,7 +251,7 @@ $ddl
                 $results['frontend-api-contract'] = 'BLOCKED_ENV'
             }
         } else {
-            foreach ($gate in @('frontend-lint', 'frontend-format', 'frontend-typecheck', 'frontend-tests', 'frontend-build', 'frontend-api-contract')) {
+            foreach ($gate in @('frontend-lint', 'frontend-format', 'frontend-typecheck', 'frontend-tests', 'frontend-build', 'frontend-api-contract', 'asset-color-calibration', 'asset-search-browser')) {
                 $results[$gate] = 'BLOCKED_ENV'
             }
         }
@@ -342,6 +357,9 @@ $ddl
     Copy-Item -Path (Join-Path $runDir '*.log') -Destination $reportDir
     if (Test-Path -LiteralPath (Join-Path $runDir 'surefire')) {
         Copy-Item -LiteralPath (Join-Path $runDir 'surefire') -Destination $reportDir -Recurse
+    }
+    if (Test-Path -LiteralPath (Join-Path $runDir 'browser-surefire')) {
+        Copy-Item -LiteralPath (Join-Path $runDir 'browser-surefire') -Destination $reportDir -Recurse
     }
     $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $repo 'target/acceptance/summary.json')
     $summary | ConvertTo-Json -Depth 5 | Write-Host

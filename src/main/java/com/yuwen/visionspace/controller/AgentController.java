@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
+import com.yuwen.visionspace.agent.AssetSearchAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
@@ -51,6 +52,9 @@ public class AgentController {
 
     @Resource
     private ImageAgent imageAgent;
+
+    @Resource
+    private AssetSearchAgent assetSearchAgent;
 
     @Resource
     private ChatHistoryService chatHistoryService;
@@ -144,6 +148,26 @@ public class AgentController {
     @PostMapping("/image/chat/stream")
     public ResponseEntity<?> chatStream(@RequestBody AgentChatRequest request,
                                         HttpServletRequest httpRequest) {
+        if (request.getAssetSpaceId() != null
+                && !"1".equals(httpRequest.getHeader("X-VS-AI-Event-Version"))) {
+            return writeJsonError(new BusinessException(ErrorCode.PARAMS_ERROR, "INVALID_REQUEST"));
+        }
+        if (request.getAssetSpaceId() != null) {
+            try {
+                User viewer = userService.getLoginUser(httpRequest);
+                var result = assetSearchAgent.search(request, resolveThreadId(request.getThreadId()), viewer);
+                var event = java.util.Map.of("schemaVersion", 1, "eventId", "search:" + result.resultId(),
+                        "type", "SEARCH_RESULTS_READY", "payload", java.util.Map.of("resultId", result.resultId()));
+                return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
+                        .header("Cache-Control", "no-store")
+                        .body(Flux.just(ServerSentEvent.builder(toJson(event)).build(),
+                                ServerSentEvent.builder("").event("done").build()));
+            } catch (BusinessException e) {
+                return writeJsonError(e);
+            } catch (RuntimeException e) {
+                return writeJsonError(new BusinessException(ErrorCode.OPERATION_ERROR, "站内找图暂时不可用，请重试"));
+            }
+        }
         Long userId;
         String threadId;
         List<AgentAttachmentService.BoundAttachment> attachments;
