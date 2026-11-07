@@ -42,7 +42,7 @@ jobs:
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/acceptance/runtime.json"
       - name: Preserve evidence on success or failure
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: srf-acceptance-${{ github.run_attempt }}
           path: ${{ runner.temp }}/srf-artifacts/
