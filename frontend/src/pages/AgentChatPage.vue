@@ -147,6 +147,7 @@
           :asset-results="Object.values(assetResults)"
           :privacy-epoch="privateAssetEpoch"
           @private-access-denied="clearAssetResults"
+          @close-preview="closeAssetPreview"
           @refresh-asset="refreshAsset"
           @asset-unavailable="handleAssetUnavailable"
           @close="resourcePanelVisible = false"
@@ -278,8 +279,8 @@ const assetFailureMessage = (reason?: string, code?: number) => {
   return messages[reason ?? ''] ?? '站内找图失败，请稍后重试'
 }
 
-const clearAssetResults = () => {
-  privateAssetEpoch.value++
+const clearAssetResults = (clearBoard = true) => {
+  if (clearBoard) privateAssetEpoch.value++
   assetEpoch++
   assetRequests.clear()
   assetResults.value = {}
@@ -302,7 +303,7 @@ const refreshAsset = (id: string): Promise<void> => {
       const res = await readAssetResult(id)
       if (epoch !== assetEpoch) return
       if (res.data.code !== 0 || res.data.data?.schemaVersion !== 1) {
-        clearAssetResults()
+        clearAssetResults([40100, 40101, 40300].includes(res.data.code))
         assetError.value = '检索结果不可用，请检查当前权限或重新查找'
         return
       }
@@ -332,7 +333,7 @@ const handleAssetSearch = async () => {
     })
     if (epoch !== assetEpoch) return
     if (res.data.code !== 0 || res.data.data?.schemaVersion !== 1) {
-      clearAssetResults()
+      clearAssetResults([40100, 40101, 40300].includes(res.data.code))
       assetError.value = assetFailureMessage(res.data.message, res.data.code)
       return
     }
@@ -533,10 +534,14 @@ onMounted(async () => {
   window.addEventListener('focus', refreshVisibleAssets)
 })
 const refreshVisibleAssets = () => {
+  closeAssetPreview()
   if (Object.keys(assetResults.value).length) {
-    previewVisible.value = false
     void Promise.all(Object.keys(assetResults.value).map(refreshAsset))
   }
+}
+const closeAssetPreview = () => {
+  previewVisible.value = false
+  previewUrl.value = ''
 }
 onUnmounted(() => {
   assetPageActive = false
@@ -638,7 +643,9 @@ const handleSend = async (text: string, files: File[] = []) => {
   } catch (error) {
     // 业务拒绝（未登录、会话不属于当前用户）给出后端文案，其余按网络失败处理
     if (assetMode.value) {
-      clearAssetResults()
+      clearAssetResults(
+        error instanceof AgentStreamError && [40100, 40101, 40300].includes(error.code ?? 0),
+      )
       assetError.value = assetFailureMessage(
         error instanceof Error ? error.message : undefined,
         error instanceof AgentStreamError ? error.code : undefined,
@@ -658,7 +665,7 @@ const handleNewChat = () => {
   currentThreadId.value = ''
   threadId.value = generateThreadId()
   resetStream()
-  clearAssetResults()
+  clearAssetResults(false)
   showTodoList.value = false
   resourcePanelVisible.value = false
   recoveryState.value = null
@@ -669,7 +676,7 @@ const handleSelectHistory = async (id: string) => {
   threadId.value = id
   saveThreadId(id)
   resetStream()
-  clearAssetResults()
+  clearAssetResults(false)
   await loadHistoryMessages(id)
   await loadRecoveryState()
 }

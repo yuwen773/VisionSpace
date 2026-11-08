@@ -50,6 +50,25 @@ async function open(url = '/agent') {
   return wrapper
 }
 describe('个人候选素材板', () => {
+  it('retains only the operation identifier for minimal verification after access is revoked', async () => {
+    api.save.mockRejectedValue(new Error('lost response'))
+    const w = await open()
+    await w.get('[data-action="import"]').trigger('click')
+    await w.get('[data-action="save"]').trigger('click')
+    await flushPromises()
+    const operationId = api.save.mock.calls[0]?.[1].operationId
+    await w.setProps({ results: [], privacyEpoch: 1 })
+    expect(w.text()).not.toContain('1920')
+    api.operation.mockResolvedValue({
+      data: { code: 0, data: { schemaVersion: 1, operationId, status: 'COMMITTED' } },
+    })
+    await w.get('[data-action="check-operation"]').trigger('click')
+    await flushPromises()
+    expect(api.operation).toHaveBeenCalledWith(operationId)
+    expect(w.text()).toContain('操作已提交')
+    expect(api.read).not.toHaveBeenCalled()
+    expect(w.find('[data-action="retry"]').exists()).toBe(false)
+  })
   it('hides imported historical facts when the source projection becomes unavailable', async () => {
     const w = await open()
     await w.get('[data-action="import"]').trigger('click')
@@ -135,20 +154,18 @@ describe('个人候选素材板', () => {
     ).toBe(true)
   })
   it('keeps the same operation after an unknown response and NOT_RECORDED', async () => {
-    api.save
-      .mockRejectedValueOnce(new Error('connection lost'))
-      .mockResolvedValueOnce({
+    api.save.mockRejectedValueOnce(new Error('connection lost')).mockResolvedValueOnce({
+      data: {
+        code: 0,
         data: {
-          code: 0,
-          data: {
-            schemaVersion: 1,
-            operationId: 'op',
-            status: 'COMMITTED',
-            boardId: 'b1',
-            revision: 1,
-          },
+          schemaVersion: 1,
+          operationId: 'op',
+          status: 'COMMITTED',
+          boardId: 'b1',
+          revision: 1,
         },
-      })
+      },
+    })
     api.operation.mockResolvedValue({
       data: { code: 0, data: { schemaVersion: 1, operationId: 'op', status: 'NOT_RECORDED' } },
     })

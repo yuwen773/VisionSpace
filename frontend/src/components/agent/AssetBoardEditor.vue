@@ -98,10 +98,15 @@
     <button v-if="conflict" data-action="read-latest" :disabled="busy" @click="readLatest">
       读取最新版（放弃本页修改）
     </button>
-    <template v-if="pending"
+    <template v-if="pending || minimalOperationId"
       ><button data-action="check-operation" :disabled="busy" @click="checkOperation">
         核对保存结果</button
-      ><button v-if="retryAllowed" data-action="retry" :disabled="busy" @click="submitPending">
+      ><button
+        v-if="pending && retryAllowed"
+        data-action="retry"
+        :disabled="busy"
+        @click="submitPending"
+      >
         重试原保存
       </button></template
     >
@@ -127,7 +132,7 @@ import {
 } from '@/api-custom/assetBoard'
 
 const props = defineProps<{ results: AssetResult[]; privacyEpoch?: number }>()
-const emit = defineEmits<{ preview: [url: string]; accessDenied: [] }>()
+const emit = defineEmits<{ preview: [url: string]; accessDenied: []; closePreview: [] }>()
 const router = useRouter()
 const route = useRoute()
 const loginStore = useLoginUserStore()
@@ -149,6 +154,7 @@ const busy = ref(false)
 const error = ref('')
 const initialResult = ref<string>()
 const pending = ref<{ boardId?: string; body: BoardSave }>()
+const minimalOperationId = ref<string>()
 const retryAllowed = ref(false)
 const validating = ref(false)
 const conflict = ref(false)
@@ -163,9 +169,9 @@ watch(
       sourceId.value = results[0]?.resultId || ''
     items.value = items.value.map((item) => {
       if (item.boardItemId) return item
-      const fresh = results
-        .find((r) => r.resultId === item.resultId)
-        ?.items.find((i) => i.position === item.sourcePosition)
+      const snapshot = results.find((r) => r.resultId === item.resultId)
+      if (!snapshot) return item
+      const fresh = snapshot.items.find((i) => i.position === item.sourcePosition)
       if (!fresh || fresh.status === 'UNAVAILABLE')
         return {
           resultId: item.resultId,
@@ -184,6 +190,7 @@ watch(
       }
     })
     if (items.value.some((item) => item.status === 'UNAVAILABLE')) {
+      emit('closePreview')
       title.value = '候选素材板'
       groups.value = groups.value.map((g) => ({ ...g, name: '不可用分组' }))
     }
@@ -244,7 +251,8 @@ function moveGroup(index: number, delta: number) {
   if (group) groups.value.splice(index + delta, 0, group)
   dirty.value = true
 }
-function clearPrivate() {
+function clearPrivate(keepOperation = false) {
+  const operationId = pending.value?.body.operationId || minimalOperationId.value
   epoch++
   items.value = []
   groups.value = []
@@ -254,6 +262,8 @@ function clearPrivate() {
   boardSpaceId.value = undefined
   initialResult.value = undefined
   pending.value = undefined
+  minimalOperationId.value = keepOperation ? operationId : undefined
+  retryAllowed.value = false
   groupName.value = ''
   dirty.value = false
   busy.value = false
@@ -261,7 +271,7 @@ function clearPrivate() {
   conflict.value = false
 }
 function deny() {
-  clearPrivate()
+  clearPrivate(true)
   error.value = '候选板不可用，请检查当前登录与空间权限'
   emit('accessDenied')
 }
@@ -276,6 +286,7 @@ async function load(id: string, preserveEdits = false) {
       return
     }
     const current = response.data.data
+    if (current.items.some((item) => item.status === 'UNAVAILABLE')) emit('closePreview')
     boardId.value = current.boardId
     boardSpaceId.value = current.spaceId
     if (preserveEdits && dirty.value) {
@@ -304,7 +315,7 @@ async function load(id: string, preserveEdits = false) {
     }
   } catch {
     if (started === epoch) {
-      clearPrivate()
+      clearPrivate(true)
       error.value = '无法核对当前访问权限，请重新读取候选板'
     }
   } finally {
@@ -388,11 +399,12 @@ async function submitPending() {
   }
 }
 async function checkOperation() {
-  if (!pending.value || busy.value) return
+  const operationId = pending.value?.body.operationId || minimalOperationId.value
+  if (!operationId || busy.value) return
   busy.value = true
   const started = epoch
   try {
-    const response = await readBoardOperation(pending.value.body.operationId)
+    const response = await readBoardOperation(operationId)
     if (started !== epoch) return
     if ([40100, 40101, 40300].includes(response.data.code)) {
       deny()
@@ -404,8 +416,10 @@ async function checkOperation() {
     }
     if (response.data.data.status === 'COMMITTED') await acceptReceipt(response.data.data)
     else {
-      retryAllowed.value = true
-      error.value = '尚未查到提交记录，不能认定未保存；只能重试原操作'
+      retryAllowed.value = !!pending.value
+      error.value = pending.value
+        ? '尚未查到提交记录，不能认定未保存；只能重试原操作'
+        : '尚未查到提交记录；已清空私人内容，请保留操作标识继续核对'
     }
   } catch {
     if (started === epoch) error.value = '保存结果未知，请稍后继续核对'
@@ -436,7 +450,7 @@ watch(
 )
 watch(
   () => props.privacyEpoch,
-  () => clearPrivate(),
+  () => clearPrivate(true),
 )
 onMounted(() => {
   if (typeof route.query.board === 'string') void load(route.query.board)

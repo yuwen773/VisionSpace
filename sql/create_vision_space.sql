@@ -613,4 +613,3 @@ CREATE TABLE `asset_board_operation` (
   PRIMARY KEY (`ownerId`, `operationId`),
   KEY `idx_board` (`boardId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-

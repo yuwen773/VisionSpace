@@ -49,9 +49,10 @@ class AssetBoardBrowserIT {
         Path artifacts = Path.of("target/asset-board-browser").toAbsolutePath();
         Files.createDirectories(artifacts);
         Path log = artifacts.resolve("browser.log");
+        jdbc.update("UPDATE user SET userRole='moderator' WHERE id=?", owner);
         int calls = recorder.calls().size();
         Process process = new ProcessBuilder("node", "frontend/e2e/asset-board.mjs", String.valueOf(port),
-                viewerAccount, ownerAccount, String.valueOf(space), String.valueOf(member), artifacts.toString())
+                viewerAccount, ownerAccount, String.valueOf(space), String.valueOf(member), artifacts.toString(), String.valueOf(picture))
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
             assertTrue(process.waitFor(120, TimeUnit.SECONDS), "Browser gate timed out: " + log);

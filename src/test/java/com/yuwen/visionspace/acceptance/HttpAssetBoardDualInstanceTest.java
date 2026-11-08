@@ -82,7 +82,8 @@ class HttpAssetBoardDualInstanceTest {
     private Instance start(Path logs, String name) throws Exception {
         Path ready = logs.resolve(name + "-" + UUID.randomUUID() + ".port");
         Path log = logs.resolve(name + ".log");
-        String java = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
+        String java = Path.of(System.getProperty("java.home"), "bin",
+                System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java").toString();
         Process process = new ProcessBuilder(java, "-cp", System.getProperty("surefire.test.class.path"),
                 VipSecondInstanceMain.class.getName(), ready.toString(), "--vs.instance-id-file=" + logs.resolve(name + ".instance"),
                 "--vision-space.asset-board.writes-enabled=" + !name.equals("after-restart"))

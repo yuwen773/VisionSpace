@@ -126,6 +126,19 @@ class HttpAssetBoardTest {
             var invalid = new java.util.HashMap<>(create("bad-groups")); invalid.put("groups", groups);
             assertEquals(40000, call("POST", "/agent/boards", invalid).path("code").asInt());
         }
+        var originalEntry = Map.of("position", 0, "sourcePosition", 0, "sourceVersion", result.path("items").get(0).path("sourceVersion").asText(), "selected", true);
+        var badGroup = new java.util.HashMap<String, Object>(originalEntry); badGroup.put("groupId", "unknown");
+        var invalidShapes = List.of(Map.of("title", "x".repeat(101)),
+                Map.of("items", java.util.Collections.nCopies(51, originalEntry)),
+                Map.of("items", List.of(originalEntry, originalEntry)), Map.of("items", List.of(badGroup)),
+                Map.of("groups", List.of(Map.of("groupId", "g", "position", 0, "name", "x".repeat(101)))));
+        int shape = 0;
+        for (var fields : invalidShapes) {
+            String operation = "shape-" + shape++;
+            var invalid = new java.util.HashMap<String, Object>(create(operation)); invalid.putAll(fields);
+            assertEquals(40000, call("POST", "/agent/boards", invalid).path("code").asInt());
+            assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/" + operation, null).path("data").path("status").asText());
+        }
         String id = call("POST", "/agent/boards", create("private")).path("data").path("boardId").asText();
         HttpClient original = browser;
         browser = HttpClient.newBuilder().cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL)).build();
@@ -187,7 +200,8 @@ class HttpAssetBoardTest {
                     delete.setLong(1, space); delete.setLong(2, user); delete.executeUpdate();
                 }
                 var saving = pool.submit(() -> call("POST", "/agent/boards", create("revoked-in-transaction")));
-                // 未提交的撤权与保存竞争同一个成员行；提交撤权后保存必须重新读取。
+                awaitLockingSql("selectspacerolefromspace_userwherespaceid=" + space + "anduserid=" + user + "forshare");
+                assertFalse(saving.isDone(), "Save must still be waiting inside its transaction");
                 connection.commit();
                 assertEquals(40101, saving.get(15, java.util.concurrent.TimeUnit.SECONDS).path("code").asInt());
                 assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/revoked-in-transaction", null).path("data").path("status").asText());
@@ -196,7 +210,49 @@ class HttpAssetBoardTest {
     }
 
     @Test
+    void notRecordedWhileOriginalIsInFlightAllowsOnlySameKeyRetryAndOneCommit() throws Exception {
+        var body = create("in-flight");
+        int calls = recorder.calls().size();
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+             var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM picture WHERE id=? FOR UPDATE")) {
+                lock.setLong(1, picture);
+                try (var rows = lock.executeQuery()) { assertTrue(rows.next()); }
+            }
+            var original = pool.submit(() -> call("POST", "/agent/boards", body));
+            awaitLockingSql("select*frompicturewhereid=" + picture + "andisdelete=0forupdate");
+            assertFalse(original.isDone());
+            assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/in-flight", null).path("data").path("status").asText());
+            var retry = pool.submit(() -> call("POST", "/agent/boards", body));
+            awaitLockingSql("selectidfromuserwhereid=" + user + "andisdelete=0forupdate");
+            assertFalse(retry.isDone());
+            connection.commit();
+            var receipt = original.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(0, receipt.path("code").asInt(), receipt.toString());
+            assertEquals(receipt, retry.get(15, java.util.concurrent.TimeUnit.SECONDS));
+            String id = receipt.path("data").path("boardId").asText();
+            assertEquals(1, call("GET", "/agent/boards/" + id, null).path("data").path("revision").asInt());
+            assertEquals(calls, recorder.calls().size());
+        }
+    }
+
+    private void awaitLockingSql(String expected) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            boolean waiting = jdbc.queryForList("SHOW FULL PROCESSLIST").stream().map(row -> row.get("Info"))
+                    .filter(java.util.Objects::nonNull).map(Object::toString)
+                    .map(sql -> sql.replace("`", "").replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT))
+                    .anyMatch(expected::equals);
+            if (waiting) return;
+            Thread.sleep(50);
+        }
+        fail("The HTTP save did not reach the expected database row-lock barrier");
+    }
+
+    @Test
     void invalidOrStaleReferencesRejectTheWholeSaveIncludingDeselectedItems() throws Exception {
+        int calls = recorder.calls().size();
         var request = new java.util.HashMap<String, Object>(create("duplicate"));
         var first = new java.util.HashMap<String, Object>(json.convertValue(result.path("items").get(0), Map.class));
         var entry = Map.of("position", 0, "sourcePosition", 0, "sourceVersion", first.get("sourceVersion"), "selected", true);
@@ -213,6 +269,7 @@ class HttpAssetBoardTest {
         assertEquals(1, call("GET", "/agent/boards/" + id, null).path("data").path("revision").asInt());
         assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/stale-ref", null).path("data").path("status").asText());
         assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "remove-bad", "expectedRevision", 1, "title", "空板", "groups", List.of(), "items", List.of())).path("code").asInt());
+        assertEquals(calls, recorder.calls().size(), "Rejected references and explicit removal must not touch storage/models/tools");
     }
 
     @Test
@@ -276,7 +333,7 @@ class HttpAssetBoardTest {
         assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "remove-isolated", "expectedRevision", 1, "title", "已移除", "groups", List.of(), "items", List.of())).path("code").asInt());
         for (String role : List.of("editor", "viewer")) {
             jdbc.update("UPDATE space_user SET spaceRole=? WHERE spaceId=? AND userId=?", role, space, user);
-            long revision = call("GET", "/agent/boards/" + id, null).path("data").path("revision").asLong();
+            int revision = call("GET", "/agent/boards/" + id, null).path("data").path("revision").asInt();
             assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "role-" + role, "expectedRevision", revision, "title", "我的板", "groups", List.of(), "items", List.of())).path("code").asInt());
         }
     }

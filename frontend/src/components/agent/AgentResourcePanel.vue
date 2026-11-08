@@ -48,6 +48,7 @@
         :privacy-epoch="privacyEpoch"
         @preview="emit('previewImage', $event)"
         @access-denied="emit('privateAccessDenied')"
+        @close-preview="emit('closePreview')"
       />
       <div v-if="assetResults.length" class="asset-snapshots">
         <AssetResultCard
@@ -154,6 +155,7 @@ const emit = defineEmits<{
   (e: 'refreshAsset', resultId: string): void
   (e: 'assetUnavailable', resultId: string): void
   (e: 'privateAccessDenied'): void
+  (e: 'closePreview'): void
 }>()
 
 const activeTab = ref<'image' | 'link'>('image')
