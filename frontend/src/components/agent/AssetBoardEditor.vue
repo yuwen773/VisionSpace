@@ -110,7 +110,13 @@
         重试原保存
       </button></template
     >
-    <button v-else data-action="save" class="save-board" :disabled="busy || !dirty" @click="save">
+    <button
+      v-else
+      data-action="save"
+      class="save-board"
+      :disabled="busy || validating || !dirty"
+      @click="save"
+    >
       {{ busy ? '保存中…' : '保存候选板' }}
     </button>
   </section>
@@ -161,6 +167,7 @@ const conflict = ref(false)
 const groupName = ref('')
 const boardSpaceId = ref<string>()
 let epoch = 0
+let readSequence = 0
 const contentUrl = (ref: string) => apiUrl(`/api${ref}`)
 watch(
   () => props.results,
@@ -277,15 +284,18 @@ function deny() {
 }
 async function load(id: string, preserveEdits = false) {
   const started = epoch
+  const sequence = ++readSequence
   validating.value = true
   try {
     const response = await readBoard(id)
-    if (started !== epoch) return
+    if (started !== epoch || sequence !== readSequence) return
     if (response.data.code !== 0 || response.data.data?.schemaVersion !== 1) {
       deny()
       return
     }
     const current = response.data.data
+    if (boardId.value === current.boardId && revision.value && current.revision < revision.value)
+      return
     if (current.items.some((item) => item.status === 'UNAVAILABLE')) emit('closePreview')
     boardId.value = current.boardId
     boardSpaceId.value = current.spaceId
@@ -314,12 +324,12 @@ async function load(id: string, preserveEdits = false) {
       dirty.value = false
     }
   } catch {
-    if (started === epoch) {
+    if (started === epoch && sequence === readSequence) {
       clearPrivate(true)
       error.value = '无法核对当前访问权限，请重新读取候选板'
     }
   } finally {
-    if (started === epoch) validating.value = false
+    if (started === epoch && sequence === readSequence) validating.value = false
   }
 }
 async function readLatest() {
@@ -333,6 +343,7 @@ function previewFailed() {
   else deny()
 }
 async function save() {
+  if (busy.value || validating.value) return
   if (items.value.some((item) => item.status !== 'AVAILABLE')) {
     error.value = '请显式移除不可用或过期素材，或从新快照补充'
     return
@@ -356,6 +367,7 @@ async function save() {
   await submitPending()
 }
 async function acceptReceipt(receipt: BoardOperation) {
+  const started = epoch
   if (!receipt.boardId) {
     deny()
     error.value = '操作已提交；当前无权读取候选板'
@@ -364,8 +376,10 @@ async function acceptReceipt(receipt: BoardOperation) {
   await router.replace({
     query: { ...route.query, assetResult: undefined, board: receipt.boardId },
   })
+  if (started !== epoch) return
   await load(receipt.boardId)
-  if (!boardId.value) return
+  if (started !== epoch || !boardId.value) return
+  minimalOperationId.value = undefined
   pending.value = undefined
   retryAllowed.value = false
   error.value = ''

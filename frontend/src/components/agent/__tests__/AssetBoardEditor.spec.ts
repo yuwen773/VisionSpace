@@ -68,6 +68,61 @@ describe('个人候选素材板', () => {
     expect(w.text()).toContain('操作已提交')
     expect(api.read).not.toHaveBeenCalled()
     expect(w.find('[data-action="retry"]').exists()).toBe(false)
+    api.operation.mockResolvedValue({
+      data: {
+        code: 0,
+        data: { schemaVersion: 1, operationId, status: 'COMMITTED', boardId: 'b1', revision: 1 },
+      },
+    })
+    api.read.mockResolvedValue({
+      data: {
+        code: 0,
+        data: {
+          schemaVersion: 1,
+          boardId: 'b1',
+          spaceId: result.spaceId,
+          title: '恢复访问的板',
+          revision: 2,
+          groups: [],
+          items: [],
+        },
+      },
+    })
+    await w.get('[data-action="check-operation"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-action="check-operation"]').exists()).toBe(false)
+    expect(w.find('[data-action="save"]').exists()).toBe(true)
+  })
+  it('ignores a delayed older read after a newer board projection has loaded', async () => {
+    const board = {
+      schemaVersion: 1,
+      boardId: 'b1',
+      spaceId: result.spaceId,
+      title: '版本一',
+      revision: 1,
+      groups: [],
+      items: [],
+    }
+    api.read.mockResolvedValue({ data: { code: 0, data: board } })
+    const w = await open('/agent?board=b1')
+    let finish: ((value: unknown) => void) | undefined
+    api.read.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    api.read.mockResolvedValueOnce({
+      data: { code: 0, data: { ...board, title: '版本二', revision: 2 } },
+    })
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    finish?.({ data: { code: 0, data: board } })
+    await flushPromises()
+    expect(w.text()).toContain('版本 2')
+    expect(w.get<HTMLInputElement>('input[aria-label="板标题"]').element.value).toBe('版本二')
   })
   it('hides imported historical facts when the source projection becomes unavailable', async () => {
     const w = await open()
