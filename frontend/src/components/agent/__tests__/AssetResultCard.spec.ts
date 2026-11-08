@@ -4,6 +4,8 @@ import AssetResultCard from '../AssetResultCard.vue'
 import AgentMessageList from '../AgentMessageList.vue'
 import AgentResourcePanel from '../AgentResourcePanel.vue'
 import type { AssetResult } from '@/api-custom/assetSearch'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollTo = vi.fn()
@@ -77,7 +79,12 @@ describe('站内检索快照卡片', () => {
         assetResults: { [result.resultId]: result },
       },
     })
-    const panel = mount(AgentResourcePanel, { props: { assetResults: [result] } })
+    const panel = mount(AgentResourcePanel, {
+      props: { assetResults: [result] },
+      global: {
+        plugins: [createPinia(), createRouter({ history: createMemoryHistory(), routes: [] })],
+      },
+    })
     expect(chat.findAll('[data-result-id="snapshot-1"]')).toHaveLength(1)
     expect(panel.findAll('[data-result-id="snapshot-1"]')).toHaveLength(1)
     expect(chat.text()).toContain('未找到符合条件的素材')
