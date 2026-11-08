@@ -3,6 +3,7 @@
 // API 更新时间：
 // API 唯一标识：
 import * as adminStatsController from './adminStatsController'
+import * as assetSearchController from './assetSearchController'
 import * as agentAttachmentController from './agentAttachmentController'
 import * as agentController from './agentController'
 import * as agentImageUploadController from './agentImageUploadController'
@@ -24,6 +25,7 @@ import * as storageConfigController from './storageConfigController'
 import * as userController from './userController'
 export default {
   adminStatsController,
+  assetSearchController,
   agentAttachmentController,
   agentController,
   agentImageUploadController,

@@ -43,6 +43,19 @@ class EvidenceTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(next(item for item in report["matrix"] if item["id"] == "T10")["status"], "BLOCKED")
 
+    def test_missing_asset_search_evidence_blocks_acceptance(self):
+        for gate in ("asset-color-calibration", "asset-search-browser"):
+            with self.subTest(gate=gate), tempfile.TemporaryDirectory() as folder:
+                directory = Path(folder)
+                self.fixture(directory)
+                path = directory / "acceptance/summary.json"
+                summary = json.loads(path.read_text())
+                summary["results"].pop(gate, None)
+                path.write_text(json.dumps(summary))
+                result, report = self.run_report(directory)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(report["gates"]["acceptance"], "BLOCKED")
+
     def test_skipped_coverage_and_other_candidate_cannot_pass(self):
         for mutation in ("skipped", "wrong-head", "wrong-run"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as folder:

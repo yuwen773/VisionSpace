@@ -7,7 +7,7 @@
     "desensitized": true,
     "source": "scripts/acceptance.ps1 的隔离 MySQL 8.0.26 / Redis 3.2.100 引导库；库名、账号、口令逐次随机，不读取开发或生产配置",
     "rule": "演练只使用随机 id、摘要地址与哑值；不导入任何真实图片、兑换码、凭据、账号资料或会话正文",
-    "tables": "sql/create_vision_space.sql 的 26 张表（含各业务票已交付的结构）作为脱敏快照；迁移脚本在 *_drill_* 临时表上重放，绝不改动引导库的真实表"
+    "tables": "sql/create_vision_space.sql 中的领域表作为脱敏快照；已映射的领域表在 *_drill_* 临时表上重放（含 #54 检索快照），不改动引导库的原表"
   },
   "phases": ["BACKUP", "PAUSE_WRITES", "MIGRATE", "RECONCILE", "RESUME", "ROLLBACK_REHEARSAL", "RE_DEPLOY"],
   "window": {
@@ -29,6 +29,7 @@
     { "order": 11, "file": "2026-10-25-space-uniqueness-quota-backfill.sql", "ticket": "#37", "phase": "MIGRATE", "kind": "backfill", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-10-25-space-uniqueness-quota-rollback.sql", "provides": "有效空间 activeKey 回填", "blockingCondition": "重复有效空间由 CHECK 守卫在改动任何数据前失败，不自动选择/合并/删除" },
     { "order": 12, "file": "2026-11-05-storage-switch-state.sql", "ticket": "#40", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-11-05-storage-switch-state-rollback.sql", "provides": "存储切换版本状态与确认实例集合（单行初始化）" },
     { "order": 13, "file": "2026-11-05-user-preference.sql", "ticket": "#42", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "rollback": "2026-11-05-user-preference-rollback.sql", "provides": "持久化长期偏好表与从归档恢复", "blockingCondition": "业务表已有新写入时 CHECK 守卫阻断恢复，归档留库供人工核对" },
+    { "order": 14, "file": "2026-11-07-asset-search-snapshot.sql", "ticket": "#54", "phase": "MIGRATE", "kind": "forward", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "rollback": "2026-11-07-asset-search-snapshot-rollback.sql", "provides": "新增个人检索结果快照；不修改图片、配额或旧消息" },
 
     { "order": 20, "file": "2026-10-23-agent-session-attachment-blocklist.sql", "ticket": "#35", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "存量会话图片待核对清单（SHA2 前缀，无原始地址）" },
     { "order": 21, "file": "2026-10-23-private-resource-protection-blocklist.sql", "ticket": "#36", "phase": "RECONCILE", "kind": "inventory", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": true, "provides": "旧反馈附件脱敏阻断清单（SHA2 前缀，无直链）" },
@@ -47,7 +48,8 @@
     { "order": 38, "file": "2026-10-24-vip-redemption-rollback.sql", "ticket": "#39", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "不删除两张码表、不改状态行；已作废/已用码不复活，user.vipCode 保持 NULL；放行前须先删除运行时 vipCode.json 副本" },
     { "order": 39, "file": "2026-10-25-space-uniqueness-quota-rollback.sql", "ticket": "#37", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "CHECK 守卫在存在未收敛清理任务时阻断回滚；删列不解除已有数据约束，不复活重复空间" },
     { "order": 40, "file": "2026-11-05-storage-switch-state-rollback.sql", "ticket": "#40", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "保留两张状态表与全部行；不恢复已撤销凭据、不改写 activeVersion/pendingVersion" },
-    { "order": 41, "file": "2026-11-05-user-preference-rollback.sql", "ticket": "#42", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "偏好行先归档再删表、CHECK 守卫阻断不完整归档；不重新公开已清除的数据，旧学习任务不能复活" }
+    { "order": 41, "file": "2026-11-05-user-preference-rollback.sql", "ticket": "#42", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": true, "desensitized": false, "riskReopenGuard": "偏好行先归档再删表、CHECK 守卫阻断不完整归档；不重新公开已清除的数据，旧学习任务不能复活" },
+    { "order": 42, "file": "2026-11-07-asset-search-snapshot-rollback.sql", "ticket": "#54", "phase": "ROLLBACK_REHEARSAL", "kind": "rollback-note", "replayable": true, "writesPaused": true, "writesData": false, "desensitized": false, "riskReopenGuard": "停用新检索入口，保留快照表及数据；不开放源站地址，不改变原图或撤销记录" }
   ],
   "inventoryDimensions": [
     { "id": "pictureOwnership", "label": "图片与附件归属", "tables": ["picture", "picture_file"], "check": "资源记录数、ownerUserId 非空、归属未知条目登记为阻断", "script": "2026-10-23-private-resource-protection-blocklist.sql" },

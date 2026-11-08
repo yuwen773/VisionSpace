@@ -17,6 +17,7 @@ declare namespace API {
   }
 
   type AgentChatRequest = {
+    assetSpaceId?: string
     attachmentIds?: string[]
     disableMcpDefault?: boolean
     enabledMcpServers?: string[]
@@ -31,6 +32,33 @@ declare namespace API {
     url?: string
   }
 
+  type assetPreviewUsingGetParams = {
+    resultId: string
+    position: number
+  }
+
+  type AssetRef = {
+    kind?: string
+    pictureId?: string
+  }
+
+  type AssetSearchRequest = {
+    criteria?: Criteria
+    limit?: number
+    spaceId?: string
+    threadId?: string
+  }
+
+  type AssetSearchResult = {
+    criteria?: Criteria
+    items?: Item[]
+    observedAt?: string
+    resultId?: string
+    ruleVersion?: string
+    schemaVersion?: number
+    spaceId?: string
+  }
+
   type BaseResponseAdminDashboardStatsVO = {
     code?: number
     data?: AdminDashboardStatsVO
@@ -40,6 +68,12 @@ declare namespace API {
   type BaseResponseAgentImageVO = {
     code?: number
     data?: AgentImageVO
+    message?: string
+  }
+
+  type BaseResponseAssetSearchResult = {
+    code?: number
+    data?: AssetSearchResult
     message?: string
   }
 
@@ -405,6 +439,11 @@ declare namespace API {
     pictureId?: number
   }
 
+  type Criteria = {
+    dominantColorFamily?: string
+    orientation?: string
+  }
+
   type deleteAttachmentUsingPostParams = {
     resourceId: number
   }
@@ -419,6 +458,10 @@ declare namespace API {
 
   type deleteSessionUsingDeleteParams = {
     threadId: string
+  }
+
+  type Display = {
+    contentRef?: string
   }
 
   type FeedbackAddRequest = {
@@ -583,6 +626,17 @@ declare namespace API {
     total?: number
   }
 
+  type Item = {
+    assetRef?: AssetRef
+    display?: Display
+    interpretations?: string[]
+    matches?: Match[]
+    position?: number
+    sourceVersion?: string
+    status?: string
+    verifiedFacts?: Record<string, any>
+  }
+
   type listGrantsUsingGetParams = {
     pictureId: string
   }
@@ -608,6 +662,12 @@ declare namespace API {
     userProfile?: string
     userRole?: string
     vipExpireTime?: string
+  }
+
+  type Match = {
+    criterion?: string
+    evidence?: Record<string, any>
+    status?: string
   }
 
   type McpCapabilities = {
@@ -954,6 +1014,10 @@ declare namespace API {
 
   type previewUsingGetParams = {
     pictureId: number
+  }
+
+  type readAssetResultUsingGetParams = {
+    resultId: string
   }
 
   type RecommendPageVO = {

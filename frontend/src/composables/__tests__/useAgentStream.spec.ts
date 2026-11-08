@@ -36,6 +36,27 @@ const uploaded = [
 ]
 
 describe('useAgentStream 的附件生命周期', () => {
+  it('显式协商只读找图协议，重复结果只显示一次且不抽取 Markdown', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('横图', 'thread-asset', [], '123')
+    expect(captured.body.assetSpaceId).toBe('123')
+    expect(captured.opts.headers['X-VS-AI-Event-Version']).toBe('1')
+    const event = {
+      schemaVersion: 1,
+      eventId: 'search:snapshot-1',
+      type: 'SEARCH_RESULTS_READY',
+      payload: { resultId: 'snapshot-1' },
+      content: '![unsafe](https://untrusted.invalid/image.jpg)',
+    }
+    captured.opts.onmessage({ data: JSON.stringify(event) })
+    captured.opts.onmessage({ data: JSON.stringify(event) })
+    expect(stream.messages.value.filter((m) => m.type === 'asset-result')).toHaveLength(1)
+    expect(stream.messages.value[0].resultId).toBe('snapshot-1')
+    expect(stream.images.value).toEqual([])
+    captured.opts.onmessage({ data: JSON.stringify({ ...event, schemaVersion: 2 }) })
+    expect(stream.protocolError.value).toContain('刷新')
+    expect(stream.messages.value).toHaveLength(1)
+  })
   beforeEach(() => {
     deleteAgentImage.mockClear()
     captured.opts = undefined

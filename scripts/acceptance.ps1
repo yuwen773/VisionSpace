@@ -37,6 +37,16 @@ function Wait-Port([int]$Port) {
     throw "BLOCKED_ENV: isolated service did not open port $Port"
 }
 
+function Get-AcceptancePython {
+    foreach ($candidate in @('python', 'python3')) {
+        $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $command -or $command.Source -match '[\\/]WindowsApps[\\/]') { continue }
+        $supported = & $command.Source -I -c 'import sys; print(sys.version_info >= (3, 9))' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $supported -eq 'True') { return $command.Source }
+    }
+    throw [System.Management.Automation.CommandNotFoundException]::new('BLOCKED_ENV: working Python 3.9+ is required')
+}
+
 function Run-Gate([string]$Name, [scriptblock]$Command) {
     Write-Host "Running $Name"
     $log = Join-Path $runDir "$Name.log"
@@ -72,14 +82,7 @@ try {
         }
         # 仓库护栏回归：评审基点漂移、秘密扫描漏文件类型、恒真断言、文档/manifest 漂移。
         # 纯 Python，不需要隔离数据库或 PowerShell 执行策略。
-        $python = $null
-        foreach ($candidate in @('python', 'python3')) {
-            $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-            if (-not $command -or $command.Source -match '[\\/]WindowsApps[\\/]') { continue }
-            $supported = & $command.Source -I -c 'import sys; print(sys.version_info >= (3, 9))' 2>$null
-            if ($LASTEXITCODE -eq 0 -and $supported -eq 'True') { $python = $command.Source; break }
-        }
-        if (-not $python) { throw [System.Management.Automation.CommandNotFoundException]::new('BLOCKED_ENV: working Python 3.9+ is required') }
+        $python = Get-AcceptancePython
         & $python -I (Join-Path $PSScriptRoot 'tests/check-repo-hygiene.py')
         if ($LASTEXITCODE -ne 0) { throw "check-repo-hygiene exited $LASTEXITCODE" }
         & $python -I (Join-Path $PSScriptRoot 'tests/verify-secret-scan.py')
@@ -247,6 +250,21 @@ $ddl
             Run-Gate 'frontend-typecheck' { npm run type-check }
             Run-Gate 'frontend-tests' { npm test }
             Run-Gate 'frontend-build' { npm run build-only }
+            if ($results['frontend-build'] -eq 'PASS' -and $results['backend'] -eq 'PASS') {
+                Run-Gate 'asset-color-calibration' {
+                    $colorPython = Get-AcceptancePython
+                    & $colorPython -I (Join-Path $repo 'scripts/calibrate-asset-colors.py')
+                }
+                Run-Gate 'asset-search-browser' {
+                    Push-Location $repo
+                    try {
+                        mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/browser-surefire" -Dtest=AssetSearchBrowserIT test
+                    } finally { Pop-Location }
+                }
+            } else {
+                $results['asset-color-calibration'] = 'BLOCKED_ENV'
+                $results['asset-search-browser'] = 'BLOCKED_ENV'
+            }
             # 后端接口变更后未重新生成客户端，是反复出现的 review 发现；这里用契约自动对账。
             if ($results['backend'] -eq 'PASS') {
                 Run-Gate 'frontend-api-contract' { & pwsh -NoLogo -NoProfile -File (Join-Path $repo 'scripts/openapi-contract.ps1') }
@@ -254,7 +272,7 @@ $ddl
                 $results['frontend-api-contract'] = 'BLOCKED_ENV'
             }
         } else {
-            foreach ($gate in @('frontend-lint', 'frontend-format', 'frontend-typecheck', 'frontend-tests', 'frontend-build', 'frontend-api-contract')) {
+            foreach ($gate in @('frontend-lint', 'frontend-format', 'frontend-typecheck', 'frontend-tests', 'frontend-build', 'frontend-api-contract', 'asset-color-calibration', 'asset-search-browser')) {
                 $results[$gate] = 'BLOCKED_ENV'
             }
         }
@@ -361,6 +379,9 @@ $ddl
     Copy-Item -Path (Join-Path $runDir '*.log') -Destination $reportDir
     if (Test-Path -LiteralPath (Join-Path $runDir 'surefire')) {
         Copy-Item -LiteralPath (Join-Path $runDir 'surefire') -Destination $reportDir -Recurse
+    }
+    if (Test-Path -LiteralPath (Join-Path $runDir 'browser-surefire')) {
+        Copy-Item -LiteralPath (Join-Path $runDir 'browser-surefire') -Destination $reportDir -Recurse
     }
     $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $repo 'target/acceptance/summary.json')
     $summary | ConvertTo-Json -Depth 5 | Write-Host

@@ -43,8 +43,18 @@
 
     <!-- Tab 内容 -->
     <div class="panel-body">
+      <div v-if="assetResults.length" class="asset-snapshots">
+        <AssetResultCard
+          v-for="result in assetResults"
+          :key="result.resultId"
+          :result="result"
+          @refresh="emit('refreshAsset', result.resultId)"
+          @preview="emit('previewImage', $event)"
+          @preview-error="emit('assetUnavailable', result.resultId)"
+        />
+      </div>
       <!-- 空状态 -->
-      <div v-if="totalCount === 0" class="empty-state">
+      <div v-if="totalCount === 0 && assetResults.length === 0" class="empty-state">
         <svg
           width="32"
           height="32"
@@ -111,23 +121,29 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { ImageResource, LinkResource } from './types'
+import AssetResultCard from './AssetResultCard.vue'
+import type { AssetResult } from '@/api-custom/assetSearch'
 
 export type { ImageResource, LinkResource }
 
 interface Props {
   images?: ImageResource[]
   links?: LinkResource[]
+  assetResults?: AssetResult[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   images: () => [],
   links: () => [],
+  assetResults: () => [],
 })
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'previewImage', url: string): void
   (e: 'downloadImage', url: string): void
+  (e: 'refreshAsset', resultId: string): void
+  (e: 'assetUnavailable', resultId: string): void
 }>()
 
 const activeTab = ref<'image' | 'link'>('image')
@@ -141,6 +157,11 @@ const totalCount = computed(() => props.images.length + props.links.length)
 </script>
 
 <style scoped>
+.asset-snapshots {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
 .resource-panel {
   display: flex;
   flex-direction: column;

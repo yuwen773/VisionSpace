@@ -562,6 +562,17 @@ CREATE TABLE `storage_switch_confirm` (
 
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
 
+CREATE TABLE `asset_search_snapshot` (
+  `id` varchar(36) NOT NULL,
+  `ownerId` bigint NOT NULL,
+  `spaceId` bigint NOT NULL,
+  `threadId` varchar(64) DEFAULT NULL,
+  `payload` longtext NOT NULL,
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_owner_thread` (`ownerId`, `threadId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站内检索结果快照';
+
 CREATE TABLE `user_preference` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `userId` bigint(20) NOT NULL COMMENT '偏好归属用户；全部读写条件都带它',
