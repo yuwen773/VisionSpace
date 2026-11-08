@@ -4,6 +4,10 @@ import { deleteAgentImage, type AgentImage } from '@/api-custom/agent'
 import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
 
 export interface MessageDTO {
+  schemaVersion?: number
+  eventId?: string
+  type?: string
+  payload?: { resultId?: string }
   messageType:
     | 'user'
     | 'assistant'
@@ -47,6 +51,7 @@ export interface StreamMessage {
   time?: string
   /** 这条消息携带的图片资源标识；图片按受控入口渲染 */
   attachmentIds?: string[]
+  resultId?: string
 }
 
 export function useAgentStream() {
@@ -54,6 +59,7 @@ export function useAgentStream() {
   const isStreaming = ref(false)
   const images = ref<{ url: string; title?: string }[]>([])
   const links = ref<{ url: string; title: string; snippet: string; domain: string }[]>([])
+  const protocolError = ref('')
   let abortController: AbortController | null = null
 
   const extractResources = (content: string) => {
@@ -99,6 +105,7 @@ export function useAgentStream() {
     messages.value = []
     images.value = []
     links.value = []
+    protocolError.value = ''
   }
 
   /**
@@ -108,7 +115,12 @@ export function useAgentStream() {
    * @param threadId 会话标识
    * @param uploaded 已上传的附件；绑定到会话后图片保留，不会因为流结束被删除
    */
-  const sendMessage = async (message: string, threadId: string, uploaded: AgentImage[] = []) => {
+  const sendMessage = async (
+    message: string,
+    threadId: string,
+    uploaded: AgentImage[] = [],
+    assetSpaceId?: string,
+  ) => {
     isStreaming.value = true
     reset()
     abortController = new AbortController()
@@ -123,6 +135,7 @@ export function useAgentStream() {
     // 服务端是否已经接收这次请求：接收后图片已经绑定到会话，任何结束方式
     // （成功、异常、取消、断开）都不再由前端删除
     let serverAccepted = false
+    const seenResults = new Set<string>()
 
     // 同时接受 JSON：归属或登录校验失败时后端返回的是普通 JSON 错误，
     // 只声明 text/event-stream 会把它变成无法读取的 406。
@@ -131,12 +144,14 @@ export function useAgentStream() {
       'Content-Type': 'application/json',
       accept: 'text/event-stream, application/json',
       [CSRF_HEADER]: readCsrfToken(),
+      'X-VS-AI-Event-Version': '1',
     }
     const body = JSON.stringify({
       message,
       // 绑定的是资源标识而不是地址：服务端按归属记录解析可信地址
       attachmentIds: uploaded.length > 0 ? uploaded.map((item) => item.resourceId) : undefined,
       threadId,
+      assetSpaceId,
     })
 
     try {
@@ -171,6 +186,25 @@ export function useAgentStream() {
 
           try {
             const msgDto: MessageDTO = JSON.parse(event.data)
+
+            if (msgDto.schemaVersion !== undefined) {
+              const resultId = msgDto.payload?.resultId
+              if (
+                msgDto.schemaVersion !== 1 ||
+                msgDto.type !== 'SEARCH_RESULTS_READY' ||
+                !msgDto.eventId ||
+                !resultId ||
+                !/^[a-zA-Z0-9-]{1,64}$/.test(resultId)
+              ) {
+                protocolError.value = '结果格式已变化，请刷新页面后重新读取状态'
+                return
+              }
+              if (!seenResults.has(resultId)) {
+                seenResults.add(resultId)
+                pushMessage({ type: 'asset-result', content: '', node: 'agent', resultId })
+              }
+              return
+            }
 
             switch (msgDto.messageType) {
               case 'assistant':
@@ -314,6 +348,7 @@ export function useAgentStream() {
     isStreaming,
     images,
     links,
+    protocolError,
     sendMessage,
     abort,
     pushMessage,

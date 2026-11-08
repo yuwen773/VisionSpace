@@ -92,11 +92,35 @@
           @review="handleReviewAction"
         />
 
+        <form class="asset-search-controls" @submit.prevent="handleAssetSearch">
+          <label class="asset-mode"><input v-model="assetMode" type="checkbox" />站内找图</label>
+          <template v-if="assetMode">
+            <select v-model="assetSpaceId" aria-label="选择团队空间" required>
+              <option value="" disabled>选择团队空间</option>
+              <option v-for="team in assetTeams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+            <label><input v-model="landscapeOnly" type="checkbox" />横图</label>
+            <label><input v-model="bluePurpleOnly" type="checkbox" />蓝 / 紫主色</label>
+            <button type="submit" :disabled="assetBusy || !assetSpaceId">
+              {{ assetBusy ? '查找中…' : '查找素材' }}
+            </button>
+            <small>也可以在下方描述找图条件</small>
+          </template>
+          <p v-if="assetError || agentStream.protocolError.value" role="status">
+            {{ assetError || agentStream.protocolError.value }}
+          </p>
+        </form>
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="messages"
           :loading="streaming || historyLoading"
           :session-id="currentThreadId || threadId"
+          :asset-results="assetResults"
+          @refresh-asset="refreshAsset"
+          @preview-asset="handlePreviewImage"
+          @asset-unavailable="handleAssetUnavailable"
           @confirm="handleConfirm"
           @cancel="handleCancel"
           @send="handleSend"
@@ -120,6 +144,12 @@
         <AgentResourcePanel
           :images="panelImages"
           :links="panelLinks"
+          :asset-results="Object.values(assetResults)"
+          :privacy-epoch="privateAssetEpoch"
+          @private-access-denied="clearAssetResults"
+          @close-preview="closeAssetPreview"
+          @refresh-asset="refreshAsset"
+          @asset-unavailable="handleAssetUnavailable"
           @close="resourcePanelVisible = false"
           @preview-image="handlePreviewImage"
           @download-image="handleDownloadImage"
@@ -148,6 +178,10 @@ import AgentResourcePanel from '@/components/agent/AgentResourcePanel.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import RecoveryBanner from '@/components/agent/RecoveryBanner.vue'
+import { searchAssets, readAssetResult, type AssetResult } from '@/api-custom/assetSearch'
+import { listMyTeamSpaceUsingPost } from '@/api/spaceUserController'
+import { useLoginUserStore } from '@/stores/userLogin'
+import { useRoute, useRouter } from 'vue-router'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import { AgentStreamError, useAgentStream } from '@/composables/useAgentStream'
 import {
@@ -195,6 +229,126 @@ const panelLinks = ref<LinkResource[]>([])
 const todoListExpanded = ref(false)
 const showTodoList = ref(false)
 const historyLoading = ref(false)
+const assetMode = ref(false)
+const assetSpaceId = ref('')
+const landscapeOnly = ref(true)
+const bluePurpleOnly = ref(false)
+const assetTeams = ref<{ id: string; name: string }[]>([])
+const assetResults = ref<Record<string, AssetResult>>({})
+const privateAssetEpoch = ref(0)
+const assetBusy = ref(false)
+const assetError = ref('')
+const assetRequests = new Map<string, Promise<void>>()
+let assetEpoch = 0
+const route = useRoute()
+const router = useRouter()
+const loginStore = useLoginUserStore()
+let teamRequestEpoch = 0
+let assetPageActive = true
+
+const loadAssetTeams = async () => {
+  const epoch = ++teamRequestEpoch
+  const accountId = loginStore.loginUser.id
+  try {
+    const response = await listMyTeamSpaceUsingPost()
+    if (!assetPageActive || epoch !== teamRequestEpoch || accountId !== loginStore.loginUser.id)
+      return
+    assetTeams.value =
+      response.data.code === 0
+        ? (response.data.data ?? [])
+            .filter((team) => team.spaceId)
+            .map((team) => ({
+              id: String(team.spaceId),
+              name: team.space?.spaceName || '团队空间',
+            }))
+        : []
+  } catch {
+    if (epoch === teamRequestEpoch) assetTeams.value = []
+  }
+}
+
+const assetFailureMessage = (reason?: string, code?: number) => {
+  if (code === 40100) return '请登录后再查找团队素材'
+  if (code === 40101) return '当前素材或会话不可用，请检查权限或新建对话'
+  const messages: Record<string, string> = {
+    RULE_NOT_READY: '颜色筛选规则尚未就绪，请先使用横图筛选',
+    INVALID_OPERATION_STATE: '当前会话有未完成任务，请新建对话后找图',
+    INVALID_REQUEST: '请选择横图或蓝 / 紫主色条件，或重新描述找图需求',
+    RESOURCE_UNAVAILABLE: '当前素材或会话不可用，请检查权限或新建对话',
+  }
+  return messages[reason ?? ''] ?? '站内找图失败，请稍后重试'
+}
+
+const clearAssetResults = (clearBoard = true) => {
+  if (clearBoard) privateAssetEpoch.value++
+  assetEpoch++
+  assetRequests.clear()
+  assetResults.value = {}
+  previewVisible.value = false
+  previewUrl.value = ''
+}
+
+const handleAssetUnavailable = (id: string) => {
+  delete assetResults.value[id]
+  previewVisible.value = false
+  assetError.value = '素材预览不可用，请刷新状态后重试'
+}
+
+const refreshAsset = (id: string): Promise<void> => {
+  if (assetRequests.has(id)) return assetRequests.get(id)!
+  const epoch = assetEpoch
+  delete assetResults.value[id]
+  const task = (async () => {
+    try {
+      const res = await readAssetResult(id)
+      if (epoch !== assetEpoch) return
+      if (res.data.code !== 0 || res.data.data?.schemaVersion !== 1) {
+        clearAssetResults([40100, 40101, 40300].includes(res.data.code))
+        assetError.value = '检索结果不可用，请检查当前权限或重新查找'
+        return
+      }
+      assetResults.value[id] = res.data.data
+      assetError.value = ''
+    } catch {
+      if (epoch === assetEpoch) assetError.value = '读取检索结果失败，请重试'
+    } finally {
+      if (epoch === assetEpoch) assetRequests.delete(id)
+    }
+  })()
+  assetRequests.set(id, task)
+  return task
+}
+
+const handleAssetSearch = async () => {
+  if (!assetSpaceId.value || assetBusy.value) return
+  assetBusy.value = true
+  const epoch = assetEpoch
+  try {
+    const res = await searchAssets({
+      spaceId: assetSpaceId.value,
+      criteria: {
+        ...(landscapeOnly.value ? { orientation: 'LANDSCAPE' as const } : {}),
+        ...(bluePurpleOnly.value ? { dominantColorFamily: 'BLUE_OR_PURPLE' as const } : {}),
+      },
+    })
+    if (epoch !== assetEpoch) return
+    if (res.data.code !== 0 || res.data.data?.schemaVersion !== 1) {
+      clearAssetResults([40100, 40101, 40300].includes(res.data.code))
+      assetError.value = assetFailureMessage(res.data.message, res.data.code)
+      return
+    }
+    const result = res.data.data
+    assetResults.value[result.resultId] = result
+    pushMessage({ type: 'asset-result', resultId: result.resultId, content: '', node: 'agent' })
+    resourcePanelVisible.value = true
+    assetError.value = ''
+    await router.replace({ query: { ...route.query, assetResult: result.resultId } })
+  } catch {
+    assetError.value = '查找素材失败，请重试'
+  } finally {
+    assetBusy.value = false
+  }
+}
 
 // Sessions
 const sessions = ref<SessionItem[]>([])
@@ -229,6 +383,7 @@ const loadHistoryMessages = async (sessionId: string) => {
       currentThreadId.value = ''
       threadId.value = generateThreadId()
       messages.value = []
+      clearAssetResults()
       message.warning('该会话不可用，已为你新建对话')
       return
     }
@@ -243,6 +398,9 @@ const loadHistoryMessages = async (sessionId: string) => {
         type = 'user'
       } else {
         switch (m.subType) {
+          case 'asset-result':
+            type = 'asset-result'
+            break
           case 'reasoning':
             type = 'reasoning'
             break
@@ -259,6 +417,7 @@ const loadHistoryMessages = async (sessionId: string) => {
       return {
         type,
         content: m.content,
+        resultId: type === 'asset-result' ? m.content : undefined,
         // 历史图片按受控入口渲染：正文里不再保留源站地址
         attachmentIds: m.attachmentIds ?? [],
         toolName:
@@ -272,6 +431,11 @@ const loadHistoryMessages = async (sessionId: string) => {
           : '',
       }
     })
+    await Promise.all(
+      [...new Set(messages.value.filter((m) => m.resultId).map((m) => m.resultId!))].map(
+        refreshAsset,
+      ),
+    )
   } catch (e) {
     console.warn('加载历史消息失败:', e)
     message.warning('历史消息加载失败')
@@ -356,6 +520,34 @@ onMounted(async () => {
   if (savedThreadId) {
     await loadRecoveryState()
   }
+  await loadAssetTeams()
+  if (!assetPageActive) return
+  if (typeof route.query.board === 'string') resourcePanelVisible.value = true
+  else if (typeof route.query.assetResult === 'string') {
+    const id = route.query.assetResult
+    await refreshAsset(id)
+    if (assetResults.value[id]) {
+      pushMessage({ type: 'asset-result', content: '', resultId: id, node: 'agent' })
+      resourcePanelVisible.value = true
+    }
+  }
+  window.addEventListener('focus', refreshVisibleAssets)
+})
+const refreshVisibleAssets = () => {
+  closeAssetPreview()
+  if (Object.keys(assetResults.value).length) {
+    void Promise.all(Object.keys(assetResults.value).map(refreshAsset))
+  }
+}
+const closeAssetPreview = () => {
+  previewVisible.value = false
+  previewUrl.value = ''
+}
+onUnmounted(() => {
+  assetPageActive = false
+  teamRequestEpoch++
+  clearAssetResults()
+  window.removeEventListener('focus', refreshVisibleAssets)
 })
 
 // Todo steps
@@ -377,18 +569,48 @@ const abort = agentStream.abort
 const pushMessage = agentStream.pushMessage
 const resetStream = agentStream.reset
 
-const totalResourceCount = computed(() => panelImages.value.length + panelLinks.value.length)
+const totalResourceCount = computed(
+  () =>
+    panelImages.value.length +
+    panelLinks.value.length +
+    Object.values(assetResults.value).reduce((sum, result) => sum + result.items.length, 0),
+)
+watch(
+  () => messages.value.map((m) => m.resultId).filter((id): id is string => !!id),
+  (ids) => {
+    for (const id of new Set(ids)) if (!assetResults.value[id]) void refreshAsset(id)
+  },
+)
+watch(
+  () => loginStore.loginUser.id,
+  () => {
+    teamRequestEpoch++
+    clearAssetResults()
+    abort()
+    resetStream()
+    assetTeams.value = []
+    assetSpaceId.value = ''
+    if (loginStore.loginUser.id) void loadAssetTeams()
+  },
+)
+watch(resourcePanelVisible, (visible) => {
+  if (visible) refreshVisibleAssets()
+})
 
 // Watch streaming state
 watch(streaming, (isStreaming) => {
   if (isStreaming) {
-    showTodoList.value = true
+    showTodoList.value = !assetMode.value
   }
 })
 
 // Handlers
 const handleSend = async (text: string, files: File[] = []) => {
   if ((!text.trim() && files.length === 0) || streaming.value) return
+  if (assetMode.value && (!assetSpaceId.value || files.length)) {
+    assetError.value = '请先选择团队空间；站内找图使用空间内已有素材'
+    return
+  }
 
   // 先上传再发消息：上传拿到的是资源标识，绑定到会话的是标识而不是地址
   let uploaded: AgentImage[] = []
@@ -410,12 +632,28 @@ const handleSend = async (text: string, files: File[] = []) => {
   })
 
   try {
-    await sendMessage(text, threadId.value, uploaded)
+    await sendMessage(
+      text,
+      threadId.value,
+      uploaded,
+      assetMode.value ? assetSpaceId.value : undefined,
+    )
     saveThreadId(threadId.value)
     currentThreadId.value = threadId.value
   } catch (error) {
     // 业务拒绝（未登录、会话不属于当前用户）给出后端文案，其余按网络失败处理
-    message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
+    if (assetMode.value) {
+      clearAssetResults(
+        error instanceof AgentStreamError && [40100, 40101, 40300].includes(error.code ?? 0),
+      )
+      assetError.value = assetFailureMessage(
+        error instanceof Error ? error.message : undefined,
+        error instanceof AgentStreamError ? error.code : undefined,
+      )
+      message.warning(assetError.value)
+    } else {
+      message.error(error instanceof AgentStreamError ? error.message : '发送失败，请重试')
+    }
   } finally {
     // 执行可能停在待确认或待核对，刷新一次状态让提示与实际一致
     await loadRecoveryState()
@@ -427,6 +665,7 @@ const handleNewChat = () => {
   currentThreadId.value = ''
   threadId.value = generateThreadId()
   resetStream()
+  clearAssetResults(false)
   showTodoList.value = false
   resourcePanelVisible.value = false
   recoveryState.value = null
@@ -437,6 +676,7 @@ const handleSelectHistory = async (id: string) => {
   threadId.value = id
   saveThreadId(id)
   resetStream()
+  clearAssetResults(false)
   await loadHistoryMessages(id)
   await loadRecoveryState()
 }
@@ -472,6 +712,40 @@ const handleDownloadImage = (url: string) => {
 </script>
 
 <style scoped>
+.asset-search-controls {
+  padding: 10px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.asset-search-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.asset-search-controls select,
+.asset-search-controls button {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+.asset-search-controls button {
+  cursor: pointer;
+}
+.asset-search-controls p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-warning, #a66a20);
+}
+.asset-search-controls small {
+  color: var(--color-text-tertiary);
+}
 .agent-chat-page {
   width: 100%;
   height: 100%;
