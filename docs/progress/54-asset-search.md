@@ -1,0 +1,95 @@
+# #54 结构化资源契约与只读站内找图
+
+规格：[GitHub #54](https://github.com/yuwen773/VisionSpace/issues/54)，frozen-v1.1。
+实施基线：`003e487cd8105b2c0bc3908c09faeda87a3b3a7c`。工作分支：`codex/54-asset-search`。
+初始授权为实施与本地提交；2026-11-08 用户授权继续人工颜色验收收尾与集成交付。不包含生产迁移、部署或发布放行。
+
+## 实现
+
+- `POST /agent/asset-search` 创建归属明确的持久化快照；`GET /agent/asset-results/{resultId}` 按当前权限读取。
+- 只接受团队空间、横图及蓝/紫主色条件。先在当前可见集合完成全部条件判断，再按分数降序、Long 数值 ID 升序排序并截断；缺失事实不补造。
+- 所有数据库 Long 标识在新契约中使用十进制字符串。未知字段、条件、类型与非法 limit 明确拒绝。
+- 快照保存检索时依据及内容/来源摘要。元数据变化显示 STALE；图片替换、删除、隔离或失权仅返回位置与 UNAVAILABLE。摘要覆盖数据库内容定位及有效资源记录，不等于对云对象实际字节的校验和。
+- 快照预览通过 `/agent/asset-results/{resultId}/items/{position}/content` 校验归属、会话、当前权限与内容版本，再复用 #34 的内容服务。图片行锁与替换路径共用；响应禁止缓存。
+- 现有聊天 SSE 入口显式接收 `assetSpaceId`，并要求 `X-VS-AI-Event-Version: 1`。独立规划器没有工具回调，禁用模型内部工具执行，只能把文字转成白名单条件并调用同一搜索实现。旧挂起执行不能由此续跑。
+- 历史只保存 `asset-result` 与 resultId，不固定保存私人图片事实或源站地址。直接检索不创建 taskId。
+- 聊天与资源面板共用同一快照；结构化事件按 resultId 去重，不再解析为 Markdown 图片。刷新、恢复与权限拒绝重新读取/清除投影，账号变化清空私人状态。
+- 兼有平台管理员角色的用户按实际团队成员资格判断；单独的平台管理员身份仍不授予私人访问权。
+
+## 颜色标定边界
+
+`docs/fixtures/asset-color-labels.csv` 分开保存 6 个标定样本与 6 个独立验证样本。
+`python -I scripts/calibrate-asset-colors.py` 只用标定集选择阈值，再验证保留集，输出
+`target/asset-color-calibration.json`，记录标签/规则哈希、逐项分数及真实素材验证状态。
+
+2026-11-08 项目负责人在查看人工核对材料后回复“确认可以”，确认全部 12 个合成样本的建议分类。标签状态已改为 **CONFIRMED**，分类及标定/独立验证分组保持不变。此确认仅覆盖合成颜色标签，不表示真实素材效果已验收。
+人工确认入口：[离线色卡页](../fixtures/asset-color-review.html)、[确认表及记录](../../to-questionnaire-54-asset-colors.md)。标定报告记录更新后的标签哈希与不变的规则哈希。
+确认后已重跑 `python -I scripts/calibrate-asset-colors.py`：`humanAcceptance=CONFIRMED`，独立验证 6/6 匹配；阈值不变。标签 SHA-256 为 `0c1577b230f63065b33bacb74dcff768c561f0892f7bc456f9ad23f52fd0f9e7`。
+测试规则 `blue-purple-synthetic-v1` 使用蓝/紫双锚点与阈值 `0.7265004584445067`，阈值等号在 HTTP 用例中实际覆盖。
+生产默认不启用颜色规则。经标签确认、标定及评估后，可将规则放入受控配置文件，并设置
+`vision-space.asset-search.color-rule-location=file:/<受控规则路径>`。
+配置缺失或损坏时返回 `RULE_NOT_READY`，不退化成无阈值 Top-K。
+
+## 验收映射
+
+| 规格 | 工程证据入口 |
+|---|---|
+| AI01-01、04、06、07 | `HttpAssetSearchTest`：严格请求、Long 字符串、维度边界、数值排序、筛选后截断、空快照 |
+| AI01-02、03、10 | 同类 HTTP 用例：viewer/editor/admin、跨空间与跨用户、拒绝零快照/消息/Checkpoint/出站、原资源公开读取结果不变 |
+| AI01-05 | 人工确认的合成标定 CSV、冻结测试规则、独立验证报告及双锚点/等号边界 HTTP 用例；真实素材效果另列 NOT_RUN |
+| AI01-08、11 | `AssetResultCard.spec.ts`、`useAgentStream.spec.ts`、`AssetSearchBrowserIT`：共享结果、去重、真实预览、刷新与旧协议兼容 |
+| AI01-09、13 | HTTP 与浏览器：旧依据过期、替换不可用、隔离/恢复、撤权；单图授权仍可读取指定图片但不能检索空间 |
+| AI01-12 | 真实 Cookie、带 charset 的 JSON、缺失/错误 CSRF、恶意 Origin、注销后旧 Cookie 回放 |
+| AI01-14、15 | 协议协商、未知事件版本、只读模型边界、旧执行状态拒绝、会话删除、历史仅保存引用 |
+
+后端 HTTP 使用真实隔离 MySQL/Redis；模型是受控规划替身，存储是录制适配器。
+浏览器实际加载生产前端产物并访问真实隔离后端；图片字节为固定 PNG，项目既有远程字体由测试离线替代。
+这些证据不表示真实模型理解效果、真实对象存储或生产环境验收通过。
+
+## 迁移与回退
+
+新增 `2026-11-07-asset-search-snapshot.sql`，在备份及停写后建立快照表；不转换旧聊天或修改图片。
+前向与回退说明均登记到既有维护清单。回退停止新检索入口、保留快照表和数据，不开放旧直链。
+`MaintenanceWindowDrillTest` 将新表纳入隔离映射，保留原有迁移与回滚回归。
+本轮只在隔离测试库引导新结构，没有对开发库、生产库运行迁移。
+
+## 验证记录
+
+- 2026-11-08 集成主线 `26f759b`：保留主线脱敏、按 workflow attempt 分批的 CI 证据上传方式。集成回归补齐两项新增门禁到 `scripts/srf-matrix.json`，并让颜色标定复用实际探测的 Python 解释器；Store alias 和缺失找图门禁证据两个场景均已完成红→绿。
+- **集成代码提交 `b58d9411c216afc7b216f9dd2bca44ffde3a3d58`：完整入口 14 项全部 PASS。** 后端 689/689、找图浏览器 1/1，均为 0 失败/错误/跳过；前端 194/194，lint、格式、类型、构建、颜色标定、OpenAPI 契约及清理均通过。本轮仍是原生隔离 MySQL/Redis，不能替代 Docker 或真实对象存储验证。
+- 集成本轮证据：`target/acceptance/a1aff5769037420386bd12af3240eb41/summary.json`，`runId=9ed8b61e2ea3422aa59d87ac7eec19a7`；同目录 `surefire/`、`browser-surefire/`。退出后独立检查本轮 MySQL、Redis、第二 JVM 进程残留为 0。
+- `b58d941` 的 Standards、Spec 独立只读复核均为 0 项剩余发现；远端 PR 合并态及完整 SRF 门禁以对应 workflow attempt 的记录为准，本地通过不替代远端通过。
+- 已完成多轮真实红→绿：首次检索、快照过期/替换、预览撤权、旧执行状态、协议协商及 Agent 引用历史。
+- `3296e01` 的完整入口全部结果项 PASS：后端 685/685（0 失败/错误/跳过），前端 189/189，浏览器、契约、秘密扫描及资源清理通过。
+- 双轴审查确认的账号切换团队列表竞态、SSE 错误文案、撤权最终状态断言及预览查询放大已修复。新增两个 Vue 边界用例完成红→绿，定向 HTTP/浏览器 15/15 通过。
+- **历史代码提交 `23b7a871211ec267091d485b2e943c3c89489266`：14 项结果全部 PASS。** 后端 685/685、独立浏览器用例 1/1，均为 0 失败/错误/跳过；前端 191/191，lint、格式、类型、构建及 OpenAPI 契约对账通过。
+- 本轮证据：`target/acceptance/15792d42290e43b485d69b953a44a187/summary.json`、同目录 `surefire/` 与 `browser-surefire/`；最终 DOM 截图及请求记录在 `target/asset-search-browser/`。基础设施为原生隔离 MySQL/Redis，不能替代 Docker 或真实对象存储验证。
+- “空颜色规则导致启动 NPE”审查判断经当前 Jackson 实测未复现：InputStream 空输入返回 MissingNode，现有对象类型检查会保留 RULE_NOT_READY，未据此修改实现。
+- 真实模型、真实素材人工效果、生产迁移/回滚及发布放行：`NOT_RUN`。
+- #54 工程实现与工单最终验收分开：人工标签与最新 main 集成后的本地验收证据已齐，远端交付及工单验收仍按对应证据核对；生产相关项保持 NOT_RUN。
+
+## Standards
+
+独立审查最初发现撤权浏览器断言过早，以及单张预览重复遍历全部快照条目的查询放大。
+已等待真实拒绝响应及权限错误状态再检查最终 DOM，预览只锁定并校验指定条目、单次计算内容摘要。
+审查代理复核 `23b7a87` 后确认 **0 项剩余发现**，该复核为只读静态审查。
+集成后复核 `b58d941`：解释器探测与门禁缺项两处发现均已修复，**0 项剩余发现**。
+
+## Spec
+
+独立审查确认的旧账号团队响应回流和 SSE 内部错误码展示均已修复，并有新增 Vue 行为回归。
+“空配置导致 NPE”判断因当前 Jackson 的实际行为已由审查代理撤回。
+审查代理复核 `23b7a87` 后确认 **0 项剩余代码发现**；当时未完成的人工颜色标签已于 2026-11-08 获得确认，集成后的复核另记。
+集成后复核 `b58d941`：AI01-01～15 的实现及增量门禁与 frozen-v1.1 对齐，**0 项剩余发现**。该复核为只读静态审查，测试结果以上述运行记录为准。
+
+集成后双轴复核：Standards 0、Spec 0；本地完整验收 14 项 PASS，人工合成标签 CONFIRMED；真实素材、真实模型与生产放行保持单列。
+
+## 2026-11-08 远端交付收尾
+
+用户授权收尾 #47/#54。[PR #103](https://github.com/yuwen773/VisionSpace/pull/103) 的原分支头为 `e40759ce1e199f527435f1d526efd684f5963651`，基线为 `26f759bbc21a0913d2ece9480db7f8a40571166e`。本次独立 Standards / Spec 复核仍均为 0 项阻止合并的发现。
+
+已下载核对 [SRF run 42455054803，attempt 1](https://github.com/yuwen773/VisionSpace/actions/runs/42455054803) 的五组脱敏 artifacts：六个作业全部成功；各 summary 与工程台账均绑定合并态 `f7e5b56d42d2817b6fcbf9c66eccbd7ee9de5d4e`、`runId=42455054803-1`，Docker acceptance 的 14 项关卡 PASS，后端 689/689、找图浏览器 1/1，均 0 失败/错误/跳过；四组浏览器、容器及安全关卡 PASS。颜色标签 CONFIRMED，AI01-01～15 的证据入口见上文映射。
+
+本次补齐 #47 历史文档状态后的最终候选须重新满足完整 SRF；合并后另外核对 main 的提交和独立批次，再在 [#54](https://github.com/yuwen773/VisionSpace/issues/54) 记录最终结果并关单。上述既有运行只证明其绑定候选，不能替代后续提交的 CI。
+
+此交付仅完成 01 增量；#55/#56 未实施，真实模型、真实素材效果、真实对象存储、生产迁移/回滚及发布仍为 NOT_RUN，#29/#48 人工关卡保持阻断。

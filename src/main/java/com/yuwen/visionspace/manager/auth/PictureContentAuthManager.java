@@ -132,9 +132,6 @@ public class PictureContentAuthManager {
         }
         // 团队空间按成员关系判定：平台管理员不因平台角色自动获得成员权限，
         // 与 StpInterfaceImpl 的团队空间分支保持一致
-        if (userService.isAdmin(viewer)) {
-            return false;
-        }
         SpaceUser spaceUser = spaceUserService.lambdaQuery()
                 .eq(SpaceUser::getSpaceId, spaceId)
                 .eq(SpaceUser::getUserId, viewer.getId())

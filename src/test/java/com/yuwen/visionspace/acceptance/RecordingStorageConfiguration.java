@@ -27,6 +27,7 @@ public class RecordingStorageConfiguration {
     static final String PLATFORM = "acceptance";
 
     private static final byte[] CONTENT = "acceptance-image-bytes".getBytes(StandardCharsets.UTF_8);
+    static final java.util.Map<String, byte[]> SEEDED_CONTENT = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final java.util.Set<String> OBJECTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
@@ -126,7 +127,7 @@ public class RecordingStorageConfiguration {
             @Override
             public byte[] readObject(String platform, String objectKey) {
                 recorder.record(new ExternalCallRecorder.Call("READ", platform, objectKey));
-                return CONTENT;
+                return SEEDED_CONTENT.getOrDefault(objectKey, CONTENT);
             }
 
             @Override

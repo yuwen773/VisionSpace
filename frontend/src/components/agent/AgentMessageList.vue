@@ -205,6 +205,20 @@
             :attachment-ids="msg.attachmentIds"
             :session-id="sessionId"
           />
+          <template v-else-if="msg.type === 'asset-result' && msg.resultId">
+            <AssetResultCard
+              v-if="assetResults[msg.resultId]"
+              :result="assetResults[msg.resultId]"
+              @refresh="emit('refreshAsset', msg.resultId)"
+              @preview="emit('previewAsset', $event)"
+              @preview-error="emit('assetUnavailable', msg.resultId)"
+            />
+            <p v-else class="asset-unavailable">
+              检索结果不可用，<button type="button" @click="emit('refreshAsset', msg.resultId)">
+                刷新状态后重试
+              </button>
+            </p>
+          </template>
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
             v-else-if="msg.type === 'assistant'"
@@ -290,6 +304,8 @@ import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 import ActionUnknownMessage from './message/ActionUnknownMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
+import AssetResultCard from './AssetResultCard.vue'
+import type { AssetResult } from '@/api-custom/assetSearch'
 
 interface Message {
   type: string
@@ -301,6 +317,7 @@ interface Message {
   images?: string[]
   /** 这条消息携带的图片资源标识 */
   attachmentIds?: string[]
+  resultId?: string
 }
 
 interface Props {
@@ -308,12 +325,14 @@ interface Props {
   loading?: boolean
   /** 当前会话标识：附件按会话与资源双重授权后读取 */
   sessionId?: string
+  assetResults?: Record<string, AssetResult>
 }
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
   sessionId: '',
+  assetResults: () => ({}),
 })
 
 const emit = defineEmits<{
@@ -321,6 +340,9 @@ const emit = defineEmits<{
   (e: 'cancel'): void
   (e: 'send', text: string): void
   (e: 'toggleResources', data: ResourceData): void
+  (e: 'refreshAsset', resultId: string): void
+  (e: 'previewAsset', url: string): void
+  (e: 'assetUnavailable', resultId: string): void
 }>()
 
 const quickHints = ['一张赛博朋克风格的城市夜景', '用水彩风格画一只猫', '复古海报风格的旅行插画']
