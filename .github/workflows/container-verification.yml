@@ -1,13 +1,14 @@
 name: Container candidate verification
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  VS_SRF_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   container:
@@ -25,13 +26,21 @@ jobs:
       # 端口发布、生效 profile、SQL 日志卫生，以及依赖故障/恢复/重试耗尽。
       - name: Isolated production candidate (build, run, health)
         shell: pwsh
-        run: ./scripts/container-verification.ps1
+        run: |
+          ./scripts/container-verification.ps1 *> "$env:RUNNER_TEMP/srf-container.raw.log"
+          $gateExit = $LASTEXITCODE
+          Write-Host "container exit: $gateExit"
+          exit $gateExit
       - name: Preserve container evidence on success or failure
+        if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/container-verification "$RUNNER_TEMP/srf-artifacts/container"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/container/runtime.json"
+      - name: Upload safe container outcomes
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: container-verification-evidence
-          path: |
-            /tmp/visionspace-container-*/
-          if-no-files-found: warn
+          name: srf-container-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
           retention-days: 14

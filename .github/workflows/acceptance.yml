@@ -1,13 +1,14 @@
 name: Acceptance baseline
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  VS_SRF_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   acceptance:
@@ -25,20 +26,25 @@ jobs:
           node-version: '22.21.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install the browser for asset-search acceptance
+      - name: Isolated MySQL, Redis, HTTP regressions and frontend checks
+        shell: pwsh
         run: |
           npm ci --prefix frontend --no-audit --no-fund
           node frontend/node_modules/playwright-core/cli.js install --with-deps chromium
-      - name: Isolated MySQL, Redis, HTTP regressions and frontend checks
-        shell: pwsh
-        run: ./scripts/acceptance.ps1
+          ./scripts/acceptance.ps1 *> "$env:RUNNER_TEMP/srf-acceptance.raw.log"
+          $gateExit = $LASTEXITCODE
+          Write-Host "acceptance exit: $gateExit"
+          exit $gateExit
+      - name: Project safe outcome evidence
+        if: always()
+        run: |
+          python3 -I scripts/publish-evidence.py target/acceptance "$RUNNER_TEMP/srf-artifacts/acceptance"
+          python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/acceptance/runtime.json"
       - name: Preserve evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: acceptance-evidence
-          path: |
-            target/acceptance/
-            target/asset-search-browser/
-            target/asset-color-calibration.json
+          name: srf-acceptance-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/srf-artifacts/
+          if-no-files-found: error
           retention-days: 14
