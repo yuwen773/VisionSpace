@@ -2,7 +2,7 @@
 
 规格：[GitHub #54](https://github.com/yuwen773/VisionSpace/issues/54)，frozen-v1.1。
 实施基线：`003e487cd8105b2c0bc3908c09faeda87a3b3a7c`。工作分支：`codex/54-asset-search`。
-本轮授权为实施与本地提交；不包含生产迁移、部署或发布放行。
+初始授权为实施与本地提交；2026-11-08 用户授权继续人工颜色验收收尾与集成交付。不包含生产迁移、部署或发布放行。
 
 ## 实现
 
@@ -22,7 +22,9 @@
 `python -I scripts/calibrate-asset-colors.py` 只用标定集选择阈值，再验证保留集，输出
 `target/asset-color-calibration.json`，记录标签/规则哈希、逐项分数及真实素材验证状态。
 
-当前样本标签为 **PROPOSED，人工确认尚未收到**；6/6 合成验证匹配不表示人工或真实素材已验收。
+2026-11-08 项目负责人在查看人工核对材料后回复“确认可以”，确认全部 12 个合成样本的建议分类。标签状态已改为 **CONFIRMED**，分类及标定/独立验证分组保持不变。此确认仅覆盖合成颜色标签，不表示真实素材效果已验收。
+人工确认入口：[离线色卡页](../fixtures/asset-color-review.html)、[确认表及记录](../../to-questionnaire-54-asset-colors.md)。标定报告记录更新后的标签哈希与不变的规则哈希。
+确认后已重跑 `python -I scripts/calibrate-asset-colors.py`：`humanAcceptance=CONFIRMED`，独立验证 6/6 匹配；阈值不变。标签 SHA-256 为 `0c1577b230f63065b33bacb74dcff768c561f0892f7bc456f9ad23f52fd0f9e7`。
 测试规则 `blue-purple-synthetic-v1` 使用蓝/紫双锚点与阈值 `0.7265004584445067`，阈值等号在 HTTP 用例中实际覆盖。
 生产默认不启用颜色规则。经标签确认、标定及评估后，可将规则放入受控配置文件，并设置
 `vision-space.asset-search.color-rule-location=file:/<受控规则路径>`。
@@ -34,7 +36,7 @@
 |---|---|
 | AI01-01、04、06、07 | `HttpAssetSearchTest`：严格请求、Long 字符串、维度边界、数值排序、筛选后截断、空快照 |
 | AI01-02、03、10 | 同类 HTTP 用例：viewer/editor/admin、跨空间与跨用户、拒绝零快照/消息/Checkpoint/出站、原资源公开读取结果不变 |
-| AI01-05 | 合成标定 CSV、冻结测试规则、独立验证报告及双锚点/等号边界 HTTP 用例；人工标签/真实素材仍待确认 |
+| AI01-05 | 人工确认的合成标定 CSV、冻结测试规则、独立验证报告及双锚点/等号边界 HTTP 用例；真实素材效果另列 NOT_RUN |
 | AI01-08、11 | `AssetResultCard.spec.ts`、`useAgentStream.spec.ts`、`AssetSearchBrowserIT`：共享结果、去重、真实预览、刷新与旧协议兼容 |
 | AI01-09、13 | HTTP 与浏览器：旧依据过期、替换不可用、隔离/恢复、撤权；单图授权仍可读取指定图片但不能检索空间 |
 | AI01-12 | 真实 Cookie、带 charset 的 JSON、缺失/错误 CSRF、恶意 Origin、注销后旧 Cookie 回放 |
@@ -60,7 +62,7 @@
 - 本轮证据：`target/acceptance/15792d42290e43b485d69b953a44a187/summary.json`、同目录 `surefire/` 与 `browser-surefire/`；最终 DOM 截图及请求记录在 `target/asset-search-browser/`。基础设施为原生隔离 MySQL/Redis，不能替代 Docker 或真实对象存储验证。
 - “空颜色规则导致启动 NPE”审查判断经当前 Jackson 实测未复现：InputStream 空输入返回 MissingNode，现有对象类型检查会保留 RULE_NOT_READY，未据此修改实现。
 - 真实模型、真实素材人工效果、生产迁移/回滚及发布放行：`NOT_RUN`。
-- #54 工程实现与工单最终验收分开：人工标签证据未齐，不把工单标为已验收。
+- #54 工程实现与工单最终验收分开：人工标签现已确认；最新 main 集成后的验收与远端交付证据待补，不把旧提交通过自动升级为集成后通过。
 
 ## Standards
 
@@ -72,6 +74,6 @@
 
 独立审查确认的旧账号团队响应回流和 SSE 内部错误码展示均已修复，并有新增 Vue 行为回归。
 “空配置导致 NPE”判断因当前 Jackson 的实际行为已由审查代理撤回。
-审查代理复核 `23b7a87` 后确认 **0 项剩余代码发现**；人工颜色标签仍为未完成的外部验收条件。
+审查代理复核 `23b7a87` 后确认 **0 项剩余代码发现**；当时未完成的人工颜色标签已于 2026-11-08 获得确认，集成后的复核另记。
 
-双轴复核：Standards 0、Spec 0 代码问题；人工颜色标签确认仍待完成，不将工程通过表述为最终产品验收通过。
+历史双轴复核：Standards 0、Spec 0 代码问题；最新 main 集成后的完整验收与双轴复核另记。
