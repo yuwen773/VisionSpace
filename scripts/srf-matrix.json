@@ -11,7 +11,7 @@
     "security": {"script":"scripts/security-verification.ps1", "report":"security-verification"}
   },
   "gates": {
-    "acceptance": ["runner-tests", "secret-scan", "isolation", "backend", "frontend-install", "frontend-lint", "frontend-format", "frontend-typecheck", "frontend-tests", "frontend-build", "frontend-api-contract", "cleanup"],
+    "acceptance": ["runner-tests", "secret-scan", "isolation", "backend", "frontend-install", "frontend-lint", "frontend-format", "frontend-typecheck", "frontend-tests", "frontend-build", "asset-color-calibration", "asset-search-browser", "frontend-api-contract", "cleanup"],
     "browser": ["https-browser", "collab-protocol", "collab-browser", "diagram-browser"],
     "container": ["execution", "cleanup"],
     "security": ["secret-scan", "dependencies"]
