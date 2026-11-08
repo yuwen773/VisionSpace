@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#54 · 颜色标签人工核对</title>
+<style>
+  :root { color-scheme: light; background: #f6f5f1; color: #252724; font-family: "Microsoft YaHei", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 1080px; margin: auto; padding: 48px 28px; }
+  .eyebrow { font: 13px Consolas, monospace; letter-spacing: .12em; color: #62685f; }
+  h1 { font-family: "Noto Serif CJK SC", "SimSun", serif; font-size: clamp(28px, 5vw, 46px); font-weight: 500; margin: 18px 0; }
+  h2 { font-size: 20px; margin: 36px 0 14px; }
+  p { line-height: 1.8; max-width: 78ch; }
+  .status { display: inline-block; padding: 6px 12px; border: 1px solid #777c72; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  figure { margin: 0; background: #fff; border: 1px solid #bfc2b9; }
+  .swatch { height: 140px; border-bottom: 1px solid #bfc2b9; background: var(--sample); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  figcaption { padding: 14px 16px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+  code { font-family: Consolas, monospace; }
+  .suggestion { color: #51564d; }
+  aside { border-left: 3px solid #626f53; margin-top: 36px; padding: 2px 20px; }
+  footer { margin-top: 32px; font-size: 12px; overflow-wrap: anywhere; color: #51564d; }
+  a { color: #31532d; text-underline-offset: 3px; }
+  @media (max-width: 640px) { main { padding: 28px 16px; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } .swatch { height: 110px; } }
+  @media print { main { padding: 0; } figure { break-inside: avoid; } .swatch { height: 90px; } h2 { break-after: avoid; } }
+</style>
+<main>
+  <div class="eyebrow">VISIONSPACE / #54 / HUMAN REVIEW</div>
+  <h1>这些颜色，属于蓝紫吗？</h1>
+  <span class="status">已人工确认 · CONFIRMED · 2026-11-08</span>
+  <p>逐项观察色块，判断它的主色是否接近<strong>蓝色或紫色</strong>。每项可以回答“蓝紫”“其他”或“不确定”。下方文字是现有建议，你可以修改。白色和黑色也各有独立色块。</p>
+  <h2>01 / 标定样本</h2>
+  <p>这组标签用于选择阈值。</p>
+  <section class="grid" aria-label="标定样本">
+    <figure data-id="C1" data-color="#0000FF" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#0000FF" role="img" aria-label="C1 色块 #0000FF"></div><figcaption><code>C1 · #0000FF</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="C2" data-color="#800080" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#800080" role="img" aria-label="C2 色块 #800080"></div><figcaption><code>C2 · #800080</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="C3" data-color="#A020F0" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#A020F0" role="img" aria-label="C3 色块 #A020F0"></div><figcaption><code>C3 · #A020F0</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="C4" data-color="#FF0000" data-label="OTHER"><div class="swatch" style="--sample:#FF0000" role="img" aria-label="C4 色块 #FF0000"></div><figcaption><code>C4 · #FF0000</code><span class="suggestion">建议：其他</span></figcaption></figure>
+    <figure data-id="C5" data-color="#00FF00" data-label="OTHER"><div class="swatch" style="--sample:#00FF00" role="img" aria-label="C5 色块 #00FF00"></div><figcaption><code>C5 · #00FF00</code><span class="suggestion">建议：其他</span></figcaption></figure>
+    <figure data-id="C6" data-color="#808080" data-label="OTHER"><div class="swatch" style="--sample:#808080" role="img" aria-label="C6 色块 #808080"></div><figcaption><code>C6 · #808080</code><span class="suggestion">建议：其他</span></figcaption></figure>
+  </section>
+  <h2>02 / 独立验证样本</h2>
+  <p>这组标签用于检验规则，不参与选择阈值。</p>
+  <section class="grid" aria-label="独立验证样本">
+    <figure data-id="V1" data-color="#0000CC" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#0000CC" role="img" aria-label="V1 色块 #0000CC"></div><figcaption><code>V1 · #0000CC</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="V2" data-color="#3333FF" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#3333FF" role="img" aria-label="V2 色块 #3333FF"></div><figcaption><code>V2 · #3333FF</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="V3" data-color="#663399" data-label="BLUE_OR_PURPLE"><div class="swatch" style="--sample:#663399" role="img" aria-label="V3 色块 #663399"></div><figcaption><code>V3 · #663399</code><span class="suggestion">建议：蓝紫</span></figcaption></figure>
+    <figure data-id="V4" data-color="#FFFFFF" data-label="OTHER"><div class="swatch" style="--sample:#FFFFFF" role="img" aria-label="V4 色块 #FFFFFF"></div><figcaption><code>V4 · #FFFFFF</code><span class="suggestion">建议：其他</span></figcaption></figure>
+    <figure data-id="V5" data-color="#000000" data-label="OTHER"><div class="swatch" style="--sample:#000000" role="img" aria-label="V5 色块 #000000"></div><figcaption><code>V5 · #000000</code><span class="suggestion">建议：其他</span></figcaption></figure>
+    <figure data-id="V6" data-color="#FFFF00" data-label="OTHER"><div class="swatch" style="--sample:#FFFF00" role="img" aria-label="V6 色块 #FFFF00"></div><figcaption><code>V6 · #FFFF00</code><span class="suggestion">建议：其他</span></figcaption></figure>
+  </section>
+  <aside>
+    <p><strong>C1～C6、V1～V6 的全部建议标签已获确认。</strong><br>项目负责人于 2026-11-08 在本会话回复：“确认可以”。</p>
+    <p>确认范围仅为这 12 个合成颜色的标签。自动匹配、真实素材效果与生产放行分别记录。</p>
+  </aside>
+  <footer>来源：<a href="asset-color-labels.csv">asset-color-labels.csv</a> · <a href="../../to-questionnaire-54-asset-colors.md">填写说明与确认记录</a><br>标签 SHA-256：0c1577b230f63065b33bacb74dcff768c561f0892f7bc456f9ad23f52fd0f9e7</footer>
+</main>
+</html>

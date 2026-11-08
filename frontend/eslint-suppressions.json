@@ -173,7 +173,7 @@
   },
   "src/pages/AgentChatPage.vue": {
     "@typescript-eslint/no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/pages/ExplorePage.vue": {
