@@ -65,6 +65,9 @@ class MaintenanceWindowDrillTest {
         tables.put("agent_legacy_attachment", "agent_legacy_attachment_drill_46");
         tables.put("agent_session_attachment", "agent_session_attachment_drill_46");
         tables.put("agent_message", "agent_message_drill_46");
+        tables.put("asset_search_snapshot", "asset_search_snapshot_drill_46");
+        tables.put("asset_board", "asset_board_drill_46");
+        tables.put("asset_board_operation", "asset_board_operation_drill_46");
         tables.put("feedback_attachment", "feedback_attachment_drill_46");
         tables.put("resource_access_grant", "resource_access_grant_drill_46");
         tables.put("resource_isolation", "resource_isolation_drill_46");
@@ -191,6 +194,10 @@ class MaintenanceWindowDrillTest {
                 "清单声明的只读盘点步骤全部纳入编排");
         assertEquals(ledger, backupLedger(), "只读盘点不得修改任何业务数据");
 
+        // RESUME 闸门：manifest 第 24 步的 blockingCondition —— 任一 BLOCKING 非零时
+        // 编排保持停写。盘点全为零才恢复写入，否则拒绝进入 ROLLBACK_REHEARSAL / RE_DEPLOY。
+        resumeWritesIfInventoryClear();
+
         // RESUME / RE_DEPLOY：核对通过后恢复写入，再按清单把每份回滚步骤演练一遍
         //（这一步在 rollbackRehearsal* 用例里带真实风险状态验证；这里证明流程完整、无遗漏步骤）。
         List<String> rehearsals = new ArrayList<>();
@@ -260,6 +267,68 @@ class MaintenanceWindowDrillTest {
                 "逻辑删除图片的未处理事件必须阻断；有效图片的正常待处理事件不阻断");
         assertEquals(before, jdbc.queryForList("SELECT * FROM user_picture_action_drill_46 ORDER BY id"),
                 "事件盘点不能自动标记完成或丢弃孤儿事件");
+    }
+
+    @Test
+    void nonZeroBlockingInventoryKeepsTheWindowPausedAndRejectsResume() throws Exception {
+        // 34.3 / manifest 第 24 步声明「任一 blockingCount 非零时编排保持停写」。
+        // 制造一条只有新维度（配额容量偏差）的阻断项，证明编排不会放行回填或恢复写入。
+        jdbc.update("UPDATE space_drill_46 SET totalSize = 7 WHERE id = 9001");
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        Map<String, Object> quota = blocklistSection(sql, 6).stream()
+                .filter(row -> "quota-deviation".equals(row.get("dimension"))).findFirst().orElseThrow();
+        assertEquals(1L, ((Number) quota.get("blockingCount")).longValue(),
+                "前置：清单确实报出非零阻断项");
+
+        openWindowForDrill();
+        assertThrows(IllegalStateException.class,
+                () -> resumeWritesIfInventoryClear(),
+                "非零 blockingCount 时不得恢复写入，编排保持维护状态");
+        assertThrows(IllegalStateException.class,
+                () -> runStepUnderGate("2026-10-25-space-uniqueness-quota-backfill.sql"),
+                "阻断未清零时后续迁移步骤必须被拒绝，不自动续跑");
+        // 清零阻断项后，同一个恢复入口才允许放行。
+        jdbc.update("UPDATE space_drill_46 SET totalSize = 0 WHERE id = 9001");
+        resumeWritesIfInventoryClear();
+        assertFalse(writesPaused, "阻断清零且人工批准后恢复写入");
+    }
+
+    @Test
+    void quotaBlocklistReportsNullStoredQuotaAsADeviation() throws Exception {
+        // space.totalSize / totalCount 在生产 DDL 里可空；「NULL <> 0」在 SQL 里既非真也非假，
+        // 会让不一致的空间静默漏出清单和 BLOCKING 汇总，编排因此错误放行。
+        jdbc.update("UPDATE space_drill_46 SET totalCount = NULL, totalSize = NULL WHERE id = 9001");
+        jdbc.update("INSERT INTO picture_drill_46 (id, url, userId, picSize, spaceId, isDelete) VALUES "
+                + "(88401, 'dummy', 7001, 10, 9001, 0)");
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        String detailSql = statements(sql).stream().filter(s -> s.contains("AS `storedCount`"))
+                .findFirst().orElseThrow();
+        List<Map<String, Object>> detail = jdbc.queryForList(rename(detailSql));
+        assertEquals(List.of(9001L), detail.stream().map(row -> row.get("recordId")).toList(),
+                "已删除空间不计入；stored 配额为 NULL 但确有有效图片的空间仍须报出偏差");
+        assertNull(detail.get(0).get("storedSize"), "明细保留原始 NULL，供人工看见台账缺失");
+        assertEquals(10L, ((Number) detail.get(0).get("expectedSize")).longValue());
+        Map<String, Object> summary = blocklistSection(sql, 6).stream()
+                .filter(row -> "quota-deviation".equals(row.get("dimension"))).findFirst().orElseThrow();
+        assertEquals(1L, ((Number) summary.get("blockingCount")).longValue(),
+                "NULL 配额漏报会让 M3 闸门放行，必须按偏差阻断");
+    }
+
+    @Test
+    void quotaBlocklistKeepsCountOnlyDeviationsAndAgreesBetweenDetailAndSummary() throws Exception {
+        jdbc.update("UPDATE space_drill_46 SET totalCount = 1 WHERE id = 9001"); // 仅数量偏差（容量一致：0）
+        jdbc.update("UPDATE space_drill_46 SET totalSize = 5 WHERE id = 9002");  // 仅容量偏差（数量一致：0）
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        String detailSql = statements(sql).stream().filter(s -> s.contains("AS `storedCount`"))
+                .findFirst().orElseThrow();
+        List<Long> detailIds = jdbc.queryForList(rename(detailSql)).stream()
+                .map(row -> ((Number) row.get("recordId")).longValue()).toList();
+        assertEquals(List.of(9001L, 9002L), detailIds,
+                "旧的按数量检测路径不能被新增的容量比较吃掉；两类偏差都要报出");
+        Map<String, Object> summary = blocklistSection(sql, 6).stream()
+                .filter(row -> "quota-deviation".equals(row.get("dimension"))).findFirst().orElseThrow();
+        assertEquals((long) detailIds.size(), ((Number) summary.get("blockingCount")).longValue(),
+                "人工清单与 BLOCKING 计数必须统计同一组偏差空间；两份手写谓词由护栏同步");
     }
 
     @Test
@@ -631,6 +700,25 @@ class MaintenanceWindowDrillTest {
      * 这里只是把人工批准点映射成内存状态，不代表真实环境放行。
      */
     private void openWindowForDrill() {
+        writesPaused = false;
+    }
+
+    /**
+     * RESUME 闸门：manifest 第 24 步声明「任一 blockingCount 非零时编排保持停写」。
+     * 阻断维度与计数都从跨领域清单第 6 节的实跑结果派生，不在编排器里另写一份口径；
+     * 任一非零就落回停写并拒绝恢复，清零后才允许人工批准进入下一步。
+     */
+    private void resumeWritesIfInventoryClear() throws IOException {
+        String sql = Files.readString(MIGRATIONS.resolve("2026-11-05-maintenance-window-blocklist.sql"));
+        List<String> blocking = blocklistSection(sql, 6).stream()
+                .filter(row -> "BLOCKING".equals(String.valueOf(row.get("kind"))))
+                .filter(row -> ((Number) row.get("blockingCount")).longValue() > 0)
+                .map(row -> row.get("dimension") + "=" + row.get("blockingCount"))
+                .toList();
+        if (!blocking.isEmpty()) {
+            writesPaused = true;
+            throw new IllegalStateException("维护窗口阻断未清零，保持停写：" + blocking);
+        }
         writesPaused = false;
     }
 

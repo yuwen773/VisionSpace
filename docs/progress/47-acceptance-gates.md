@@ -4,9 +4,19 @@
 
 ## 状态与边界
 
-工程实现已接通，但工单保持 **BLOCKED**：依赖扫描发现既有 HIGH / CRITICAL 风险，远程完整候选 CI 尚未执行。没有删除、跳过、忽略这些失败，也没有为获得绿灯进行业务依赖主版本迁移。
+2026-11-08 收尾核对：远端同候选完整 SRF 已通过，工程验收具备收尾证据。下文的本地失败与 BLOCKED 是历史批次结果，保留原判定，不代表当前远端候选状态。最终合并提交、main 验收批次及关单结果以 [#47](https://github.com/yuwen773/VisionSpace/issues/47) 的收尾记录为准。
 
-本票只运行随机端口、随机数据库与凭据的隔离环境，模型/MCP/存储使用既有受控替身或回环失败端点。不执行生产部署、真实迁移、凭据轮换、真实桶 ACL/CDN 验证、付费模型调用、历史重写或主分支合并。#29/#48 及真实环境批准点继续 BLOCKED / NOT_RUN。
+## 2026-11-08 远端证据核对
+
+- [PR #83](https://github.com/yuwen773/VisionSpace/pull/83) 已合并同主版本线的依赖整改和用户批准的时限豁免。剩余 4 条包-公告记录对应 3 个 CVE，豁免到期日为 `2027-02-07`；安全关卡通过不表示这些漏洞已修复，详见 [依赖整改记录](47-dependency-remediation.md)。
+- main `26f759bbc21a0913d2ece9480db7f8a40571166e` 的 [SRF run 42378255886](https://github.com/yuwen773/VisionSpace/actions/runs/42378255886) 成功；待合并 #54 的 [PR #103 run 42455054803，attempt 1](https://github.com/yuwen773/VisionSpace/actions/runs/42455054803) 六个作业全部成功。
+- 已下载并核对 PR 批次脱敏产物：`candidate=f7e5b56d42d2817b6fcbf9c66eccbd7ee9de5d4e`、`runId=42455054803-1`；四个公共入口与台账的提交、批次一致。工程 T01～T24 均 PASS，无缺失测试套件；T23/T24 人工项与 `productionAcceptance` 保持 BLOCKED。
+- 2026-11-08 实际读回 Ruleset `26689446`：active、仅 main、零 bypass actor、禁止删除/非快进、要求 PR、讨论解决及最新基线上的 GitHub Actions `SRF merge gate`（app `15368`）。原受控缺检查探针的 HTTP 422 拒绝及清理记录仍保留，不为本次收尾改动治理设置。
+- Secret Scanning、Push Protection、Dependabot alerts/security updates 当前启用；hosted generic patterns 仍 disabled，通用秘密检查由必需的 `secret-scan.ps1` 覆盖。
+
+本次文档更新后的候选仍须通过自身的完整 SRF，并在合并后核对 main 的独立批次，才关闭 #47；不把上述旧候选的通过自动转移到新提交。
+
+本票只运行随机端口、随机数据库与凭据的隔离环境，模型/MCP/存储使用既有受控替身或回环失败端点。2026-11-08 用户授权收尾 #47/#54，包括必要文档提交、PR 合并及关单；不执行生产部署、真实迁移、凭据轮换、真实桶 ACL/CDN 验证、付费模型调用或历史重写。#29/#48 及真实环境批准点继续 BLOCKED / NOT_RUN。
 
 ## 单一执行约定
 
@@ -61,7 +71,7 @@ GitHub 对 hosted generic patterns 有[仓库类型/产品范围限制](https://
 
 启用主分支必需检查不会给尚未运行的新工作流制造成功记录。现有 PR 必须包含新工作流并实际满足全部子关卡；不得绕过 Ruleset 合并。此轮没有推送源分支或发布 PR。
 
-## 执行证据
+## 历史执行证据（2026-11-06）
 
 实现阶段已完成：结果分类/门禁/证据投影回归、真实 Docker 隔离服务身份与清理、HTTPS 浏览器 9 场景、双实例协作 21 场景、协作浏览器 10 场景、图表两主题 × 配置/未配置四组合；新增实际内容读取场景已红→绿，授权读取四种内容，陌生人与撤权后读取均拒绝，存储仅收到四次授权读取。
 

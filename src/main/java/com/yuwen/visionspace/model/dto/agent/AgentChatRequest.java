@@ -23,6 +23,9 @@ public class AgentChatRequest implements Serializable {
      */
     private String threadId;
 
+    /** 显式选择站内只读找图；仅接受协商 v1 的客户端。 */
+    private String assetSpaceId;
+
     // 身份只取服务端登录态：请求体里的 userId 不再参与归属或偏好判定，
     // 字段已移除，旧客户端多传会被忽略。
 
