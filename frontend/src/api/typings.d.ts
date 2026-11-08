@@ -17,6 +17,7 @@ declare namespace API {
   }
 
   type AgentChatRequest = {
+    assetSpaceId?: string
     attachmentIds?: string[]
     disableMcpDefault?: boolean
     enabledMcpServers?: string[]
@@ -31,6 +32,84 @@ declare namespace API {
     url?: string
   }
 
+  type AssetBoard = {
+    boardId?: string
+    createTime?: string
+    groups?: AssetBoardGroup[]
+    items?: AssetBoardItem[]
+    revision?: number
+    schemaVersion?: number
+    spaceId?: string
+    title?: string
+    updateTime?: string
+  }
+
+  type AssetBoardGroup = {
+    groupId?: string
+    name?: string
+    position?: number
+  }
+
+  type AssetBoardInputEntry = {
+    boardItemId?: string
+    groupId?: string
+    position?: number
+    resultId?: string
+    selected?: boolean
+    sourcePosition?: number
+    sourceVersion?: string
+  }
+
+  type AssetBoardItem = {
+    assetRef?: AssetRef
+    boardItemId?: string
+    display?: Display
+    groupId?: string
+    interpretations?: string[]
+    matches?: Match[]
+    position?: number
+    resultId?: string
+    selected?: boolean
+    sourceVersion?: string
+    status?: string
+    verifiedFacts?: Record<string, any>
+  }
+
+  type AssetBoardOperation = {
+    boardId?: string
+    operationId?: string
+    revision?: number
+    schemaVersion?: number
+    status?: string
+  }
+
+  type assetPreviewUsingGetParams = {
+    resultId: string
+    position: number
+  }
+
+  type AssetRef = {
+    kind?: string
+    pictureId?: string
+  }
+
+  type AssetSearchRequest = {
+    criteria?: Criteria
+    limit?: number
+    spaceId?: string
+    threadId?: string
+  }
+
+  type AssetSearchResult = {
+    criteria?: Criteria
+    items?: Item[]
+    observedAt?: string
+    resultId?: string
+    ruleVersion?: string
+    schemaVersion?: number
+    spaceId?: string
+  }
+
   type BaseResponseAdminDashboardStatsVO = {
     code?: number
     data?: AdminDashboardStatsVO
@@ -40,6 +119,24 @@ declare namespace API {
   type BaseResponseAgentImageVO = {
     code?: number
     data?: AgentImageVO
+    message?: string
+  }
+
+  type BaseResponseAssetBoard = {
+    code?: number
+    data?: AssetBoard
+    message?: string
+  }
+
+  type BaseResponseAssetBoardOperation = {
+    code?: number
+    data?: AssetBoardOperation
+    message?: string
+  }
+
+  type BaseResponseAssetSearchResult = {
+    code?: number
+    data?: AssetSearchResult
     message?: string
   }
 
@@ -361,6 +458,11 @@ declare namespace API {
     message?: string
   }
 
+  type boardPreviewUsingGetParams = {
+    boardId: string
+    itemId: string
+  }
+
   type ChatHistoryVO = {
     hasMore?: boolean
     messages?: MessageVO[]
@@ -405,6 +507,11 @@ declare namespace API {
     pictureId?: number
   }
 
+  type Criteria = {
+    dominantColorFamily?: string
+    orientation?: string
+  }
+
   type deleteAttachmentUsingPostParams = {
     resourceId: number
   }
@@ -419,6 +526,10 @@ declare namespace API {
 
   type deleteSessionUsingDeleteParams = {
     threadId: string
+  }
+
+  type Display = {
+    contentRef?: string
   }
 
   type FeedbackAddRequest = {
@@ -583,6 +694,17 @@ declare namespace API {
     total?: number
   }
 
+  type Item = {
+    assetRef?: AssetRef
+    display?: Display
+    interpretations?: string[]
+    matches?: Match[]
+    position?: number
+    sourceVersion?: string
+    status?: string
+    verifiedFacts?: Record<string, any>
+  }
+
   type listGrantsUsingGetParams = {
     pictureId: string
   }
@@ -608,6 +730,12 @@ declare namespace API {
     userProfile?: string
     userRole?: string
     vipExpireTime?: string
+  }
+
+  type Match = {
+    criterion?: string
+    evidence?: Record<string, any>
+    status?: string
   }
 
   type McpCapabilities = {
@@ -956,6 +1084,18 @@ declare namespace API {
     pictureId: number
   }
 
+  type readAssetResultUsingGetParams = {
+    resultId: string
+  }
+
+  type readBoardOperationUsingGetParams = {
+    operationId: string
+  }
+
+  type readBoardUsingGetParams = {
+    boardId: string
+  }
+
   type RecommendPageVO = {
     context?: string
     contextValid?: boolean
@@ -1000,6 +1140,10 @@ declare namespace API {
     threadId?: string
   }
 
+  type replaceBoardUsingPutParams = {
+    boardId: string
+  }
+
   type ResourceGrantListVO = {
     canManage?: boolean
     grants?: ResourceGrantVO[]
@@ -1032,6 +1176,15 @@ declare namespace API {
   type resumeUsingPostParams = {
     threadId: string
     expectedVersion?: number
+  }
+
+  type SaveAssetBoardRequest = {
+    expectedRevision?: number
+    groups?: AssetBoardGroup[]
+    items?: AssetBoardInputEntry[]
+    operationId?: string
+    resultId?: string
+    title?: string
   }
 
   type SearchPictureByColorRequest = {

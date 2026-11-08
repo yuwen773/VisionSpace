@@ -19,8 +19,8 @@ SCAN = ROOT / "scripts" / "secret-scan.ps1"
 PROGRESS = ROOT / "docs" / "progress" / "46-maintenance-window-drill.md"
 MANIFEST = ROOT / "sql" / "migrations" / "maintenance-window.manifest.json"
 JAVA_TESTS = ROOT / "src" / "test" / "java"
-
-JAVA_TESTS = ROOT / "src" / "test" / "java"
+CROSS_BLOCKLIST = ROOT / "sql" / "migrations" / "2026-11-05-maintenance-window-blocklist.sql"
+QUOTA_BLOCKLIST = ROOT / "sql" / "migrations" / "2026-10-25-space-uniqueness-quota-blocklist.sql"
 
 
 def excluded_suffixes(scan_text):
@@ -51,6 +51,31 @@ def findings():
             if pattern.search(line):
                 yield (f"{java.relative_to(ROOT)}:{lineno}: assertNotNull on JsonNode.path()/get() "
                        f"is always true (MissingNode is never null)")
+
+    # 配额偏差口径在 #37 清单、#46 明细、#46 BLOCKING 汇总里各写一份：靠人工同步会漂移。
+    # 抽取每份 WHERE 谓词（明细以 ORDER BY 收尾，汇总以 )) d) 收尾），按空白归一化后
+    # 要求全部一致，且必须把可空的 stored 列先 COALESCE 成 0，避免 NULL 静默漏报。
+    if CROSS_BLOCKLIST.is_file() and QUOTA_BLOCKLIST.is_file():
+        predicates = {}
+        pattern = (r"WHERE s\.`isDelete` = 0\s*\n\s*AND \((.*?)\)"
+                   r"(?:\s*\n\s*ORDER BY|\)\s*d\))")
+        for name, path in (("#37", QUOTA_BLOCKLIST), ("#46", CROSS_BLOCKLIST)):
+            text = path.read_text(encoding="utf-8")
+            matches = re.findall(pattern, text, re.S)
+            if not matches:
+                yield f"{name}: no quota-deviation predicate found"
+                continue
+            for i, raw in enumerate(matches):
+                normalized = " ".join(raw.split())
+                key = f"{name}[{i}]" if len(matches) > 1 else name
+                predicates[key] = normalized
+                if ("COALESCE(s.`totalCount`, 0)" not in normalized
+                        or "COALESCE(s.`totalSize`, 0)" not in normalized):
+                    yield f"{key}: quota predicate must normalize NULL stored values (fails open otherwise)"
+        distinct = set(predicates.values())
+        if len(predicates) >= 2 and len(distinct) > 1:
+            yield ("quota-deviation predicate drift across #37/#46 detail/summary: "
+                   + ", ".join(sorted(predicates)))
 
     # M1–M8 are mirrored between the manifest and the progress doc; keep the ids in sync.
     if PROGRESS.is_file() and MANIFEST.is_file():
