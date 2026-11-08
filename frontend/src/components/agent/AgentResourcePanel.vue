@@ -43,6 +43,13 @@
 
     <!-- Tab 内容 -->
     <div class="panel-body">
+      <AssetBoardEditor
+        :results="assetResults"
+        :privacy-epoch="privacyEpoch"
+        @preview="emit('previewImage', $event)"
+        @access-denied="emit('privateAccessDenied')"
+        @close-preview="emit('closePreview')"
+      />
       <div v-if="assetResults.length" class="asset-snapshots">
         <AssetResultCard
           v-for="result in assetResults"
@@ -122,6 +129,7 @@
 import { ref, computed } from 'vue'
 import type { ImageResource, LinkResource } from './types'
 import AssetResultCard from './AssetResultCard.vue'
+import AssetBoardEditor from './AssetBoardEditor.vue'
 import type { AssetResult } from '@/api-custom/assetSearch'
 
 export type { ImageResource, LinkResource }
@@ -130,12 +138,14 @@ interface Props {
   images?: ImageResource[]
   links?: LinkResource[]
   assetResults?: AssetResult[]
+  privacyEpoch?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   images: () => [],
   links: () => [],
   assetResults: () => [],
+  privacyEpoch: 0,
 })
 
 const emit = defineEmits<{
@@ -144,6 +154,8 @@ const emit = defineEmits<{
   (e: 'downloadImage', url: string): void
   (e: 'refreshAsset', resultId: string): void
   (e: 'assetUnavailable', resultId: string): void
+  (e: 'privateAccessDenied'): void
+  (e: 'closePreview'): void
 }>()
 
 const activeTab = ref<'image' | 'link'>('image')

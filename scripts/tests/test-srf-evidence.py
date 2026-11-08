@@ -32,7 +32,7 @@ class EvidenceTest(unittest.TestCase):
             result, report = self.run_report(directory)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(report["productionAcceptance"], "BLOCKED")
-            self.assertEqual(report["matrix"][-1]["manual"], "BLOCKED")
+            self.assertEqual(next(item for item in report["matrix"] if item["id"] == "T24")["manual"], "BLOCKED")
 
     def test_missing_existing_regression_blocks_its_matrix_group(self):
         with tempfile.TemporaryDirectory() as folder:

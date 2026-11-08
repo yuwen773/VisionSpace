@@ -5,6 +5,7 @@
 import * as adminStatsController from './adminStatsController'
 import * as assetSearchController from './assetSearchController'
 import * as agentAttachmentController from './agentAttachmentController'
+import * as assetBoardController from './assetBoardController'
 import * as agentController from './agentController'
 import * as agentImageUploadController from './agentImageUploadController'
 import * as agentPreferenceController from './agentPreferenceController'
@@ -27,6 +28,7 @@ export default {
   adminStatsController,
   assetSearchController,
   agentAttachmentController,
+  assetBoardController,
   agentController,
   agentImageUploadController,
   agentPreferenceController,

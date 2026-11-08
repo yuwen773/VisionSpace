@@ -32,6 +32,57 @@ declare namespace API {
     url?: string
   }
 
+  type AssetBoard = {
+    boardId?: string
+    createTime?: string
+    groups?: AssetBoardGroup[]
+    items?: AssetBoardItem[]
+    revision?: number
+    schemaVersion?: number
+    spaceId?: string
+    title?: string
+    updateTime?: string
+  }
+
+  type AssetBoardGroup = {
+    groupId?: string
+    name?: string
+    position?: number
+  }
+
+  type AssetBoardInputEntry = {
+    boardItemId?: string
+    groupId?: string
+    position?: number
+    resultId?: string
+    selected?: boolean
+    sourcePosition?: number
+    sourceVersion?: string
+  }
+
+  type AssetBoardItem = {
+    assetRef?: AssetRef
+    boardItemId?: string
+    display?: Display
+    groupId?: string
+    interpretations?: string[]
+    matches?: Match[]
+    position?: number
+    resultId?: string
+    selected?: boolean
+    sourceVersion?: string
+    status?: string
+    verifiedFacts?: Record<string, any>
+  }
+
+  type AssetBoardOperation = {
+    boardId?: string
+    operationId?: string
+    revision?: number
+    schemaVersion?: number
+    status?: string
+  }
+
   type assetPreviewUsingGetParams = {
     resultId: string
     position: number
@@ -68,6 +119,18 @@ declare namespace API {
   type BaseResponseAgentImageVO = {
     code?: number
     data?: AgentImageVO
+    message?: string
+  }
+
+  type BaseResponseAssetBoard = {
+    code?: number
+    data?: AssetBoard
+    message?: string
+  }
+
+  type BaseResponseAssetBoardOperation = {
+    code?: number
+    data?: AssetBoardOperation
     message?: string
   }
 
@@ -393,6 +456,11 @@ declare namespace API {
     code?: number
     data?: any
     message?: string
+  }
+
+  type boardPreviewUsingGetParams = {
+    boardId: string
+    itemId: string
   }
 
   type ChatHistoryVO = {
@@ -1020,6 +1088,14 @@ declare namespace API {
     resultId: string
   }
 
+  type readBoardOperationUsingGetParams = {
+    operationId: string
+  }
+
+  type readBoardUsingGetParams = {
+    boardId: string
+  }
+
   type RecommendPageVO = {
     context?: string
     contextValid?: boolean
@@ -1064,6 +1140,10 @@ declare namespace API {
     threadId?: string
   }
 
+  type replaceBoardUsingPutParams = {
+    boardId: string
+  }
+
   type ResourceGrantListVO = {
     canManage?: boolean
     grants?: ResourceGrantVO[]
@@ -1096,6 +1176,15 @@ declare namespace API {
   type resumeUsingPostParams = {
     threadId: string
     expectedVersion?: number
+  }
+
+  type SaveAssetBoardRequest = {
+    expectedRevision?: number
+    groups?: AssetBoardGroup[]
+    items?: AssetBoardInputEntry[]
+    operationId?: string
+    resultId?: string
+    title?: string
   }
 
   type SearchPictureByColorRequest = {
