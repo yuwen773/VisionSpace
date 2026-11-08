@@ -562,6 +562,17 @@ CREATE TABLE `storage_switch_confirm` (
 
 INSERT IGNORE INTO `storage_switch_state` (`id`, `activeVersion`) VALUES (1, 1);
 
+CREATE TABLE `asset_search_snapshot` (
+  `id` varchar(36) NOT NULL,
+  `ownerId` bigint NOT NULL,
+  `spaceId` bigint NOT NULL,
+  `threadId` varchar(64) DEFAULT NULL,
+  `payload` longtext NOT NULL,
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_owner_thread` (`ownerId`, `threadId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站内检索结果快照';
+
 CREATE TABLE `user_preference` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `userId` bigint(20) NOT NULL COMMENT '偏好归属用户；全部读写条件都带它',
@@ -577,3 +588,28 @@ CREATE TABLE `user_preference` (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_userId`(`userId`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户长期偏好（显式设置 + 自动学习）';
+-- #55：新增聚合和持久操作回执；不复制文件、不修改图片或会话。
+CREATE TABLE `asset_board` (
+  `id` varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `ownerId` bigint NOT NULL,
+  `spaceId` bigint NOT NULL,
+  `revision` bigint NOT NULL,
+  `payload` longtext NOT NULL,
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_owner_space` (`ownerId`, `spaceId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `asset_board_operation` (
+  `ownerId` bigint NOT NULL,
+  `operationId` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `operationType` varchar(24) NOT NULL,
+  `boardId` varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `requestDigest` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `revision` bigint DEFAULT NULL,
+  `proposalId` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`ownerId`, `operationId`),
+  KEY `idx_board` (`boardId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

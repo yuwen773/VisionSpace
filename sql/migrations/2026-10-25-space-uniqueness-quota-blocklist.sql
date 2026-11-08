@@ -66,9 +66,10 @@ LEFT JOIN (
   WHERE `isDelete` = 0 AND `spaceId` IS NOT NULL
   GROUP BY `spaceId`
 ) p ON p.`spaceId` = s.`id`
+-- stored 配额列在 DDL 里可空：先按 0 归一再比较，避免 NULL 静默漏报（与 #46 跨领域清单同口径）。
 WHERE s.`isDelete` = 0
-  AND (s.`totalCount` <> COALESCE(p.`actualCount`, 0)
-    OR s.`totalSize` <> COALESCE(p.`actualSize`, 0))
+  AND (COALESCE(s.`totalCount`, 0) <> COALESCE(p.`actualCount`, 0)
+    OR COALESCE(s.`totalSize`, 0) <> COALESCE(p.`actualSize`, 0))
 ORDER BY ABS(s.`totalCount` - COALESCE(p.`actualCount`, 0)) DESC, s.`id` ASC;
 
 -- 负数：已用计数不应为负。出现即为必须优先处理的存量错误。
