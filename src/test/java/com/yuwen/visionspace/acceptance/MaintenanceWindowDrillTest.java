@@ -66,6 +66,8 @@ class MaintenanceWindowDrillTest {
         tables.put("agent_session_attachment", "agent_session_attachment_drill_46");
         tables.put("agent_message", "agent_message_drill_46");
         tables.put("asset_search_snapshot", "asset_search_snapshot_drill_46");
+        tables.put("asset_board", "asset_board_drill_46");
+        tables.put("asset_board_operation", "asset_board_operation_drill_46");
         tables.put("feedback_attachment", "feedback_attachment_drill_46");
         tables.put("resource_access_grant", "resource_access_grant_drill_46");
         tables.put("resource_isolation", "resource_isolation_drill_46");

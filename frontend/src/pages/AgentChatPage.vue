@@ -145,6 +145,8 @@
           :images="panelImages"
           :links="panelLinks"
           :asset-results="Object.values(assetResults)"
+          :privacy-epoch="privateAssetEpoch"
+          @private-access-denied="clearAssetResults"
           @refresh-asset="refreshAsset"
           @asset-unavailable="handleAssetUnavailable"
           @close="resourcePanelVisible = false"
@@ -232,6 +234,7 @@ const landscapeOnly = ref(true)
 const bluePurpleOnly = ref(false)
 const assetTeams = ref<{ id: string; name: string }[]>([])
 const assetResults = ref<Record<string, AssetResult>>({})
+const privateAssetEpoch = ref(0)
 const assetBusy = ref(false)
 const assetError = ref('')
 const assetRequests = new Map<string, Promise<void>>()
@@ -276,6 +279,7 @@ const assetFailureMessage = (reason?: string, code?: number) => {
 }
 
 const clearAssetResults = () => {
+  privateAssetEpoch.value++
   assetEpoch++
   assetRequests.clear()
   assetResults.value = {}
@@ -517,7 +521,8 @@ onMounted(async () => {
   }
   await loadAssetTeams()
   if (!assetPageActive) return
-  if (typeof route.query.assetResult === 'string') {
+  if (typeof route.query.board === 'string') resourcePanelVisible.value = true
+  else if (typeof route.query.assetResult === 'string') {
     const id = route.query.assetResult
     await refreshAsset(id)
     if (assetResults.value[id]) {
