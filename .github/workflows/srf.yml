@@ -43,7 +43,7 @@ jobs:
         run: |
           python3 -I scripts/publish-evidence.py target/srf-browser "$RUNNER_TEMP/srf-artifacts/browser"
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/browser/runtime.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-browser-${{ github.run_attempt }}
@@ -72,7 +72,7 @@ jobs:
         run: |
           python3 -I scripts/publish-evidence.py target/security-verification "$RUNNER_TEMP/srf-artifacts/security"
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/security/runtime.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-security-${{ github.run_attempt }}
@@ -95,7 +95,7 @@ jobs:
         env:
           SRF_JOB_RESULTS: ${{ toJSON(needs) }}
         run: python3 -I scripts/srf-evidence.py --root evidence --candidate "$GITHUB_SHA" --run-id "$VS_SRF_RUN_ID" --output srf-evidence.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-ledger-${{ github.run_attempt }}
