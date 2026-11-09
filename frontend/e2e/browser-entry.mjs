@@ -165,17 +165,23 @@ try {
   await step('https 同源入口下发 Secure 会话 Cookie 与 CSRF 令牌', async () => {
     const page = await context.newPage()
     record(page)
+    // Set-Cookie 头必须确定性捕获：异步 response 回调里 allHeaders() 在响应关闭后
+    // 会抛错被吞掉，导致偶发漏抓（历史 flaky 根因）。改为对登录请求用
+    // page.waitForResponse 同步等待，再取其头部数组。
+    const loginResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/api/user/login') && response.request().method() === 'POST',
+    )
+    const registerResponsePromise = page.waitForResponse(
+      (response) => response.url().includes('/api/user/register') && response.request().method() === 'POST',
+    )
     const setCookieHeaders = []
-    page.on('response', async (response) => {
-      try {
-        const headers = await response.allHeaders()
-        if (headers['set-cookie']) setCookieHeaders.push(headers['set-cookie'])
-      } catch {
-        // 响应已关闭：忽略
-      }
-    })
     await page.goto(`${origin}/user/login`)
     await registerAndLogin(page, `browser_${Date.now()}`)
+    for (const response of await Promise.all([registerResponsePromise, loginResponsePromise])) {
+      setCookieHeaders.push(
+        ...response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value),
+      )
+    }
     const cookies = await context.cookies()
     assert.ok(cookies.length > 0, 'must receive cookies')
     const sessionCookies = cookies.filter((c) => c.name !== 'VS_CSRF')
