@@ -1,0 +1,4 @@
+# Sa-Token 1.46 起启用 Jackson 多态反序列化类型白名单（修复 DefaultTyping RCE）。
+# 会话里存放的自定义类型必须在此登记，否则 sa-token-redis-jackson 序列化/反序列化直接失败。
+# 格式：每行一个全限定类名，# 开头为注释。
+com.yuwen.visionspace.model.entity.User
