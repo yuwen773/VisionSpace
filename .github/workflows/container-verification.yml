@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify Compose vision configuration
         shell: pwsh
         run: ./scripts/tests/test-compose-vision-config.ps1
@@ -38,7 +38,7 @@ jobs:
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/container/runtime.json"
       - name: Upload safe container outcomes
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: srf-container-${{ github.run_attempt }}
           path: ${{ runner.temp }}/srf-artifacts/
