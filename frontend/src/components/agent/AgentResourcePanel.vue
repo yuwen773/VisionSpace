@@ -46,9 +46,11 @@
       <AssetBoardEditor
         :results="assetResults"
         :privacy-epoch="privacyEpoch"
+        :thread-id="threadId"
         @preview="emit('previewImage', $event)"
         @access-denied="emit('privateAccessDenied')"
         @close-preview="emit('closePreview')"
+        @session-bound="emit('sessionBound', $event)"
       />
       <div v-if="assetResults.length" class="asset-snapshots">
         <AssetResultCard
@@ -139,6 +141,7 @@ interface Props {
   links?: LinkResource[]
   assetResults?: AssetResult[]
   privacyEpoch?: number
+  threadId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -149,6 +152,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
+  (e: 'sessionBound', threadId: string): void
   (e: 'close'): void
   (e: 'previewImage', url: string): void
   (e: 'downloadImage', url: string): void

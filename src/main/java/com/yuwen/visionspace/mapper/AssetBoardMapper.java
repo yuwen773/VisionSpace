@@ -5,6 +5,11 @@ import java.time.LocalDateTime;
 
 @Mapper
 public interface AssetBoardMapper {
+    @Insert("INSERT INTO asset_board_operation (ownerId,operationId,operationType,boardId,requestDigest,proposalId) VALUES (#{owner},#{operation},'PROPOSAL',#{board},#{digest},#{proposal})")
+    int reserve(@Param("owner") Long owner, @Param("operation") String operation, @Param("board") String board,
+                @Param("digest") String digest, @Param("proposal") String proposal);
+    @Update("UPDATE asset_board_operation SET revision=#{revision} WHERE ownerId=#{owner} AND operationId=#{operation} AND proposalId=#{proposal} AND revision IS NULL")
+    int commitProposal(@Param("owner") Long owner, @Param("operation") String operation, @Param("proposal") String proposal, @Param("revision") long revision);
     record BoardRow(String id, Long ownerId, Long spaceId, Long revision, String payload, LocalDateTime createTime, LocalDateTime updateTime) { }
     record OperationRow(Long ownerId, String operationId, String operationType, String boardId, String requestDigest, Long revision, String proposalId) { }
 

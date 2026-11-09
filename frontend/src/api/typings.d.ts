@@ -140,6 +140,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseBoardProposalTask = {
+    code?: number
+    data?: BoardProposalTask
+    message?: string
+  }
+
   type BaseResponseBoolean = {
     code?: number
     data?: boolean
@@ -463,6 +469,25 @@ declare namespace API {
     itemId: string
   }
 
+  type BoardProposalTask = {
+    boardId?: string
+    canConfirm?: boolean
+    current?: AssetBoard
+    expectedRevision?: number
+    operationId?: string
+    proposalId?: string
+    proposalRevision?: number
+    reasonCode?: string
+    revision?: number
+    schemaVersion?: number
+    spaceId?: string
+    status?: string
+    target?: AssetBoard
+    taskId?: string
+    threadId?: string
+    type?: string
+  }
+
   type ChatHistoryVO = {
     hasMore?: boolean
     messages?: MessageVO[]
@@ -510,6 +535,16 @@ declare namespace API {
   type Criteria = {
     dominantColorFamily?: string
     orientation?: string
+  }
+
+  type decideProposalUsingPostParams = {
+    proposalId: string
+  }
+
+  type Decision = {
+    decision?: string
+    operationId?: string
+    proposalRevision?: number
   }
 
   type deleteAttachmentUsingPostParams = {
@@ -678,6 +713,16 @@ declare namespace API {
   type ImageSearchResult = {
     fromUrl?: string
     thumbUrl?: string
+  }
+
+  type Input = {
+    boardId?: string
+    expectedRevision?: number
+    groups?: AssetBoardGroup[]
+    items?: AssetBoardInputEntry[]
+    proposalRequestId?: string
+    threadId?: string
+    title?: string
   }
 
   type InputSchema = {
@@ -1063,6 +1108,14 @@ declare namespace API {
     viewCount?: number
   }
 
+  type Plan = {
+    boardId?: string
+    expectedRevision?: number
+    message?: string
+    proposalRequestId?: string
+    threadId?: string
+  }
+
   type PreferenceAutoLearnRequest = {
     enabled?: boolean
   }
@@ -1094,6 +1147,10 @@ declare namespace API {
 
   type readBoardUsingGetParams = {
     boardId: string
+  }
+
+  type readTaskUsingGetParams = {
+    taskId: string
   }
 
   type RecommendPageVO = {
@@ -1195,6 +1252,8 @@ declare namespace API {
   type SearchPictureByPictureRequest = {
     pictureId?: number
   }
+
+  type ServerSentEventObject = Record<string, any>
 
   type SessionVO = {
     createdTime?: string
@@ -1461,6 +1520,10 @@ declare namespace API {
     pendingVersion?: number
     phase?: string
     registeredPlatforms?: string[]
+  }
+
+  type taskEventsUsingGetParams = {
+    taskId: string
   }
 
   type TaskMetrics = {

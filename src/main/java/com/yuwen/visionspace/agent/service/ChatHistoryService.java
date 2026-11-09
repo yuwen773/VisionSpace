@@ -110,7 +110,7 @@ public class ChatHistoryService {
      */
     @Async("agentAsyncExecutor")
     public void saveToolConfirmMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "mcp-confirm", content, null);
+        insertOwned(sessionId, userId, "ASSISTANT", "tool-confirm", content, null);
     }
 
     /**

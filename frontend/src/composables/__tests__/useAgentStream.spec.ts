@@ -36,6 +36,44 @@ const uploaded = [
 ]
 
 describe('useAgentStream 的附件生命周期', () => {
+  it('deduplicates proposal notices and never executes writes for repeated or older board events', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('hello', 'thread-events')
+    const notice = {
+      schemaVersion: 1,
+      eventId: 'proposal:p1',
+      type: 'CONFIRMATION_REQUIRED',
+      payload: {
+        taskId: 't1',
+        proposalId: 'p1',
+        proposalRevision: 1,
+        boardId: 'b1',
+        expectedRevision: 1,
+      },
+    }
+    for (let i = 0; i < 2; i++) captured.opts.onmessage({ data: JSON.stringify(notice) })
+    expect(stream.messages.value.filter((m) => m.taskId === 't1')).toHaveLength(1)
+    for (const revision of [3, 2, 3])
+      captured.opts.onmessage({
+        data: JSON.stringify({
+          schemaVersion: 1,
+          eventId: `board:${revision}`,
+          type: 'BOARD_UPDATED',
+          payload: { boardId: 'b1', revision },
+        }),
+      })
+    expect(stream.messages.value.filter((m) => m.type === 'board-updated')).toHaveLength(1)
+    expect(stream.messages.value.find((m) => m.type === 'board-updated')?.revision).toBe(3)
+    expect(stream.protocolError.value).toBe('')
+  })
+  it('normalizes tool-confirm and legacy mcp-confirm into one read-only confirmation', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('hello', 'thread-confirm')
+    for (const messageType of ['tool-confirm', 'mcp-confirm']) {
+      captured.opts.onmessage({ data: JSON.stringify({ messageType, content: '同一确认' }) })
+    }
+    expect(stream.messages.value.filter((m) => m.type === 'tool-confirm')).toHaveLength(1)
+  })
   it('显式协商只读找图协议，重复结果只显示一次且不抽取 Markdown', async () => {
     const stream = useAgentStream()
     await stream.sendMessage('横图', 'thread-asset', [], '123')

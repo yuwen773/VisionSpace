@@ -19,10 +19,7 @@
     <div class="confirm-body">
       <p class="confirm-label">需要确认</p>
       <p class="confirm-msg">{{ message }}</p>
-      <div class="confirm-actions">
-        <button class="confirm-btn cancel" @click="handleCancel">取消</button>
-        <button class="confirm-btn ok" @click="handleConfirm">确认</button>
-      </div>
+      <small>历史确认仅供查看，请读取当前任务后决定。</small>
     </div>
   </div>
 </template>
@@ -33,13 +30,6 @@ interface Props {
 }
 
 defineProps<Props>()
-const emit = defineEmits<{
-  (e: 'confirm'): void
-  (e: 'cancel'): void
-}>()
-
-const handleConfirm = () => emit('confirm')
-const handleCancel = () => emit('cancel')
 </script>
 
 <style scoped>
@@ -84,39 +74,5 @@ const handleCancel = () => emit('cancel')
   color: var(--color-text-secondary);
   margin-bottom: 12px;
   line-height: 1.5;
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.confirm-btn {
-  padding: 5px 18px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all var(--transition-fast, 150ms ease);
-}
-
-.confirm-btn.cancel {
-  background: var(--color-bg-hover, var(--color-bg-secondary));
-  color: var(--color-text-secondary);
-}
-
-.confirm-btn.cancel:hover {
-  color: var(--color-text-primary);
-}
-
-.confirm-btn.ok {
-  background: var(--color-success);
-  color: white;
-}
-
-.confirm-btn.ok:hover {
-  filter: brightness(1.1);
 }
 </style>

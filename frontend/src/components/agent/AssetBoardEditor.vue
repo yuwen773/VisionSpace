@@ -119,6 +119,16 @@
     >
       {{ busy ? '保存中…' : '保存候选板' }}
     </button>
+    <BoardProposalPanel
+      :board-id="boardId"
+      :revision="revision"
+      :thread-id="threadId"
+      :disabled="dirty || busy || validating || !!pending"
+      :privacy-epoch="privacyEpoch"
+      @committed="load"
+      @close-preview="emit('closePreview')"
+      @session-bound="emit('sessionBound', $event)"
+    />
   </section>
 </template>
 
@@ -128,6 +138,7 @@ import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useLoginUserStore } from '@/stores/userLogin'
 import { apiUrl } from '@/apiOrigin'
 import type { AssetResult } from '@/api-custom/assetSearch'
+import BoardProposalPanel from './BoardProposalPanel.vue'
 import {
   saveBoard,
   readBoard,
@@ -137,8 +148,13 @@ import {
   type BoardOperation,
 } from '@/api-custom/assetBoard'
 
-const props = defineProps<{ results: AssetResult[]; privacyEpoch?: number }>()
-const emit = defineEmits<{ preview: [url: string]; accessDenied: []; closePreview: [] }>()
+const props = defineProps<{ results: AssetResult[]; privacyEpoch?: number; threadId?: string }>()
+const emit = defineEmits<{
+  preview: [url: string]
+  accessDenied: []
+  closePreview: []
+  sessionBound: [threadId: string]
+}>()
 const router = useRouter()
 const route = useRoute()
 const loginStore = useLoginUserStore()
