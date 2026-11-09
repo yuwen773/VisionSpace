@@ -77,10 +77,14 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
             assertEquals("COMMITTED",decide(committed,"CONFIRM").path("data").path("status").asText());
             String path="/agent/board-proposals/"+pending.path("proposalId").asText()+"/decision";
             var confirm=Map.of("operationId",pending.path("operationId").asText(),"proposalRevision",1,"decision","CONFIRM");
+            var beforeRefusedConfirm=savedState();
             assertEquals("INVALID_OPERATION_STATE",callAt(restarted.port,"POST",path,confirm).path("message").asText());
+            assertEquals(beforeRefusedConfirm,savedState(),"Stopped confirmation must not change durable state");
             assertEquals("CANCELLED",callAt(restarted.port,"POST",path,Map.of("operationId",pending.path("operationId").asText(),"proposalRevision",1,"decision","CANCEL")).path("data").path("status").asText());
             var fresh=new HashMap<>(proposal("blocked-new"));fresh.put("expectedRevision",readBoard().path("revision").asInt());
+            var beforeRefusedProposal=savedState();
             assertEquals("INVALID_OPERATION_STATE",callAt(restarted.port,"POST","/agent/board-proposals",fresh).path("message").asText());
+            assertEquals(beforeRefusedProposal,savedState(),"Stopped proposal must not create or change durable state");
             jdbc.update("UPDATE agent_session SET checkpointData='stale-backup' WHERE sessionId=?",thread);
             assertEquals("CANCELLED",callAt(restarted.port,"GET","/agent/tasks/"+pending.path("taskId").asText(),null).path("data").path("status").asText());
             jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?",thread);
@@ -89,6 +93,14 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
             assertEquals(0,callAt(restarted.port,"GET","/agent/boards/"+board,null).path("code").asInt());
         }
         assertEquals(calls,recorder.calls().size());
+    }
+    private List<List<Map<String,Object>>> savedState() {
+        return List.of(
+                jdbc.queryForList("SELECT id,revision,payload FROM asset_board WHERE ownerId=? ORDER BY id",user),
+                jdbc.queryForList("SELECT * FROM asset_board_proposal WHERE ownerId=? ORDER BY proposalId",user),
+                jdbc.queryForList("SELECT * FROM asset_board_operation WHERE ownerId=? ORDER BY operationId",user),
+                jdbc.queryForList("SELECT * FROM picture WHERE id=?",picture),
+                jdbc.queryForList("SELECT totalSize,totalCount FROM space WHERE id=?",space));
     }
     private List<JsonNode> race(Callable<JsonNode> one,Callable<JsonNode> two) throws Exception {
         try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
@@ -110,9 +122,18 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(90);
         while(!Files.exists(ready)&&process.isAlive()&&System.nanoTime()<deadline) Thread.sleep(100);
         if(!Files.exists(ready)){process.destroyForcibly();fail("Second instance not ready: "+log);}
-        return new Instance(process,ready,Integer.parseInt(Files.readString(ready).strip()));
+        return new Instance(process,ready,Integer.parseInt(Files.readString(ready).strip()),crash);
     }
-    private record Instance(Process process,Path ready,int port) implements AutoCloseable {
-        public void close() throws Exception {Files.writeString(Path.of(ready+".stop"),"stop");if(!process.waitFor(25,TimeUnit.SECONDS)){process.destroyForcibly();assertTrue(process.waitFor(10,TimeUnit.SECONDS));}}
+    private record Instance(Process process,Path ready,int port,boolean crash) implements AutoCloseable {
+        public void close() throws Exception {
+            Files.writeString(Path.of(ready+".stop"),"stop");
+            if(!process.waitFor(25,TimeUnit.SECONDS)){process.destroyForcibly();assertTrue(process.waitFor(10,TimeUnit.SECONDS));}
+            if(!crash || process.exitValue()!=56) {
+                assertEquals(0,process.exitValue(),"Second instance must exit normally");
+                Path evidence=Path.of(ready+".calls");
+                assertTrue(Files.exists(evidence),"Second instance must export its own external call count");
+                assertEquals(0,Integer.parseInt(Files.readString(evidence).strip()),"Second instance must not call external services");
+            }
+        }
     }
 }

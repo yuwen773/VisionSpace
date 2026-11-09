@@ -41,6 +41,8 @@ public final class VipSecondInstanceMain {
             while (!Files.exists(stopFile)) {
                 Thread.sleep(500);
             }
+            Files.writeString(Path.of(args[0] + ".calls"),
+                    Integer.toString(context.getBean(ExternalCallRecorder.class).calls().size()), StandardCharsets.UTF_8);
             System.out.println("VipSecondInstance stopping");
         }
     }
