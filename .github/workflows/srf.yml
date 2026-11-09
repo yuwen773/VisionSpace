@@ -22,13 +22,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.21.0'
           cache: npm
@@ -43,7 +43,7 @@ jobs:
         run: |
           python3 -I scripts/publish-evidence.py target/srf-browser "$RUNNER_TEMP/srf-artifacts/browser"
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/browser/runtime.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-browser-${{ github.run_attempt }}
@@ -54,8 +54,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -72,7 +72,7 @@ jobs:
         run: |
           python3 -I scripts/publish-evidence.py target/security-verification "$RUNNER_TEMP/srf-artifacts/security"
           python3 -I scripts/runtime-versions.py "$RUNNER_TEMP/srf-artifacts/security/runtime.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-security-${{ github.run_attempt }}
@@ -85,8 +85,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: srf-*-${{ github.run_attempt }}
           merge-multiple: true
@@ -95,7 +95,7 @@ jobs:
         env:
           SRF_JOB_RESULTS: ${{ toJSON(needs) }}
         run: python3 -I scripts/srf-evidence.py --root evidence --candidate "$GITHUB_SHA" --run-id "$VS_SRF_RUN_ID" --output srf-evidence.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: srf-ledger-${{ github.run_attempt }}
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Require every constituent check to succeed
         env:
           SRF_JOB_RESULTS: ${{ toJSON(needs) }}
