@@ -125,7 +125,7 @@
       :thread-id="threadId"
       :disabled="dirty || busy || validating || !!pending"
       :privacy-epoch="privacyEpoch"
-      @board-available="load"
+      @board-available="(id) => load(id, boardId === id)"
       @close-preview="emit('closePreview')"
       @session-bound="emit('sessionBound', $event)"
     />

@@ -21,6 +21,7 @@ class HttpBoardProposalAgentTest extends BoardProposalHttpFixture {
     }
     static class Model implements ChatModel {
         String output;
+        RuntimeException failure;
         final ExternalCallRecorder recorder;
         Model(ExternalCallRecorder recorder) { this.recorder=recorder; }
         public ChatResponse call(Prompt prompt) {
@@ -28,8 +29,27 @@ class HttpBoardProposalAgentTest extends BoardProposalHttpFixture {
             assertEquals(Boolean.FALSE, options.getInternalToolExecutionEnabled());
             assertTrue(options.getToolCallbacks().isEmpty()); assertTrue(options.getToolNames().isEmpty());
             recorder.record(new ExternalCallRecorder.Call("MODEL", "/controlled/board-planner", "called"));
+            if(failure!=null) throw failure;
             return new ChatResponse(List.of(new Generation(new AssistantMessage(output))));
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void providerFailureDoesNotExposePrivateDiagnosticsOrInvalidatePendingProposal(org.springframework.boot.test.system.CapturedOutput logs) throws Exception {
+        var pending=call("POST","/agent/board-proposals",proposal("before-model-fault")).path("data");
+        int calls=recorder.calls().size();
+        String privateDiagnostic="PRIVATE MODEL DIAGNOSTIC WITH QUERY AND GROUP";
+        try {
+            model.failure=new IllegalStateException(privateDiagnostic);
+            var response=call("POST","/agent/board-proposals/plan",Map.of("proposalRequestId","provider-fault","threadId",thread,"boardId",board,"expectedRevision",1,"message","整理草稿"));
+            assertFalse(logs.getAll().contains(privateDiagnostic),"Provider details must not enter application logs");
+            assertEquals("PLANNING_UNAVAILABLE",response.path("message").asText());
+            assertFalse(response.toString().contains(privateDiagnostic));
+            assertEquals("AWAITING_CONFIRMATION",call("GET","/agent/tasks/"+pending.path("taskId").asText(),null).path("data").path("status").asText());
+            assertEquals(1,readBoard().path("revision").asInt());
+            var attempt=recorder.calls().subList(calls,recorder.calls().size());assertEquals(1,attempt.size());assertTrue(attempt.stream().allMatch(c->c.method().equals("MODEL")));
+        } finally {model.failure=null;}
     }
     @Test void plannerCannotWriteAndStableToolRequestDoesNotCallModelAgainAfterLostResponse() throws Exception {
         model.output=json.writeValueAsString(Map.of("groups",List.of(),"items",List.of(Map.of("boardItemId",item.path("boardItemId").asText(),"selected",false,"position",0))));

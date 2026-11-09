@@ -52,12 +52,20 @@
             <tr v-for="row in differences" :key="row.id">
               <th>
                 <img
-                  v-if="row.contentRef"
+                  v-if="row.contentRef && !failedPreviews.has(row.id)"
                   class="proposal-preview"
                   :src="apiUrl(`/api${row.contentRef}`)"
                   :alt="row.label"
-                  @error="refresh"
+                  @error="previewFailed(row.id)"
                 />{{ row.label }}
+                <button
+                  v-if="failedPreviews.has(row.id)"
+                  data-action="retry-preview"
+                  :disabled="busy"
+                  @click="retryPreview(row.id)"
+                >
+                  预览暂不可用，重试
+                </button>
               </th>
               <td>{{ row.before }}</td>
               <td>{{ row.after }}</td>
@@ -133,6 +141,8 @@ const instruction = ref(''),
   busy = ref(false)
 const task = ref<BoardTask>(),
   pendingPlan = ref<BoardPlan>()
+const failedPreviews = ref(new Set<string>())
+let previewRevalidated = false
 let epoch = 0
 const labels: Record<BoardTask['status'], string> = {
   AWAITING_CONFIRMATION: '等待你的决定',
@@ -186,9 +196,29 @@ function stripPrivate() {
   emit('closePreview')
 }
 function accept(t: BoardTask) {
+  if (task.value?.taskId !== t.taskId) {
+    failedPreviews.value.clear()
+    previewRevalidated = false
+  }
   task.value = t
   if (t.threadId) emit('sessionBound', t.threadId)
   if (t.boardId && t.current && t.target) emit('boardAvailable', t.boardId)
+}
+async function previewFailed(id: string) {
+  if (failedPreviews.value.has(id)) return
+  failedPreviews.value.add(id)
+  const taskId = task.value?.taskId
+  if (!previewRevalidated) {
+    previewRevalidated = true
+    await refresh()
+  }
+  if (task.value?.taskId === taskId) error.value = '预览暂不可用，请核对状态或显式重试'
+}
+async function retryPreview(id: string) {
+  if (busy.value) return
+  const taskId = task.value?.taskId
+  await refresh()
+  if (task.value?.taskId === taskId && task.value?.target) failedPreviews.value.delete(id)
 }
 async function refresh() {
   const id =
@@ -246,7 +276,10 @@ async function submitPlan() {
         pendingPlan.value = undefined
         stripPrivate()
       }
-      error.value = '提案未完成，请核对当前权限与板版本'
+      error.value =
+        res.data.message === 'PLANNING_UNAVAILABLE'
+          ? '整理服务暂不可用，请稍后核对原请求'
+          : '提案未完成，请核对当前权限与板版本'
       return
     }
     accept(res.data.data)
@@ -313,6 +346,8 @@ watch(
     task.value = undefined
     pendingPlan.value = undefined
     instruction.value = ''
+    failedPreviews.value.clear()
+    previewRevalidated = false
     busy.value = false
     error.value = ''
     emit('closePreview')

@@ -121,3 +121,48 @@ it('discards an old private response after the account changes', async () => {
   expect(wrapper!.find('[data-action="confirm-proposal"]').exists()).toBe(false)
   expect(api.decide).not.toHaveBeenCalled()
 })
+
+it('bounds automatic task reads after preview errors and waits for explicit image retry', async () => {
+  const withPreview = {
+    ...task,
+    current: {
+      ...task.current,
+      items: task.current.items.map((i) => ({
+        ...i,
+        display: { contentRef: '/agent/tasks/task1/items/i1/content' },
+      })),
+    },
+  }
+  api.read.mockResolvedValue({ data: { code: 0, data: withPreview } })
+  await open('/agent?task=task1')
+  const image = wrapper!.get('img')
+  await Promise.all(Array.from({ length: 5 }, () => image.trigger('error')))
+  await flushPromises()
+  expect(api.read).toHaveBeenCalledTimes(2)
+  expect(wrapper!.find('img').exists()).toBe(false)
+  expect(wrapper!.text()).toContain('预览暂不可用')
+  await wrapper!.get('[data-action="retry-preview"]').trigger('click')
+  await flushPromises()
+  expect(wrapper!.find('img').exists()).toBe(true)
+  await wrapper!.get('img').trigger('error')
+  await flushPromises()
+  expect(api.read).toHaveBeenCalledTimes(3)
+  expect(wrapper!.find('img').exists()).toBe(false)
+  expect(api.decide).not.toHaveBeenCalled()
+})
+
+it('retains the original planning request for explicit retry after a provider outage', async () => {
+  api.plan
+    .mockResolvedValueOnce({ data: { code: 50001, message: 'PLANNING_UNAVAILABLE' } })
+    .mockResolvedValueOnce({ data: { code: 0, data: task } })
+  await open()
+  await wrapper!.get('[aria-label="整理要求"]').setValue('整理个人草稿')
+  await wrapper!.get('[data-action="plan-board"]').trigger('click')
+  await flushPromises()
+  expect(wrapper!.text()).toContain('整理服务暂不可用')
+  await wrapper!.get('[data-action="retry-plan"]').trigger('click')
+  await flushPromises()
+  expect(api.plan).toHaveBeenCalledTimes(2)
+  expect(api.plan.mock.calls[1]?.[0]).toEqual(api.plan.mock.calls[0]?.[0])
+  expect(api.decide).not.toHaveBeenCalled()
+})
