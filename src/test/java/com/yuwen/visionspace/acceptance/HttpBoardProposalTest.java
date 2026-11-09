@@ -54,6 +54,40 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
         assertEquals(1,readBoard().path("revision").asInt());
     }
 
+    @Test void anotherBoardSaveHidesOldProposalDifferencesButLeavesStatusAndCancellation() throws Exception {
+        var task=call("POST","/agent/board-proposals",proposal("board-changed")).path("data");
+        assertEquals(0,call("PUT","/agent/boards/"+board,Map.of("operationId","other-save","expectedRevision",1,"title","新版本","groups",List.of(),"items",List.of())).path("code").asInt());
+        var state=readTask(task);
+        assertEquals("AWAITING_CONFIRMATION",state.path("status").asText());
+        for(String field:List.of("current","target","boardId","spaceId","expectedRevision")) assertFalse(state.has(field),state.toString());
+        assertEquals("CANCELLED",decide(task,"CANCEL").path("data").path("status").asText());
+        assertEquals(2,readBoard().path("revision").asInt());
+    }
+
+    @Test void laterBoardChangesDoNotRewriteCommittedStateOrItsOperationReceipt() throws Exception {
+        var task=call("POST","/agent/board-proposals",proposal("committed-then-changed")).path("data");
+        assertEquals("COMMITTED",decide(task,"CONFIRM").path("data").path("status").asText());
+        assertEquals(0,call("PUT","/agent/boards/"+board,Map.of("operationId","after-commit","expectedRevision",2,"title","更新板","groups",List.of(),"items",List.of())).path("code").asInt());
+        var state=readTask(task);assertEquals("COMMITTED",state.path("status").asText());assertFalse(state.has("target"));assertFalse(state.has("current"));
+        assertEquals("COMMITTED",decide(task,"CONFIRM").path("data").path("status").asText());
+        assertEquals(2,call("GET","/agent/board-operations/"+task.path("operationId").asText(),null).path("data").path("revision").asInt());
+        assertEquals(3,readBoard().path("revision").asInt());
+    }
+
+    @Test void taskPreviewUsesCurrentSessionAndBoardVersionAndRejectsWithoutOutboundReads() throws Exception {
+        var task=call("POST","/agent/board-proposals",proposal("preview-authorization")).path("data");
+        String path="/api/agent/tasks/"+task.path("taskId").asText()+"/items/"+item.path("boardItemId").asText()+"/content";
+        int calls=recorder.calls().size();
+        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?",space,user);
+        assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        jdbc.update("INSERT INTO space_user (spaceId,userId,spaceRole) VALUES (?,?,'viewer')",space,user);
+        assertEquals(0,call("PUT","/agent/boards/"+board,Map.of("operationId","preview-new-version","expectedRevision",1,"title","新板","groups",List.of(),"items",List.of())).path("code").asInt());
+        assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?",thread);
+        assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        assertEquals(calls,recorder.calls().size());
+    }
+
     @Test void stableRequestsAreImmutableAndNewTargetsSupersedeOnlyPendingProposals() throws Exception {
         int calls = recorder.calls().size();
         var a=call("POST","/agent/board-proposals",proposal("a")).path("data");

@@ -9,6 +9,37 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @IsolatedSpringBootTest
 class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
+    @Test void abruptExitAfterDurableProposalAndCommitRecoversWithoutResponseOrCheckpointReplay() throws Exception {
+        Path logs=Path.of("target/proposal-crash").toAbsolutePath();Files.createDirectories(logs);
+        int calls=recorder.calls().size();
+        var request=proposal("crash-proposal");
+        try(var creating=start(logs,false,true)) {
+            assertThrows(java.io.IOException.class,()->crashingCall(creating.port,"/agent/board-proposals",request));
+            assertTrue(creating.process.waitFor(15,TimeUnit.SECONDS));assertEquals(56,creating.process.exitValue());
+        }
+        var task=call("POST","/agent/board-proposals",request).path("data");
+        assertEquals("AWAITING_CONFIRMATION",task.path("status").asText());assertEquals(1,readBoard().path("revision").asInt());
+        var decision=Map.of("operationId",task.path("operationId").asText(),"proposalRevision",1,"decision","CONFIRM");
+        try(var committing=start(logs,false,true)) {
+            assertThrows(java.io.IOException.class,()->crashingCall(committing.port,"/agent/board-proposals/"+task.path("proposalId").asText()+"/decision",decision));
+            assertTrue(committing.process.waitFor(15,TimeUnit.SECONDS));assertEquals(56,committing.process.exitValue());
+        }
+        try(var restarted=start(logs,false)) {
+            var recovered=callAt(restarted.port,"GET","/agent/tasks/"+task.path("taskId").asText(),null).path("data");
+            assertEquals("COMMITTED",recovered.path("status").asText());assertEquals(2,recovered.path("revision").asInt());
+            assertEquals(task.path("operationId"),recovered.path("operationId"));
+            assertEquals("COMMITTED",callAt(restarted.port,"POST","/agent/board-proposals/"+task.path("proposalId").asText()+"/decision",decision).path("data").path("status").asText());
+            assertEquals(2,readBoard().path("revision").asInt());
+            assertEquals(2,callAt(restarted.port,"GET","/agent/board-operations/"+task.path("operationId").asText(),null).path("data").path("revision").asInt());
+        }
+        assertEquals(calls,recorder.calls().size());
+    }
+    private void crashingCall(int servicePort,String path,Object body) throws Exception {
+        browser.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:"+servicePort+"/api"+path))
+                .timeout(java.time.Duration.ofSeconds(15)).header("Content-Type","application/json")
+                .header(CsrfToken.HEADER,CsrfToken.of(browser)).header("X-VS-Acceptance-Crash",System.getenv("VS_ACCEPTANCE_NONCE"))
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build(),java.net.http.HttpResponse.BodyHandlers.ofString());
+    }
     @Test void twoInstancesArbitrateDecisionsSupersessionAndRestartWithoutCheckpointReplay() throws Exception {
         Path logs=Path.of("target/proposal-dual").toAbsolutePath(); Files.createDirectories(logs);
         JsonNode committed, pending;
@@ -39,7 +70,10 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
         }
         try(var restarted=start(logs,true)) {
             var state=callAt(restarted.port,"GET","/agent/tasks/"+committed.path("taskId").asText(),null).path("data");
-            assertEquals("COMMITTED",state.path("status").asText());assertEquals(2,state.path("revision").asInt());
+            assertEquals("COMMITTED",state.path("status").asText());
+            assertEquals(2,callAt(restarted.port,"GET","/agent/board-operations/"+committed.path("operationId").asText(),null).path("data").path("revision").asInt());
+            if(readBoard().path("revision").asInt()==2) assertEquals(2,state.path("revision").asInt());
+            else {assertFalse(state.has("revision"));assertFalse(state.has("target"));assertFalse(state.has("current"));}
             assertEquals("COMMITTED",decide(committed,"CONFIRM").path("data").path("status").asText());
             String path="/agent/board-proposals/"+pending.path("proposalId").asText()+"/decision";
             var confirm=Map.of("operationId",pending.path("operationId").asText(),"proposalRevision",1,"decision","CONFIRM");
@@ -64,10 +98,14 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
         }
     }
     private Instance start(Path logs,boolean rollback) throws Exception {
+        return start(logs,rollback,false);
+    }
+    private Instance start(Path logs,boolean rollback,boolean crash) throws Exception {
         Path ready=logs.resolve(UUID.randomUUID()+".port"); Path log=logs.resolve(ready.getFileName()+".log");
         String java=Path.of(System.getProperty("java.home"),"bin",System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")?"java.exe":"java").toString();
         Process process=new ProcessBuilder(java,"-cp",System.getProperty("surefire.test.class.path"),VipSecondInstanceMain.class.getName(),ready.toString(),
-                "--vs.instance-id-file="+logs.resolve(UUID.randomUUID()+".instance"),"--vision-space.board-proposal.writes-enabled="+!rollback)
+                "--vs.instance-id-file="+logs.resolve(UUID.randomUUID()+".instance"),"--vision-space.board-proposal.writes-enabled="+!rollback,
+                "--vs.acceptance.proposal-crash-after-commit="+crash)
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(90);
         while(!Files.exists(ready)&&process.isAlive()&&System.nanoTime()<deadline) Thread.sleep(100);

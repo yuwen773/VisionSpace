@@ -37,12 +37,19 @@ try {
   await page.goto(`${origin}/agent?board=${boardId}`); await page.waitForLoadState('networkidle')
   await board.getByText('已保存 · 版本 1', { exact: true }).waitFor()
   await generate()
+  const initialTask = new URL(page.url()).searchParams.get('task')
+  // 历史消息只有任务引用；恢复不能依赖原页面曾保留 board 查询参数。
+  await page.goto(`${origin}/agent?task=${initialTask}`); await page.waitForLoadState('networkidle')
+  await board.getByText('已保存 · 版本 1', { exact: true }).waitFor()
   const taskUrl = page.url()
   assert.equal(await board.getByLabel('选择素材', { exact: true }).isChecked(), true)
   assert.ok((await panel.innerText()).includes('已选'))
   assert.ok((await panel.innerText()).includes('未选'))
   assert.ok((await panel.innerText()).includes('<b>Agent精选</b>'))
   assert.equal(await panel.locator('b,script').count(), 0)
+  const preview = await panel.locator('img').first().getAttribute('src')
+  assert.ok(preview?.startsWith('/api/agent/tasks/'))
+  assert.equal(await page.evaluate(async url => (await fetch(url)).status, preview), 200)
   await page.waitForFunction(() => { const button = document.querySelector('[data-action="confirm-proposal"]'); return button && !button.disabled })
   await page.screenshot({ path: path.join(artifacts, '01-review.png'), fullPage: true })
   // 提案通知断开只停止展示；刷新通过任务恢复，不能自动保存。
@@ -63,10 +70,12 @@ try {
   await panel.getByText('已提交 · 版本 2', { exact: true }).waitFor()
   assert.equal(requests.filter(r => r.method === 'POST' && r.path.endsWith('/decision')).length, 1)
   await panel.getByRole('button', { name: '整理新版' }).click()
+  await page.waitForURL(url => url.searchParams.get('board') === boardId && !url.searchParams.has('task'))
   await generate()
   assert.equal((await post('/moderation/quarantine', { resourceType: 'picture', resourceId: pictureId, reason: 'controlled proposal isolation' })).code, 0)
   await panel.getByRole('button', { name: '核对任务状态' }).click()
   await panel.getByText('当前无法展示私人差异。本人有效会话仍可核对状态或取消未决提案。', { exact: true }).waitFor()
+  assert.equal(await page.evaluate(async url => (await fetch(url)).status, preview), 403)
   assert.equal(await panel.locator('[data-action="confirm-proposal"]').count(), 0)
   assert.equal((await panel.innerText()).includes('Agent精选'), false)
   await panel.getByRole('button', { name: '取消提案', exact: true }).click()
@@ -75,9 +84,9 @@ try {
   await page.reload(); await page.waitForLoadState('networkidle')
   await panel.getByText('已取消', { exact: true }).waitFor()
   fs.writeFileSync(path.join(artifacts, 'results.json'), JSON.stringify({ status: 'PASS', requests }, null, 2))
-  console.log('PASS: review, notification disconnect, lost commit response, refresh, re-login, isolation and explicit cancellation')
 } catch (error) {
   await page.screenshot({ path: path.join(artifacts, 'failure.png'), fullPage: true }).catch(() => {})
   fs.writeFileSync(path.join(artifacts, 'failure.txt'), await page.locator('body').innerText().catch(() => 'closed'))
   throw error
-} finally { await browser.close(); await server.close() }
+} finally { await browser.close(); server.server.closeAllConnections(); await server.close() }
+console.log('PASS: task-only review, guarded previews, lost commit response, refresh, re-login, isolation, cancellation and cleanup')

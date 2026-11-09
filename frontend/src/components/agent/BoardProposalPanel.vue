@@ -50,7 +50,15 @@
           </thead>
           <tbody>
             <tr v-for="row in differences" :key="row.id">
-              <th>{{ row.label }}</th>
+              <th>
+                <img
+                  v-if="row.contentRef"
+                  class="proposal-preview"
+                  :src="apiUrl(`/api${row.contentRef}`)"
+                  :alt="row.label"
+                  @error="refresh"
+                />{{ row.label }}
+              </th>
               <td>{{ row.before }}</td>
               <td>{{ row.after }}</td>
             </tr>
@@ -74,7 +82,12 @@
             确认保存个人草稿
           </button>
         </template>
-        <button v-else data-action="new-proposal" :disabled="busy" @click="newProposal">
+        <button
+          v-else-if="task.boardId"
+          data-action="new-proposal"
+          :disabled="busy"
+          @click="newProposal"
+        >
           整理新版
         </button>
       </div>
@@ -99,6 +112,7 @@ import {
   type BoardTask,
 } from '@/api-custom/boardProposal'
 import type { AssetBoard, BoardItem } from '@/api-custom/assetBoard'
+import { apiUrl } from '@/apiOrigin'
 const props = defineProps<{
   boardId?: string
   revision?: number
@@ -107,7 +121,7 @@ const props = defineProps<{
   privacyEpoch?: number
 }>()
 const emit = defineEmits<{
-  committed: [boardId: string]
+  boardAvailable: [boardId: string]
   closePreview: []
   sessionBound: [threadId: string]
 }>()
@@ -143,18 +157,17 @@ const differences = computed(() => {
     after = task.value?.target
   if (!before || !after) return []
   const ids = new Set([...before.items, ...after.items].map((i) => i.boardItemId))
-  return [...ids].map((id, index) => ({
-    id,
-    label: `素材 ${index + 1}`,
-    before: describe(
-      before.items.find((i) => i.boardItemId === id),
-      before,
-    ),
-    after: describe(
-      after.items.find((i) => i.boardItemId === id),
-      after,
-    ),
-  }))
+  return [...ids].map((id, index) => {
+    const prior = before.items.find((i) => i.boardItemId === id)
+    const next = after.items.find((i) => i.boardItemId === id)
+    return {
+      id,
+      label: `素材 ${index + 1}`,
+      before: describe(prior, before),
+      after: describe(next, after),
+      contentRef: (prior || next)?.display?.contentRef,
+    }
+  })
 })
 function stripPrivate() {
   if (task.value) {
@@ -175,7 +188,7 @@ function stripPrivate() {
 function accept(t: BoardTask) {
   task.value = t
   if (t.threadId) emit('sessionBound', t.threadId)
-  if (t.status === 'COMMITTED' && t.boardId) emit('committed', t.boardId)
+  if (t.boardId && t.current && t.target) emit('boardAvailable', t.boardId)
 }
 async function refresh() {
   const id =
@@ -282,7 +295,9 @@ async function decide(decision: 'CONFIRM' | 'CANCEL') {
   }
 }
 async function newProposal() {
-  await router.replace({ query: { ...route.query, task: undefined } })
+  await router.replace({
+    query: { ...route.query, task: undefined, board: task.value?.boardId || props.boardId },
+  })
 }
 watch(
   () => route.query.task,
@@ -409,5 +424,13 @@ caption {
   flex-wrap: wrap;
   gap: 8px;
   margin: 12px 0;
+}
+.proposal-preview {
+  display: block;
+  width: 100%;
+  max-height: 64px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin-bottom: 4px;
 }
 </style>

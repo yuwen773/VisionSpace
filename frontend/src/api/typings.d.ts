@@ -1532,6 +1532,11 @@ declare namespace API {
     total?: number
   }
 
+  type taskPreviewUsingGetParams = {
+    taskId: string
+    itemId: string
+  }
+
   type thumbnailUsingGetParams = {
     pictureId: number
   }

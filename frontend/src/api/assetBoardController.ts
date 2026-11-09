@@ -148,3 +148,17 @@ export async function taskEventsUsingGet(
     ...(options || {}),
   })
 }
+
+/** 此处后端没有提供注释 GET /agent/tasks/${param0}/items/${param1}/content */
+export async function taskPreviewUsingGet(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.taskPreviewUsingGetParams,
+  options?: { [key: string]: any },
+) {
+  const { taskId: param0, itemId: param1, ...queryParams } = params
+  return request<string>(`/agent/tasks/${param0}/items/${param1}/content`, {
+    method: 'GET',
+    params: { ...queryParams },
+    ...(options || {}),
+  })
+}

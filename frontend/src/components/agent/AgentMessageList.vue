@@ -347,8 +347,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  (e: 'confirm'): void
-  (e: 'cancel'): void
   (e: 'send', text: string): void
   (e: 'toggleResources', data: ResourceData): void
   (e: 'refreshAsset', resultId: string): void

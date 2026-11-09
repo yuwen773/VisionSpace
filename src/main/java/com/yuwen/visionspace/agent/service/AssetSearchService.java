@@ -229,11 +229,28 @@ public class AssetSearchService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED, readOnly = true)
     public BoardProposalTask readTask(String taskId, User viewer) {
+        return taskProjection(requireTask(taskId, viewer), viewer, null);
+    }
+
+    private BoardProposalMapper.Row requireTask(String taskId, User viewer) {
         ThrowUtils.throwIf(viewer == null || viewer.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         var row = proposals.byTask(viewer.getId(), taskId);
         ThrowUtils.throwIf(row == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
         requireProposalSession(row.threadId(), viewer);
-        return taskProjection(row, viewer, null);
+        return row;
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
+    public PictureContentService.Content loadProposalPreview(String taskId, String itemId, User viewer) {
+        var row = requireTask(taskId, viewer);
+        var entries = new ArrayList<>(proposalContent(row).payload().items());
+        entries.addAll(decodeBoard(row.baseline()).items());
+        var entry = entries.stream().filter(e -> e.boardItemId().equals(itemId)).findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE"));
+        Long picture = Long.valueOf(entry.source().assetRef().pictureId());
+        ThrowUtils.throwIf(pictureMapper.selectForUpdate(picture) == null || taskProjection(row, viewer, null).target() == null,
+                ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        return contents.loadContent(picture, PictureContentService.ContentKind.PREVIEW, viewer, false);
     }
 
     private void requireOwnerLock(User viewer) {
@@ -256,7 +273,8 @@ public class AssetSearchService {
             if (board != null) {
                 before = proposalBoard(row, decodeBoard(row.baseline()), viewer);
                 target = proposalBoard(row, proposalContent(row).payload(), viewer);
-                allowed = before.items().stream().noneMatch(i -> "UNAVAILABLE".equals(i.status()))
+                boolean sameBoardVersion = board.revision().equals(row.revision() == null ? row.expectedRevision() : row.revision());
+                allowed = sameBoardVersion && before.items().stream().noneMatch(i -> "UNAVAILABLE".equals(i.status()))
                         && target.items().stream().noneMatch(i -> "UNAVAILABLE".equals(i.status()));
                 currentVersion = board.revision().equals(row.expectedRevision()) && target.items().stream().allMatch(i -> "AVAILABLE".equals(i.status()));
             }
@@ -269,7 +287,8 @@ public class AssetSearchService {
     }
     private AssetBoard proposalBoard(BoardProposalMapper.Row row, BoardPayload payload, User viewer) {
         return new AssetBoard(1, row.boardId(), row.spaceId().toString(), payload.title(), row.expectedRevision(), null, null,
-                payload.groups(), payload.items().stream().map(e -> projectBoardEntry(e, row.spaceId(), viewer, null)).toList());
+                payload.groups(), payload.items().stream().map(e -> projectBoardEntry(e, row.spaceId(), viewer,
+                        "/agent/tasks/" + row.taskId() + "/items/")).toList());
     }
 
     private record PreparedBoard(AssetBoardMapper.BoardRow old, Long spaceId, BoardPayload payload) { }
@@ -330,7 +349,7 @@ public class AssetSearchService {
         var row = ownedBoard(boardId, viewer);
         lockBoardSpace(row.spaceId(), viewer);
         BoardPayload payload = decodeBoard(row.payload());
-        var projected = payload.items().stream().map(entry -> projectBoardEntry(entry, row.spaceId(), viewer, row.id())).toList();
+        var projected = payload.items().stream().map(entry -> projectBoardEntry(entry, row.spaceId(), viewer, "/agent/boards/" + row.id() + "/items/")).toList();
         boolean unavailable = projected.stream().anyMatch(item -> "UNAVAILABLE".equals(item.status()));
         return new AssetBoard(1, row.id(), row.spaceId().toString(), unavailable ? null : payload.title(), row.revision(),
                 row.createTime().toString(), row.updateTime().toString(), unavailable ? payload.groups().stream()
@@ -369,7 +388,7 @@ public class AssetSearchService {
                 ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
     }
 
-    private AssetBoard.Item projectBoardEntry(BoardEntry entry, Long spaceId, User viewer, String boardId) {
+    private AssetBoard.Item projectBoardEntry(BoardEntry entry, Long spaceId, User viewer, String previewPrefix) {
         Item source = entry.source();
         Picture current = pictures.getById(Long.valueOf(source.assetRef().pictureId()));
         if (current == null || !spaceId.equals(current.getSpaceId()) || !contentAuth.canReadContent(current, viewer)
@@ -380,7 +399,7 @@ public class AssetSearchService {
         String status = source.sourceVersion().equals(sourceVersion(current, entry.contentVersion())) ? "AVAILABLE" : "STALE";
         return new AssetBoard.Item(entry.boardItemId(), entry.position(), status, entry.selected(), entry.groupId(), entry.resultId(),
                 source.assetRef(), source.sourceVersion(), source.verifiedFacts(), source.matches(), source.interpretations(),
-                boardId == null ? null : new Display("/agent/boards/" + boardId + "/items/" + entry.boardItemId() + "/content"));
+                previewPrefix == null ? null : new Display(previewPrefix + entry.boardItemId() + "/content"));
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
@@ -391,7 +410,7 @@ public class AssetSearchService {
         Long pictureId = Long.valueOf(entry.source().assetRef().pictureId());
         ThrowUtils.throwIf(pictureMapper.selectForUpdate(pictureId) == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
         lockBoardSpace(row.spaceId(), viewer);
-        ThrowUtils.throwIf(projectBoardEntry(entry, row.spaceId(), viewer, boardId).assetRef() == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
+        ThrowUtils.throwIf(projectBoardEntry(entry, row.spaceId(), viewer, null).assetRef() == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
         return contents.loadContent(pictureId, PictureContentService.ContentKind.PREVIEW, viewer, false);
     }
 

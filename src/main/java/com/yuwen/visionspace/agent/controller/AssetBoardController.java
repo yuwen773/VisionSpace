@@ -109,8 +109,17 @@ public class AssetBoardController {
 
     @GetMapping("/boards/{boardId}/items/{itemId}/content")
     public ResponseEntity<byte[]> boardPreview(@PathVariable String boardId, @PathVariable String itemId, HttpServletRequest request) {
+        return preview(() -> assets.loadBoardPreview(boardId, itemId, users.getLoginUser(request)));
+    }
+
+    @GetMapping("/tasks/{taskId}/items/{itemId}/content")
+    public ResponseEntity<byte[]> taskPreview(@PathVariable String taskId, @PathVariable String itemId, HttpServletRequest request) {
+        return preview(() -> assets.loadProposalPreview(taskId, itemId, users.getLoginUser(request)));
+    }
+
+    private ResponseEntity<byte[]> preview(java.util.function.Supplier<com.yuwen.visionspace.service.PictureContentService.Content> loader) {
         try {
-            var content = assets.loadBoardPreview(boardId, itemId, users.getLoginUser(request));
+            var content = loader.get();
             return ResponseEntity.ok().cacheControl(CacheControl.noStore().mustRevalidate())
                     .header("X-Content-Type-Options", "nosniff")
                     .contentType(MediaType.parseMediaType(content.contentType())).body(content.bytes());

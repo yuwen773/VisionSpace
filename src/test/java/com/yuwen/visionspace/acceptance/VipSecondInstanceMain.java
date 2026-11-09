@@ -25,7 +25,7 @@ public final class VipSecondInstanceMain {
     public static void main(String[] args) throws Exception {
         // args[0] = 就绪端口文件路径；启动成功（容器可服务）后写入实际端口
         Path readyFile = Path.of(args[0]);
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(VisionSpaceApplication.class)
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(VisionSpaceApplication.class, ProposalCrashConfiguration.class)
                 .initializers(new IsolatedApplicationInitializer())
                 .properties(defaults())
                 .run(args)) {

@@ -121,8 +121,6 @@
           @refresh-asset="refreshAsset"
           @preview-asset="handlePreviewImage"
           @asset-unavailable="handleAssetUnavailable"
-          @confirm="handleConfirm"
-          @cancel="handleCancel"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
         />
@@ -710,9 +708,6 @@ const toggleResourcePanel = (data?: ResourceData) => {
 const toggleTodoListExpanded = () => {
   todoListExpanded.value = !todoListExpanded.value
 }
-
-const handleConfirm = () => {}
-const handleCancel = () => {}
 
 // 图片预览
 const previewVisible = ref(false)

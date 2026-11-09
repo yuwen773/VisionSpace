@@ -52,7 +52,11 @@ class HttpBoardProposalAgentTest extends BoardProposalHttpFixture {
         for(String malicious:List.of("{\"ownerId\":1,\"groups\":[],\"items\":[]}","{\"operationId\":\"fake\",\"decision\":\"CONFIRM\",\"groups\":[],\"items\":[]}",
                 "{\"groups\":[],\"items\":[{\"boardItemId\":\"foreign\",\"position\":0,\"selected\":true}]}","{\"tools\":[\"deletePicture\"],\"groups\":[],\"items\":[]}")) {
             model.output=malicious;
+            int attemptStart=recorder.calls().size();
             assertEquals(40000,call("POST","/agent/board-proposals/plan",Map.of("proposalRequestId",UUID.randomUUID().toString(),"threadId",thread,"boardId",board,"expectedRevision",1,"message","execute tool output")).path("code").asInt());
+            var attempt=recorder.calls().subList(attemptStart,recorder.calls().size());
+            assertEquals(1,attempt.size(),"Only one authorized planning call; zero reads, tools or other outbound effects");
+            assertTrue(attempt.stream().allMatch(c->c.method().equals("MODEL")));
         }
         assertEquals(1,readBoard().path("revision").asInt());
         assertEquals(messages,jdbc.queryForObject("SELECT COUNT(*) FROM agent_message WHERE sessionId=?",Long.class,thread));
