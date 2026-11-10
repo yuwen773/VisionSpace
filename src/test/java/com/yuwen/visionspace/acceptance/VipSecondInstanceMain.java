@@ -25,7 +25,7 @@ public final class VipSecondInstanceMain {
     public static void main(String[] args) throws Exception {
         // args[0] = 就绪端口文件路径；启动成功（容器可服务）后写入实际端口
         Path readyFile = Path.of(args[0]);
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(VisionSpaceApplication.class)
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(VisionSpaceApplication.class, ProposalCrashConfiguration.class)
                 .initializers(new IsolatedApplicationInitializer())
                 .properties(defaults())
                 .run(args)) {
@@ -41,6 +41,8 @@ public final class VipSecondInstanceMain {
             while (!Files.exists(stopFile)) {
                 Thread.sleep(500);
             }
+            Files.writeString(Path.of(args[0] + ".calls"),
+                    Integer.toString(context.getBean(ExternalCallRecorder.class).calls().size()), StandardCharsets.UTF_8);
             System.out.println("VipSecondInstance stopping");
         }
     }

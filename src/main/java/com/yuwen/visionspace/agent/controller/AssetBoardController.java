@@ -1,5 +1,8 @@
 package com.yuwen.visionspace.agent.controller;
 
+import com.yuwen.visionspace.model.dto.agent.BoardProposalRequest;
+import com.yuwen.visionspace.model.vo.BoardProposalTask;
+import com.yuwen.visionspace.agent.BoardProposalAgent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yuwen.visionspace.agent.service.AssetSearchService;
 import com.yuwen.visionspace.common.BaseResponse;
@@ -25,6 +28,55 @@ import org.springframework.web.bind.annotation.*;
 public class AssetBoardController {
     @Resource private AssetSearchService assets;
     @Resource private UserService users;
+    @Resource private BoardProposalAgent planner;
+
+    @PostMapping("/board-proposals/plan")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = BoardProposalRequest.Plan.class)))
+    public BaseResponse<BoardProposalTask> planSave(@RequestBody JsonNode body, HttpServletRequest request) {
+        var viewer = users.getLoginUser(request);
+        return ResultUtils.success(planner.plan(BoardProposalRequest.Plan.parse(body), viewer));
+    }
+
+    @PostMapping("/board-proposals")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = BoardProposalRequest.Input.class)))
+    public BaseResponse<BoardProposalTask> proposeSave(@RequestBody JsonNode body, HttpServletRequest request) {
+        var viewer = users.getLoginUser(request);
+        return ResultUtils.success(assets.proposeSave(BoardProposalRequest.parse(body), viewer));
+    }
+
+    @GetMapping("/tasks/{taskId}")
+    public BaseResponse<BoardProposalTask> readTask(@PathVariable String taskId, HttpServletRequest request) {
+        return ResultUtils.success(assets.readTask(taskId, users.getLoginUser(request)));
+    }
+
+    /** 通知只引用已提交事实；丢失通知由 readTask 恢复，不重放保存。 */
+    @GetMapping(value = "/tasks/{taskId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<reactor.core.publisher.Flux<org.springframework.http.codec.ServerSentEvent<Object>>> taskEvents(
+            @PathVariable String taskId, HttpServletRequest request) {
+        if (!"1".equals(request.getHeader("X-VS-AI-Event-Version"))) throw new BusinessException(ErrorCode.PARAMS_ERROR, "INVALID_REQUEST");
+        var task = assets.readTask(taskId, users.getLoginUser(request));
+        java.util.List<org.springframework.http.codec.ServerSentEvent<Object>> events = new java.util.ArrayList<>();
+        if (task.target() != null && "AWAITING_CONFIRMATION".equals(task.status())) {
+            var payload = java.util.Map.of("taskId", task.taskId(), "proposalId", task.proposalId(), "proposalRevision", 1,
+                    "boardId", task.boardId(), "expectedRevision", java.math.BigInteger.valueOf(task.expectedRevision()));
+            events.add(org.springframework.http.codec.ServerSentEvent.builder((Object) java.util.Map.of("schemaVersion", 1,
+                    "eventId", "proposal:" + task.proposalId(), "type", "CONFIRMATION_REQUIRED", "payload", payload)).build());
+        } else if (task.target() != null && "COMMITTED".equals(task.status())) {
+            for (String type : java.util.List.of("BOARD_UPDATED", "OPERATION_COMMITTED")) {
+                events.add(org.springframework.http.codec.ServerSentEvent.builder((Object) java.util.Map.of("schemaVersion", 1,
+                        "eventId", type + ":" + task.operationId(), "type", type, "payload",
+                        java.util.Map.of("operationId", task.operationId(), "boardId", task.boardId(), "revision", java.math.BigInteger.valueOf(task.revision())))).build());
+            }
+        }
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(reactor.core.publisher.Flux.fromIterable(events));
+    }
+
+    @PostMapping("/board-proposals/{proposalId}/decision")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = BoardProposalRequest.Decision.class)))
+    public BaseResponse<BoardProposalTask> decideProposal(@PathVariable String proposalId, @RequestBody JsonNode body, HttpServletRequest request) {
+        var viewer = users.getLoginUser(request);
+        return ResultUtils.success(assets.decideProposal(proposalId, BoardProposalRequest.Decision.parse(body), viewer));
+    }
 
     @ModelAttribute
     public void noCache(HttpServletResponse response) { response.setHeader("Cache-Control", "no-store"); }
@@ -57,8 +109,17 @@ public class AssetBoardController {
 
     @GetMapping("/boards/{boardId}/items/{itemId}/content")
     public ResponseEntity<byte[]> boardPreview(@PathVariable String boardId, @PathVariable String itemId, HttpServletRequest request) {
+        return preview(() -> assets.loadBoardPreview(boardId, itemId, users.getLoginUser(request)));
+    }
+
+    @GetMapping("/tasks/{taskId}/items/{itemId}/content")
+    public ResponseEntity<byte[]> taskPreview(@PathVariable String taskId, @PathVariable String itemId, HttpServletRequest request) {
+        return preview(() -> assets.loadProposalPreview(taskId, itemId, users.getLoginUser(request)));
+    }
+
+    private ResponseEntity<byte[]> preview(java.util.function.Supplier<com.yuwen.visionspace.service.PictureContentService.Content> loader) {
         try {
-            var content = assets.loadBoardPreview(boardId, itemId, users.getLoginUser(request));
+            var content = loader.get();
             return ResponseEntity.ok().cacheControl(CacheControl.noStore().mustRevalidate())
                     .header("X-Content-Type-Options", "nosniff")
                     .contentType(MediaType.parseMediaType(content.contentType())).body(content.bytes());

@@ -121,8 +121,6 @@
           @refresh-asset="refreshAsset"
           @preview-asset="handlePreviewImage"
           @asset-unavailable="handleAssetUnavailable"
-          @confirm="handleConfirm"
-          @cancel="handleCancel"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
         />
@@ -146,6 +144,8 @@
           :links="panelLinks"
           :asset-results="Object.values(assetResults)"
           :privacy-epoch="privateAssetEpoch"
+          :thread-id="currentThreadId || threadId"
+          @session-bound="bindProposalSession"
           @private-access-denied="clearAssetResults"
           @close-preview="closeAssetPreview"
           @refresh-asset="refreshAsset"
@@ -370,6 +370,13 @@ const histories = computed<HistoryItem[]>(() =>
   })),
 )
 
+const bindProposalSession = (id: string) => {
+  currentThreadId.value = id
+  threadId.value = id
+  saveThreadId(id)
+  void loadSessions()
+}
+
 const loadHistoryMessages = async (sessionId: string) => {
   historyLoading.value = true
   try {
@@ -398,6 +405,13 @@ const loadHistoryMessages = async (sessionId: string) => {
         type = 'user'
       } else {
         switch (m.subType) {
+          case 'board-proposal':
+            type = 'board-proposal'
+            break
+          case 'mcp-confirm':
+          case 'tool-confirm':
+            type = 'tool-confirm'
+            break
           case 'asset-result':
             type = 'asset-result'
             break
@@ -418,6 +432,7 @@ const loadHistoryMessages = async (sessionId: string) => {
         type,
         content: m.content,
         resultId: type === 'asset-result' ? m.content : undefined,
+        taskId: type === 'board-proposal' ? m.content : undefined,
         // 历史图片按受控入口渲染：正文里不再保留源站地址
         attachmentIds: m.attachmentIds ?? [],
         toolName:
@@ -512,7 +527,7 @@ const handleReviewAction = async (actionId: string, decision: 'confirm' | 'dismi
 onMounted(async () => {
   const savedThreadId = loadThreadId()
   currentThreadId.value = savedThreadId
-  threadId.value = savedThreadId
+  threadId.value = savedThreadId || threadId.value
   await Promise.all([
     loadSessions(),
     savedThreadId ? loadHistoryMessages(savedThreadId) : Promise.resolve(),
@@ -522,7 +537,8 @@ onMounted(async () => {
   }
   await loadAssetTeams()
   if (!assetPageActive) return
-  if (typeof route.query.board === 'string') resourcePanelVisible.value = true
+  if (typeof route.query.board === 'string' || typeof route.query.task === 'string')
+    resourcePanelVisible.value = true
   else if (typeof route.query.assetResult === 'string') {
     const id = route.query.assetResult
     await refreshAsset(id)
@@ -692,9 +708,6 @@ const toggleResourcePanel = (data?: ResourceData) => {
 const toggleTodoListExpanded = () => {
   todoListExpanded.value = !todoListExpanded.value
 }
-
-const handleConfirm = () => {}
-const handleCancel = () => {}
 
 // 图片预览
 const previewVisible = ref(false)

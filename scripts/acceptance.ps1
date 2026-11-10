@@ -258,7 +258,7 @@ $ddl
                 Run-Gate 'asset-search-browser' {
                     Push-Location $repo
                     try {
-                        mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/browser-surefire" "-Dtest=AssetSearchBrowserIT,AssetBoardBrowserIT" test
+                        mvn -B --no-transfer-progress "-Dacceptance.reportsDirectory=$runDir/browser-surefire" "-Dtest=AssetSearchBrowserIT,AssetBoardBrowserIT,BoardProposalBrowserIT" test
                     } finally { Pop-Location }
                 }
             } else {

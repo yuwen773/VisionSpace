@@ -41,6 +41,6 @@
     {"id":"T22", "audit":["A0","A28","A29"], "tickets":[45,47], "suites":["HttpHealthEndpointTest"], "gates":["container","security"]},
     {"id":"T23", "audit":["A0","A25"], "tickets":[46], "suites":["MaintenanceWindowDrillTest","MaintenanceWindowManifestTest","PrivateResourceMigrationTest","PictureFileMigrationTest"], "manual":"BLOCKED"},
     {"id":"T24", "audit":["A0","A29"], "tickets":[29,47,48], "suites":[], "gates":["acceptance","browser","container","security"], "manual":"BLOCKED"},
-    {"id":"T25", "audit":["A6","A20"], "tickets":[55], "suites":["HttpAssetBoardTest","HttpAssetBoardDualInstanceTest"], "gates":["acceptance"]}
+    {"id":"T25", "audit":["A6","A20"], "tickets":[55,56], "suites":["HttpAssetBoardTest","HttpAssetBoardDualInstanceTest","HttpBoardProposalTest","HttpBoardProposalAgentTest","HttpBoardProposalDualInstanceTest"], "gates":["acceptance"]}
   ]
 }

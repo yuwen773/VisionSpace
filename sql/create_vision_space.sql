@@ -613,3 +613,29 @@ CREATE TABLE `asset_board_operation` (
   PRIMARY KEY (`ownerId`, `operationId`),
   KEY `idx_board` (`boardId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- #56：维护窗口备份并停写后执行；不从旧会话推断授权。
+CREATE TABLE `asset_board_proposal` (
+  `proposalId` varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `taskId` varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `ownerId` bigint NOT NULL,
+  `threadId` varchar(64) COLLATE utf8mb4_bin NOT NULL,
+  `boardId` varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `spaceId` bigint NOT NULL,
+  `proposalRequestId` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `requestDigest` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `planningDigest` char(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `operationId` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `expectedRevision` bigint NOT NULL,
+  `target` longtext NOT NULL,
+  `baseline` longtext NOT NULL,
+  `status` varchar(32) NOT NULL,
+  `reasonCode` varchar(40) DEFAULT NULL,
+  `decision` varchar(8) DEFAULT NULL,
+  `revision` bigint DEFAULT NULL,
+  PRIMARY KEY (`proposalId`),
+  UNIQUE KEY `uk_task` (`taskId`),
+  UNIQUE KEY `uk_request` (`ownerId`, `proposalRequestId`),
+  UNIQUE KEY `uk_operation` (`ownerId`, `operationId`),
+  KEY `idx_pending` (`ownerId`, `boardId`, `threadId`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

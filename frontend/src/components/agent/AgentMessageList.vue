@@ -219,6 +219,16 @@
               </button>
             </p>
           </template>
+          <RouterLink
+            v-else-if="msg.type === 'board-proposal' && msg.taskId"
+            :to="{ query: { task: msg.taskId } }"
+            >读取候选板提案与当前状态</RouterLink
+          >
+          <RouterLink
+            v-else-if="msg.type === 'board-updated' && msg.boardId"
+            :to="{ query: { board: msg.boardId } }"
+            >读取候选板 · 版本 {{ msg.revision }}</RouterLink
+          >
           <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
           <AssistantMessage
             v-else-if="msg.type === 'assistant'"
@@ -238,10 +248,8 @@
             :content="msg.content"
           />
           <ToolConfirmMessage
-            v-else-if="msg.type === 'mcp-confirm' || msg.type === 'interrupt'"
+            v-else-if="['tool-confirm', 'mcp-confirm', 'interrupt'].includes(msg.type)"
             :message="msg.content"
-            @confirm="emit('confirm')"
-            @cancel="emit('cancel')"
           />
           <ActionUnknownMessage
             v-else-if="msg.type === 'action-unknown'"
@@ -318,6 +326,9 @@ interface Message {
   /** 这条消息携带的图片资源标识 */
   attachmentIds?: string[]
   resultId?: string
+  taskId?: string
+  boardId?: string
+  revision?: number
 }
 
 interface Props {
@@ -336,8 +347,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  (e: 'confirm'): void
-  (e: 'cancel'): void
   (e: 'send', text: string): void
   (e: 'toggleResources', data: ResourceData): void
   (e: 'refreshAsset', resultId: string): void

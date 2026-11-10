@@ -6,7 +6,19 @@ import AssetBoardEditor from '../AssetBoardEditor.vue'
 import type { AssetResult } from '@/api-custom/assetSearch'
 import { useLoginUserStore } from '@/stores/userLogin'
 
-const api = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), operation: vi.fn() }))
+const api = vi.hoisted(() => ({
+  save: vi.fn(),
+  read: vi.fn(),
+  operation: vi.fn(),
+  task: vi.fn(),
+  plan: vi.fn(),
+  decide: vi.fn(),
+}))
+vi.mock('@/api-custom/boardProposal', () => ({
+  readTask: api.task,
+  planBoard: api.plan,
+  decideProposal: api.decide,
+}))
 vi.mock('@/api-custom/assetBoard', () => ({
   saveBoard: api.save,
   readBoard: api.read,
@@ -50,6 +62,62 @@ async function open(url = '/agent') {
   return wrapper
 }
 describe('个人候选素材板', () => {
+  const persisted = {
+    schemaVersion: 1,
+    boardId: 'b1',
+    spaceId: result.spaceId,
+    title: '服务端标题',
+    revision: 1,
+    groups: [],
+    items: [],
+  }
+  const proposalTask = {
+    schemaVersion: 1,
+    type: 'BOARD_SAVE_PROPOSAL',
+    taskId: 'task1',
+    proposalId: 'p1',
+    proposalRevision: 1,
+    operationId: 'op1',
+    status: 'AWAITING_CONFIRMATION',
+    boardId: 'b1',
+    expectedRevision: 1,
+    current: persisted,
+    target: persisted,
+    canConfirm: true,
+  }
+  it('keeps unsaved board edits when a task focus refresh loads the same board', async () => {
+    api.read.mockResolvedValue({ data: { code: 0, data: persisted } })
+    api.task.mockResolvedValue({ data: { code: 0, data: proposalTask } })
+    const w = await open('/agent?board=b1&task=task1')
+    await w.get('[aria-label="板标题"]').setValue('本页未保存的标题')
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(w.get<HTMLInputElement>('[aria-label="板标题"]').element.value).toBe('本页未保存的标题')
+    expect(w.text()).toContain('未保存修改')
+    expect(api.save).not.toHaveBeenCalled()
+  })
+  it('keeps edits begun while the authoritative task read is still in flight', async () => {
+    api.read.mockResolvedValue({ data: { code: 0, data: persisted } })
+    api.task.mockResolvedValue({ data: { code: 0, data: proposalTask } })
+    const w = await open('/agent?board=b1&task=task1')
+    let finish: ((value: unknown) => void) | undefined
+    api.task.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    await w.get('[aria-label="板标题"]').setValue('任务读取期间的新编辑')
+    finish!({ data: { code: 0, data: proposalTask } })
+    await flushPromises()
+    expect(w.get<HTMLInputElement>('[aria-label="板标题"]').element.value).toBe(
+      '任务读取期间的新编辑',
+    )
+    expect(w.text()).toContain('未保存修改')
+    expect(api.save).not.toHaveBeenCalled()
+  })
   it('retains only the operation identifier for minimal verification after access is revoked', async () => {
     api.save.mockRejectedValue(new Error('lost response'))
     const w = await open()

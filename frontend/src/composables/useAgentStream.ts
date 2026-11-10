@@ -7,13 +7,24 @@ export interface MessageDTO {
   schemaVersion?: number
   eventId?: string
   type?: string
-  payload?: { resultId?: string }
+  payload?: {
+    resultId?: string
+    taskId?: string
+    proposalId?: string
+    proposalRevision?: number
+    boardId?: string
+    expectedRevision?: number
+    revision?: number
+    operationId?: string
+    reasonCode?: string
+  }
   messageType:
     | 'user'
     | 'assistant'
     | 'tool-request'
     | 'tool-response'
     | 'mcp-confirm'
+    | 'tool-confirm'
     | 'reasoning'
     | 'action-unknown'
   content?: string
@@ -52,6 +63,9 @@ export interface StreamMessage {
   /** 这条消息携带的图片资源标识；图片按受控入口渲染 */
   attachmentIds?: string[]
   resultId?: string
+  taskId?: string
+  boardId?: string
+  revision?: number
 }
 
 export function useAgentStream() {
@@ -136,6 +150,8 @@ export function useAgentStream() {
     // （成功、异常、取消、断开）都不再由前端删除
     let serverAccepted = false
     const seenResults = new Set<string>()
+    const seenEvents = new Set<string>()
+    const boardVersions = new Map<string, number>()
 
     // 同时接受 JSON：归属或登录校验失败时后端返回的是普通 JSON 错误，
     // 只声明 text/event-stream 会把它变成无法读取的 406。
@@ -188,6 +204,65 @@ export function useAgentStream() {
             const msgDto: MessageDTO = JSON.parse(event.data)
 
             if (msgDto.schemaVersion !== undefined) {
+              const p = msgDto.payload
+              const validId = (id: unknown): id is string =>
+                typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id)
+              if (msgDto.schemaVersion === 1 && msgDto.eventId && p) {
+                if (seenEvents.has(msgDto.eventId)) return
+                if (
+                  msgDto.type === 'CONFIRMATION_REQUIRED' &&
+                  validId(p.taskId) &&
+                  validId(p.proposalId) &&
+                  validId(p.boardId) &&
+                  p.proposalRevision === 1 &&
+                  Number.isSafeInteger(p.expectedRevision) &&
+                  p.expectedRevision! >= 1
+                ) {
+                  seenEvents.add(msgDto.eventId)
+                  if (!messages.value.some((m) => m.taskId === p.taskId))
+                    pushMessage({
+                      type: 'board-proposal',
+                      taskId: p.taskId,
+                      content: '',
+                      node: 'agent',
+                    })
+                  return
+                }
+                if (
+                  ['BOARD_UPDATED', 'OPERATION_COMMITTED'].includes(msgDto.type || '') &&
+                  validId(p.boardId) &&
+                  Number.isSafeInteger(p.revision) &&
+                  p.revision! >= 1 &&
+                  (msgDto.type !== 'OPERATION_COMMITTED' || validId(p.operationId))
+                ) {
+                  seenEvents.add(msgDto.eventId)
+                  if (p.revision! > (boardVersions.get(p.boardId) || 0)) {
+                    boardVersions.set(p.boardId, p.revision!)
+                    pushMessage({
+                      type: 'board-updated',
+                      boardId: p.boardId,
+                      revision: p.revision,
+                      content: '',
+                      node: 'agent',
+                    })
+                  }
+                  return
+                }
+                if (
+                  msgDto.type === 'OPERATION_NEEDS_REVIEW' &&
+                  validId(p.taskId) &&
+                  validId(p.operationId) &&
+                  typeof p.reasonCode === 'string'
+                ) {
+                  seenEvents.add(msgDto.eventId)
+                  pushMessage({
+                    type: 'action-unknown',
+                    content: '外部动作结果未知，请在恢复面板核对',
+                    node: 'agent',
+                  })
+                  return
+                }
+              }
               const resultId = msgDto.payload?.resultId
               if (
                 msgDto.schemaVersion !== 1 ||
@@ -259,11 +334,22 @@ export function useAgentStream() {
                 break
               }
 
+              case 'tool-confirm':
               case 'mcp-confirm':
                 assistantMsgIndex = -1
                 reasoningMsgIndex = -1
                 streamContent = ''
-                pushMessage({ type: 'mcp-confirm', content: msgDto.content || '', node: 'agent' })
+                if (
+                  !messages.value.some(
+                    (m) => m.type === 'tool-confirm' && m.content === (msgDto.content || ''),
+                  )
+                ) {
+                  pushMessage({
+                    type: 'tool-confirm',
+                    content: msgDto.content || '',
+                    node: 'agent',
+                  })
+                }
                 break
 
               // 外部结果未知：与明确失败分开。这里不当作错误重试，
