@@ -67,12 +67,13 @@ vision-space:
     base-url: "https://dashscope.aliyuncs.com/api/v1"
     create-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting"
     get-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/tasks/%s"
-  # 图片识别服务：非秘密参数给默认值，生产可用环境变量覆盖。
-  # 这些键此前只写在被忽略的 application-local/server.yml 里，prod 启动会因
-  # 占位符无法解析而失败（容器验收实测）。
+  # 图片识别服务：非秘密参数给默认值，秘密一律从环境变量注入。
   vision-recognition:
     base-url: ${VISION_SPACE_VISION_RECOGNITION_BASE_URL:https://www.dmxapi.cn}
+    api-key: ${VISION_SPACE_VISION_RECOGNITION_API_KEY:}
     model: ${VISION_SPACE_VISION_RECOGNITION_MODEL:GLM-4.1V-Thinking-Flash}
+  pexels:
+    api-key: ${VISION_SPACE_PEXELS_API_KEY:}
   # Agent 配置
   agent:
     summary-threshold: 20
@@ -137,6 +138,10 @@ vision-space:
     # 客户端没有提供事件幂等键时，同一客户端的相同行为在该窗口内视为同一事件
     dedupe-window-seconds: 60
 
+# 外部服务密钥：基线只声明环境变量占位，不写明文。
+# prod 由 application-prod.yml 覆盖，隔离验收由 acceptance.yml 用受控替身覆盖。
+aliYunAi:
+  apiKey: ${ALI_YUN_AI_API_KEY:}
 
 spring:
   application:
@@ -147,12 +152,18 @@ spring:
   threads:
     virtual:
       enabled: true
+  # 外部服务密钥（prod / acceptance 各自覆盖）
+  ai:
+    openai:
+      api-key: ${SPRING_AI_OPENAI_API_KEY:}
+    dashscope:
+      api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
   # 数据库配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/vision_space
     username: root
-    password: ${MYSQL_PASSWORD:123456}
+    password: ${MYSQL_PASSWORD:}
   # Redis 配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
   data:
     redis:

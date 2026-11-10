@@ -1,6 +1,8 @@
 ### Custom ###
 .zread/
 软件著作权申请资料/
+# 本地 profile 文件保留忽略规则，但不再承载密钥：
+# 密钥统一由 .env 导出为环境变量，application.yml 用 ${VAR:} 占位读取。
 application-local.yml
 application-prod.yml
 /docs/*
