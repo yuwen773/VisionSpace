@@ -210,6 +210,12 @@ $ddl
         node e2e/browser-entry.mjs *> (Join-Path $runDir 'browser.log')
         $exit = $LASTEXITCODE
         Get-Content -LiteralPath (Join-Path $runDir 'browser.log') -Tail 40 | Write-Host
+        if ($exit -ne 0) {
+            # 失败时保留完整 e2e 日志到 artifacts（VS_E2E_ARTIFACTS 随 srf-browser 上传），
+            # CI 证据脱敏只保留状态，完整日志是定位断言失败的唯一现场。
+            New-Item -ItemType Directory -Force (Join-Path $env:VS_E2E_ARTIFACTS 'diagnostics') | Out-Null
+            Copy-Item (Join-Path $runDir 'browser.log') (Join-Path $env:VS_E2E_ARTIFACTS 'diagnostics/browser-full.log')
+        }
         if ($exit -eq 2) { throw 'BLOCKED_ENV: browser acceptance prerequisites missing' }
         if ($exit -ne 0) { throw 'browser acceptance assertions failed' }
         $results['browser'] = 'PASS'
