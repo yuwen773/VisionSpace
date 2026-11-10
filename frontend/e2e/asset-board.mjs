@@ -59,7 +59,7 @@ try {
   const savedUrl = page.url()
   const boardId = new URL(savedUrl).searchParams.get('board')
   assert.ok(boardId)
-  assert.equal(await page.evaluate(() => window.boardInjected), undefined)
+  assert.equal(await page.evaluate(() => /** @type {any} */ (window).boardInjected), undefined)
   assert.equal(await board.locator('b,script').count(), 0)
   assert.equal(await board.getByLabel('选择素材', { exact: true }).isChecked(), false)
   assert.equal(calls.filter(c => c.method === 'POST' && c.path === '/api/agent/boards').length, 1)
