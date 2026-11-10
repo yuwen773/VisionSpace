@@ -62,6 +62,10 @@ def publish(source, destination):
         content = None
         if path.name in {"summary.json", "results.json", "browser-results.json", "protocol-results.json"}:
             content = json.dumps(project(json.loads(path.read_text(encoding="utf-8-sig"))), indent=2)
+        elif "diagnostics" in path.parts and path.suffix == ".log":
+            # 失败现场的完整 e2e 日志：文本、由验收脚本自产、不含凭据（脚本已脱敏配置）。
+            # 没有它，CI 证据只剩状态码，断言失败无法定位（历史教训：#106/#108 连环排查）。
+            content = path.read_text(encoding="utf-8", errors="replace")
         elif path.name == "advisories.json":
             content = json.dumps(advisories(json.loads(path.read_text(encoding="utf-8-sig"))), indent=2)
         elif path.name.startswith("TEST-") and path.suffix == ".xml":
