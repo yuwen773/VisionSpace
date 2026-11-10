@@ -50,7 +50,7 @@ try {
   const preview = await panel.locator('img').first().getAttribute('src')
   assert.ok(preview?.startsWith('/api/agent/tasks/'))
   assert.equal(await page.evaluate(async url => (await fetch(url)).status, preview), 200)
-  await page.waitForFunction(() => { const button = document.querySelector('[data-action="confirm-proposal"]'); return button && !button.disabled })
+  await page.waitForFunction(() => { const button = /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="confirm-proposal"]')); return button && !button.disabled })
   await page.screenshot({ path: path.join(artifacts, '01-review.png'), fullPage: true })
   // 提案通知断开只停止展示；刷新通过任务恢复，不能自动保存。
   await page.evaluate(async task => { const c = new AbortController(); const r = await fetch(`/api/agent/tasks/${task}/events`, { headers: { 'X-VS-AI-Event-Version': '1' }, signal: c.signal }); await r.text(); c.abort() }, new URL(taskUrl).searchParams.get('task'))
