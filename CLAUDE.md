@@ -12,6 +12,14 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1   # ~5-15 min; see AC
 
 # Backend (Spring Boot 3.5.16 + Java 21)
 mvn spring-boot:run          # Run application (port 8081, context-path /api)
+# 密钥全部走环境变量：Spring Boot 不原生读 .env，本地启动前先导出。
+# Git Bash / Linux / macOS:  set -a; . ./.env; set +a; mvn spring-boot:run
+# PowerShell:                 Get-Content .env | ForEach-Object {
+#   if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+#     [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2])
+#   }
+# }
+# 复制 .env.example 为 .env 后填写；.env 已 gitignore，禁止提交真实凭据。
 mvn compile                  # Compile
 mvn test -Dtest=ClassName    # Run one test class (still needs the acceptance env above)
 
