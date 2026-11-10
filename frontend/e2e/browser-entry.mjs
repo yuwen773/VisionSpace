@@ -82,6 +82,9 @@ async function post(page, path_, body) {
  *   1. 复现浏览器脚本无法伪造的 Origin 头（跨站来源判定）；
  *   2. 用自签证书访问验收入口（node 的 fetch 会拒绝不受信证书）。
  * 只发给本地回环入口，不涉及外部服务。
+ * @param {string} origin
+ * @param {string} pathname
+ * @param {{ method?: string, cookie?: string, token?: string, origin?: string }} [options]
  */
 function directRequest(origin, pathname, { method = 'POST', cookie, token, origin: requestOrigin } = {}) {
   const target = new URL(pathname, origin)
@@ -165,17 +168,32 @@ try {
   await step('https 同源入口下发 Secure 会话 Cookie 与 CSRF 令牌', async () => {
     const page = await context.newPage()
     record(page)
-    const setCookieHeaders = []
-    page.on('response', async (response) => {
-      try {
-        const headers = await response.allHeaders()
-        if (headers['set-cookie']) setCookieHeaders.push(headers['set-cookie'])
-      } catch {
-        // 响应已关闭：忽略
+    // SESSION 可能在页面初始化的 API 响应中下发，登录响应只补发 satoken。
+    // 收集整段链路的原始头，并等待所有异步读取完成后再断言。
+    /** @type {Promise<{ name: string, value: string }[]>[]} */
+    const responseHeaders = []
+    /** @param {import('playwright-core').Response} response */
+    const collectHeaders = (response) => {
+      const url = new URL(response.url())
+      if (url.origin === origin && url.pathname.startsWith('/api/')) {
+        responseHeaders.push(response.headersArray())
       }
-    })
-    await page.goto(`${origin}/user/login`)
-    await registerAndLogin(page, `browser_${Date.now()}`)
+    }
+    page.on('response', collectHeaders)
+    try {
+      await page.goto(`${origin}/user/login`)
+      // 明确覆盖先建立匿名会话、随后登录的顺序，避免只测到登录下发全部 Cookie。
+      await page.evaluate(() =>
+        fetch('/api/user/get/login', { credentials: 'include' }).then((r) => r.json()),
+      )
+      await registerAndLogin(page, `browser_${Date.now()}`)
+    } finally {
+      page.off('response', collectHeaders)
+    }
+    const setCookieHeaders = (await Promise.all(responseHeaders))
+      .flat()
+      .filter((h) => h.name.toLowerCase() === 'set-cookie')
+      .map((h) => h.value)
     const cookies = await context.cookies()
     assert.ok(cookies.length > 0, 'must receive cookies')
     const sessionCookies = cookies.filter((c) => c.name !== 'VS_CSRF')
@@ -190,7 +208,12 @@ try {
     // 直接看 Set-Cookie 头，而不是浏览器解析后的值——缺失属性时浏览器会回报默认值，
     // 那样断言会空泛通过。
     const guarded = setCookieHeaders.filter((h) => /^(SESSION|satoken)=/i.test(h))
-    assert.ok(guarded.length >= 2, `必须看到会话与令牌两个 Set-Cookie：${JSON.stringify(setCookieHeaders)}`)
+    for (const name of ['SESSION', 'satoken']) {
+      assert.ok(
+        guarded.some((h) => h.toLowerCase().startsWith(`${name.toLowerCase()}=`)),
+        `必须看到 ${name} Set-Cookie：${JSON.stringify(setCookieHeaders)}`,
+      )
+    }
     for (const header of guarded) {
       assert.match(header, /SameSite=Strict/i, `cookie must be SameSite=Strict: ${header}`)
     }

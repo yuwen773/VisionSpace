@@ -130,14 +130,16 @@ function create(apiTarget, tls) {
   })
   let actualPort = 0
   server.on('listening', () => {
-    actualPort = server.address().port
+    const address = server.address()
+    if (address && typeof address !== 'string') actualPort = address.port
   })
   return {
     server,
     listen: () =>
       new Promise((resolve) => {
         server.listen(0, '127.0.0.1', () => {
-          actualPort = server.address().port
+          const address = server.address()
+          if (address && typeof address !== 'string') actualPort = address.port
           resolve(actualPort)
         })
       }),

@@ -45,7 +45,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-result-id]').length === 2)
   const resultId = await page.locator('[data-result-id]').first().getAttribute('data-result-id')
   assert.equal(await page.locator(`[data-result-id="${resultId}"]`).count(), 2)
-  await page.waitForFunction(() => [...document.querySelectorAll('[data-result-id] img')].every((img) => img.naturalWidth > 0))
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-result-id] img')].every((img) => /** @type {HTMLImageElement} */ (img).naturalWidth > 0))
   assert.equal(calls.filter((call) => call.method === 'POST' && call.path === '/api/agent/asset-search').length, 2)
   const contentRef = await page.locator('[data-result-id] img').first().getAttribute('src')
   await page.waitForFunction(() => document.querySelector('.resource-panel')?.getBoundingClientRect().width > 200)
