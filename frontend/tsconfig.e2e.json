@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // e2e 在 Playwright 的 page.evaluate 里用 DOM 全局，也在 node 侧用 https / process。
+    // 这里只需让类型可见；Promise 返回值误用（如漏 await）由 checkJs 直接报错。
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["e2e/**/*.mjs"]
+}

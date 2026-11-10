@@ -82,6 +82,9 @@ async function post(page, path_, body) {
  *   1. 复现浏览器脚本无法伪造的 Origin 头（跨站来源判定）；
  *   2. 用自签证书访问验收入口（node 的 fetch 会拒绝不受信证书）。
  * 只发给本地回环入口，不涉及外部服务。
+ * @param {string} origin
+ * @param {string} pathname
+ * @param {{ method?: string, cookie?: string, token?: string, origin?: string }} [options]
  */
 function directRequest(origin, pathname, { method = 'POST', cookie, token, origin: requestOrigin } = {}) {
   const target = new URL(pathname, origin)
@@ -167,7 +170,9 @@ try {
     record(page)
     // SESSION 可能在页面初始化的 API 响应中下发，登录响应只补发 satoken。
     // 收集整段链路的原始头，并等待所有异步读取完成后再断言。
+    /** @type {Promise<{ name: string, value: string }[]>[]} */
     const responseHeaders = []
+    /** @param {import('playwright-core').Response} response */
     const collectHeaders = (response) => {
       const url = new URL(response.url())
       if (url.origin === origin && url.pathname.startsWith('/api/')) {
@@ -206,7 +211,7 @@ try {
     for (const name of ['SESSION', 'satoken']) {
       assert.ok(
         guarded.some((h) => h.toLowerCase().startsWith(`${name.toLowerCase()}=`)),
-        `必须看到 ${name} Set-Cookie`,
+        `必须看到 ${name} Set-Cookie：${JSON.stringify(setCookieHeaders)}`,
       )
     }
     for (const header of guarded) {

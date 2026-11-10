@@ -58,6 +58,22 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 
 `.github/workflows/acceptance.yml` 在 PR、main push 和手动触发时运行同一命令，使用只读仓库权限和超时，并在成功/失败时上传验收日志及 Surefire 报告。无需真实外部服务凭据。工作流已在 PR #50 上实际远程执行通过；此票不配置分支保护。
 
+### 浏览器作业失败排查
+
+`browser` job 的失败证据在 `srf-browser-<attempt>` artifact，由 `scripts/publish-evidence.py` 投影输出，按 `scripts/browser-acceptance.ps1` 生成本地原始日志：
+
+| 文件 | 内容 |
+| --- | --- |
+| `browser/<slot>/summary.json` | 该 slot 的脱敏结论（`results` 里各阶段 PASS/FAIL、`productionAcceptance`） |
+| `browser/<slot>/<runId>/artifacts/results.json` | 九个步骤的 slot 序列；只含 `status`，不含断言文本 |
+| `browser/<slot>/<runId>/artifacts/diagnostics/browser-full.log` | 失败现场的完整 e2e 日志，含断言消息与堆栈 |
+
+定位失败时先读 `browser-full.log` 的断言文本，再用 `results.json` 的 slot 序列确认影响范围。`publish-evidence.py` 有意剥离 `summary.json` / `results.json` 里的失败消息，只看状态码无法区分「真缺 Cookie」和「断言脚本漏抓」；`diagnostics/*.log` 是经白名单透传的例外，不含凭据。
+
+`https-browser` 第一步必挂时先查 e2e 脚本代码（例如 `headersArray()` 返回 Promise 却漏 `await`），不要当成环境 flaky 重跑。确属偶发失败时完整重跑 `gh run rerun <run-id>`，不加 `--failed`：部分重跑会让 evidence 台账缺 T01–T24 same-candidate 证据链。同一根因还会连带 `evidence` 与 `SRF merge gate` 一起 FAIL，不是三个独立故障。
+
+`npm run type-check` 依次跑 `vue-tsc --build`（`src/`）与 `tsc -p tsconfig.e2e.json`（`frontend/e2e/**/*.mjs`）。e2e 是纯 `.mjs`，ESLint 无类型信息，漏 `await` 之类 Promise 误用只由后一个 `checkJs` 关卡拦截。
+
 ## 本次验证记录
 
 2026-10-22，Windows + JDK 21.0.7 / Maven 3.9.9 / Node 22.21.0 / npm 10.9.4。显式原生服务模式使用全新临时数据目录，实测 MySQL 8.0.26、Redis 3.2.100；没有使用现有系统服务。Docker engine 在本机不可用，不能把原生模式的结果等同于 MySQL 8.0.36 / Redis 7.2.4 容器实测。
