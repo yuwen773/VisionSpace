@@ -88,6 +88,28 @@ Bean 互相依赖。Spring Boot 默认禁止循环引用，于是 `pictureServic
 改为注入 `ObjectProvider<PictureEmbeddingService>`，调用点按需取用并判空。顺带补齐了上传路径上
 原本缺失的那处判空——另外三处调用点都有，只有它在 RAG 关闭时会拿着 null 直接调用。
 
+**两个 EmbeddingModel。** 修完循环依赖后，容器门禁又往前推了一层：
+
+```
+Parameter 0 of method vectorStore in ChromaVectorStoreAutoConfiguration
+required a single bean, but 2 were found:
+  - DashScopeEmbeddingAutoConfiguration
+  - OpenAiEmbeddingAutoConfiguration
+```
+
+原因是两个自动配置看的根本不是同一个属性：
+
+| 自动配置 | 条件 |
+| --- | --- |
+| DashScope | `spring.ai.model.embedding.text=dashscope` |
+| OpenAI | `spring.ai.model.embedding=openai`（`matchIfMissing=true`） |
+
+只设 `.text=dashscope` 时，OpenAI 那侧仍按 `matchIfMissing` 命中，于是容器里出现两个
+`EmbeddingModel`，Chroma 的 `vectorStore` 工厂方法要求「唯一一个」，直接失败。基线没暴露，
+是因为基线根本不装配 Chroma。`application-prod.yml` 现在显式排除
+`OpenAiEmbeddingAutoConfiguration`——站内检索用 DashScope 嵌入，OpenAI 的 embedding 在本项目
+没有使用者。
+
 **仍未解决的取舍**：`ChromaVectorStore` 在构造期就会连向量库并建集合，连不上直接让整个 Spring
 上下文启动失败。也就是说，开启 RAG 的部署里 Chroma 不可用时后端起不来，靠 `restart: unless-stopped`
 等 Chroma 就绪后重试。本轮不动这个行为（容器门禁会用真实 compose 栈验证它），但换部署环境时需要知道。
