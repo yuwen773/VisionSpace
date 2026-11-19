@@ -1,12 +1,15 @@
 package com.yuwen.visionspace.service.impl;
 
 import com.yuwen.visionspace.service.VlCaptionService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.content.Media;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -18,18 +21,45 @@ import java.time.Duration;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class VlCaptionServiceImpl implements VlCaptionService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VlCaptionServiceImpl.class);
 
-    private final ChatModel chatModel;
+    // 视觉描述走与 ImageFeatureAnalyzerTool 同一套识别服务配置：
+    // 主 ChatModel 是纯文本模型，不能直接拿来读图。
+    @Value("${vision-space.vision-recognition.base-url}")
+    private String baseUrl;
+
+    @Value("${vision-space.vision-recognition.api-key}")
+    private String apiKey;
+
+    @Value("${vision-space.vision-recognition.model}")
+    private String model;
+
     private final StringRedisTemplate redisTemplate;
-    private final ChatClient chatClient;
+
+    private ChatClient chatClient;
+
+    public VlCaptionServiceImpl(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    @PostConstruct
+    private void init() {
+        OpenAiApi visionApi = OpenAiApi.builder().baseUrl(baseUrl).apiKey(apiKey).build();
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(model)
+                .temperature(0.2)
+                .build();
+        OpenAiChatModel visionModel = OpenAiChatModel.builder()
+                .openAiApi(visionApi)
+                .defaultOptions(options)
+                .build();
+        this.chatClient = ChatClient.builder(visionModel).build();
+    }
 
     private static final String CACHE_PREFIX = "vl:caption:";
     private static final Duration CACHE_TTL = Duration.ofDays(7);
-    private static final String VL_MODEL = "qwen3-vl-flash";
     private static final String PROMPT = """
             请对这张图片进行**结构化富描述**（中文），严格按以下格式输出：
             {
