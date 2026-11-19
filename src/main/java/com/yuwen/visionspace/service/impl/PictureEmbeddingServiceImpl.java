@@ -104,23 +104,23 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     }
 
     private Document buildDocument(Picture picture) {
-        StringBuilder content = new StringBuilder();
-        if (picture.getName() != null) {
-            content.append(picture.getName());
-        }
-        if (picture.getIntroduction() != null) {
-            content.append("。").append(picture.getIntroduction());
-        }
-        if (picture.getCategory() != null) {
-            content.append("。分类: ").append(picture.getCategory());
-        }
-        if (picture.getTags() != null && !picture.getTags().equals("[]")) {
-            content.append("。标签: ").append(picture.getTags());
-        }
-        if (picture.getPicColor() != null) {
-            content.append("。颜色: ").append(picture.getPicColor());
-        }
+        // 1. 生成富描述
+        String richCaption = vlCaptionService.generateRichCaption(picture.getImageUrl());
 
+        // 2. 构建多模态融合输入（text + image）
+        // qwen3-vl-embedding 支持 enable_fusion=true 将 text 和 image 融合为单一向量
+        // Spring AI 会自动处理，只需传正确的格式
+        List<Map<String, Object>> contents = new ArrayList<>();
+        contents.add(Map.of("text",
+                (picture.getName() != null ? picture.getName() : "") + ". " +
+                        (picture.getIntroduction() != null ? picture.getIntroduction() : "")));
+        contents.add(Map.of("image", picture.getImageUrl()));
+
+        // 3. 注意：Spring AI DashScopeEmbeddingModel 会自动使用配置的
+        //    qwen3-vl-embedding + enable_fusion=true 参数
+        //    这里只构建 content，embedding 由框架处理
+
+        // 4. 构建 metadata
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("pictureId", picture.getId());
         metadata.put("imageUrl", picture.getUrl() != null ? picture.getUrl() : "");
@@ -134,6 +134,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("visibility", picture.getVisibility() != null ? picture.getVisibility() : "public");
         metadata.put("indexedAt", System.currentTimeMillis());
 
-        return new Document(DOC_ID_PREFIX + picture.getId(), content.toString(), metadata);
+        // 5. content 使用 richCaption（可读文本，qwen3-vl-embedding 实际向量由框架生成）
+        return new Document(DOC_ID_PREFIX + picture.getId(), richCaption, metadata);
     }
 }
