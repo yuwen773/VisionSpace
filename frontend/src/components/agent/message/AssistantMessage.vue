@@ -8,11 +8,7 @@
 
       <!-- 内联缩略图：只渲染受控来源，避免把消息里的任意地址发出去 -->
       <div v-if="loadableImages.length > 0" class="message-images">
-        <div
-          v-for="(img, index) in loadableImages"
-          :key="index"
-          class="image-thumb-wrapper"
-        >
+        <div v-for="(img, index) in loadableImages" :key="index" class="image-thumb-wrapper">
           <img
             :src="img.url"
             :alt="img.title || '图片'"
