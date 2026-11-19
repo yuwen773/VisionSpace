@@ -73,6 +73,25 @@ spring.ai.vectorstore.type       # none | chroma
 `docker-compose.yml` 的 chromadb 服务原先挂在不存在的 `vision-space` 网络上，改为 `internal`，
 并给 backend 补 `depends_on`。
 
+**循环依赖。** 首轮 CI 的容器门禁抓到一个只在「开启 RAG」时才会出现的问题：
+
+```
+Error creating bean with name 'assetSearchAgent': Injection of resource dependencies failed
+APPLICATION FAILED TO START
+```
+
+`PictureServiceImpl` 直接注入 `PictureEmbeddingService`，而后者又注入 `PictureService`，两个
+Bean 互相依赖。Spring Boot 默认禁止循环引用，于是 `pictureServiceImpl` 建不出来，错误沿
+`assetSearchAgent → AssetSearchService → PictureService` 冒到最外层。基线 / 验收跑的都是
+`vectorstore.type=none`，`PictureEmbeddingServiceImpl` 根本不存在，所以 723 个测试全绿也发现不了。
+
+改为注入 `ObjectProvider<PictureEmbeddingService>`，调用点按需取用并判空。顺带补齐了上传路径上
+原本缺失的那处判空——另外三处调用点都有，只有它在 RAG 关闭时会拿着 null 直接调用。
+
+**仍未解决的取舍**：`ChromaVectorStore` 在构造期就会连向量库并建集合，连不上直接让整个 Spring
+上下文启动失败。也就是说，开启 RAG 的部署里 Chroma 不可用时后端起不来，靠 `restart: unless-stopped`
+等 Chroma 就绪后重试。本轮不动这个行为（容器门禁会用真实 compose 栈验证它），但换部署环境时需要知道。
+
 ## 3. 本轮不引入 schema 变更
 
 原分支在 `de26c03` 加了 `picture.visibility` 列，为的是给向量检索做可见性过滤。本轮把它去掉：
