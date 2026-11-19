@@ -59,6 +59,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -109,9 +110,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private PictureContentService pictureContentService;
 
-    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，调用点统一判空
-    @Autowired(required = false)
-    private PictureEmbeddingService pictureEmbeddingService;
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，调用点统一判空。
+    // 用 ObjectProvider 而不是直接注入：PictureEmbeddingServiceImpl 自己依赖
+    // PictureService，直接注入会形成循环引用，而 Spring Boot 默认禁止循环引用，
+    // 只有开启 RAG 的部署才会在启动期炸掉。
+    @Autowired
+    private ObjectProvider<PictureEmbeddingService> pictureEmbeddingServiceProvider;
 
     @Resource
     private UploadQuotaManager uploadQuotaManager;
@@ -343,7 +347,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (picture.getReviewStatus() != null
                 && picture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
                 && picture.getSpaceId() == null) {
-            pictureEmbeddingService.generateAndStoreEmbedding(picture);
+            PictureEmbeddingService embeddings = embeddingService();
+            if (embeddings != null) {
+                embeddings.generateAndStoreEmbedding(picture);
+            }
         }
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
@@ -610,8 +617,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 && pictureReviewRequest.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
                 && oldPicture.getSpaceId() == null) {
             Picture reviewedPicture = this.getById(id);
-            if (reviewedPicture != null) {
-                pictureEmbeddingService.generateAndStoreEmbedding(reviewedPicture);
+            PictureEmbeddingService embeddings = embeddingService();
+            if (reviewedPicture != null && embeddings != null) {
+                embeddings.generateAndStoreEmbedding(reviewedPicture);
             }
         }
     }
@@ -801,8 +809,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return lockedPicture;
         });
         // 异步删除向量嵌入
-        if (pictureEmbeddingService != null) {
-            pictureEmbeddingService.deleteEmbedding(pictureId);
+        PictureEmbeddingService embeddings = embeddingService();
+        if (embeddings != null) {
+            embeddings.deleteEmbedding(pictureId);
         }
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容
@@ -834,7 +843,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 异步更新向量嵌入（仅审核通过的公开图片）
         if (oldPicture.getSpaceId() == null && oldPicture.getReviewStatus() != null
                 && oldPicture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())) {
-            pictureEmbeddingService.updateEmbedding(oldPicture);
+            PictureEmbeddingService embeddings = embeddingService();
+            if (embeddings != null) {
+                embeddings.updateEmbedding(oldPicture);
+            }
         }
     }
 
@@ -1095,6 +1107,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             log.error("名称解析错误", e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "名称解析错误");
         }
+    }
+
+    /**
+     * 站内向量检索（RAG）未启用时返回 null，调用方一律判空。
+     */
+    private PictureEmbeddingService embeddingService() {
+        return pictureEmbeddingServiceProvider.getIfAvailable();
     }
 }
 
