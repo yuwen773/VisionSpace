@@ -29,9 +29,4 @@ public interface StorageConfigService extends IService<StorageConfig> {
      * 获取所有配置列表（凭证脱敏）
      */
     List<StorageConfigVO> listStorageConfigVO(StorageConfigQueryRequest queryRequest, HttpServletRequest request);
-
-    /**
-     * 获取当前激活的平台配置
-     */
-    StorageConfig getActiveStorageConfig();
 }

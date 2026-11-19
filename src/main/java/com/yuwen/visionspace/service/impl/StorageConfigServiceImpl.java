@@ -233,10 +233,4 @@ public class StorageConfigServiceImpl extends ServiceImpl<StorageConfigMapper, S
         vo.setHasSecretKey(config.getSecretKey() != null && !config.getSecretKey().isBlank());
         return vo;
     }
-
-    @Override
-    public StorageConfig getActiveStorageConfig() {
-        return this.getOne(new LambdaQueryWrapper<StorageConfig>()
-                .eq(StorageConfig::getIsActive, 1));
-    }
 }

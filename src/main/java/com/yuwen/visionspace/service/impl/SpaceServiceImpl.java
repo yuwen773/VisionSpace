@@ -55,7 +55,6 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     // 为了方便部署，注释掉分表
 //    @Resource
 //    @Lazy
-//    private DynamicShardingManager dynamicShardingManager;
 
     /**
      * 创建空间
