@@ -27,6 +27,15 @@ spring:
           max-idle: 8
           max-wait: -1
       connect-timeout: 3000
+  # 排除 OpenAI 的 embedding 自动配置。它的开关是 spring.ai.model.embedding（单值），
+  # 而 DashScope 的开关是 spring.ai.model.embedding.text，两者不是同一个属性：只设
+  # .text=dashscope 时 OpenAI 那侧仍按 matchIfMissing 命中，容器里就有了两个
+  # EmbeddingModel，ChromaVectorStore 自动配置会以
+  # 「required a single bean, but 2 were found」启动失败。
+  # 站内检索用 DashScope 嵌入，OpenAI 的 embedding 在本项目没有使用者。
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   # 外部服务密钥
   ai:
     openai:
