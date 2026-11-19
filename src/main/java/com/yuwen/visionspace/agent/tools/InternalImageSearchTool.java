@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "vision-space.rag", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
 public class InternalImageSearchTool {
 
     @Resource
@@ -45,7 +45,7 @@ public class InternalImageSearchTool {
                     .topK(k)
                     .similarityThreshold(0.0);
 
-            Filter.Expression filter = visibilityFilter(currentSpaceId, currentUserId, isAdmin);
+            Filter.Expression filter = accessScopeFilter(currentSpaceId, currentUserId, isAdmin);
             if (filter != null) {
                 builder.filterExpression(filter);
             }
@@ -76,17 +76,18 @@ public class InternalImageSearchTool {
     }
 
     /**
-     * 可见性过滤。索引里只有「公开图库」（spaceId=0）与被判定为 public 的图片，
-     * 所以默认只返回公开图库；用户在自己的空间里可以额外看到自己的图片。
+     * 可见范围过滤。索引只收「已审核通过的公开图库图片」（spaceId 为空），
+     * 所以默认只返回公开图库；用户在自己空间里可以看到本空间内自己的图片。
      * 管理员不加限制。
+     *
+     * <p>这里不引入 visibility 列：真正决定可见性的仍是审核状态与空间归属，
+     * 再加一个可见性字段等于用 schema 变更去表达同一件事。</p>
      */
-    private Filter.Expression visibilityFilter(Long currentSpaceId, Long currentUserId, Boolean isAdmin) {
+    private Filter.Expression accessScopeFilter(Long currentSpaceId, Long currentUserId, Boolean isAdmin) {
         if (isAdmin != null && isAdmin) {
             return null;
         }
-        Filter.Expression gallery = and(
-                eq("spaceId", 0L),
-                eq("visibility", "public"));
+        Filter.Expression gallery = eq("spaceId", 0L);
         if (currentSpaceId != null && currentUserId != null) {
             return new Filter.Expression(Filter.ExpressionType.OR, gallery,
                     and(eq("spaceId", currentSpaceId), eq("userId", currentUserId)));

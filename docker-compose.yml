@@ -92,8 +92,9 @@ services:
       VISION_SPACE_VISION_RECOGNITION_BASE_URL: ${VISION_SPACE_VISION_RECOGNITION_BASE_URL:-https://www.dmxapi.cn}
       VISION_SPACE_VISION_RECOGNITION_MODEL: ${VISION_SPACE_VISION_RECOGNITION_MODEL:-GLM-4.1V-Thinking-Flash}
       VISION_SPACE_DEFAULT_PASSWORD: ${VISION_SPACE_DEFAULT_PASSWORD:?required in prod}
-      # 站内图片检索（RAG）。关掉它就不连 chromadb，其余功能不受影响。
-      VISION_SPACE_RAG_ENABLED: ${VISION_SPACE_RAG_ENABLED:-true}
+      # 站内图片检索（RAG）默认开启，连下面的 chromadb 服务。
+      # 不跑向量库的部署同时置 SPRING_AI_MODEL_EMBEDDING_TEXT=none 与
+      # SPRING_AI_VECTORSTORE_TYPE=none，整条链路就不装配了。
       VISION_SPACE_CHROMA_HOST: ${VISION_SPACE_CHROMA_HOST:-http://chromadb}
       VISION_SPACE_CHROMA_PORT: ${VISION_SPACE_CHROMA_PORT:-8000}
     depends_on:

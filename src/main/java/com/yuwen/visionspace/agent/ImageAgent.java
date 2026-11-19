@@ -54,6 +54,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.List;
@@ -244,7 +245,7 @@ public class ImageAgent {
      * 关闭时不能把 null 传给 methodTools（框架会当成一个无方法工具）。
      */
     private Object[] methodTools() {
-        List<Object> tools = new java.util.ArrayList<>(List.of(
+        List<Object> tools = new ArrayList<>(List.of(
                 imageSearchTool, imageGeneratorTool, qualityEvaluatorTool,
                 similarImageSearchTool, imageFeatureAnalyzerTool));
         if (internalImageSearchTool != null) {

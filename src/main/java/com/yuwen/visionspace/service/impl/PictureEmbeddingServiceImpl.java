@@ -27,7 +27,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(prefix = "vision-space.rag", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
 public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
     private static final String DOC_ID_PREFIX = "picture_";
@@ -163,7 +163,6 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("picColor", picture.getPicColor() != null ? picture.getPicColor() : "");
         metadata.put("spaceId", picture.getSpaceId() != null ? picture.getSpaceId() : 0L);
         metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
-        metadata.put("visibility", picture.getVisibility() != null ? picture.getVisibility() : "public");
         metadata.put("indexedAt", System.currentTimeMillis());
         return metadata;
     }

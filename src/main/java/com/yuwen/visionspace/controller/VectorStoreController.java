@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RestController
 @RequestMapping("/vector-store")
-@ConditionalOnProperty(prefix = "vision-space.rag", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
 public class VectorStoreController {
 
     @Resource

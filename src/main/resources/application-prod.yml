@@ -31,17 +31,24 @@ spring:
   ai:
     openai:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
-    dashscope:
-      api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
+    # 站内图片检索（RAG）：生产随 compose 起 Chroma，因此默认开启。
+    # 没有 Chroma 的部署把这两项都置 none（标准环境变量
+    # SPRING_AI_MODEL_EMBEDDING_TEXT=none / SPRING_AI_VECTORSTORE_TYPE=none 即可覆盖）。
+    model:
       embedding:
-        enabled: ${VISION_SPACE_RAG_ENABLED:true}
+        text: dashscope
     vectorstore:
+      type: chroma
       chroma:
-        enabled: ${VISION_SPACE_RAG_ENABLED:true}
         client:
-          # compose 里的 chromadb 服务；外部部署时用 VISION_SPACE_CHROMA_HOST 覆盖
+          # compose 里的 chromadb 服务；外部部署时覆盖 VISION_SPACE_CHROMA_HOST
           host: ${VISION_SPACE_CHROMA_HOST:http://chromadb}
           port: ${VISION_SPACE_CHROMA_PORT:8000}
+        collection-name: ${VISION_SPACE_CHROMA_COLLECTION:picture_vectors}
+        # 建集合发生在建连时；RAG 关闭时根本不会走到这里
+        initialize-schema: true
+    dashscope:
+      api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
 management:
   server:
     # 管理端口与业务端口分离，且只绑定回环地址：容器内 127.0.0.1 之外的
@@ -78,9 +85,6 @@ sa-token:
     http-only: true
     same-site: strict
 vision-space:
-  # 生产随 compose 一起起 Chroma；没有 Chroma 的部署显式设 VISION_SPACE_RAG_ENABLED=false
-  rag:
-    enabled: ${VISION_SPACE_RAG_ENABLED:true}
   security:
     default-password: ${VISION_SPACE_DEFAULT_PASSWORD:}
     # 新摘要成本；存量低成本摘要会在成功登录后逐次升级

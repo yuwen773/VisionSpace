@@ -29,6 +29,12 @@ spring:
       chat:
         options:
           model: acceptance-model
+    # 隔离验收没有 Chroma，也没有 embedding 配额：站内检索整条链路不装配
+    model:
+      embedding:
+        text: none
+    vectorstore:
+      type: none
     dashscope:
       api-key: acceptance-dummy
     mcp:
@@ -43,9 +49,6 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 vision-space:
-  # 隔离验收没有 Chroma，也没有 embedding 配额：站内检索整条链路关闭
-  rag:
-    enabled: false
   # 候选验证的 bucketExists 探活需要真实云存储，隔离验收显式关闭（生产默认开启）
   storage:
     candidate-probe-enabled: false
