@@ -131,4 +131,34 @@ RAG 关闭时该工具不存在，模型拿不到它，只是白写了一句指�
 
 ## 6. 验收
 
-见文末「验收记录」。
+`scripts/acceptance.ps1`（不带参数，隔离 MySQL + Redis 容器），head `ac4718e`，
+runId `73982b524dc4431dadc6b395124b1d89`，14 个门禁全 PASS：
+
+| 门禁 | 结果 | 数量 |
+| --- | --- | --- |
+| runner-tests | PASS | 3 |
+| secret-scan | PASS | 890 个候选文件，0 命中 |
+| isolation | PASS | |
+| backend | PASS | 723 个测试，0 失败 |
+| frontend-install | PASS | |
+| frontend-lint | PASS | |
+| frontend-format | PASS | |
+| frontend-typecheck | PASS | |
+| frontend-tests | PASS | 210 个测试 / 27 个文件 |
+| frontend-build | PASS | |
+| asset-color-calibration | PASS | |
+| asset-search-browser | PASS | 3 个浏览器 IT |
+| frontend-api-contract | PASS | 生成客户端与契约逐字节一致 |
+| cleanup | PASS | |
+
+过程中出现过两次环境性失败，都不是代码问题，记录在此以免下次误判：
+
+1. **`frontend-install` 超时被掐断**导致后续 `backend` 报
+   `Cannot find package 'playwright-core'`。npm ci 在本机只有 ~100 KB/s 单连接带宽，
+   686 MB 的 `node_modules` 要跑近一小时；被中断时留下半截 `node_modules`，而
+   `backend` 阶段在 `frontend-install` 之前执行，于是浏览器用例拿不到 `playwright-core`。
+   缓存灌满后重跑即通过。
+2. **`frontend-format`** 失败是 cherry-pick 冲突解决时漏跑 prettier（`AssistantMessage.vue`
+   的 `v-for` div 被拆成多行），`ac4718e` 修掉。
+
+`productionAcceptance` 为 `NOT_RUN`——生产库核对与真实部署不在本轮自动执行范围内。
