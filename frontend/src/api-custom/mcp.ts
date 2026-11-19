@@ -25,13 +25,6 @@ export const deleteMcpServer = (mcpServerCode: string) =>
   request(`/api/mcp-server/${mcpServerCode}`, { method: 'DELETE' })
 
 /**
- * 获取 MCP Server 详情
- * GET /api/mcp-server/{mcpServerCode}
- */
-export const getMcpServer = (mcpServerCode: string, needTools = false) =>
-  request(`/api/mcp-server/${mcpServerCode}`, { params: { needTools } })
-
-/**
  * 获取 MCP Server 列表
  * GET /api/mcp-server
  */
