@@ -76,11 +76,3 @@ export function toId(value: number | string | null | undefined): number | undefi
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max)
 }
-
-export function debounce<T extends (...args: unknown[]) => void>(func: T, wait: number) {
-  let timeout: number
-  return function (this: unknown, ...args: Parameters<T>) {
-    window.clearTimeout(timeout)
-    timeout = window.setTimeout(() => func.apply(this, args), wait)
-  }
-}

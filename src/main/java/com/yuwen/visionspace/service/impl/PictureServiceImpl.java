@@ -41,6 +41,7 @@ import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.vo.UserVO;
 import com.yuwen.visionspace.service.PictureContentService;
+import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureFileService;
 import com.yuwen.visionspace.service.PicturePreviewService;
 import com.yuwen.visionspace.service.PictureService;
@@ -58,6 +59,8 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -106,6 +109,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private PictureContentService pictureContentService;
+
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，调用点统一判空。
+    // 用 ObjectProvider 而不是直接注入：PictureEmbeddingServiceImpl 自己依赖
+    // PictureService，直接注入会形成循环引用，而 Spring Boot 默认禁止循环引用，
+    // 只有开启 RAG 的部署才会在启动期炸掉。
+    @Autowired
+    private ObjectProvider<PictureEmbeddingService> pictureEmbeddingServiceProvider;
 
     @Resource
     private UploadQuotaManager uploadQuotaManager;
@@ -333,6 +343,15 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             throw e;
         }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
+        // 异步生成向量嵌入（仅审核通过的公开图片）
+        if (picture.getReviewStatus() != null
+                && picture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
+                && picture.getSpaceId() == null) {
+            PictureEmbeddingService embeddings = embeddingService();
+            if (embeddings != null) {
+                embeddings.generateAndStoreEmbedding(picture);
+            }
+        }
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         PictureVO pictureVO = PictureVO.objToVo(picture);
@@ -593,6 +612,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         updatePicture.setReviewTime(new Date());
         boolean result = this.updateById(updatePicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 审核通过且为公开图片时，异步生成向量嵌入
+        if (pictureReviewRequest.getReviewStatus() != null
+                && pictureReviewRequest.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
+                && oldPicture.getSpaceId() == null) {
+            Picture reviewedPicture = this.getById(id);
+            PictureEmbeddingService embeddings = embeddingService();
+            if (reviewedPicture != null && embeddings != null) {
+                embeddings.generateAndStoreEmbedding(reviewedPicture);
+            }
+        }
     }
 
     /**
@@ -779,6 +808,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return lockedPicture;
         });
+        // 异步删除向量嵌入
+        PictureEmbeddingService embeddings = embeddingService();
+        if (embeddings != null) {
+            embeddings.deleteEmbedding(pictureId);
+        }
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容
         this.clearPictureFile(deletedPicture);
@@ -806,6 +840,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 异步更新向量嵌入（仅审核通过的公开图片）
+        if (oldPicture.getSpaceId() == null && oldPicture.getReviewStatus() != null
+                && oldPicture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())) {
+            PictureEmbeddingService embeddings = embeddingService();
+            if (embeddings != null) {
+                embeddings.updateEmbedding(oldPicture);
+            }
+        }
     }
 
     /**
@@ -1033,6 +1075,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         return aliYunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
     }
 
+    @Override
+    public List<Picture> listApprovedPublicPictures() {
+        return this.lambdaQuery()
+                .select(Picture::getId, Picture::getUrl, Picture::getThumbnailUrl,
+                        Picture::getName, Picture::getIntroduction, Picture::getCategory,
+                        Picture::getTags, Picture::getPicColor, Picture::getUserId,
+                        Picture::getSpaceId, Picture::getReviewStatus)
+                .isNull(Picture::getSpaceId)
+                .eq(Picture::getReviewStatus, PictureReviewStatusEnum.PASS.getValue())
+                .list();
+    }
+
     /**
      * nameRule 格式：图片{序号}
      *
@@ -1053,6 +1107,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             log.error("名称解析错误", e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "名称解析错误");
         }
+    }
+
+    /**
+     * 站内向量检索（RAG）未启用时返回 null，调用方一律判空。
+     */
+    private PictureEmbeddingService embeddingService() {
+        return pictureEmbeddingServiceProvider.getIfAvailable();
     }
 }
 

@@ -8,7 +8,6 @@ import com.yuwen.visionspace.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yuwen.visionspace.model.vo.SpaceUserVO;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
@@ -44,15 +43,6 @@ public interface SpaceUserService extends IService<SpaceUser> {
      * @param add       是否为创建时检验
      */
     void validSpaceUser(SpaceUser spaceUser, boolean add);
-
-    /**
-     * 获取空间成员包装类（单条）
-     *
-     * @param spaceUser
-     * @param request
-     * @return
-     */
-    SpaceUserVO getSpaceUserVO(SpaceUser spaceUser, HttpServletRequest request);
 
     /**
      * 获取空间成员包装类（列表）

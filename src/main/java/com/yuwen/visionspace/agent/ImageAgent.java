@@ -37,6 +37,7 @@ import com.yuwen.visionspace.agent.tools.ImageGeneratorTool;
 import com.yuwen.visionspace.agent.tools.ImageFeatureAnalyzerTool;
 import com.yuwen.visionspace.agent.tools.QualityEvaluatorTool;
 import com.yuwen.visionspace.agent.tools.SimilarImageSearchTool;
+import com.yuwen.visionspace.agent.tools.InternalImageSearchTool;
 import com.yuwen.visionspace.agent.service.UserPreferenceService;
 import com.yuwen.visionspace.utils.JsonUtils;
 import com.yuwen.visionspace.model.dto.agent.AgentChatRequest;
@@ -49,9 +50,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.List;
@@ -91,6 +94,10 @@ public class ImageAgent {
 
     @Resource
     private ImageFeatureAnalyzerTool imageFeatureAnalyzerTool;
+
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，装配工具时跳过
+    @Autowired(required = false)
+    private InternalImageSearchTool internalImageSearchTool;
 
     @Resource
     private UserPreferenceService userPreferenceService;
@@ -148,14 +155,16 @@ public class ImageAgent {
             1. 调用 analyzeImageFeatures 分析图片（获取内容描述、色调、风格、氛围、搜索关键词）
             2. 向用户简要展示分析结果，确认理解是否准确
             3. 根据分析结果选择搜索策略：
-               a. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
-               b. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
-               c. 两种方式可结合使用
+               a. 调用 searchInternalImages 用分析结果中的关键词搜索站内图片库
+               b. 调用 searchSimilarImages 以图搜图（寻找视觉相似的图片）
+               c. 用分析结果中的 searchKeywords 调用 searchContentImages 关键词搜索（寻找同类型图片）
+               d. 以上方式可结合使用，优先站内搜索
             4. 如果以图搜图失败，直接用 searchKeywords 作为降级方案搜索
 
             #### 用户用文字描述需求
-            1. 根据描述提取关键词，调用 searchContentImages 搜索
-            2. 可按需调用 searchIllustrations 搜索插画
+            1. 首先调用 searchInternalImages 在站内图片库中搜索匹配的图片
+            2. 如果站内搜索结果不足，再调用 searchContentImages 从 Pexels 搜索补充
+            3. 可按需调用 searchIllustrations 搜索插画
 
             #### 通用后续步骤
             - 调用 evaluateImageQuality 评估搜索结果
@@ -231,6 +240,20 @@ public class ImageAgent {
             - 禁止直接用文字描述图表而不输出代码
             """;
 
+    /**
+     * 装配给 Agent 的工具列表。站内向量检索只在 RAG 打开时存在，
+     * 关闭时不能把 null 传给 methodTools（框架会当成一个无方法工具）。
+     */
+    private Object[] methodTools() {
+        List<Object> tools = new ArrayList<>(List.of(
+                imageSearchTool, imageGeneratorTool, qualityEvaluatorTool,
+                similarImageSearchTool, imageFeatureAnalyzerTool));
+        if (internalImageSearchTool != null) {
+            tools.add(internalImageSearchTool);
+        }
+        return tools.toArray();
+    }
+
     @PostConstruct
     public void init() {
         // 创建人工介入 Hook - 仅拦截 generateImages（AIGC 生成前需用户确认）
@@ -244,7 +267,7 @@ public class ImageAgent {
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
+                .methodTools(methodTools())
                 .hooks(List.of(
                         hitlHook,
                         iterationControlHook,
@@ -683,7 +706,7 @@ public class ImageAgent {
                 .name("image_assistant_mcp")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool)
+                .methodTools(methodTools())
                 .tools(mcpCallbacks)
                 .hooks(List.of(
                         hitlHook,

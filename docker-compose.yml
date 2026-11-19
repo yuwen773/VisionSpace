@@ -50,6 +50,20 @@ services:
     networks:
       - internal
 
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:1.0.0
+    restart: unless-stopped
+    # 不发布 ports：向量库只留在 internal 网络，向量内容不经宿主暴露
+    expose:
+      - "8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - internal
+
   backend:
     build:
       context: .
@@ -78,11 +92,19 @@ services:
       VISION_SPACE_VISION_RECOGNITION_BASE_URL: ${VISION_SPACE_VISION_RECOGNITION_BASE_URL:-https://www.dmxapi.cn}
       VISION_SPACE_VISION_RECOGNITION_MODEL: ${VISION_SPACE_VISION_RECOGNITION_MODEL:-GLM-4.1V-Thinking-Flash}
       VISION_SPACE_DEFAULT_PASSWORD: ${VISION_SPACE_DEFAULT_PASSWORD:?required in prod}
+      # 站内图片检索（RAG）默认开启，连下面的 chromadb 服务。
+      # 不跑向量库的部署同时置 SPRING_AI_MODEL_EMBEDDING_TEXT=none 与
+      # SPRING_AI_VECTORSTORE_TYPE=none，整条链路就不装配了。
+      VISION_SPACE_CHROMA_HOST: ${VISION_SPACE_CHROMA_HOST:-http://chromadb}
+      VISION_SPACE_CHROMA_PORT: ${VISION_SPACE_CHROMA_PORT:-8000}
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # Chroma 没有可靠的健康探针：容器起来即可，建集合失败由 restart 兜底重试
+      chromadb:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9081/actuator/health/readiness || exit 1"]
       interval: 10s
@@ -97,6 +119,7 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  chroma-data:
 
 networks:
   internal:

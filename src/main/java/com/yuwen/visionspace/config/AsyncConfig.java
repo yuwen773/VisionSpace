@@ -51,6 +51,19 @@ public class AsyncConfig implements SchedulingConfigurer {
         return executor;
     }
 
+    @Bean("embeddingExecutor")
+    public Executor embeddingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);    // 原: 2
+        executor.setMaxPoolSize(8);    // 原: 4
+        executor.setQueueCapacity(200); // 原: 100
+        executor.setKeepAliveSeconds(60);
+        executor.setThreadNamePrefix("embedding-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
     @Override
     public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
         taskRegistrar.setTaskScheduler(taskScheduler());

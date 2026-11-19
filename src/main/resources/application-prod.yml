@@ -27,10 +27,35 @@ spring:
           max-idle: 8
           max-wait: -1
       connect-timeout: 3000
+  # 排除 OpenAI 的 embedding 自动配置。它的开关是 spring.ai.model.embedding（单值），
+  # 而 DashScope 的开关是 spring.ai.model.embedding.text，两者不是同一个属性：只设
+  # .text=dashscope 时 OpenAI 那侧仍按 matchIfMissing 命中，容器里就有了两个
+  # EmbeddingModel，ChromaVectorStore 自动配置会以
+  # 「required a single bean, but 2 were found」启动失败。
+  # 站内检索用 DashScope 嵌入，OpenAI 的 embedding 在本项目没有使用者。
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   # 外部服务密钥
   ai:
     openai:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
+    # 站内图片检索（RAG）：生产随 compose 起 Chroma，因此默认开启。
+    # 没有 Chroma 的部署把这两项都置 none（标准环境变量
+    # SPRING_AI_MODEL_EMBEDDING_TEXT=none / SPRING_AI_VECTORSTORE_TYPE=none 即可覆盖）。
+    model:
+      embedding:
+        text: dashscope
+    vectorstore:
+      type: chroma
+      chroma:
+        client:
+          # compose 里的 chromadb 服务；外部部署时覆盖 VISION_SPACE_CHROMA_HOST
+          host: ${VISION_SPACE_CHROMA_HOST:http://chromadb}
+          port: ${VISION_SPACE_CHROMA_PORT:8000}
+        collection-name: ${VISION_SPACE_CHROMA_COLLECTION:picture_vectors}
+        # 建集合发生在建连时；RAG 关闭时根本不会走到这里
+        initialize-schema: true
     dashscope:
       api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
 management:

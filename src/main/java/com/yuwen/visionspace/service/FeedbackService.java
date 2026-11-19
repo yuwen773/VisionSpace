@@ -19,11 +19,6 @@ public interface FeedbackService {
     long addFeedback(FeedbackAddRequest request, Long userId);
 
     /**
-     * 根据 ID 获取反馈详情。调用方必须先完成可见性判定。
-     */
-    FeedbackVO getFeedbackById(Long id);
-
-    /**
      * 读取反馈记录，不存在时拒绝。
      */
     UserFeedback getRequiredFeedback(Long id);

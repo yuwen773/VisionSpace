@@ -26,7 +26,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -107,27 +106,6 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         boolean isSpaceAdmin = SpaceRoleEnum.ADMIN.getValue().equals(membership.getSpaceRole());
         ThrowUtils.throwIf(!isSpaceAdmin,
                 ErrorCode.NO_AUTH_ERROR, "没有空间成员管理权限");
-    }
-
-    @Override
-    public SpaceUserVO getSpaceUserVO(SpaceUser spaceUser, HttpServletRequest request) {
-        // 对象转封装类
-        SpaceUserVO spaceUserVO = SpaceUserVO.objToVo(spaceUser);
-        // 关联查询用户信息
-        Long userId = spaceUser.getUserId();
-        if (userId != null && userId > 0) {
-            User user = userService.getById(userId);
-            UserVO userVO = userService.getUserVO(user);
-            spaceUserVO.setUser(userVO);
-        }
-        // 关联查询空间信息
-        Long spaceId = spaceUser.getSpaceId();
-        if (spaceId != null && spaceId > 0) {
-            Space space = spaceService.getById(spaceId);
-            SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
-            spaceUserVO.setSpace(spaceVO);
-        }
-        return spaceUserVO;
     }
 
     @Override

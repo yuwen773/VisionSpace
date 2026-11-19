@@ -29,6 +29,12 @@ spring:
       chat:
         options:
           model: acceptance-model
+    # 隔离验收没有 Chroma，也没有 embedding 配额：站内检索整条链路不装配
+    model:
+      embedding:
+        text: none
+    vectorstore:
+      type: none
     dashscope:
       api-key: acceptance-dummy
     mcp:

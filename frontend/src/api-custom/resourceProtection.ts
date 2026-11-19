@@ -37,9 +37,6 @@ export const GRANT_DEFAULT_VALIDITY_DAYS = 7
 /** 单次授权的最长有效期（天）；与服务端 ResourceAccessGrantServiceImpl.MAX_VALIDITY 一致 */
 export const GRANT_MAX_VALIDITY_DAYS = 30
 
-/** 授权状态 */
-export type GrantStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'UNKNOWN'
-
 /** 授权状态文案 */
 const GRANT_STATUS_TEXT: Record<string, string> = {
   ACTIVE: '生效中',

@@ -8,14 +8,15 @@
 
       <!-- 内联缩略图：只渲染受控来源，避免把消息里的任意地址发出去 -->
       <div v-if="loadableImages.length > 0" class="message-images">
-        <img
-          v-for="(img, index) in loadableImages"
-          :key="index"
-          :src="img.url"
-          :alt="img.title || '图片'"
-          referrerpolicy="no-referrer"
-          @click="emit('previewImage', img.url)"
-        />
+        <div v-for="(img, index) in loadableImages" :key="index" class="image-thumb-wrapper">
+          <img
+            :src="img.url"
+            :alt="img.title || '图片'"
+            referrerpolicy="no-referrer"
+            @click="emit('previewImage', img.url)"
+          />
+          <span v-if="img.source === 'internal'" class="source-badge internal">站内</span>
+        </div>
       </div>
 
       <!-- 资源触发按钮 -->
@@ -707,6 +708,28 @@ const copyContent = async () => {
 
 .message-images img:hover {
   transform: scale(1.05);
+}
+
+.image-thumb-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.source-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.source-badge.internal {
+  background: rgba(34, 197, 94, 0.85);
+  color: #fff;
 }
 
 /* 资源触发按钮 */

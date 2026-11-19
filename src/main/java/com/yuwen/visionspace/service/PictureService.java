@@ -167,4 +167,9 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser);
+
+    /**
+     * 查询所有审核通过的公开图片
+     */
+    List<Picture> listApprovedPublicPictures();
 }

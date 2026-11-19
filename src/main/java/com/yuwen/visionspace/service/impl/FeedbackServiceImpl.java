@@ -82,11 +82,6 @@ public class FeedbackServiceImpl implements FeedbackService {
     }
 
     @Override
-    public FeedbackVO getFeedbackById(Long id) {
-        return getFeedbackVO(getRequiredFeedback(id), null);
-    }
-
-    @Override
     public UserFeedback getRequiredFeedback(Long id) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         UserFeedback feedback = feedbackMapper.selectById(id);
