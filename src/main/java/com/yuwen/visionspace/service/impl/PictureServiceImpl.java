@@ -59,6 +59,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -108,7 +109,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private PictureContentService pictureContentService;
 
-    @Resource
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，调用点统一判空
+    @Autowired(required = false)
     private PictureEmbeddingService pictureEmbeddingService;
 
     @Resource
@@ -799,7 +801,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return lockedPicture;
         });
         // 异步删除向量嵌入
-        pictureEmbeddingService.deleteEmbedding(pictureId);
+        if (pictureEmbeddingService != null) {
+            pictureEmbeddingService.deleteEmbedding(pictureId);
+        }
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容
         this.clearPictureFile(deletedPicture);

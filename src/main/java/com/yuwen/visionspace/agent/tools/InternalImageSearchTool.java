@@ -10,6 +10,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import jakarta.annotation.Resource;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "vision-space.rag", name = "enabled", havingValue = "true")
 public class InternalImageSearchTool {
 
     @Resource
@@ -38,29 +40,14 @@ public class InternalImageSearchTool {
         List<ImageResource> results = new ArrayList<>();
 
         try {
-            SearchRequest.SearchRequestBuilder builder = SearchRequest.builder()
+            SearchRequest.Builder builder = SearchRequest.builder()
                     .query(query)
                     .topK(k)
                     .similarityThreshold(0.0);
 
-            // 非管理员用户需要权限过滤
-            if (currentSpaceId != null && (isAdmin == null || !isAdmin)) {
-                Filter.Expression filter;
-                if (currentUserId != null) {
-                    filter = Filter.and(
-                            Filter.eq("spaceId", currentSpaceId),
-                            Filter.or(
-                                    Filter.eq("visibility", "public"),
-                                    Filter.eq("userId", currentUserId)
-                            )
-                    );
-                } else {
-                    filter = Filter.and(
-                            Filter.eq("spaceId", currentSpaceId),
-                            Filter.eq("visibility", "public")
-                    );
-                }
-                builder.filter(filter);
+            Filter.Expression filter = visibilityFilter(currentSpaceId, currentUserId, isAdmin);
+            if (filter != null) {
+                builder.filterExpression(filter);
             }
 
             List<Document> docs = vectorStore.similaritySearch(builder.build());
@@ -86,5 +73,33 @@ public class InternalImageSearchTool {
         }
 
         return results;
+    }
+
+    /**
+     * 可见性过滤。索引里只有「公开图库」（spaceId=0）与被判定为 public 的图片，
+     * 所以默认只返回公开图库；用户在自己的空间里可以额外看到自己的图片。
+     * 管理员不加限制。
+     */
+    private Filter.Expression visibilityFilter(Long currentSpaceId, Long currentUserId, Boolean isAdmin) {
+        if (isAdmin != null && isAdmin) {
+            return null;
+        }
+        Filter.Expression gallery = and(
+                eq("spaceId", 0L),
+                eq("visibility", "public"));
+        if (currentSpaceId != null && currentUserId != null) {
+            return new Filter.Expression(Filter.ExpressionType.OR, gallery,
+                    and(eq("spaceId", currentSpaceId), eq("userId", currentUserId)));
+        }
+        return gallery;
+    }
+
+    private static Filter.Expression eq(String key, Object value) {
+        return new Filter.Expression(Filter.ExpressionType.EQ,
+                new Filter.Key(key), new Filter.Value(value));
+    }
+
+    private static Filter.Expression and(Filter.Expression left, Filter.Expression right) {
+        return new Filter.Expression(Filter.ExpressionType.AND, left, right);
     }
 }

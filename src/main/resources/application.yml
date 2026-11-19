@@ -64,7 +64,6 @@ vision-space:
     read-timeout-seconds: 5
   # 阿里云 AI 配置
   aliyun-ai:
-    base-url: "https://dashscope.aliyuncs.com/api/v1"
     create-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting"
     get-out-painting-task: "https://dashscope.aliyuncs.com/api/v1/tasks/%s"
   # 图片识别服务：非秘密参数给默认值，秘密一律从环境变量注入。
@@ -120,6 +119,11 @@ vision-space:
       author-window-size: 20
       author-max-count: 2
       category-max-consecutive: 3
+  # 站内图片检索（RAG）：与 spring.ai.dashscope.embedding / vectorstore.chroma 开关同源。
+  # 关闭时 PictureEmbeddingService、InternalImageSearchTool、VectorStoreController
+  # 都不创建，图片增删改查与 Agent 工具装配按“没有站内检索”走。
+  rag:
+    enabled: ${VISION_SPACE_RAG_ENABLED:false}
   # 图片统计聚合配置
   picture-stats:
     aggregate:
@@ -158,6 +162,23 @@ spring:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
     dashscope:
       api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
+      # 站内图片检索（RAG）用的向量模型。默认关闭：关闭时既不创建 EmbeddingModel，
+      # 也不连向量库，没有 Chroma / 没有 embedding 配额的环境照常启动。
+      embedding:
+        enabled: ${VISION_SPACE_RAG_ENABLED:false}
+        options:
+          model: ${VISION_SPACE_EMBEDDING_MODEL:qwen3-vl-embedding}
+          # 多模态融合：文本与图片映射到同一向量空间，才能用文字搜图
+          enable_fusion: true
+    vectorstore:
+      chroma:
+        enabled: ${VISION_SPACE_RAG_ENABLED:false}
+        client:
+          host: ${VISION_SPACE_CHROMA_HOST:http://localhost}
+          port: ${VISION_SPACE_CHROMA_PORT:8000}
+        collection-name: ${VISION_SPACE_CHROMA_COLLECTION:picture_vectors}
+        # 建集合在建连时发生，因此 RAG 关闭时这一项不会被执行
+        initialize-schema: true
   # 数据库配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

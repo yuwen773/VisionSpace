@@ -5,11 +5,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.content.Media;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+import org.springframework.util.MimeType;
 import org.springframework.util.MimeTypeUtils;
 
 import java.time.Duration;
@@ -60,20 +62,29 @@ public class VlCaptionServiceImpl implements VlCaptionService {
             log.warn("Redis 缓存读取失败，继续调用 AI, imageUrl={}", imageUrl, e);
         }
 
-        // 2. 构建多模态消息
-        Media media = new Media(MimeTypeUtils.IMAGE_JPEG, new UrlResource(imageUrl));
-        UserMessage userMessage = new UserMessage(PROMPT, List.of(media));
+        // 2. 构建多模态消息（URL 非法时直接放弃，不让一张坏图打断索引流程）
+        UserMessage userMessage;
+        try {
+            Media media = new Media(mimeTypeOf(imageUrl), new UrlResource(imageUrl));
+            userMessage = UserMessage.builder()
+                    .text(PROMPT)
+                    .media(List.of(media))
+                    .build();
+        } catch (Exception e) {
+            log.warn("图片地址无法加载，跳过 VlCaption 生成, imageUrl={}", imageUrl, e);
+            return "{}";
+        }
 
         // 3. 调用轻量视觉模型
         try {
-            String response = chatClient.prompt()
+            ChatResponse chatResponse = chatClient.prompt()
                     .messages(userMessage)
                     .call()
-                    .chatResponse()
-                    .orElseThrow(() -> new RuntimeException("AI 调用返回为空"))
-                    .getResult()
-                    .getOutput()
-                    .getText();
+                    .chatResponse();
+            if (chatResponse == null || chatResponse.getResult() == null) {
+                throw new IllegalStateException("AI 调用返回为空");
+            }
+            String response = chatResponse.getResult().getOutput().getText();
 
             if (response == null || response.isBlank()) {
                 log.warn("AI 返回为空, imageUrl={}", imageUrl);
@@ -93,5 +104,27 @@ public class VlCaptionServiceImpl implements VlCaptionService {
             log.error("VlCaption 生成失败, imageUrl={}", imageUrl, e);
             return "{}";
         }
+    }
+
+    /**
+     * 按扩展名推断图片 MIME：DashScope 的视觉接口会用这个值解析图片，
+     * 全部按 JPEG 声明会让 png/webp 被当成坏图。
+     */
+    private static MimeType mimeTypeOf(String imageUrl) {
+        String path = imageUrl == null ? "" : imageUrl.toLowerCase();
+        int q = path.indexOf('?');
+        if (q >= 0) {
+            path = path.substring(0, q);
+        }
+        if (path.endsWith(".png")) {
+            return MimeTypeUtils.IMAGE_PNG;
+        }
+        if (path.endsWith(".webp")) {
+            return MimeType.valueOf("image/webp");
+        }
+        if (path.endsWith(".gif")) {
+            return MimeTypeUtils.IMAGE_GIF;
+        }
+        return MimeTypeUtils.IMAGE_JPEG;
     }
 }

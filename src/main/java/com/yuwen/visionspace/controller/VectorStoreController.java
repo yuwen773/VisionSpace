@@ -7,6 +7,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RestController
 @RequestMapping("/vector-store")
+@ConditionalOnProperty(prefix = "vision-space.rag", name = "enabled", havingValue = "true")
 public class VectorStoreController {
 
     @Resource

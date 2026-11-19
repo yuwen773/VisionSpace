@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -93,7 +94,8 @@ public class ImageAgent {
     @Resource
     private ImageFeatureAnalyzerTool imageFeatureAnalyzerTool;
 
-    @Resource
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，装配工具时跳过
+    @Autowired(required = false)
     private InternalImageSearchTool internalImageSearchTool;
 
     @Resource
@@ -237,6 +239,20 @@ public class ImageAgent {
             - 禁止直接用文字描述图表而不输出代码
             """;
 
+    /**
+     * 装配给 Agent 的工具列表。站内向量检索只在 RAG 打开时存在，
+     * 关闭时不能把 null 传给 methodTools（框架会当成一个无方法工具）。
+     */
+    private Object[] methodTools() {
+        List<Object> tools = new java.util.ArrayList<>(List.of(
+                imageSearchTool, imageGeneratorTool, qualityEvaluatorTool,
+                similarImageSearchTool, imageFeatureAnalyzerTool));
+        if (internalImageSearchTool != null) {
+            tools.add(internalImageSearchTool);
+        }
+        return tools.toArray();
+    }
+
     @PostConstruct
     public void init() {
         // 创建人工介入 Hook - 仅拦截 generateImages（AIGC 生成前需用户确认）
@@ -250,7 +266,7 @@ public class ImageAgent {
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool, internalImageSearchTool)
+                .methodTools(methodTools())
                 .hooks(List.of(
                         hitlHook,
                         iterationControlHook,
@@ -689,7 +705,7 @@ public class ImageAgent {
                 .name("image_assistant_mcp")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
-                .methodTools(imageSearchTool, imageGeneratorTool, qualityEvaluatorTool, similarImageSearchTool, imageFeatureAnalyzerTool, internalImageSearchTool)
+                .methodTools(methodTools())
                 .tools(mcpCallbacks)
                 .hooks(List.of(
                         hitlHook,

@@ -52,19 +52,17 @@ services:
 
   chromadb:
     image: ghcr.io/chroma-core/chroma:1.0.0
-    container_name: vision-space-chromadb
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # 不发布 ports：向量库只留在 internal 网络，向量内容不经宿主暴露
+    expose:
+      - "8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
     volumes:
       - chroma-data:/chroma/chroma
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
     networks:
-      - vision-space
+      - internal
 
   backend:
     build:
@@ -94,11 +92,18 @@ services:
       VISION_SPACE_VISION_RECOGNITION_BASE_URL: ${VISION_SPACE_VISION_RECOGNITION_BASE_URL:-https://www.dmxapi.cn}
       VISION_SPACE_VISION_RECOGNITION_MODEL: ${VISION_SPACE_VISION_RECOGNITION_MODEL:-GLM-4.1V-Thinking-Flash}
       VISION_SPACE_DEFAULT_PASSWORD: ${VISION_SPACE_DEFAULT_PASSWORD:?required in prod}
+      # 站内图片检索（RAG）。关掉它就不连 chromadb，其余功能不受影响。
+      VISION_SPACE_RAG_ENABLED: ${VISION_SPACE_RAG_ENABLED:-true}
+      VISION_SPACE_CHROMA_HOST: ${VISION_SPACE_CHROMA_HOST:-http://chromadb}
+      VISION_SPACE_CHROMA_PORT: ${VISION_SPACE_CHROMA_PORT:-8000}
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # Chroma 没有可靠的健康探针：容器起来即可，建集合失败由 restart 兜底重试
+      chromadb:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9081/actuator/health/readiness || exit 1"]
       interval: 10s
