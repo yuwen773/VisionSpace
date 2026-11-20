@@ -1146,6 +1146,22 @@ ol {
   border: 0;
 }
 
+/* ========== 减少动效偏好 ========== */
+/* 前庭/晕动敏感用户开启「减少动效」后，装饰性动画应近乎停止；
+ * 保留 0.01ms 而非 0，避免依赖 transitionend/animationend 的逻辑卡住。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: -1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ========== 打印样式 ========== */
 @media print {
   body {

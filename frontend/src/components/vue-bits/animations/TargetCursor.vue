@@ -24,6 +24,14 @@ const constants = {
   parallaxStrength: 0.00005,
 }
 
+/**
+ * 只有精确指针（鼠标）且未开启"减少动效"时，才用自绘光标替换系统光标。
+ * 触屏/粗指针设备上自绘光标跟不上手指，藏掉系统光标会让页面失去指示物。
+ */
+const canUseCustomCursor = () =>
+  window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+  !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const moveCursor = (x: number, y: number) => {
   if (!cursorRef.value) return
 
@@ -40,13 +48,16 @@ let cleanupAnimation: () => void = () => {}
 const setupAnimation = () => {
   if (!cursorRef.value) return
 
+  // 不适用自绘光标时保持系统光标，直接退出
+  if (!canUseCustomCursor()) {
+    cursorRef.value.style.display = 'none'
+    document.body.style.cursor = ''
+    return
+  }
+
   const originalCursor = document.body.style.cursor
   const cursor = cursorRef.value
   cornersRef.value = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner')
-
-  if (props.hideDefaultCursor) {
-    document.body.style.cursor = 'none'
-  }
 
   let activeTarget: Element | null = null
   let currentTargetMove: ((ev: Event) => void) | null = null
@@ -65,14 +76,26 @@ const setupAnimation = () => {
     currentLeaveHandler = null
   }
 
-  gsap.set(cursor, {
-    xPercent: -50,
-    yPercent: -50,
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2,
-    opacity: 1,
-    display: 'block',
-  })
+  try {
+    gsap.set(cursor, {
+      xPercent: -50,
+      yPercent: -50,
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      opacity: 1,
+      display: 'block',
+    })
+  } catch {
+    // 动画库不可用：宁可不显示自绘光标，也不能让页面没有光标
+    cursor.style.display = 'none'
+    document.body.style.cursor = originalCursor
+    return
+  }
+
+  // 确认自绘光标已就位后才隐藏系统光标
+  if (props.hideDefaultCursor) {
+    document.body.style.cursor = 'none'
+  }
 
   const createSpinTimeline = () => {
     if (spinTl.value) {
@@ -316,11 +339,25 @@ const setupAnimation = () => {
   }
 }
 
+let pointerQuery: MediaQueryList | null = null
+let motionQuery: MediaQueryList | null = null
+
+const handlePreferenceChange = () => {
+  cleanupAnimation()
+  setupAnimation()
+}
+
 onMounted(() => {
+  pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)')
+  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  pointerQuery.addEventListener('change', handlePreferenceChange)
+  motionQuery.addEventListener('change', handlePreferenceChange)
   setupAnimation()
 })
 
 onBeforeUnmount(() => {
+  pointerQuery?.removeEventListener('change', handlePreferenceChange)
+  motionQuery?.removeEventListener('change', handlePreferenceChange)
   cleanupAnimation()
 })
 
