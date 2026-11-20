@@ -296,7 +296,7 @@
   --shadow-card-hover: var(--shadow-xl);
 
   /* 波普主题渐变 */
-  --gradient-sunset: linear-gradient(135deg, #ff6b6b 0%, #ec4899 100%);
+  --gradient-sunset: linear-gradient(135deg, #b91c1c 0%, #be185d 100%);
   --gradient-fresh: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
   --gradient-warm: linear-gradient(135deg, #fbbf24 0%, #ff6b6b 100%);
   --gradient-cool: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
