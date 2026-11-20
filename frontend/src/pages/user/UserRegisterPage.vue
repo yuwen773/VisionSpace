@@ -25,19 +25,18 @@
         </div>
 
         <!-- 注册表单 -->
-        <a-form
-          :model="formState"
-          name="basic"
-          autocomplete="off"
-          @finish="handleSubmit"
-          class="register-form"
-        >
-          <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
+        <a-form :model="formState" name="basic" @finish="handleSubmit" class="register-form">
+          <a-form-item
+            label="用户账号"
+            name="userAccount"
+            :rules="[{ required: true, message: '请输入账号' }]"
+          >
             <a-input
               v-model:value="formState.userAccount"
               placeholder="用户账号"
               size="large"
               class="pop-input"
+              autocomplete="username"
             >
               <template #prefix>
                 <User :size="18" class="input-icon" />
@@ -46,6 +45,7 @@
           </a-form-item>
 
           <a-form-item
+            label="密码"
             name="userPassword"
             :rules="[
               { required: true, message: '请输入密码' },
@@ -57,6 +57,7 @@
               placeholder="密码"
               size="large"
               class="pop-input"
+              autocomplete="new-password"
             >
               <template #prefix>
                 <KeyRound :size="18" class="input-icon" />
@@ -65,6 +66,7 @@
           </a-form-item>
 
           <a-form-item
+            label="确认密码"
             name="checkPassword"
             :rules="[
               { required: true, message: '请输入确认密码' },
@@ -76,6 +78,7 @@
               placeholder="确认密码"
               size="large"
               class="pop-input"
+              autocomplete="new-password"
             >
               <template #prefix>
                 <Shield :size="18" class="input-icon" />
@@ -89,9 +92,15 @@
           </div>
 
           <a-form-item>
-            <button html-type="submit" class="pop-btn primary">
-              <PartyPopper :size="20" class="btn-icon" />
-              <span>创建账号</span>
+            <button
+              type="submit"
+              class="pop-btn primary"
+              :disabled="submitting"
+              :aria-busy="submitting"
+            >
+              <Loader2 v-if="submitting" :size="20" class="btn-icon spin" />
+              <PartyPopper v-else :size="20" class="btn-icon" />
+              <span>{{ submitting ? '创建中…' : '创建账号' }}</span>
             </button>
           </a-form-item>
         </a-form>
@@ -113,11 +122,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { userRegisterUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
-import { User, KeyRound, Shield, Rocket, PartyPopper } from 'lucide-vue-next'
+import { User, KeyRound, Shield, Rocket, PartyPopper, Loader2 } from 'lucide-vue-next'
 
 const formState = reactive<API.UserRegisterRequest>({
   userAccount: '',
@@ -125,20 +134,30 @@ const formState = reactive<API.UserRegisterRequest>({
   checkPassword: '',
 })
 
+const submitting = ref(false)
+
 const handleSubmit = async (values: any) => {
+  if (submitting.value) return
   if (values.userPassword !== values.checkPassword) {
     message.error('🔐 两次输入密码不一致')
     return
   }
-  const res = await userRegisterUsingPost(values)
-  if (res.data.code === 0 && res.data.data) {
-    message.success('🎉 注册成功！请登录')
-    await router.push({
-      path: '/user/login',
-      replace: true,
-    })
-  } else {
-    message.error('😅 注册失败：' + res.data.message)
+  submitting.value = true
+  try {
+    const res = await userRegisterUsingPost(values)
+    if (res.data.code === 0 && res.data.data) {
+      message.success('🎉 注册成功！请登录')
+      await router.push({
+        path: '/user/login',
+        replace: true,
+      })
+    } else {
+      message.error('😅 注册失败：' + res.data.message)
+    }
+  } catch {
+    message.error('注册失败，请稍后重试')
+  } finally {
+    submitting.value = false
   }
 }
 </script>
@@ -309,6 +328,19 @@ const handleSubmit = async (values: any) => {
   :deep(.ant-form-item) {
     margin-bottom: var(--space-5);
   }
+
+  /* label 只给读屏器，视觉上仍靠 placeholder */
+  :deep(.ant-form-item-label) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 .pop-input {
@@ -445,6 +477,16 @@ const handleSubmit = async (values: any) => {
     display: flex;
     align-items: center;
   }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
 }
 
 /* ========== 特性展示 ========== */

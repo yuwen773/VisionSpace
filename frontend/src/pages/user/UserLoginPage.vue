@@ -25,19 +25,18 @@
         </div>
 
         <!-- 登录表单 -->
-        <a-form
-          :model="formState"
-          name="basic"
-          autocomplete="off"
-          @finish="handleSubmit"
-          class="login-form"
-        >
-          <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
+        <a-form :model="formState" name="basic" @finish="handleSubmit" class="login-form">
+          <a-form-item
+            label="用户账号"
+            name="userAccount"
+            :rules="[{ required: true, message: '请输入账号' }]"
+          >
             <a-input
               v-model:value="formState.userAccount"
               placeholder="用户账号"
               size="large"
               class="pop-input"
+              autocomplete="username"
             >
               <template #prefix>
                 <User :size="18" class="input-icon" />
@@ -46,6 +45,7 @@
           </a-form-item>
 
           <a-form-item
+            label="密码"
             name="userPassword"
             :rules="[
               { required: true, message: '请输入密码' },
@@ -57,6 +57,7 @@
               placeholder="密码"
               size="large"
               class="pop-input"
+              autocomplete="current-password"
             >
               <template #prefix>
                 <KeyRound :size="18" class="input-icon" />
@@ -70,9 +71,15 @@
           </div>
 
           <a-form-item>
-            <button html-type="submit" class="pop-btn primary">
-              <Rocket :size="20" class="btn-icon" />
-              <span>立即登录</span>
+            <button
+              type="submit"
+              class="pop-btn primary"
+              :disabled="submitting"
+              :aria-busy="submitting"
+            >
+              <Loader2 v-if="submitting" :size="20" class="btn-icon spin" />
+              <Rocket v-else :size="20" class="btn-icon" />
+              <span>{{ submitting ? '登录中…' : '立即登录' }}</span>
             </button>
           </a-form-item>
         </a-form>
@@ -89,12 +96,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLoginUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
-import { User, KeyRound, Rocket } from 'lucide-vue-next'
+import { User, KeyRound, Rocket, Loader2 } from 'lucide-vue-next'
 
 const formState = reactive<API.UserLoginRequest>({
   userAccount: '',
@@ -102,28 +109,38 @@ const formState = reactive<API.UserLoginRequest>({
 })
 
 const loginUserStore = useLoginUserStore()
+const submitting = ref(false)
 
 const handleSubmit = async (values: any) => {
-  const res = await userLoginUsingPost(values)
-  if (res.data.code === 0 && res.data.data) {
-    await loginUserStore.fetchUserLogin()
-    // 确保用户信息获取成功
-    if (!loginUserStore.loginUser.id) {
-      message.error('获取用户信息失败，请重新登录')
-      return
-    }
-    message.success('🎉 登录成功！欢迎回来！')
-    // 登录成功后跳转回原页面（防止开放重定向攻击）
-    const redirect = router.currentRoute.value.query.redirect as string
-    if (redirect && !redirect.startsWith('http://') && !redirect.startsWith('https://')) {
-      await router.push({ path: redirect, replace: true })
-    } else if (loginUserStore.loginUser.userRole === 'admin') {
-      await router.push({ path: '/admin/dashboard', replace: true })
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    const res = await userLoginUsingPost(values)
+    if (res.data.code === 0 && res.data.data) {
+      await loginUserStore.fetchUserLogin()
+      // 确保用户信息获取成功
+      if (!loginUserStore.loginUser.id) {
+        message.error('获取用户信息失败，请重新登录')
+        return
+      }
+      message.success('🎉 登录成功！欢迎回来！')
+      // 登录成功后跳转回原页面（防止开放重定向攻击）
+      const redirect = router.currentRoute.value.query.redirect as string
+      if (redirect && !redirect.startsWith('http://') && !redirect.startsWith('https://')) {
+        await router.push({ path: redirect, replace: true })
+      } else if (loginUserStore.loginUser.userRole === 'admin') {
+        await router.push({ path: '/admin/dashboard', replace: true })
+      } else {
+        await router.push({ path: '/', replace: true })
+      }
     } else {
-      await router.push({ path: '/', replace: true })
+      message.error(res.data.message)
     }
-  } else {
-    message.error(res.data.message)
+  } catch {
+    // 网络/后端异常：给出可读提示，避免未捕获的 Promise 拒绝
+    message.error('登录失败，请稍后重试')
+  } finally {
+    submitting.value = false
   }
 }
 </script>
@@ -294,6 +311,19 @@ const handleSubmit = async (values: any) => {
   :deep(.ant-form-item) {
     margin-bottom: var(--space-5);
   }
+
+  /* label 只给读屏器，视觉上仍靠 placeholder */
+  :deep(.ant-form-item-label) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 .pop-input {
@@ -430,6 +460,16 @@ const handleSubmit = async (values: any) => {
     display: flex;
     align-items: center;
   }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
 }
 
 /* ========== 卡片装饰 ========== */
