@@ -180,7 +180,7 @@ const getPositionClass = (index: number) => {
 
 .rank-badge {
   padding: 4px 12px;
-  background: linear-gradient(135deg, var(--color-sunshine) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, #b45309 0%, var(--color-secondary-strong) 100%);
   border-radius: 20px;
   font-size: 11px;
   font-weight: 800;
@@ -318,7 +318,7 @@ const getPositionClass = (index: number) => {
 
 .rank-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+  background: linear-gradient(90deg, var(--color-primary-strong), var(--color-secondary-strong));
   border-radius: 3px;
   transition: width 1s ease;
 }

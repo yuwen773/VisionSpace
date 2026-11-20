@@ -784,7 +784,7 @@ onUnmounted(() => {
     content: '';
     width: 16px;
     height: 2px;
-    background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-purple));
+    background: linear-gradient(90deg, var(--color-primary-strong), var(--color-accent-strong));
     border-radius: 2px;
   }
 }
@@ -885,7 +885,7 @@ onUnmounted(() => {
         transform: translateX(-50%);
         width: 20px;
         height: 3px;
-        background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-purple));
+        background: linear-gradient(90deg, var(--color-primary-strong), var(--color-accent-strong));
         border-radius: 2px;
         box-shadow: 0 0 10px var(--color-primary-500);
       }
@@ -965,7 +965,7 @@ onUnmounted(() => {
     inset: -2px;
     border-radius: var(--radius-lg);
     border: 2px solid transparent;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) border-box;
+    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong)) border-box;
     mask:
       linear-gradient(#fff 0 0) padding-box,
       linear-gradient(#fff 0 0);
@@ -1233,7 +1233,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-purple));
+    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-accent-strong));
     border-radius: 50%;
     color: white;
 
@@ -1430,11 +1430,12 @@ onUnmounted(() => {
   }
 
   &.primary {
+    /* 用 *-strong 令牌：白字需在渐变的每一段上都 ≥4.5:1 */
     background: linear-gradient(
       135deg,
-      var(--color-primary-500) 0%,
-      var(--color-secondary-500) 50%,
-      var(--color-accent-purple) 100%
+      var(--color-primary-strong) 0%,
+      var(--color-secondary-strong) 50%,
+      var(--color-accent-strong) 100%
     );
     color: white;
     border: none;

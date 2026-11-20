@@ -611,7 +611,7 @@ onUnmounted(() => {
 
 /* -- Send button: prominent gradient -- */
 .send-btn {
-  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  background: linear-gradient(135deg, #9333ea, #7c3aed);
   color: white;
   box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
 }

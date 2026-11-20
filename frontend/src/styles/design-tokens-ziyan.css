@@ -114,7 +114,7 @@
   --border-accent: #c4b5fd;
 
   /* ========== 渐变 ========== */
-  --gradient-sunset: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
+  --gradient-sunset: linear-gradient(135deg, #9333ea 0%, #db2777 55%, #be185d 100%);
   --gradient-violet: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #c084fc 100%);
   --gradient-rose: linear-gradient(135deg, #ec4899 0%, #f472b6 50%, #fb7185 100%);
   --gradient-aurora: linear-gradient(
@@ -274,6 +274,16 @@
   --shadow-glow-md: 0 0 30px rgba(168, 85, 247, 0.22);
   --shadow-pop: var(--shadow-card);
   --shadow-pop-lg: var(--shadow-card-hover);
+
+  /* ========== 对比度安全色 ==========
+   * 白字按钮底色需 ≥4.5:1；强调文字需与浅底拉开对比，
+   * 因此按钮底色与文字色拆成两个令牌，不共用 --color-accent。
+   */
+  --color-primary-strong: #9333ea;
+  --color-secondary-strong: #db2777;
+  --color-accent-strong: #7c3aed;
+  --color-accent-text: #be185d;
+  --color-success-strong: #047857;
 }
 
 /* ========== 字体导入 ========== */

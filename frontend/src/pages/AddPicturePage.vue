@@ -1018,7 +1018,7 @@ onMounted(() => {
   }
 
   &.active {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
     border-color: transparent;
     color: white;
     box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
@@ -1515,7 +1515,7 @@ onMounted(() => {
   }
 
   &.primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
     border: none;
     color: white;
     box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);

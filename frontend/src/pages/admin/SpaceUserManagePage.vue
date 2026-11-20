@@ -776,7 +776,7 @@ const goBack = () => {
   font-size: 14px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -863,7 +863,7 @@ const goBack = () => {
       }
 
       &.ant-pagination-item-active {
-        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
         border-color: var(--color-primary);
 
         a {
@@ -908,7 +908,7 @@ const goBack = () => {
 .user-avatar {
   border: 2px solid var(--border-default);
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
 }
 
 .user-details {

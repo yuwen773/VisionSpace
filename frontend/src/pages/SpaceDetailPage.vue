@@ -1124,7 +1124,7 @@ watch(
   border: none;
 
   &.primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
     color: white;
     box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
 
@@ -1493,7 +1493,7 @@ watch(
   align-items: center;
   gap: 8px;
   padding: 14px 28px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
   border: none;
   border-radius: 40px;
   color: white;
@@ -1575,7 +1575,7 @@ watch(
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1635,7 +1635,7 @@ watch(
 .orb-inner {
   position: absolute;
   inset: 15px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong));
   border-radius: 50%;
   animation: pulse-orb 1.5s ease-in-out infinite;
   box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
@@ -1904,7 +1904,7 @@ watch(
   align-items: center;
   gap: 10px;
   padding: 14px 32px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
   border: none;
   border-radius: 40px;
   color: white;
@@ -1990,7 +1990,7 @@ watch(
   }
 
   &.active {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
     border-color: transparent;
     color: white;
     box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);

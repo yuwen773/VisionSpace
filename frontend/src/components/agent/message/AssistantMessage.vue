@@ -433,7 +433,7 @@ const copyContent = async () => {
   justify-content: center;
   gap: 4px;
   padding: 6px 14px !important;
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%) !important;
+  background: linear-gradient(135deg, #9333ea 0%, #db2777 100%) !important;
   border: none !important;
   color: #fff !important;
   border-radius: 6px !important;

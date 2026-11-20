@@ -338,6 +338,13 @@
   --gradient-violet: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #c084fc 100%);
   --gradient-rose: linear-gradient(135deg, #ec4899 0%, #f472b6 50%, #fb7185 100%);
   --shadow-glow-violet: 0 0 30px rgba(139, 92, 246, 0.35);
+
+  /* ========== 对比度安全色（深空主题） ========== */
+  --color-primary-strong: var(--color-primary-500);
+  --color-secondary-strong: var(--color-secondary-500);
+  --color-accent-strong: #9333ea;
+  --color-accent-text: var(--color-accent-pink-light);
+  --color-success-strong: var(--color-success-light);
 }
 
 /* ========== CSS Reset & Base ========== */

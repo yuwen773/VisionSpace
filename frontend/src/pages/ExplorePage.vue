@@ -898,7 +898,7 @@ onUnmounted(() => {
     background-clip: text;
   }
   &:nth-child(3) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, #9333ea 0%, #db2777 50%, #be185d 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -991,7 +991,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 14px 28px;
-  background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
   border: none;
   border-radius: 40px;
   color: white;
@@ -1046,7 +1046,7 @@ onUnmounted(() => {
   }
 
   &.active {
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
+    background: linear-gradient(135deg, var(--color-secondary-strong) 0%, var(--color-primary-strong) 100%);
     border-color: transparent;
     color: white;
     box-shadow: 0 8px 25px rgba(168, 85, 247, 0.5);
@@ -1490,7 +1490,7 @@ onUnmounted(() => {
 
   // 主按钮 - 回到顶部
   &:not(.secondary) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, #9333ea 0%, #db2777 50%, #be185d 100%);
     color: white;
     box-shadow:
       0 4px 20px rgba(244, 114, 182, 0.5),
@@ -1598,7 +1598,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 14px 32px;
-  background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+  background: linear-gradient(135deg, #9333ea 0%, #db2777 50%, #be185d 100%);
   border: none;
   border-radius: 40px;
   color: white;

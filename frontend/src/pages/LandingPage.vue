@@ -1102,7 +1102,7 @@ section#hero.is-visible .brand-section {
     transition-delay: 0.55s;
   }
   &:nth-child(3) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+    background: linear-gradient(135deg, #9333ea 0%, #db2777 50%, #be185d 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1162,7 +1162,7 @@ section#hero.is-visible .brand-section {
 }
 
 .cta-primary {
-  background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
+  background: linear-gradient(135deg, #9333ea 0%, #9333ea 50%, #7e22ce 100%);
   color: #fff;
   box-shadow: 0 4px 24px rgba(168, 85, 247, 0.4);
 
@@ -1817,7 +1817,7 @@ section#hero.is-visible .brand-section {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-accent, #a855f7);
+  color: var(--color-accent-text, #9333ea);
   margin: 0 0 16px;
   opacity: 0.8;
 }
@@ -2251,7 +2251,7 @@ section#hero.is-visible .brand-section {
 
 .chat-status {
   font-size: 11px;
-  color: var(--color-success-light);
+  color: var(--color-success-strong, var(--color-success-light));
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -2293,7 +2293,7 @@ section#hero.is-visible .brand-section {
 }
 
 .msg-user-bubble {
-  background: linear-gradient(135deg, #a855f7, #9333ea);
+  background: linear-gradient(135deg, #9333ea, #7c3aed);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -2374,7 +2374,7 @@ section#hero.is-visible .brand-section {
 }
 
 .compare-label-accent {
-  color: var(--color-accent-pink);
+  color: var(--color-accent-text, var(--color-accent-pink));
 }
 
 .compare-image {
@@ -2462,7 +2462,7 @@ section#hero.is-visible .brand-section {
 .cta-final-primary {
   padding: 20px 44px;
   font-size: 18px;
-  background: linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #9333ea 100%);
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 50%, #6d28d9 100%);
   color: #fff;
   box-shadow: 0 4px 32px rgba(168, 85, 247, 0.4);
 
