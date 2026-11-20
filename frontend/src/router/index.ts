@@ -1,24 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LandingPage from '@/pages/LandingPage.vue'
-import ExplorePage from '@/pages/ExplorePage.vue'
-import UserLoginPage from '@/pages/user/UserLoginPage.vue'
-import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
-import AdminLayout from '../layout/AdminLayout.vue'
-import AddPicturePage from '@/pages/AddPicturePage.vue'
-import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
-import PictureDetailPage from '@/pages/PictureDetailPage.vue'
-import SpaceManagePage from '@/pages/admin/SpaceManagePage.vue'
-import AddSpacePage from '@/pages/user/AddSpacePage.vue'
-import MySpacePage from '@/pages/MySpacePage.vue'
-import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
-import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
-import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
-import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
-import DashboardPage from '@/pages/admin/DashboardPage.vue'
-import UserManagePage from '@/pages/admin/UserManagePage.vue'
-import AgentChatPage from '@/pages/AgentChatPage.vue'
-import UserCenterPage from '@/pages/user/UserCenterPage.vue'
+import AdminLayout from '@/layout/AdminLayout.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,12 +9,12 @@ const router = createRouter({
     {
       path: '/user/login',
       name: 'login',
-      component: UserLoginPage,
+      component: () => import('@/pages/user/UserLoginPage.vue'),
     },
     {
       path: '/user/register',
       name: 'register',
-      component: UserRegisterPage,
+      component: () => import('@/pages/user/UserRegisterPage.vue'),
     },
     // 用户端路由（BasicLayout 包裹）
     {
@@ -42,66 +24,66 @@ const router = createRouter({
         {
           path: '',
           name: 'home',
-          component: LandingPage,
+          component: () => import('@/pages/LandingPage.vue'),
           meta: { fullWidth: true, showFooter: false },
         },
         {
           path: 'explore',
           name: 'Explore',
-          component: ExplorePage,
+          component: () => import('@/pages/ExplorePage.vue'),
           meta: { showFooter: true },
         },
         {
           path: 'add_picture',
           name: 'AddPicture',
-          component: AddPicturePage,
+          component: () => import('@/pages/AddPicturePage.vue'),
         },
         {
           path: 'picture/:id',
           name: 'PictureDetail',
-          component: PictureDetailPage,
+          component: () => import('@/pages/PictureDetailPage.vue'),
           props: true,
         },
         {
           path: 'add_space',
           name: 'AddSpace',
-          component: AddSpacePage,
+          component: () => import('@/pages/user/AddSpacePage.vue'),
         },
         {
           path: 'my_space',
           name: 'MySpace',
-          component: MySpacePage,
+          component: () => import('@/pages/MySpacePage.vue'),
           meta: { showFooter: true },
         },
         {
           path: 'space/:id',
           name: 'SpaceDetail',
-          component: SpaceDetailPage,
+          component: () => import('@/pages/SpaceDetailPage.vue'),
           props: true,
         },
         {
           path: 'space_analyze',
           name: 'SpaceAnalyze',
-          component: SpaceAnalyzePage,
+          component: () => import('@/pages/SpaceAnalyzePage.vue'),
           props: true,
           meta: { showFooter: true },
         },
         {
           path: 'spaceUserManage/:spaceId',
           name: 'SpaceUserManage',
-          component: SpaceUserManagePage,
+          component: () => import('@/pages/admin/SpaceUserManagePage.vue'),
           props: true,
         },
         {
           path: 'agent',
           name: 'AgentChat',
-          component: AgentChatPage,
+          component: () => import('@/pages/AgentChatPage.vue'),
           meta: { title: 'SpaceMind', fullScreen: true },
         },
         {
           path: 'user/center',
           name: 'UserCenter',
-          component: UserCenterPage,
+          component: () => import('@/pages/user/UserCenterPage.vue'),
           meta: { title: '用户中心', requiresAuth: true },
         },
         {
@@ -122,27 +104,27 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'Dashboard',
-          component: DashboardPage,
+          component: () => import('@/pages/admin/DashboardPage.vue'),
         },
         {
           path: 'user_manage',
           name: 'UserManage',
-          component: UserManagePage,
+          component: () => import('@/pages/admin/UserManagePage.vue'),
         },
         {
           path: 'picture_manage',
           name: 'PictureManage',
-          component: PictureManagePage,
+          component: () => import('@/pages/admin/PictureManagePage.vue'),
         },
         {
           path: 'space_manage',
           name: 'SpaceManage',
-          component: SpaceManagePage,
+          component: () => import('@/pages/admin/SpaceManagePage.vue'),
         },
         {
           path: 'storage_config_manage',
           name: 'StorageConfigManage',
-          component: StorageConfigManagePage,
+          component: () => import('@/pages/admin/StorageConfigManagePage.vue'),
         },
         {
           path: 'feedback_manage',

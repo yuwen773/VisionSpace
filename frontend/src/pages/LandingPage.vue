@@ -447,14 +447,22 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, onBeforeUnmount, ref } from 'vue'
+import { defineAsyncComponent, h, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import GridDistortion from '@/components/vue-bits/animations/GridDistortion.vue'
-import TargetCursor from '@/components/vue-bits/animations/TargetCursor.vue'
-import CardSwap from '@/components/vue-bits/components/CardSwap.vue'
-import RollingGallery from '@/components/vue-bits/components/RollingGallery.vue'
-import DomeGallery1 from '@/components/vue-bits/components/DomeGallery.vue'
 import GlobalFooter from '@/components/GlobalFooter.vue'
+
+// 装饰性重组件延后加载：不进首屏关键路径
+const TargetCursor = defineAsyncComponent(
+  () => import('@/components/vue-bits/animations/TargetCursor.vue'),
+)
+const CardSwap = defineAsyncComponent(() => import('@/components/vue-bits/components/CardSwap.vue'))
+const RollingGallery = defineAsyncComponent(
+  () => import('@/components/vue-bits/components/RollingGallery.vue'),
+)
+const DomeGallery1 = defineAsyncComponent(
+  () => import('@/components/vue-bits/components/DomeGallery.vue'),
+)
 
 const router = useRouter()
 
