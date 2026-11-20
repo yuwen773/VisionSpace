@@ -132,7 +132,13 @@
                     </div>
                   </div>
                   <div class="overlay-actions">
-                    <button class="action-btn" title="收藏">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      aria-label="收藏"
+                      title="收藏"
+                      @click.stop="handleCollect(picture)"
+                    >
                       <svg
                         width="18"
                         height="18"
@@ -146,7 +152,13 @@
                         />
                       </svg>
                     </button>
-                    <button class="action-btn" title="分享">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      aria-label="分享"
+                      title="分享"
+                      @click.stop="handleShare(picture)"
+                    >
                       <svg
                         width="18"
                         height="18"
@@ -291,6 +303,7 @@ import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 import { usePictureAction } from '@/composables/usePictureAction'
 import { useRecommendPaging } from '@/composables/useRecommendPaging'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
+import { message } from 'ant-design-vue'
 import { contentSrc, toId } from '@/utils'
 
 const router = useRouter()
@@ -494,6 +507,28 @@ const goToUpload = () => {
 const handlePictureClick = async (picture: any) => {
   await reportAction(picture.id, ActionTypeEnum.CLICK, ActionSourceEnum.HOME_RECOMMEND)
   router.push(`/picture/${picture.id}`)
+}
+
+/**
+ * 收藏图片：只上报行为，不跳转详情
+ */
+const handleCollect = async (picture: { id: number }) => {
+  await reportAction(picture.id, ActionTypeEnum.COLLECT, ActionSourceEnum.HOME_RECOMMEND)
+  message.success('已加入收藏')
+}
+
+/**
+ * 分享图片：上报行为并复制详情链接
+ */
+const handleShare = async (picture: { id: number }) => {
+  await reportAction(picture.id, ActionTypeEnum.SHARE, ActionSourceEnum.HOME_RECOMMEND)
+  const link = `${window.location.origin}/picture/${picture.id}`
+  try {
+    await navigator.clipboard.writeText(link)
+    message.success('分享链接已复制')
+  } catch {
+    message.info(link)
+  }
 }
 
 /**
@@ -1198,6 +1233,13 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: flex-end;
   padding: 20px;
+}
+
+/* 触屏设备没有 hover，遮罩常显，否则标题与操作入口永远看不到 */
+@media (hover: none) {
+  .item-overlay {
+    opacity: 1;
+  }
 }
 
 .overlay-content {
