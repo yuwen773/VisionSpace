@@ -85,4 +85,11 @@ defineProps<Props>()
   color: var(--color-text-tertiary);
   line-height: 1.5;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .action-unknown {
+    padding: 10px 12px;
+  }
+}
+
 </style>

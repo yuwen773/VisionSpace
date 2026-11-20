@@ -791,4 +791,19 @@ const copyContent = async () => {
 .action-icon-btn.liked {
   color: var(--color-primary-500);
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .assistant-message {
+    padding: 6px 12px;
+  }
+
+  .message-content {
+    padding: 8px 12px;
+  }
+
+  .markdown-body :deep(pre) {
+    font-size: 12px;
+  }
+}
+
 </style>

@@ -301,4 +301,18 @@ const review = (action: RecoveryAction, decision: 'confirm' | 'dismiss') => {
   font-size: 12px;
   color: var(--color-danger, #ef4444);
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .recovery-banner {
+    margin: 8px 10px 0;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+
+  .banner-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
 </style>

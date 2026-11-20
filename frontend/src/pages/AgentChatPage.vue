@@ -1,6 +1,10 @@
 <template>
   <div class="agent-chat-page">
-    <AgentChatLayout :left-collapsed="leftCollapsed" :right-expanded="resourcePanelVisible">
+    <AgentChatLayout
+      :left-collapsed="leftCollapsed"
+      :right-expanded="resourcePanelVisible"
+      @close-overlays="closeOverlays"
+    >
       <!-- 左栏 -->
       <template #left>
         <LeftSidebar
@@ -220,9 +224,20 @@ const saveThreadId = (id: string) => {
 }
 
 // State
+// 窄屏（平板/手机）下左右栏改为浮层：默认收起左栏，否则会盖住对话区
+const narrowQuery = window.matchMedia('(max-width: 1024px)')
+const isNarrowViewport = () => narrowQuery.matches
+const handleNarrowChange = (event: MediaQueryListEvent) => {
+  if (event.matches) {
+    leftCollapsed.value = true
+    resourcePanelVisible.value = false
+  }
+}
+narrowQuery.addEventListener('change', handleNarrowChange)
+onUnmounted(() => narrowQuery.removeEventListener('change', handleNarrowChange))
 const threadId = ref(generateThreadId())
 const currentThreadId = ref('')
-const leftCollapsed = ref(false)
+const leftCollapsed = ref(isNarrowViewport())
 const resourcePanelVisible = ref(false)
 const panelImages = ref<ImageResource[]>([])
 const panelLinks = ref<LinkResource[]>([])
@@ -340,7 +355,8 @@ const handleAssetSearch = async () => {
     const result = res.data.data
     assetResults.value[result.resultId] = result
     pushMessage({ type: 'asset-result', resultId: result.resultId, content: '', node: 'agent' })
-    resourcePanelVisible.value = true
+    // 窄屏下资源面板是全屏浮层，自动展开会打断对话，交给右上角按钮
+    resourcePanelVisible.value = !isNarrowViewport()
     assetError.value = ''
     await router.replace({ query: { ...route.query, assetResult: result.resultId } })
   } catch {
@@ -688,6 +704,7 @@ const handleNewChat = () => {
 }
 
 const handleSelectHistory = async (id: string) => {
+  if (isNarrowViewport()) leftCollapsed.value = true
   currentThreadId.value = id
   threadId.value = id
   saveThreadId(id)
@@ -707,6 +724,12 @@ const toggleResourcePanel = (data?: ResourceData) => {
 
 const toggleTodoListExpanded = () => {
   todoListExpanded.value = !todoListExpanded.value
+}
+
+// 窄屏浮层遮罩点击后收起两侧栏
+const closeOverlays = () => {
+  leftCollapsed.value = true
+  resourcePanelVisible.value = false
 }
 
 // 图片预览

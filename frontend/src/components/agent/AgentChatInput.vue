@@ -775,4 +775,19 @@ onUnmounted(() => {
 .disclaimer {
   font-style: italic;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .agent-chat-input {
+    padding: 6px 10px 4px;
+  }
+
+  .input-container {
+    border-radius: 16px;
+  }
+
+  .attachment-strip {
+    padding: 8px 10px 4px;
+  }
+}
+
 </style>

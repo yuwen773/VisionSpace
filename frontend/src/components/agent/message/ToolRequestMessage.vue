@@ -237,4 +237,11 @@ const isEmptyArgs = (args: Record<string, any>) => {
   color: #64748b;
   font-style: italic;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .tool-args {
+    padding: 6px 10px 8px;
+  }
+}
+
 </style>

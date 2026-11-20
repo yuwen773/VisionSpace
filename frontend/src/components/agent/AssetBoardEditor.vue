@@ -603,4 +603,12 @@ li select {
 .item-actions {
   margin-left: auto;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .board-editor {
+    margin: 8px;
+    padding: 12px;
+  }
+}
+
 </style>

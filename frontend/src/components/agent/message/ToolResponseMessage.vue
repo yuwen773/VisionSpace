@@ -189,4 +189,11 @@ const highlightedContent = computed(() => {
 :deep(.json-sep) {
   color: #94a3b8;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .tool-content {
+    padding: 0 10px 8px;
+  }
+}
+
 </style>

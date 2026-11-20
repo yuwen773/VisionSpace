@@ -557,4 +557,11 @@ const groupedHistories = computed(() => {
   background: var(--color-bg-hover, var(--color-bg-tertiary));
   color: var(--color-text-secondary);
 }
+/* ============ 响应式 ============ */
+@media (max-width: 1024px) {
+  .sidebar-header {
+    padding: 14px 12px 10px;
+  }
+}
+
 </style>

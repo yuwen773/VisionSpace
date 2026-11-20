@@ -424,4 +424,30 @@ const doLogout = async () => {
     }
   }
 }
+/* ============ 响应式 ============ */
+@media (max-width: 900px) {
+  .admin-header {
+    padding: 0 12px;
+  }
+
+  /* 搜索只是占位交互，窄屏优先给面包屑与账号留位置 */
+  .search-box {
+    display: none;
+  }
+
+  .user-trigger {
+    padding: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  .user-info {
+    display: none;
+  }
+
+  .breadcrumb-item:not(.active) .breadcrumb-text {
+    display: none;
+  }
+}
+
 </style>

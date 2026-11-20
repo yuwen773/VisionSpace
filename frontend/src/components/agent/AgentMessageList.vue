@@ -1188,4 +1188,25 @@ watch(
 .typing-fade-leave-to {
   opacity: 0;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .agent-message-list {
+    padding: 12px 0;
+  }
+
+  .messages-container {
+    padding: 0 12px;
+  }
+
+  .welcome-desc {
+    max-width: 100%;
+    font-size: 14px;
+  }
+
+  .welcome-hints {
+    gap: 8px;
+    margin-top: 20px;
+  }
+}
+
 </style>
