@@ -244,6 +244,36 @@
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-border-accent: var(--border-accent);
+
+  /* ========== 深空主题变量补齐 ==========
+   * 组件同时引用两套命名；亮色主题下补齐只存在于深空主题的变量，
+   * 否则这些声明会整条失效（透明/无边框）。
+   */
+  --border-light: var(--border-subtle);
+  --border-bold: var(--border-strong);
+  --color-border: var(--border-default);
+  --color-grape: var(--color-violet);
+  --color-danger: var(--color-error);
+  --color-text-on-primary: #ffffff;
+  --color-star-white: rgba(255, 255, 255, 0.9);
+  --color-star-glow: rgba(255, 255, 255, 0.6);
+  --color-secondary-400: var(--color-secondary-light);
+  --font-heading: var(--font-display);
+  --font-medium: 500;
+  --radius: var(--radius-2xl);
+  --transition-smooth: var(--transition-base);
+  --gradient-aurora-subtle: linear-gradient(
+    135deg,
+    rgba(168, 85, 247, 0.12) 0%,
+    rgba(236, 72, 153, 0.12) 100%
+  );
+  --gradient-deep-space: linear-gradient(160deg, #faf7ff 0%, #f3e8ff 55%, #fce7f3 100%);
+  --gradient-cosmic: radial-gradient(ellipse at 50% 0%, rgba(168, 85, 247, 0.12) 0%, transparent 60%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55));
+  --shadow-glow-sm: 0 0 15px rgba(168, 85, 247, 0.18);
+  --shadow-glow-md: 0 0 30px rgba(168, 85, 247, 0.22);
+  --shadow-pop: var(--shadow-card);
+  --shadow-pop-lg: var(--shadow-card-hover);
 }
 
 /* ========== 字体导入 ========== */
