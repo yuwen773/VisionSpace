@@ -2488,8 +2488,19 @@ section#hero.is-visible .brand-section {
   }
 
   .editorial-layout {
-    grid-template-columns: 1fr;
+    /* 单列时轨道最小值会取到 .gallery-frame 的 720px，窄屏会把正文撑出视口 */
+    grid-template-columns: minmax(0, 1fr);
     gap: 48px;
+  }
+
+  .editorial-text-col,
+  .editorial-visual-col {
+    min-width: 0;
+  }
+
+  .gallery-frame {
+    max-width: 100%;
+    min-height: 0;
   }
 
   .editorial-text-col {
