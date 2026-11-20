@@ -58,7 +58,7 @@
           <!-- 操作工具栏 -->
           <div class="cropper-toolbar">
             <div class="toolbar-group">
-              <button class="tool-btn" @click="rotateLeft" :disabled="!canEdit" title="向左旋转">
+              <button class="tool-btn" @click="rotateLeft" :disabled="!canEdit" title="向左旋转" aria-label="向左旋转">
                 <svg
                   width="20"
                   height="20"
@@ -72,7 +72,7 @@
                 </svg>
                 <span>左旋</span>
               </button>
-              <button class="tool-btn" @click="rotateRight" :disabled="!canEdit" title="向右旋转">
+              <button class="tool-btn" @click="rotateRight" :disabled="!canEdit" title="向右旋转" aria-label="向右旋转">
                 <svg
                   width="20"
                   height="20"
@@ -86,7 +86,7 @@
                 </svg>
                 <span>右旋</span>
               </button>
-              <button class="tool-btn" @click="changeScale(1)" :disabled="!canEdit" title="放大">
+              <button class="tool-btn" @click="changeScale(1)" :disabled="!canEdit" title="放大" aria-label="放大">
                 <svg
                   width="20"
                   height="20"
@@ -102,7 +102,7 @@
                 </svg>
                 <span>放大</span>
               </button>
-              <button class="tool-btn" @click="changeScale(-1)" :disabled="!canEdit" title="缩小">
+              <button class="tool-btn" @click="changeScale(-1)" :disabled="!canEdit" title="缩小" aria-label="缩小">
                 <svg
                   width="20"
                   height="20"

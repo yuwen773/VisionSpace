@@ -38,7 +38,12 @@
 
       <!-- 操作按钮栏（类 Grok） -->
       <div class="message-actions">
-        <button class="action-icon-btn" title="重新生成" @click="emit('regenerate')">
+        <button
+          class="action-icon-btn"
+          title="重新生成"
+          aria-label="重新生成"
+          @click="emit('regenerate')"
+        >
           <svg
             width="14"
             height="14"
@@ -51,7 +56,7 @@
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
         </button>
-        <button class="action-icon-btn" title="复制" @click="copyContent">
+        <button class="action-icon-btn" title="复制" aria-label="复制" @click="copyContent">
           <svg
             width="14"
             height="14"
@@ -64,7 +69,7 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
           </svg>
         </button>
-        <button class="action-icon-btn" title="分享" @click="emit('share')">
+        <button class="action-icon-btn" title="分享" aria-label="分享" @click="emit('share')">
           <svg
             width="14"
             height="14"

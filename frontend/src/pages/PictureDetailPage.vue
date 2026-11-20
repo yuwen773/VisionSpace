@@ -31,7 +31,7 @@
       </button>
 
       <div class="header-actions">
-        <button class="action-icon-btn" @click="doShare" title="分享">
+        <button class="action-icon-btn" @click="doShare" title="分享" aria-label="分享">
           <svg
             width="20"
             height="20"
@@ -47,7 +47,7 @@
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
         </button>
-        <button class="action-icon-btn" @click="doDownload" title="下载">
+        <button class="action-icon-btn" @click="doDownload" title="下载" aria-label="下载">
           <svg
             width="20"
             height="20"
@@ -61,7 +61,7 @@
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
-        <button v-if="canEdit" @click="doEdit" class="action-icon-btn" title="编辑">
+        <button v-if="canEdit" @click="doEdit" class="action-icon-btn" title="编辑" aria-label="编辑">
           <svg
             width="20"
             height="20"
@@ -74,7 +74,7 @@
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
         </button>
-        <button v-if="canDelete" @click="doDelete" class="action-icon-btn delete" title="删除">
+        <button v-if="canDelete" @click="doDelete" class="action-icon-btn delete" title="删除" aria-label="删除">
           <svg
             width="20"
             height="20"

@@ -167,7 +167,7 @@
 
                 <!-- 快速操作按钮 -->
                 <div class="quick-actions">
-                  <button class="quick-action-btn" @click="doEditPicture" title="裁剪编辑">
+                  <button class="quick-action-btn" @click="doEditPicture" title="裁剪编辑" aria-label="裁剪编辑">
                     <svg
                       width="20"
                       height="20"
@@ -184,7 +184,7 @@
                     </svg>
                     <span>裁剪</span>
                   </button>
-                  <button class="quick-action-btn" @click="doImagePainting" title="AI 扩图">
+                  <button class="quick-action-btn" @click="doImagePainting" title="AI 扩图" aria-label="AI 扩图">
                     <svg
                       width="20"
                       height="20"
