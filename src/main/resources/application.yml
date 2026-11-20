@@ -170,6 +170,18 @@ spring:
       embedding:
         options:
           model: ${VISION_SPACE_EMBEDDING_MODEL:text-embedding-v4}
+  # 两处自动配置由本项目自己接管，必须排除：
+  # - ChromaVectorStoreAutoConfiguration：它把 ChromaVectorStore 直接注册成 Bean，
+  #   初始化即连库建集合，连不上整个应用起不来。改由 RagVectorStoreConfiguration
+  #   装配成懒初始化的 ResilientVectorStore。
+  # - OpenAiEmbeddingAutoConfiguration：它的开关是 spring.ai.model.embedding（单值，
+  #   matchIfMissing=true），而 DashScope 的开关是 spring.ai.model.embedding.text，
+  #   不是同一个属性。只设后者时 OpenAI 那侧仍会命中，容器里出现两个 EmbeddingModel，
+  #   向量库自动配置要求唯一一个而失败。本项目的 embedding 一律走 DashScope。
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.chroma.autoconfigure.ChromaVectorStoreAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   # 数据库配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
