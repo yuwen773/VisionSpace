@@ -472,13 +472,22 @@ select,
 button {
   font-family: inherit;
   font-size: inherit;
-  outline: none;
 }
 
 button {
   cursor: pointer;
   border: none;
   background: none;
+}
+
+/*
+ * 键盘焦点可见性
+ * 组件库自带 box-shadow 焦点态只覆盖部分控件，自定义链接/按钮/可点击卡片
+ * 依赖浏览器默认焦点环；不要再用 outline: none 全局移除。
+ */
+:where(a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--color-primary-400);
+  outline-offset: 2px;
 }
 
 /* ========== 标题样式 ========== */
