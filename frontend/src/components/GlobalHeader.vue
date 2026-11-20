@@ -72,9 +72,11 @@
       <!-- 用户区域 -->
       <div class="header-right">
         <!-- 主题切换按钮 -->
-        <div
+        <button
+          type="button"
           class="theme-toggle-wrapper"
           @click="toggleTheme"
+          :aria-label="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'"
           :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'"
         >
           <div class="theme-toggle-pill" :class="currentTheme">
@@ -82,11 +84,16 @@
             <span class="theme-icon-item moon"><Moon :size="14" /></span>
             <div class="theme-toggle-slider"></div>
           </div>
-        </div>
+        </button>
 
         <div v-if="loginUserStore.loginUser.id" class="user-section">
           <a-dropdown :placement="'bottomRight'" class="cosmic-dropdown">
-            <div class="user-trigger">
+            <button
+              type="button"
+              class="user-trigger"
+              aria-label="用户菜单"
+              aria-haspopup="menu"
+            >
               <div class="user-avatar-wrapper">
                 <a-avatar :src="loginUserStore.loginUser.userAvatar" class="user-avatar" />
                 <span class="avatar-ring"></span>
@@ -110,7 +117,7 @@
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </span>
-            </div>
+            </button>
             <template #overlay>
               <div class="cosmic-dropdown-menu">
                 <!-- 用户信息头部 -->
@@ -195,9 +202,12 @@
 
         <!-- 汉堡菜单按钮（移动端） -->
         <button
+          type="button"
           class="hamburger-btn"
           @click="toggleMobileMenu"
           :class="{ active: mobileMenuVisible }"
+          :aria-label="mobileMenuVisible ? '关闭菜单' : '打开菜单'"
+          :aria-expanded="mobileMenuVisible"
         >
           <span class="hamburger-line"></span>
           <span class="hamburger-line"></span>
@@ -916,6 +926,9 @@ onUnmounted(() => {
   background: var(--bg-secondary);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-default);
+  color: inherit;
+  font: inherit;
+  text-align: left;
 
   &:hover {
     border-color: var(--color-primary);
@@ -1272,6 +1285,7 @@ onUnmounted(() => {
   align-items: center;
   position: relative;
   flex-shrink: 0;
+  color: inherit;
 
   &:hover {
     border-color: var(--color-primary-400);
