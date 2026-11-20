@@ -110,8 +110,13 @@
               v-for="picture in getColumnPictures(col - 1)"
               :key="picture.id"
               class="gallery-item"
+              role="button"
+              tabindex="0"
+              :aria-label="`查看图片：${picture.name}`"
               :style="{ animationDelay: `${(pictureList.indexOf(picture) % 12) * 0.05}s` }"
               @click="handlePictureClick(picture)"
+              @keydown.enter.prevent="handlePictureClick(picture)"
+              @keydown.space.prevent="handlePictureClick(picture)"
             >
               <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
                 <div class="item-skeleton" v-if="!loadedImages.has(picture.id)"></div>
