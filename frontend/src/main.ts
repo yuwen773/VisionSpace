@@ -17,6 +17,7 @@ import '@/styles/global.css'
 import '@/styles/global-ziyan.css'
 import '@/styles/antd-theme.css'
 import '@/styles/antd-theme-ziyan.css'
+import '@/styles/signature.css'
 
 // 引入主题管理
 import { useTheme } from '@/composables/useTheme'

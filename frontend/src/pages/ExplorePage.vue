@@ -1,99 +1,44 @@
 <template>
-  <div id="homePage">
-    <!-- 沉浸式背景层 -->
-    <div class="ambient-bg">
-      <!-- 星点背景 (纯 CSS，零 JS 开销) -->
-      <div class="starfield"></div>
-      <div class="starfield starfield-2"></div>
-      <div class="gradient-orb orb-1"></div>
-      <div class="gradient-orb orb-2"></div>
-      <div class="gradient-orb orb-3"></div>
+  <div id="homePage" class="signature-page explore-page">
+    <!-- 氛围层：与落地页共用一套静态光晕 + 网格 -->
+    <div class="ambient-bg" aria-hidden="true">
+      <div class="ambient-glow glow-a"></div>
+      <div class="ambient-glow glow-b"></div>
+      <div class="ambient-grid"></div>
     </div>
 
     <!-- 主内容区 -->
     <div class="main-content">
-      <!-- Hero 区域 -->
+      <!-- Hero 区域：搜索是这一页的主角 -->
       <section class="hero-section" ref="heroSection">
-        <!-- 品牌标识 -->
-        <div class="brand-section">
-          <div class="brand-logo">
-            <svg class="brand-icon" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="url(#brandGradient)" stroke-width="3" />
-              <circle cx="24" cy="24" r="12" fill="url(#brandGradient)" opacity="0.3" />
-              <circle cx="24" cy="24" r="6" fill="url(#brandGradient)" />
-              <defs>
-                <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#f472b6" />
-                  <stop offset="50%" stop-color="#a855f7" />
-                  <stop offset="100%" stop-color="#9333ea" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <div class="brand-text">
-            <span class="brand-name">VisionSpace</span>
-            <span class="brand-tagline">视觉灵感空间</span>
-          </div>
-        </div>
+        <h1 class="hero-title">发现视觉灵感</h1>
+        <p class="hero-subtitle">按颜色、标签或一句话，从社区作品里找到下一张参考。</p>
 
-        <!-- 主标题 -->
-        <h1 class="hero-title">
-          <span
-            class="title-word"
-            v-for="(word, i) in titleWords"
-            :key="i"
-            :style="{ animationDelay: `${i * 0.15}s` }"
-          >
-            {{ word }}
-          </span>
-        </h1>
-        <p class="hero-subtitle">探索无限视觉灵感，在光影之间寻找共鸣</p>
-
-        <!-- 搜索胶囊 - 毛玻璃效果 -->
         <div class="search-capsule" :class="{ 'search-focused': isSearchFocused }">
-          <div class="search-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
+          <Search :size="20" :stroke-width="2" class="search-icon" />
           <input
             v-model="searchText"
             type="text"
-            placeholder="搜索图片、标签或创作者..."
+            placeholder="搜索图片、标签或创作者"
             class="search-input"
+            aria-label="搜索图片"
             @focus="isSearchFocused = true"
             @blur="isSearchFocused = false"
             @keydown.enter="doSearch"
           />
           <button class="search-btn" @click="doSearch">
             <span>探索</span>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
+            <ArrowRight :size="16" :stroke-width="2" />
           </button>
         </div>
-        <!-- 分类标签 - 毛玻璃效果 -->
-        <div class="category-pills">
+
+        <div class="category-pills" role="group" aria-label="图片分类">
           <button
             v-for="cat in categoryList"
             :key="cat"
             class="category-pill"
             :class="{ active: selectedCategory === cat }"
+            :aria-pressed="selectedCategory === cat"
             @click="selectCategory(cat)"
           >
             {{ cat }}
@@ -111,57 +56,33 @@
               :key="picture.id"
               class="gallery-item"
               :style="{ animationDelay: `${(pictureList.indexOf(picture) % 12) * 0.05}s` }"
-              @click="handlePictureClick(picture)"
             >
-              <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
+              <div
+                class="item-image-wrap"
+                :style="{ paddingBottom: getAspectRatio(picture) }"
+                role="link"
+                tabindex="0"
+                :aria-label="`查看 ${picture.name}`"
+                @click="handlePictureClick(picture)"
+                @keydown.enter="handlePictureClick(picture)"
+              >
                 <div class="item-skeleton" v-if="!loadedImages.has(picture.id)"></div>
                 <img
                   :src="contentSrc(picture.thumbnailUrl || picture.url)"
                   :alt="picture.name"
                   class="item-image"
                   :class="{ loaded: loadedImages.has(picture.id) }"
+                  loading="lazy"
+                  decoding="async"
                   @load="onImageLoad(picture.id)"
                 />
-                <div class="item-overlay">
-                  <div class="overlay-content">
-                    <h3 class="item-title">{{ picture.name }}</h3>
-                    <div class="item-meta">
-                      <span>{{ picture.picWidth }}×{{ picture.picHeight }}</span>
-                      <span class="meta-divider">•</span>
-                      <span>{{ picture.picFormat?.toUpperCase() }}</span>
-                    </div>
-                  </div>
-                  <div class="overlay-actions">
-                    <button class="action-btn" title="收藏">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                        />
-                      </svg>
-                    </button>
-                    <button class="action-btn" title="分享">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <circle cx="18" cy="5" r="3" />
-                        <circle cx="6" cy="12" r="3" />
-                        <circle cx="18" cy="19" r="3" />
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                      </svg>
-                    </button>
+              </div>
+              <div class="item-overlay">
+                <div class="overlay-content">
+                  <h3 class="item-title">{{ picture.name }}</h3>
+                  <div class="item-meta tabular">
+                    <span>{{ picture.picWidth }} × {{ picture.picHeight }}</span>
+                    <span>{{ picture.picFormat?.toUpperCase() }}</span>
                   </div>
                 </div>
               </div>
@@ -177,103 +98,53 @@
 
         <!-- 加载状态 -->
         <div class="gallery-loader" ref="loaderRef">
-          <!-- 加载动画 -->
-          <div class="loader-content" v-if="loading">
-            <div class="loader-orb">
-              <div class="orb-inner"></div>
-              <div class="orb-ring"></div>
-              <div class="orb-ring ring-2"></div>
-            </div>
-            <span class="loader-text">正在加载精彩内容</span>
+          <!-- 首屏：与瀑布流同构的骨架 -->
+          <div
+            v-if="loading && pictureList.length === 0"
+            class="gallery-skeleton"
+            aria-hidden="true"
+          >
+            <div
+              v-for="n in 8"
+              :key="n"
+              class="skeleton-card"
+              :class="`skeleton-${((n - 1) % 4) + 1}`"
+            ></div>
+          </div>
+
+          <!-- 翻页：安静的三点提示 -->
+          <div v-else-if="loading" class="loader-content" role="status" aria-live="polite">
+            <span class="loader-dot"></span>
+            <span class="loader-dot"></span>
+            <span class="loader-dot"></span>
+            <span class="loader-text">正在加载更多</span>
           </div>
 
           <!-- 到底了 -->
           <div class="end-section" v-else-if="!hasMore && pictureList.length > 0">
-            <div class="end-decoration">
-              <div class="star star-1">✦</div>
-              <div class="star star-2">✧</div>
-              <div class="star star-3">✦</div>
-            </div>
-            <div class="end-content">
-              <h3 class="end-title">你已完成探索</h3>
-              <p class="end-subtitle">发现了 {{ total }} 张精彩图片</p>
-            </div>
+            <p class="end-title">已经到底了</p>
+            <p class="end-subtitle tabular">共发现 {{ total }} 张图片</p>
             <div class="end-actions">
               <button class="end-btn" @click="backToTop">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M18 15l-6-6-6 6" />
-                </svg>
+                <ArrowUp :size="16" :stroke-width="2" />
                 <span>回到顶部</span>
               </button>
               <button class="end-btn secondary" @click="refreshGallery">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M23 4v6h-6" />
-                  <path d="M1 20v-6h6" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                </svg>
+                <RefreshCw :size="16" :stroke-width="2" />
                 <span>换一批</span>
               </button>
             </div>
-            <div class="end-glow"></div>
           </div>
 
           <!-- 空状态 -->
           <div class="empty-state" v-else-if="!loading && pictureList.length === 0">
-            <div class="empty-illustration">
-              <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  stroke="var(--color-border-default)"
-                  stroke-width="2"
-                  stroke-dasharray="8 4"
-                />
-                <rect
-                  x="35"
-                  y="35"
-                  width="50"
-                  height="50"
-                  rx="8"
-                  stroke="var(--color-text-tertiary)"
-                  stroke-width="2"
-                />
-                <circle cx="50" cy="50" r="6" fill="var(--color-text-disabled)" />
-                <path
-                  d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z"
-                  fill="var(--color-bg-tertiary)"
-                  stroke="var(--color-text-tertiary)"
-                  stroke-width="2"
-                />
-              </svg>
+            <div class="empty-icon">
+              <ImageOff :size="28" :stroke-width="1.5" />
             </div>
-            <h3 class="empty-title">暂无图片</h3>
-            <p class="empty-desc">还没有上传任何图片，开始你的创作吧</p>
+            <h3 class="empty-title">这里还没有图片</h3>
+            <p class="empty-desc">上传第一张作品，或者换一个分类看看。</p>
             <button class="empty-action" @click="goToUpload">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <Plus :size="18" :stroke-width="2" />
               <span>上传图片</span>
             </button>
           </div>
@@ -286,6 +157,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowRight, ArrowUp, ImageOff, Plus, RefreshCw, Search } from 'lucide-vue-next'
 import { type PictureRecommendRequest } from '@/api-custom/picture'
 import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 import { usePictureAction } from '@/composables/usePictureAction'
@@ -341,8 +213,6 @@ const updateColumnCount = () => {
 const columnAssignment = ref<Map<string, number>>(new Map())
 // 列高度追踪
 const columnHeights = ref<number[]>(new Array(columnCount.value).fill(0))
-
-const titleWords = ['发现', '视觉', '灵感']
 
 // 曝光追踪
 const observedPictures = ref<Set<string>>(new Set())
@@ -580,351 +450,143 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
+/* ============================================================
+   Explore - signature layer
+   圆角：卡片 16px / 控件 999px / 图标容器 20px
+   单一强调色：--color-primary（极光蓝 / 紫漾紫）
+   ============================================================ */
+
 #homePage {
-  min-height: 100vh;
-  background: var(--bg-primary);
   position: relative;
+  min-height: 100dvh;
   overflow-x: hidden;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
 }
 
-/* ========== 氛围背景 ========== */
+/* ---------- 氛围层 ---------- */
 .ambient-bg {
   position: fixed;
   inset: 0;
-  pointer-events: none;
   z-index: 0;
+  pointer-events: none;
   overflow: hidden;
 }
 
-/* 纯 CSS 星点背景（零 JS 开销） */
-.starfield {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 10% 15%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 40%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 40% 10%, rgba(255, 255, 255, 0.8) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 60%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 70% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 85% 70%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 15% 80%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 55%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
-    radial-gradient(2px 2px at 35% 75%, rgba(168, 85, 247, 0.6) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 60% 85%, rgba(236, 72, 153, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 5% 50%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 78% 8%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 48% 25%, rgba(168, 85, 247, 0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 88% 92%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 22% 65%, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
-  animation: starfield-drift 120s linear infinite;
-}
-
-.starfield-2 {
-  background-image:
-    radial-gradient(1px 1px at 18% 28%, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 33% 72%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 62% 18%, rgba(255, 255, 255, 0.7) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 48%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 45% 92%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 12% 58%, rgba(168, 85, 247, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 72% 82%, rgba(255, 255, 255, 0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 95% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 100%),
-    radial-gradient(2px 2px at 50% 50%, rgba(168, 85, 247, 0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 28% 8%, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
-  animation: starfield-drift 180s linear infinite reverse;
-  opacity: 0.7;
-}
-
-@keyframes starfield-drift {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-200px);
-  }
-}
-
-.gradient-orb {
+.ambient-glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  animation: orb-breathe 12s ease-in-out infinite;
+  filter: blur(140px);
+  opacity: 0.5;
 }
 
-.orb-1 {
-  width: 700px;
-  height: 700px;
+.glow-a {
+  width: 64vw;
+  height: 64vw;
+  top: -30vw;
+  right: -20vw;
   background: radial-gradient(
     circle,
-    rgba(168, 85, 247, 0.35) 0%,
-    rgba(110, 53, 235, 0.15) 50%,
-    transparent 70%
+    color-mix(in srgb, var(--color-primary) 26%, transparent) 0%,
+    transparent 66%
   );
-  top: -250px;
-  right: -150px;
-  animation-name: orb-breathe-1;
-  animation-delay: 0s;
 }
 
-.orb-2 {
-  width: 600px;
-  height: 600px;
+.glow-b {
+  width: 56vw;
+  height: 56vw;
+  bottom: -26vw;
+  left: -22vw;
   background: radial-gradient(
     circle,
-    rgba(236, 72, 153, 0.25) 0%,
-    rgba(168, 85, 247, 0.1) 50%,
-    transparent 70%
+    color-mix(in srgb, var(--color-secondary) 18%, transparent) 0%,
+    transparent 68%
   );
-  top: 35%;
-  left: -200px;
-  animation-name: orb-breathe-2;
-  animation-delay: -4s;
 }
 
-.orb-3 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(
-    circle,
-    rgba(168, 85, 247, 0.2) 0%,
-    rgba(34, 104, 245, 0.1) 50%,
-    transparent 70%
-  );
-  bottom: -150px;
-  right: 15%;
-  animation-name: orb-breathe-3;
-  animation-delay: -8s;
+.ambient-grid {
+  position: absolute;
+  inset: 0;
+  background-image: var(--pattern-grid);
+  background-size: 72px 72px;
+  opacity: 0.45;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 62%);
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 62%);
 }
 
-/* orb 呼吸动画：translate + scale + opacity 联动 */
-@keyframes orb-breathe-1 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.7;
-  }
-  33% {
-    transform: translate(40px, -40px) scale(1.08);
-    opacity: 0.9;
-  }
-  66% {
-    transform: translate(-30px, 30px) scale(0.95);
-    opacity: 0.6;
-  }
-}
-
-@keyframes orb-breathe-2 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.6;
-  }
-  40% {
-    transform: translate(-50px, 30px) scale(1.1);
-    opacity: 0.85;
-  }
-  70% {
-    transform: translate(30px, -20px) scale(0.92);
-    opacity: 0.5;
-  }
-}
-
-@keyframes orb-breathe-3 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translate(20px, -50px) scale(1.12);
-    opacity: 0.8;
-  }
-}
-
-/* ========== 主内容区 ========== */
+/* ---------- 主内容 ---------- */
 .main-content {
   position: relative;
   z-index: 1;
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 clamp(20px, 4vw, 32px);
 }
 
-/* ========== Hero 区域 ========== */
+/* ---------- Hero ---------- */
 .hero-section {
-  min-height: 90vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(88px, 12vh, 140px) 0 clamp(40px, 6vh, 64px);
   text-align: center;
-  padding: 60px 24px 120px;
-  position: relative;
 }
 
-/* 品牌标识 */
-.brand-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 32px;
-  animation: fade-up 0.8s ease-out forwards;
-  opacity: 0;
-}
-
-.brand-logo {
-  width: 64px;
-  height: 64px;
-  animation: logo-breathe 4s ease-in-out infinite;
-}
-
-.brand-icon {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5));
-  transition: filter 0.4s ease;
-}
-
-.brand-logo:hover .brand-icon {
-  filter: drop-shadow(0 0 25px rgba(168, 85, 247, 0.8));
-}
-
-/* 只用 filter + opacity 做呼吸，不碰 scale（避免 layout thrashing） */
-@keyframes logo-breathe {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.5));
-  }
-  50% {
-    filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.8));
-  }
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.brand-name {
-  font-family: var(--font-brand);
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 8px;
-  background: linear-gradient(135deg, #f8fafc 0%, #f472b6 50%, #a855f7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-transform: uppercase;
-}
-
-.brand-tagline {
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-  letter-spacing: 4px;
-}
-
-/* 主标题 */
 .hero-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(48px, 10vw, 96px);
-  font-weight: 800;
-  line-height: 1.1;
-  margin: 0 0 20px 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 24px;
-}
-
-.title-word {
-  display: inline-block;
-  animation: title-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  opacity: 0;
-  transform: translateY(40px);
-
-  &:nth-child(1) {
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  &:nth-child(2) {
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  &:nth-child(3) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-}
-
-@keyframes title-reveal {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  font-size: clamp(2.6rem, 6vw, 4.25rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  text-wrap: balance;
 }
 
 .hero-subtitle {
-  font-size: clamp(16px, 2vw, 20px);
+  margin: clamp(16px, 2.2vh, 22px) 0 0;
+  max-width: 30em;
+  font-size: clamp(0.98rem, 1.4vw, 1.1rem);
+  line-height: 1.7;
   color: var(--color-text-secondary);
-  margin: 0 0 36px 0;
-  font-weight: 400;
-  letter-spacing: 1px;
-  animation: fade-up 0.8s ease-out 0.4s forwards;
-  opacity: 0;
-  transform: translateY(20px);
 }
 
-@keyframes fade-up {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ========== 搜索胶囊 - 毛玻璃效果 ========== */
+/* ---------- 搜索胶囊 ---------- */
 .search-capsule {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 6px 6px 20px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 60px;
   width: 100%;
   max-width: 720px;
-  margin-bottom: 28px;
-  transition: all 0.3s ease;
-  animation: fade-up 0.8s ease-out 0.6s forwards;
-  opacity: 0;
-  transform: translateY(20px);
+  margin-top: clamp(28px, 4vh, 40px);
+  padding: 8px 8px 8px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-lg);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s ease;
 
   &:hover {
-    background: var(--glass-bg-light);
-    border-color: var(--glass-border);
+    border-color: var(--color-border-strong);
   }
 
   &.search-focused {
-    background: var(--glass-bg-light);
     border-color: var(--color-primary);
-    box-shadow: 0 0 40px rgba(168, 85, 247, 0.3);
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--color-primary) 16%, transparent),
+      var(--shadow-lg);
   }
 }
 
 .search-icon {
-  color: var(--color-text-secondary);
   flex-shrink: 0;
-  transition: color 0.3s ease;
+  color: var(--color-text-tertiary);
+  transition: color 0.2s ease;
 }
 
 .search-capsule.search-focused .search-icon {
@@ -933,207 +595,123 @@ onUnmounted(() => {
 
 .search-input {
   flex: 1;
-  background: transparent;
+  min-width: 0;
   border: none;
   outline: none;
-  font-size: 16px;
-  color: var(--text-primary);
-  min-width: 0;
-  letter-spacing: 0.5px;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--color-text-primary);
 
   &::placeholder {
-    color: var(--text-tertiary);
+    color: var(--color-text-tertiary);
   }
 }
 
 .search-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 28px;
-  background: linear-gradient(135deg, #f472b6 0%, #a855f7 100%);
-  border: none;
-  border-radius: 40px;
-  color: white;
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   flex-shrink: 0;
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+  padding: 12px 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary-600);
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    transform: translateY(-3px) scale(1.03);
-    box-shadow:
-      0 8px 35px rgba(244, 114, 182, 0.55),
-      0 0 20px rgba(168, 85, 247, 0.3);
+    background: var(--color-primary-700);
   }
 
   &:active {
-    transform: translateY(-1px) scale(0.98);
-    box-shadow: 0 2px 12px rgba(168, 85, 247, 0.4);
+    transform: scale(0.97);
   }
 }
 
-/* ========== 分类标签 - 毛玻璃效果 ========== */
+/* ---------- 分类 ---------- */
 .category-pills {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
-  animation: fade-up 0.8s ease-out 0.8s forwards;
-  opacity: 0;
-  transform: translateY(20px);
+  gap: 8px;
+  margin-top: clamp(22px, 3vh, 28px);
 }
 
 .category-pill {
-  padding: 10px 22px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur-light);
-  -webkit-backdrop-filter: var(--glass-blur-light);
-  border: 1px solid var(--glass-border);
-  border-radius: 30px;
-  color: var(--text-primary);
-  font-size: 14px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    background: var(--glass-bg-light);
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
   }
 
   &.active {
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
-    border-color: transparent;
-    color: white;
-    box-shadow: 0 8px 25px rgba(168, 85, 247, 0.5);
+    border-color: var(--color-primary-600);
+    background: var(--color-primary-600);
+    color: #ffffff;
+  }
+
+  &:active {
+    transform: scale(0.97);
   }
 }
 
-/* ========== 滚动指示器 ========== */
-.scroll-indicator {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  animation: fade-up 0.8s ease-out 1.2s forwards;
-  opacity: 0;
-}
-
-.scroll-text {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-.scroll-arrow {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur-light);
-  border: 1px solid var(--glass-border);
-  border-radius: 50%;
-  color: var(--text-secondary);
-  animation: bounce-arrow 2s ease-in-out infinite;
-
-  svg {
-    animation: arrow-pulse 2s ease-in-out infinite;
-  }
-}
-
-@keyframes bounce-arrow {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translateY(8px);
-    opacity: 1;
-  }
-}
-
-@keyframes arrow-pulse {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(4px);
-  }
-}
-
-/* 底部渐变遮罩 - 暗示下方有内容 */
-.hero-fade {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(168, 85, 247, 0.15) 70%,
-    var(--bg-primary) 100%
-  );
-  pointer-events: none;
-}
-
-/* ========== 画廊区域 ========== */
+/* ---------- 画廊 ---------- */
 .gallery-section {
-  padding: 80px 0 120px;
+  padding: 24px 0 96px;
 }
 
-/* ========== 瀑布流画廊 ========== */
 .masonry-wrapper {
   display: flex;
-  gap: 20px;
+  gap: 18px;
   width: 100%;
 }
 
 .masonry-column {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  min-width: 0;
 }
 
 .gallery-item {
-  opacity: 0;
-  animation: item-reveal 0.6s ease-out forwards;
-  break-inside: avoid;
   position: relative;
-
-  &:hover {
-    .item-overlay {
-      opacity: 1;
-    }
-    .item-image {
-      transform: scale(1.05);
-    }
-  }
+  border-radius: 16px;
+  cursor: pointer;
+  outline-offset: 4px;
+  opacity: 0;
+  animation: item-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes item-reveal {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -1142,7 +720,18 @@ onUnmounted(() => {
   width: 100%;
   overflow: hidden;
   border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
   background: var(--color-bg-secondary);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gallery-item:hover .item-image-wrap {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-3px);
 }
 
 .item-skeleton {
@@ -1150,12 +739,12 @@ onUnmounted(() => {
   inset: 0;
   background: linear-gradient(
     90deg,
-    var(--color-bg-secondary) 0%,
-    var(--color-bg-tertiary) 50%,
-    var(--color-bg-secondary) 100%
+    var(--color-bg-tertiary) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-tertiary) 100%
   );
   background-size: 200% 100%;
-  animation: skeleton 1.5s infinite;
+  animation: skeleton 1.4s ease-in-out infinite;
 }
 
 @keyframes skeleton {
@@ -1176,398 +765,289 @@ onUnmounted(() => {
   opacity: 0;
   transition:
     opacity 0.4s ease,
-    transform 0.4s ease;
-
-  &.loaded {
-    opacity: 1;
-  }
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.item-image.loaded {
+  opacity: 1;
+}
+
+.gallery-item:hover .item-image {
+  transform: scale(1.03);
+}
+
+/* 中性遮罩：照片上的文字用白色，不套品牌紫 */
 .item-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(139, 92, 246, 0.85) 0%,
-    rgba(139, 92, 246, 0.4) 40%,
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 20px;
+  padding: 18px;
+  border-radius: 16px;
+  pointer-events: none;
+  color: #ffffff;
+  background: linear-gradient(
+    to top,
+    rgba(6, 8, 15, 0.88) 0%,
+    rgba(6, 8, 15, 0.45) 42%,
+    rgba(6, 8, 15, 0) 72%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.gallery-item:hover .item-overlay,
+.gallery-item:focus-within .item-overlay {
+  opacity: 1;
 }
 
 .overlay-content {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  gap: 6px;
 }
 
 .item-title {
-  font-size: 16px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 8px 0;
+  color: #ffffff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .item-meta {
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.meta-divider {
-  opacity: 0.5;
-}
-
-.overlay-actions {
   display: flex;
   gap: 12px;
-  margin-top: 16px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.action-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
-  }
-}
-
-/* ========== 加载状态 ========== */
+/* ---------- 加载 / 到底 / 空态 ---------- */
 .gallery-loader {
-  margin-top: 80px;
-  min-height: 200px;
-}
-
-/* 加载动画 */
-.loader-content {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  padding: 40px;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 160px;
+  margin-top: 56px;
 }
 
-.loader-orb {
-  position: relative;
-  width: 60px;
-  height: 60px;
+.gallery-skeleton {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  width: 100%;
 }
 
-.orb-inner {
-  position: absolute;
-  inset: 15px;
-  background: linear-gradient(135deg, #f472b6, #ec4899, #db2777);
-  border-radius: 50%;
-  animation: pulse-orb 1.5s ease-in-out infinite;
-  box-shadow: 0 0 30px rgba(244, 114, 182, 0.6);
+.skeleton-card {
+  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+  background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-elevated));
+  animation: skeleton-fade 1.6s ease-in-out infinite;
 }
 
-.orb-ring {
-  position: absolute;
-  inset: 0;
-  border: 2px solid transparent;
-  border-top-color: #f472b6;
-  border-radius: 50%;
-  animation: spin-ring 1.2s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(244, 114, 182, 0.6));
-
-  &.ring-2 {
-    inset: 5px;
-    border-top-color: #fb923c;
-    animation-duration: 1.8s;
-    animation-direction: reverse;
-    filter: drop-shadow(0 0 10px rgba(251, 146, 60, 0.6));
-  }
+.skeleton-1 {
+  aspect-ratio: 4 / 5;
+}
+.skeleton-2 {
+  aspect-ratio: 1 / 1;
+}
+.skeleton-3 {
+  aspect-ratio: 3 / 4;
+}
+.skeleton-4 {
+  aspect-ratio: 4 / 3;
 }
 
-@keyframes pulse-orb {
+@keyframes skeleton-fade {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 1;
+    opacity: 0.55;
   }
   50% {
-    transform: scale(0.8);
-    opacity: 0.6;
+    opacity: 1;
   }
 }
 
-@keyframes spin-ring {
-  to {
-    transform: rotate(360deg);
+.loader-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.loader-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: dot-pulse 1.1s ease-in-out infinite;
+
+  &:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  &:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
 .loader-text {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  letter-spacing: 1px;
+  margin-left: 8px;
 }
 
-/* 到底了状态 */
 .end-section {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 60px 40px;
+  gap: 8px;
+  width: 100%;
+  padding: 48px 0 8px;
+  border-top: 1px solid var(--color-border-subtle);
   text-align: center;
-  overflow: hidden;
-  margin-top: 40px;
-}
-
-.end-decoration {
-  position: relative;
-  width: 100px;
-  height: 30px;
-  margin-bottom: 24px;
-}
-
-.star {
-  position: absolute;
-  font-size: 20px;
-  color: #f472b6;
-  animation: twinkle 2s ease-in-out infinite;
-  text-shadow: 0 0 10px rgba(244, 114, 182, 0.8);
-
-  &.star-1 {
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    animation-delay: 0s;
-  }
-  &.star-2 {
-    left: 50%;
-    top: 0;
-    transform: translateX(-50%);
-    animation-delay: 0.3s;
-    font-size: 16px;
-  }
-  &.star-3 {
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    animation-delay: 0.6s;
-  }
-}
-
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: 1;
-    transform: translateY(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.4;
-    transform: translateY(-50%) scale(0.8);
-  }
-}
-
-.star-2 {
-  animation-name: twinkle-alt;
-  @keyframes twinkle-alt {
-    0%,
-    100% {
-      opacity: 0.4;
-      transform: translateX(-50%) scale(0.8);
-    }
-    50% {
-      opacity: 1;
-      transform: translateX(-50%) scale(1.1);
-    }
-  }
-}
-
-.end-content {
-  margin-bottom: 32px;
 }
 
 .end-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 12px 0;
-  background: linear-gradient(135deg, #a855f7 0%, #f472b6 50%, #fb923c 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 0 40px rgba(244, 114, 182, 0.3);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 .end-subtitle {
-  font-size: 16px;
-  color: var(--color-text-tertiary);
   margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
 }
 
 .end-actions {
   display: flex;
-  gap: 16px;
-  z-index: 1;
+  gap: 10px;
+  margin-top: 20px;
 }
 
 .end-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 28px;
-  border: none;
-  border-radius: 40px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--color-primary-600);
+  background: var(--color-primary-600);
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   font-weight: 600;
-  font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 
-  // 主按钮 - 回到顶部
-  &:not(.secondary) {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
-    color: white;
-    box-shadow:
-      0 4px 20px rgba(244, 114, 182, 0.5),
-      0 0 50px rgba(244, 114, 182, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-
-    &:hover {
-      transform: translateY(-3px) scale(1.02);
-      box-shadow:
-        0 8px 35px rgba(244, 114, 182, 0.6),
-        0 0 70px rgba(244, 114, 182, 0.35);
-    }
-
-    &:active {
-      transform: translateY(-1px) scale(1);
-    }
+  &:hover {
+    background: var(--color-primary-700);
   }
 
-  // 次按钮 - 换一批
+  &:active {
+    transform: scale(0.97);
+  }
+
   &.secondary {
-    background: var(--glass-bg-light);
+    background: transparent;
+    border-color: var(--color-border-strong);
     color: var(--color-text-primary);
-    border: 2px solid var(--glass-border);
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.15);
-
-    svg {
-      color: var(--color-text-secondary);
-      transition: transform 0.3s ease;
-    }
 
     &:hover {
-      background: var(--glass-bg);
       border-color: var(--color-primary);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(244, 114, 182, 0.25);
-
-      svg {
-        transform: rotate(180deg);
-        color: var(--color-primary);
-      }
+      color: var(--color-primary);
     }
   }
 }
 
-.end-glow {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 400px;
-  height: 150px;
-  background: radial-gradient(
-    ellipse,
-    rgba(244, 114, 182, 0.3) 0%,
-    rgba(251, 146, 60, 0.2) 40%,
-    transparent 70%
-  );
-  pointer-events: none;
-  filter: blur(30px);
-}
-
-/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 60px 24px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 48px 24px;
   text-align: center;
 }
 
-.empty-illustration {
-  margin-bottom: 32px;
-  opacity: 0.7;
-  animation: float-illustration 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 20px rgba(244, 114, 182, 0.3));
-}
-
-@keyframes float-illustration {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+.empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
 }
 
 .empty-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 600;
   color: var(--color-text-primary);
-  margin: 0 0 12px 0;
 }
 
 .empty-desc {
-  font-size: 15px;
+  margin: 8px 0 24px;
+  font-size: 0.9rem;
+  line-height: 1.7;
   color: var(--color-text-tertiary);
-  margin: 0 0 32px 0;
-  max-width: 300px;
 }
 
 .empty-action {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 32px;
-  background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+  gap: 8px;
+  padding: 11px 22px;
   border: none;
-  border-radius: 40px;
-  color: white;
+  border-radius: 999px;
+  background: var(--color-primary-600);
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
   font-weight: 600;
-  font-size: 15px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 25px rgba(244, 114, 182, 0.45);
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 35px rgba(244, 114, 182, 0.55);
+    background: var(--color-primary-700);
+  }
+
+  &:active {
+    transform: scale(0.97);
   }
 }
 
-/* ========== 曝光追踪器 ========== */
+/* ---------- 曝光追踪 ---------- */
 .impression-tracker {
   position: absolute;
   width: 1px;
@@ -1576,151 +1056,75 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* ========== AI 助手快捷入口 ========== */
-.quick-entry {
-  margin-top: 20px;
-  animation: fade-up 0.8s ease-out 0.7s forwards;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.quick-entry-inner {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
-  background: var(--gradient-glass);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  max-width: 720px;
-  width: 100%;
-}
-
-.quick-entry-inner:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-border-accent);
-  transform: translateY(-2px);
-}
-
-.quick-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--gradient-aurora);
-  color: white;
-  flex-shrink: 0;
-}
-
-.quick-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  text-align: left;
-}
-
-.quick-title {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  letter-spacing: -0.02em;
-}
-
-.quick-desc {
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-}
-
-.quick-arrow {
-  color: var(--color-text-tertiary);
-  flex-shrink: 0;
-}
-
-/* ========== 响应式瀑布流 ========== */
+/* ---------- 响应式 ---------- */
 @media (max-width: 1200px) {
-  .masonry-wrapper {
-    gap: 16px;
-  }
-  .masonry-column {
+  .masonry-wrapper,
+  .masonry-column,
+  .gallery-skeleton {
     gap: 16px;
   }
 }
 
-@media (max-width: 768px) {
-  .masonry-wrapper {
-    gap: 12px;
-  }
-  .masonry-column {
-    gap: 12px;
+@media (max-width: 900px) {
+  .gallery-skeleton {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-/* ========== 响应式 ========== */
 @media (max-width: 768px) {
   .hero-section {
-    padding: 40px 16px 100px;
-    min-height: auto;
-  }
-
-  .brand-logo {
-    width: 48px;
-    height: 48px;
-  }
-
-  .brand-name {
-    font-size: 18px;
-    letter-spacing: 6px;
-  }
-
-  .brand-tagline {
-    font-size: 10px;
-    letter-spacing: 3px;
+    padding: 72px 0 32px;
   }
 
   .hero-title {
-    gap: 6px 16px;
+    font-size: clamp(2.2rem, 9vw, 3rem);
   }
 
   .search-capsule {
-    padding: 4px 4px 4px 16px;
-    max-width: 100%;
+    padding: 6px 6px 6px 16px;
   }
 
   .search-btn {
-    padding: 12px 20px;
-    font-size: 14px;
+    padding: 10px 18px;
   }
 
-  .category-pills {
-    gap: 8px;
+  .masonry-wrapper,
+  .masonry-column {
+    gap: 12px;
   }
 
-  .category-pill {
-    padding: 8px 16px;
-    font-size: 13px;
+  .gallery-section {
+    padding: 16px 0 64px;
   }
 
-  .scroll-indicator {
-    bottom: 30px;
+  .gallery-skeleton {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
 
-  .scroll-text {
-    font-size: 10px;
+  .item-overlay {
+    padding: 14px;
   }
 
-  .scroll-arrow {
-    width: 40px;
-    height: 40px;
+  .end-actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .end-btn {
+    justify-content: center;
   }
 }
 
-.gallery-section {
-  padding: 40px 0 80px;
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0 14px;
+  }
+
+  .category-pill {
+    padding: 7px 14px;
+    font-size: 0.82rem;
+  }
 }
 </style>

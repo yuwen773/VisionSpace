@@ -1,5 +1,5 @@
 <template>
-  <div class="agent-chat-page">
+  <div class="agent-chat-page signature-page">
     <AgentChatLayout :left-collapsed="leftCollapsed" :right-expanded="resourcePanelVisible">
       <!-- 左栏 -->
       <template #left>
@@ -82,6 +82,15 @@
           </svg>
           <span v-if="totalResourceCount > 0" class="resource-badge">{{ totalResourceCount }}</span>
         </button>
+
+        <!-- 会话标题栏：给三栏布局一个稳定的顶部锚点 -->
+        <header class="chat-topbar" :class="{ 'has-left-toggle': leftCollapsed }">
+          <div class="chat-identity">
+            <span class="chat-identity-name">SpaceMind</span>
+            <span class="chat-identity-sep" aria-hidden="true"></span>
+            <span class="chat-identity-title">{{ activeThreadTitle }}</span>
+          </div>
+        </header>
 
         <!-- 恢复状态：区分「可继续」「等待确认」「结果未知待核对」「不可恢复」 -->
         <RecoveryBanner
@@ -222,7 +231,8 @@ const saveThreadId = (id: string) => {
 // State
 const threadId = ref(generateThreadId())
 const currentThreadId = ref('')
-const leftCollapsed = ref(false)
+// 窄屏默认收起历史栏，避免 276px 抽屉把消息区压成窄缝
+const leftCollapsed = ref(typeof window !== 'undefined' && window.innerWidth <= 900)
 const resourcePanelVisible = ref(false)
 const panelImages = ref<ImageResource[]>([])
 const panelLinks = ref<LinkResource[]>([])
@@ -369,6 +379,11 @@ const histories = computed<HistoryItem[]>(() =>
     time: s.updatedTime ? new Date(s.updatedTime).toLocaleString(DATE_LOCALE) : '',
   })),
 )
+
+const activeThreadTitle = computed(() => {
+  const active = sessions.value.find((s) => s.sessionId === currentThreadId.value)
+  return active?.title || (currentThreadId.value ? '对话记录' : '新对话')
+})
 
 const bindProposalSession = (id: string) => {
   currentThreadId.value = id
@@ -725,48 +740,134 @@ const handleDownloadImage = (url: string) => {
 </script>
 
 <style scoped>
+/* 会话标题栏：三栏布局的顶部锚点，给左右两个浮动按钮留出空间 */
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 52px;
+  padding: 0 64px 0 clamp(16px, 3vw, 24px);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-bg-secondary) 55%, transparent);
+}
+
+.chat-topbar.has-left-toggle {
+  padding-left: 60px;
+}
+
+.chat-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chat-identity-name {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+}
+
+.chat-identity-sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 12px;
+  background: var(--color-border-strong);
+}
+
+.chat-identity-title {
+  overflow: hidden;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .chat-identity-title {
+    display: none;
+  }
+
+  .chat-identity-sep {
+    display: none;
+  }
+}
+
+/* 站内找图：降为一条工具带，不与消息争注意力 */
 .asset-search-controls {
-  padding: 10px 24px;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-  color: var(--color-text-secondary);
-  font-size: 12px;
+  gap: 10px 14px;
+  padding: 10px clamp(16px, 3vw, 24px);
   border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-bg-secondary) 72%, transparent);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
 }
+
 .asset-search-controls label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-}
-.asset-search-controls select,
-.asset-search-controls button {
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 8px;
-  padding: 7px 10px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
-}
-.asset-search-controls button {
+  gap: 6px;
   cursor: pointer;
 }
+
+.asset-search-controls input[type='checkbox'] {
+  accent-color: var(--color-primary);
+}
+
+.asset-search-controls select,
+.asset-search-controls button {
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
+.asset-search-controls button {
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.asset-search-controls button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.asset-search-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .asset-search-controls p {
   flex-basis: 100%;
   margin: 0;
-  color: var(--color-warning, #a66a20);
+  color: var(--color-warning);
 }
+
 .asset-search-controls small {
   color: var(--color-text-tertiary);
 }
+
 .agent-chat-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   overflow: hidden;
   background: var(--color-bg-primary);
-  position: relative;
-  display: flex;
-  flex-direction: column;
 }
 
 .collapsed-actions {
@@ -780,58 +881,43 @@ const handleDownloadImage = (url: string) => {
 }
 
 .toggle-left-btn,
-.quick-new-chat-btn {
+.quick-new-chat-btn,
+.toggle-right-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 10px;
-  background: var(--color-bg-elevated);
+  background: color-mix(in srgb, var(--color-bg-elevated) 86%, transparent);
   color: var(--color-text-tertiary);
   cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.toggle-left-btn:hover,
-.quick-new-chat-btn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-default);
-}
-
-.quick-new-chat-btn:hover {
-  color: var(--color-primary-500);
-  border-color: var(--color-primary-500);
+  backdrop-filter: blur(8px);
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .toggle-right-btn {
   position: absolute;
   top: 14px;
-  right: 20px;
+  right: 16px;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 10px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
+.toggle-left-btn:hover,
+.quick-new-chat-btn:hover,
 .toggle-right-btn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-default);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
 }
 
 .toggle-right-btn.active {
-  color: var(--color-primary-500);
-  border-color: var(--color-primary-500);
-  background: rgba(168, 85, 247, 0.08);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .resource-badge {
@@ -842,8 +928,8 @@ const handleDownloadImage = (url: string) => {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--color-primary-500);
-  color: white;
+  background: var(--color-primary-600);
+  color: #ffffff;
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;
@@ -853,7 +939,5 @@ const handleDownloadImage = (url: string) => {
 .bottom-area {
   flex-shrink: 0;
   border-top: 1px solid var(--color-border-subtle);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-}
-</style>
+  background: var(--color-bg-primary);
+}</style>
