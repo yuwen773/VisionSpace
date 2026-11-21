@@ -48,7 +48,9 @@ import GlobalFooter from '@/components/GlobalFooter.vue'
   min-height: 100vh;
   position: relative;
   background: var(--color-bg-primary);
+  // hidden 会生成滚动容器，令 .layout-header 的 sticky 失效；clip 只裁剪不产生滚动容器
   overflow-x: hidden;
+  overflow-x: clip;
   width: 100%;
 
   &.full-screen-layout {
@@ -142,7 +144,11 @@ import GlobalFooter from '@/components/GlobalFooter.vue'
 }
 
 /* ========== 头部 ========== */
+/* 吸顶放在这一层：GlobalHeader 自身高度就是父容器高度，它的 sticky 无处可粘 */
 .layout-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
   background: transparent;
   padding: 0;
   line-height: normal;

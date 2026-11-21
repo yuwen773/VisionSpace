@@ -940,4 +940,5 @@ const handleDownloadImage = (url: string) => {
   flex-shrink: 0;
   border-top: 1px solid var(--color-border-subtle);
   background: var(--color-bg-primary);
-}</style>
+}
+</style>

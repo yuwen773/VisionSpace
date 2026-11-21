@@ -50,14 +50,15 @@ export const useTheme = () => {
       currentTheme.value = savedTheme
     }
 
-    // 应用主题
-    applyTheme(currentTheme.value)
+    // 应用主题：跟随系统偏好时不写入本地存储，避免把自动选择当成用户偏好
+    applyTheme(currentTheme.value, false)
   }
 
   /**
    * 应用主题 - 通过切换 CSS 类实现
+   * @param persist 是否记为用户的显式选择，默认记
    */
-  const applyTheme = (theme: ThemeType) => {
+  const applyTheme = (theme: ThemeType, persist = true) => {
     // 移除旧主题类，添加新主题类
     document.documentElement.classList.remove('theme-aurora', 'theme-pop')
     document.documentElement.classList.add(`theme-${theme}`)
@@ -66,7 +67,9 @@ export const useTheme = () => {
     currentTheme.value = theme
 
     // 保存到 localStorage
-    localStorage.setItem(STORAGE_KEY, theme)
+    if (persist) {
+      localStorage.setItem(STORAGE_KEY, theme)
+    }
 
     // 更新 document 的 data-theme 属性
     document.documentElement.setAttribute('data-theme', theme)
