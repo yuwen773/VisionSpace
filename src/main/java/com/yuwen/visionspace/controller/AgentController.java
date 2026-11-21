@@ -300,17 +300,9 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         Long userId = loginUser.getId();
 
-        // 上次执行遗留的「执行中」动作先收敛，再判断能不能续跑
-        agentRecoveryService.reconcileBeforeRun(threadId, userId);
-        AgentRecoveryService.ResumeClaim claim =
-                agentRecoveryService.requireResumable(threadId, userId, expectedVersion);
-
-        // 认领到的租约必须释放：否则用户要等到租约到期才能再次续跑
-        try {
-            return ResultUtils.success(imageAgent.resume(threadId, userId));
-        } finally {
-            agentRecoveryService.releaseResumeLease(threadId, userId, claim.leaseToken());
-        }
+        // 收敛遗留动作、校验、认领与租约释放都由恢复模块负责
+        return ResultUtils.success(agentRecoveryService.executeResume(threadId, userId, expectedVersion,
+                () -> imageAgent.resume(threadId, userId)));
     }
 
     /**

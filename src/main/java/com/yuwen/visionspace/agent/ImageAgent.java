@@ -14,11 +14,11 @@ import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.config.AgentToolExceptionPolicy;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunLifecycle;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.PendingReviewException;
 import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
 import com.yuwen.visionspace.agent.recovery.ResumeToolUnavailableException;
-import com.yuwen.visionspace.agent.recovery.RunStatus;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.model.entity.AgentRunState;
@@ -134,6 +134,9 @@ public class ImageAgent {
 
     @Resource
     private AgentRecoveryService recoveryService;
+
+    @Resource
+    private AgentRunLifecycle runLifecycle;
 
     @Resource
     private ResumeToolEnvironment resumeToolEnvironment;
@@ -308,8 +311,7 @@ public class ImageAgent {
         } catch (PendingReviewException e) {
             // 结果未知不能被折成一句「稍后重试」：那会让用户以为可以直接再来一次，
             // 而实际必须先核对。暂停状态也要落库，界面才能给出核对入口。
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
@@ -454,8 +456,7 @@ public class ImageAgent {
                         messageDTO.setToolName(error.getToolName());
                         messageDTO.setContent("工具 " + error.getToolName()
                                 + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
-                        runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                                pauseForReview(error.getToolName()));
+                        runLifecycle.pausedForUnknownAction(threadId, userId, error.getToolName());
                         return Flux.just(messageDTO);
                     })
                     .doOnComplete(() -> {
@@ -520,8 +521,7 @@ public class ImageAgent {
             return response.getText();
         } catch (PendingReviewException e) {
             // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
@@ -554,8 +554,7 @@ public class ImageAgent {
 
         Optional<Checkpoint> checkpoint = runStateStore.toCheckpoint(state);
         if (checkpoint.isEmpty()) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    state.getPendingConfirmation());
+            runLifecycle.paused(threadId, userId, state.getPendingConfirmation());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "执行状态无法还原，已暂停自动执行");
         }
@@ -583,19 +582,18 @@ public class ImageAgent {
         try {
             // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
             AssistantMessage response = resumeAgent.call("", config);
-            runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
+            runLifecycle.started(threadId, userId);
             return response.getText();
         } catch (PendingReviewException e) {
             // 结果未知：暂停并等待核对，与「明确失败」区分
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
             // 明确失败：可安全重试。不能把失败包装成一条成功的助手回复，
             // 否则界面会把它显示成正常回答。
             log.error("Agent 续跑失败, threadId={}, userId={}", threadId, userId);
-            runStateStore.updateStatus(threadId, userId, RunStatus.FAILED, null);
+            runLifecycle.failed(threadId, userId);
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "继续执行失败，请稍后重试");
         }
@@ -617,8 +615,7 @@ public class ImageAgent {
         // 否则会在少了工具的情况下继续跑，模型改用别的方式完成同一件事
         Optional<List<String>> recorded = runStateStore.recordedMcpServerCodes(state);
         if (recorded.isEmpty()) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    "无法确认上次执行使用的工具环境，请重新发起请求");
+            runLifecycle.paused(threadId, userId, "无法确认上次执行使用的工具环境，请重新发起请求");
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "无法确认上次执行使用的工具环境，已暂停，请重新发起请求");
         }
@@ -627,37 +624,21 @@ public class ImageAgent {
                     resumeToolEnvironment.resolve(recorded.get(), userId);
             return environment.usesMcp() ? buildMcpAgent(environment.callbacks()) : agent;
         } catch (ResumeToolUnavailableException e) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    "MCP 服务已停用或撤销，需重新选择后再继续");
+            runLifecycle.paused(threadId, userId, "MCP 服务已停用或撤销，需重新选择后再继续");
             throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
         }
     }
 
     /**
-     * 结果未知时写进 {@code pendingConfirmation} 的固定文案。
-     *
-     * <p>流式、反馈、续跑三个入口都要把同一次暂停记成同一种状态；文案分散写三遍
-     * 迟早会漂移，界面就分不清「等待核对」和别的暂停原因了。
-     */
-    private String pauseForReview(String toolName) {
-        return "外部动作结果未知，等待核对：" + toolName;
-    }
-
-    /**
-     * 把「停在人工确认点」这件事持久化。
-     *
-     * <p>只保存工具名：确认信息要能被下一次执行读到，让界面区分「停在待确认」
-     * 与「已经确认过」；但描述里通常带着生成参数或提示词，属于私人正文，
-     * 不写进状态列。
+     * 把「停在人工确认点」这件事交给运行生命周期持久化。
      */
     private void persistAwaitingConfirmation(String threadId, Long userId,
                                              InterruptionMetadata interruption) {
-        String summary = interruption.toolFeedbacks().stream()
+        List<String> toolNames = interruption.toolFeedbacks().stream()
                 .map(InterruptionMetadata.ToolFeedback::getName)
                 .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.joining("\n"));
-        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION, summary);
+                .toList();
+        runLifecycle.awaitingConfirmation(threadId, userId, toolNames);
     }
 
     /**
@@ -785,8 +766,7 @@ public class ImageAgent {
         } catch (PendingReviewException e) {
             // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
             // 与其它入口的暂停语义不一致
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "该步骤的外部执行结果未知，已暂停，请核对后再继续");
         } catch (Exception e) {
