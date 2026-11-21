@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "kaushanscript",
+        "createdAt": "2026-11-21T15:46:02.757Z",
+        "reason": "Pre-existing brand wordmark font for the global header logo (GlobalHeader); outside the user-center surface type system and DESIGN.md scope, not introduced by this change."
+      }
+    ]
+  }
+}
