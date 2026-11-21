@@ -168,7 +168,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
-      "count": 5
+      "count": 4
     }
   },
   "src/pages/AgentChatPage.vue": {
@@ -186,7 +186,7 @@
   },
   "src/pages/SpaceDetailPage.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 9
+      "count": 7
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 2

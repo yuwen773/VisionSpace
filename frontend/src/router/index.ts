@@ -55,6 +55,7 @@ const router = createRouter({
           path: 'add_picture',
           name: 'AddPicture',
           component: AddPicturePage,
+          meta: { fullWidth: true },
         },
         {
           path: 'picture/:id',
@@ -78,6 +79,7 @@ const router = createRouter({
           name: 'SpaceDetail',
           component: SpaceDetailPage,
           props: true,
+          meta: { fullWidth: true },
         },
         {
           path: 'space_analyze',
