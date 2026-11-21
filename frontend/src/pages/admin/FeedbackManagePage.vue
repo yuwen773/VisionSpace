@@ -1,37 +1,29 @@
 <template>
   <div id="feedbackManagePage">
     <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg
-            class="title-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>反馈管理</span>
-        </h1>
-        <p class="page-subtitle">处理用户提交的产品建议、内容举报和工单支持</p>
-      </div>
-      <div class="header-stats">
-        <div class="stat-card">
-          <span class="stat-value">{{ stats.pending }}</span>
-          <span class="stat-label">待处理</span>
+    <AdminPageHeader title="反馈管理" subtitle="处理用户提交的产品建议、内容举报和工单支持">
+      <template #icon>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </template>
+      <template #extra>
+        <div class="header-stats">
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.pending }}</span>
+            <span class="stat-label">待处理</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.processing }}</span>
+            <span class="stat-label">处理中</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.resolved }}</span>
+            <span class="stat-label">已解决</span>
+          </div>
         </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ stats.processing }}</span>
-          <span class="stat-label">处理中</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ stats.resolved }}</span>
-          <span class="stat-label">已解决</span>
-        </div>
-      </div>
-    </div>
+      </template>
+    </AdminPageHeader>
 
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
@@ -399,6 +391,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import ImagePreview from '@/components/ImagePreview.vue'
@@ -620,42 +613,6 @@ onMounted(() => {
   max-width: var(--container-2xl);
   margin: 0 auto;
   padding: var(--admin-space-6);
-}
-
-/* ========== 页面头部 ========== */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--admin-space-6);
-  animation: fadeIn 0.5s ease-out;
-}
-
-.header-content {
-  text-align: left;
-}
-
-.page-title {
-  font-family: var(--admin-font);
-  font-size: var(--admin-text-3xl);
-  font-weight: 700;
-  margin: 0 0 var(--admin-space-2) 0;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-3);
-  color: var(--admin-text-primary);
-
-  .title-icon {
-    width: 32px;
-    height: 32px;
-    color: var(--admin-primary);
-  }
-}
-
-.page-subtitle {
-  font-size: var(--admin-text-sm);
-  color: var(--admin-text-secondary);
-  margin: 0;
 }
 
 .header-stats {
@@ -1272,11 +1229,6 @@ onMounted(() => {
 
 /* ========== 响应式 ========== */
 @media (max-width: 1024px) {
-  .page-header {
-    flex-direction: column;
-    gap: var(--admin-space-4);
-  }
-
   .header-stats {
     width: 100%;
     justify-content: flex-start;
@@ -1300,10 +1252,6 @@ onMounted(() => {
 @media (max-width: 768px) {
   #feedbackManagePage {
     padding: var(--admin-space-4);
-  }
-
-  .page-title {
-    font-size: var(--admin-text-2xl);
   }
 
   .stat-card {

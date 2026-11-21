@@ -1,26 +1,16 @@
 <template>
   <div id="userManagePage">
     <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg
-            class="title-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>用户管理</span>
-        </h1>
-        <p class="page-subtitle">管理系统用户和权限</p>
-      </div>
-    </div>
+    <AdminPageHeader title="用户管理" subtitle="管理系统用户和权限" size="md">
+      <template #icon>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+      </template>
+    </AdminPageHeader>
 
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
@@ -232,6 +222,7 @@
 </template>
 
 <script lang="ts" setup>
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { ref, reactive, onMounted, computed } from 'vue'
 import {
   deleteUserUsingPost,
@@ -395,39 +386,6 @@ const doDelete = async (id: number | undefined) => {
   max-width: var(--container-2xl);
   margin: 0 auto;
   padding: var(--admin-space-6);
-}
-
-/* ========== 页面头部 ========== */
-.page-header {
-  margin-bottom: var(--admin-space-8);
-  animation: fadeIn 0.5s ease-out;
-}
-
-.header-content {
-  text-align: left;
-}
-
-.page-title {
-  font-family: var(--admin-font);
-  font-size: var(--admin-text-xl);
-  font-weight: 700;
-  margin: 0 0 var(--admin-space-2) 0;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-3);
-  color: var(--admin-text-primary);
-
-  .title-icon {
-    width: 32px;
-    height: 32px;
-    color: var(--admin-primary);
-  }
-}
-
-.page-subtitle {
-  font-size: var(--admin-text-sm);
-  color: var(--admin-text-secondary);
-  margin: 0;
 }
 
 /* ========== 工具栏 ========== */
@@ -890,10 +848,6 @@ const doDelete = async (id: number | undefined) => {
       margin-left: 0;
       justify-content: flex-end;
     }
-  }
-
-  .page-title {
-    font-size: var(--admin-text-lg);
   }
 }
 </style>
