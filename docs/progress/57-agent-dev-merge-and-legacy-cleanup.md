@@ -113,6 +113,7 @@ required a single bean, but 2 were found:
 **仍未解决的取舍**：`ChromaVectorStore` 在构造期就会连向量库并建集合，连不上直接让整个 Spring
 上下文启动失败。也就是说，开启 RAG 的部署里 Chroma 不可用时后端起不来，靠 `restart: unless-stopped`
 等 Chroma 就绪后重试。本轮不动这个行为（容器门禁会用真实 compose 栈验证它），但换部署环境时需要知道。
+→ 已在 [#58](58-rag-startup-resilience.md) 中解决：改为懒初始化 + 失败降级。
 
 ## 3. 本轮不引入 schema 变更
 
