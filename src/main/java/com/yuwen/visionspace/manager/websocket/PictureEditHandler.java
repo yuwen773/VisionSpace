@@ -142,30 +142,22 @@ public class PictureEditHandler extends TextWebSocketHandler {
             sessions.add(session);
             return sessions;
         });
-        PictureEditResponseMessage welcome = new PictureEditResponseMessage();
-        welcome.setType(PictureEditMessageTypeEnum.INFO.getValue());
-        welcome.setMessage("协作连接已建立");
-        welcome.setSelfSessionId(session.getId());
+        PictureEditResponseMessage welcome = PictureEditMessages.welcome(session.getId());
         synchronized (session) {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(welcome)));
         }
         // 构造响应，发送加入编辑的消息通知
-        PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-        pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.INFO.getValue());
-        String message = String.format("用户 %s 加入编辑", user.getUserName());
-        pictureEditResponseMessage.setMessage(message);
-        pictureEditResponseMessage.setUser(userService.getUserVO(user));
+        PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.info(
+                PictureEditMessages.joined(user.getUserName()), userService.getUserVO(user));
         // 广播给所有用户
         broadcastToPicture(pictureId, pictureEditResponseMessage);
         // 新标签需要获知已有编辑者，否则 UI 会错误显示可进入编辑。
         synchronized (session) {
             var holder = leaseManager.currentLease(pictureId);
             if (holder.isPresent()) {
-                PictureEditResponseMessage state = new PictureEditResponseMessage();
-                state.setType(PictureEditMessageTypeEnum.ENTER_EDIT.getValue());
-                state.setSessionId(holder.get().sessionId());
-                state.setMessage("已有连接正在编辑");
-                state.setUser(userService.getUserVO(userService.getById(holder.get().userId())));
+                PictureEditResponseMessage state = PictureEditMessages.holder(
+                        holder.get().sessionId(),
+                        userService.getUserVO(userService.getById(holder.get().userId())));
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(state)));
             }
         }
@@ -221,19 +213,15 @@ public class PictureEditHandler extends TextWebSocketHandler {
         }
         if (!result.acquired()) {
             monitor.onLeaseConflict();
-            PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-            pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.ERROR.getValue());
-            pictureEditResponseMessage.setMessage("其他用户正在编辑");
-            pictureEditResponseMessage.setUser(userService.getUserVO(user));
+            PictureEditResponseMessage pictureEditResponseMessage =
+                    PictureEditMessages.editingToo(userService.getUserVO(user));
             synchronized (session) {
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(pictureEditResponseMessage)));
             }
             return;
         }
         try {
-            PictureEditResponseMessage credential = new PictureEditResponseMessage();
-            credential.setType(PictureEditMessageTypeEnum.INFO.getValue());
-            credential.setLeaseToken(token);
+            PictureEditResponseMessage credential = PictureEditMessages.leaseCredential(token);
             synchronized (session) {
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(credential)));
             }
@@ -242,12 +230,8 @@ public class PictureEditHandler extends TextWebSocketHandler {
             throw e;
         }
         // 构造响应，发送进入编辑的消息通知
-        PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-        pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.ENTER_EDIT.getValue());
-        pictureEditResponseMessage.setSessionId(session.getId());
-        String message = String.format("用户 %s 开始编辑图片", user.getUserName());
-        pictureEditResponseMessage.setMessage(message);
-        pictureEditResponseMessage.setUser(userService.getUserVO(user));
+        PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.enteredEditing(
+                session.getId(), user.getUserName(), userService.getUserVO(user));
         // 广播给所有用户
         broadcastToPicture(pictureId, pictureEditResponseMessage);
     }
@@ -265,13 +249,9 @@ public class PictureEditHandler extends TextWebSocketHandler {
             return;
         }
         // 构造响应，发送具体操作的通知
-        PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-        pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EDIT_ACTION.getValue());
-        pictureEditResponseMessage.setSessionId(session.getId());
-        String message = String.format("%s 执行 %s", user.getUserName(), actionEnum.getText());
-        pictureEditResponseMessage.setMessage(message);
-        pictureEditResponseMessage.setEditAction(editAction);
-        pictureEditResponseMessage.setUser(userService.getUserVO(user));
+        PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.editAction(
+                session.getId(), user.getUserName(), actionEnum.getText(), editAction,
+                userService.getUserVO(user));
         // 广播给除了当前客户端之外的其他用户，否则会造成重复编辑
         if (!broadcastBus.publishEditIfHolder(pictureId, session.getId(), pictureEditResponseMessage)) {
             monitor.onLeaseConflict();
@@ -292,12 +272,8 @@ public class PictureEditHandler extends TextWebSocketHandler {
             return;
         }
         // 构造响应，发送退出编辑的消息通知
-        PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-        pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
-        pictureEditResponseMessage.setSessionId(session.getId());
-        String message = String.format("用户 %s 退出编辑图片", user.getUserName());
-        pictureEditResponseMessage.setMessage(message);
-        pictureEditResponseMessage.setUser(userService.getUserVO(user));
+        PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.exitedEditing(
+                session.getId(), user.getUserName(), userService.getUserVO(user));
         broadcastToPicture(pictureId, pictureEditResponseMessage);
     }
 
@@ -313,12 +289,8 @@ public class PictureEditHandler extends TextWebSocketHandler {
         // 只按连接释放租约（归属验证在租约管理器内）
         try {
             if (leaseCoordinator.release(pictureId, session.getId())) {
-                PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-                pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
-                pictureEditResponseMessage.setSessionId(session.getId());
-                String message = String.format("用户 %s 退出编辑图片", user.getUserName());
-                pictureEditResponseMessage.setMessage(message);
-                pictureEditResponseMessage.setUser(userService.getUserVO(user));
+                PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.exitedEditing(
+                        session.getId(), user.getUserName(), userService.getUserVO(user));
                 broadcastToPicture(pictureId, pictureEditResponseMessage);
             }
         } catch (Exception e) {
@@ -333,11 +305,8 @@ public class PictureEditHandler extends TextWebSocketHandler {
         });
         // 通知其他用户，该用户已经离开编辑
         try {
-            PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
-            pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.INFO.getValue());
-            String message = String.format("用户 %s 离开编辑", user.getUserName());
-            pictureEditResponseMessage.setMessage(message);
-            pictureEditResponseMessage.setUser(userService.getUserVO(user));
+            PictureEditResponseMessage pictureEditResponseMessage = PictureEditMessages.info(
+                    PictureEditMessages.left(user.getUserName()), userService.getUserVO(user));
             broadcastToPicture(pictureId, pictureEditResponseMessage);
         } catch (Exception e) {
             monitor.onBroadcastFailure();
@@ -437,10 +406,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
             return;
         }
         try {
-            PictureEditResponseMessage error = new PictureEditResponseMessage();
-            error.setType(PictureEditMessageTypeEnum.ERROR.getValue());
-            error.setMessage(text);
-            error.setLeaseLost(leaseLost);
+            PictureEditResponseMessage error = PictureEditMessages.error(text, leaseLost);
             synchronized (session) {
                 session.sendMessage(new TextMessage(objectMapper.writeValueAsString(error)));
             }
@@ -461,10 +427,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
      */
     public void revokeLeaseOf(Long pictureId, String sessionId) {
         if (pictureId != null && leaseCoordinator.release(pictureId, sessionId)) {
-            PictureEditResponseMessage state = new PictureEditResponseMessage();
-            state.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
-            state.setSessionId(sessionId);
-            state.setMessage("编辑权已失效");
+            PictureEditResponseMessage state = PictureEditMessages.leaseRevoked(sessionId);
             broadcastToPicture(pictureId, state);
         }
     }
