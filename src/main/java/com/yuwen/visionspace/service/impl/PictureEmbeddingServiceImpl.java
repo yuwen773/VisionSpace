@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.service.impl;
 
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.service.GalleryIndex;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.VlCaptionService;
@@ -161,8 +162,10 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         metadata.put("tags", picture.getTags() != null ? picture.getTags() : "[]");
         metadata.put("category", picture.getCategory() != null ? picture.getCategory() : "");
         metadata.put("picColor", picture.getPicColor() != null ? picture.getPicColor() : "");
-        metadata.put("spaceId", picture.getSpaceId() != null ? picture.getSpaceId() : 0L);
-        metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
+        metadata.put(GalleryIndex.META_SPACE_ID,
+                picture.getSpaceId() != null ? picture.getSpaceId() : GalleryIndex.GALLERY_SPACE_ID);
+        metadata.put(GalleryIndex.META_USER_ID,
+                picture.getUserId() != null ? picture.getUserId() : 0L);
         metadata.put("indexedAt", System.currentTimeMillis());
         return metadata;
     }
