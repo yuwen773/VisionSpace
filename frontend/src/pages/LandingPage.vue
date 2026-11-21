@@ -15,7 +15,12 @@
     </div>
 
     <!-- ============ 00 · Hero ============ -->
-    <section id="hero" class="section hero" :class="{ 'is-in': seen.hero }">
+    <section
+      id="hero"
+      class="section hero"
+      :class="{ 'is-in': seen.hero }"
+      aria-labelledby="hero-title"
+    >
       <div class="inner hero-grid">
         <div class="hero-copy">
           <p class="kicker" data-d="0">
@@ -25,7 +30,7 @@
             <span>视觉灵感宇宙</span>
           </p>
 
-          <h1 class="hero-title">
+          <h1 id="hero-title" class="hero-title">
             <span class="line" data-d="1">让灵感</span>
             <span class="line line-accent" data-d="2">
               有迹可循
@@ -109,7 +114,12 @@
     </section>
 
     <!-- ============ 01 · 理念 ============ -->
-    <section id="essence" class="section essence" :class="{ 'is-in': seen.essence }">
+    <section
+      id="essence"
+      class="section essence"
+      :class="{ 'is-in': seen.essence }"
+      aria-labelledby="essence-title"
+    >
       <div class="inner">
         <header class="section-head">
           <span class="index mono"><b>01</b> — 品牌理念</span>
@@ -118,7 +128,7 @@
 
         <div class="essence-grid">
           <div class="essence-copy">
-            <h2 class="display" data-d="0">
+            <h2 id="essence-title" class="display" data-d="0">
               AI 与人类<br />
               <span class="display-quiet">创造力的交汇点</span>
             </h2>
@@ -179,14 +189,19 @@
     </section>
 
     <!-- ============ 02 · 核心体验 ============ -->
-    <section id="experiences" class="section experiences" :class="{ 'is-in': seen.experiences }">
+    <section
+      id="experiences"
+      class="section experiences"
+      :class="{ 'is-in': seen.experiences }"
+      aria-labelledby="experiences-title"
+    >
       <div class="inner">
         <header class="section-head">
           <span class="index mono"><b>02</b> — 核心体验</span>
           <p class="head-note mono">THREE WAYS TO MEET AN IDEA</p>
         </header>
 
-        <h2 class="display display-wide" data-d="0">三种方式，与灵感相遇</h2>
+        <h2 id="experiences-title" class="display display-wide" data-d="0">三种方式，与灵感相遇</h2>
 
         <div class="bento">
           <!-- 色彩检索 -->
@@ -270,8 +285,8 @@
               <div class="outpaint-frame">
                 <img :src="img(outpaintImage, 1100)" alt="" loading="lazy" decoding="async" />
                 <span class="outpaint-core"></span>
+                <span class="outpaint-tag mono">AI EXPAND +62%</span>
               </div>
-              <span class="outpaint-tag mono">AI EXPAND +62%</span>
             </div>
           </article>
         </div>
@@ -279,10 +294,15 @@
     </section>
 
     <!-- ============ 03 · 灵感宇宙 ============ -->
-    <section id="universe" class="section universe" :class="{ 'is-in': seen.universe }">
+    <section
+      id="universe"
+      class="section universe"
+      :class="{ 'is-in': seen.universe }"
+      aria-labelledby="universe-title"
+    >
       <div class="inner universe-head">
         <span class="index mono"><b>03</b> — 灵感宇宙</span>
-        <h2 class="display" data-d="0">来自全球创作者的<br />灵感时刻</h2>
+        <h2 id="universe-title" class="display" data-d="0">来自全球创作者的<br />灵感时刻</h2>
         <p class="universe-hint mono" data-d="1">
           <MousePointer2 :size="14" :stroke-width="1.6" />
           拖拽穹顶，进入影像的深处
@@ -309,14 +329,19 @@
     </section>
 
     <!-- ============ 04 · SpaceMind ============ -->
-    <section id="spacemind" class="section spacemind" :class="{ 'is-in': seen.spacemind }">
+    <section
+      id="spacemind"
+      class="section spacemind"
+      :class="{ 'is-in': seen.spacemind }"
+      aria-labelledby="spacemind-title"
+    >
       <div class="inner">
         <header class="section-head">
           <span class="index mono"><b>04</b> — SPACEMIND</span>
           <p class="head-note mono">IT READS THE ROOM, NOT JUST THE PROMPT</p>
         </header>
 
-        <h2 class="display display-wide" data-d="0">它能看懂你的语气</h2>
+        <h2 id="spacemind-title" class="display display-wide" data-d="0">它能看懂你的语气</h2>
         <p class="section-lede" data-d="1">
           一段自然语言，就是一次完整的视觉检索。SpaceMind 会拆解你的意图，
           在秒级给出可用的结果，并记得你上一次的偏好。
@@ -386,11 +411,18 @@
     </section>
 
     <!-- ============ 05 · CTA ============ -->
-    <section id="cta" class="section cta" :class="{ 'is-in': seen.cta }">
+    <section
+      id="cta"
+      class="section cta"
+      :class="{ 'is-in': seen.cta }"
+      aria-labelledby="cta-title"
+    >
       <div class="cta-glow" aria-hidden="true"></div>
       <div class="inner cta-inner">
         <span class="index mono" data-d="0"><b>05</b> — 开始</span>
-        <h2 class="cta-title" data-d="1">下一张打动你的图，<br />就在一句话之外。</h2>
+        <h2 id="cta-title" class="cta-title" data-d="1">
+          下一张打动你的图，<br />就在一句话之外。
+        </h2>
         <p class="cta-sub" data-d="2">加入 VisionSpace，让每一次凝视都有回响。</p>
         <div class="actions actions-center" data-d="3">
           <button class="btn btn-primary" @click="router.push('/explore')">
@@ -690,9 +722,10 @@ onBeforeUnmount(() => {
 }
 
 /* ============ Progress ============ */
+/* 页头吸顶后占据顶部 72px，进度线贴着页头下沿走 */
 .progress-rail {
   position: fixed;
-  top: 0;
+  top: 72px;
   left: 0;
   right: 0;
   height: 1px;
@@ -813,6 +846,18 @@ onBeforeUnmount(() => {
   font-size: clamp(15px, 1.25vw, 18px);
   line-height: 1.95;
   color: var(--lp-ink-2);
+}
+
+/* 中文断行避免末行只剩一个孤字 */
+.hero-lede,
+.section-lede,
+.essence-lead,
+.essence-body,
+.card-body,
+.msg-lead,
+.compare-note,
+.cta-sub {
+  text-wrap: pretty;
 }
 
 /* ============ Reveal ============ */
@@ -1684,11 +1729,19 @@ onBeforeUnmount(() => {
 }
 
 .outpaint-tag {
-  display: block;
-  margin-top: 10px;
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  padding: 4px 9px;
+  border: 1px solid rgba(134, 227, 200, 0.35);
+  border-radius: 999px;
+  background: rgba(5, 6, 12, 0.58);
+  backdrop-filter: blur(6px);
+  font-size: 9px;
+  letter-spacing: 0.16em;
   color: var(--lp-mint);
+  pointer-events: none;
 }
 
 /* ============ Universe ============ */
@@ -2003,12 +2056,14 @@ onBeforeUnmount(() => {
   --lp-bg-raised: #f5f3ff;
   --lp-ink: #1e1b4b;
   --lp-ink-2: rgba(30, 27, 75, 0.74);
-  --lp-ink-3: rgba(30, 27, 75, 0.52);
+  /* 0.64 ≈ 4.8:1 —— 小号等宽标签在浅纸上仍可读 */
+  --lp-ink-3: rgba(30, 27, 75, 0.64);
   --lp-line: rgba(124, 58, 237, 0.16);
   --lp-line-2: rgba(124, 58, 237, 0.34);
   --lp-violet: #9333ea;
   --lp-violet-deep: #7c3aed;
-  --lp-mint: #0f9d6e;
+  /* 亮纸上的薄荷需压深，浅绿（#0f9d6e）仅 3.3:1 */
+  --lp-mint: #047857;
 }
 
 #landingPage.is-light .atmosphere {
@@ -2136,6 +2191,7 @@ onBeforeUnmount(() => {
 
 /* 深色小药丸上的文字在亮主题里换回亮薄荷，保证对比 */
 #landingPage.is-light .outpaint-badge,
+#landingPage.is-light .outpaint-tag,
 #landingPage.is-light .core-label {
   color: #34d399;
 }
@@ -2164,10 +2220,6 @@ onBeforeUnmount(() => {
   .essence-grid {
     grid-template-columns: 1fr;
     gap: 56px;
-  }
-
-  .essence-plates {
-    max-width: 640px;
   }
 
   .ep-1 {
