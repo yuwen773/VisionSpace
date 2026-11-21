@@ -176,14 +176,6 @@
       "count": 1
     }
   },
-  "src/pages/ExplorePage.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/pages/PictureDetailPage.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
