@@ -2,7 +2,7 @@ package com.yuwen.visionspace.agent.tools;
 
 import com.yuwen.visionspace.agent.model.ImageCategoryEnum;
 import com.yuwen.visionspace.agent.model.ImageResource;
-import com.yuwen.visionspace.service.GalleryIndex;
+import com.yuwen.visionspace.rag.PictureIndex;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -43,7 +43,7 @@ class InternalImageSearchToolTest {
         verify(vectorStore).similaritySearch(captor.capture());
         SearchRequest request = captor.getValue();
 
-        assertEquals(GalleryIndex.publicGalleryFilter(), request.getFilterExpression(),
+        assertEquals(PictureIndex.publicGalleryFilter(), request.getFilterExpression(),
                 "查询必须带上公开图库过滤，模型无法去掉它");
         assertEquals(8, request.getTopK(), "未指定时默认返回 8 条");
     }

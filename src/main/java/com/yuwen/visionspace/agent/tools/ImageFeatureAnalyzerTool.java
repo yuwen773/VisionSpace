@@ -2,18 +2,15 @@ package com.yuwen.visionspace.agent.tools;
 
 import cn.hutool.json.JSONUtil;
 import com.yuwen.visionspace.agent.model.ImageAnalysisResult;
+import com.yuwen.visionspace.manager.vision.VisionClient;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.content.Media;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import org.springframework.util.MimeTypeUtils;
@@ -34,17 +31,14 @@ import java.net.URI;
 @Component
 public class ImageFeatureAnalyzerTool {
 
-    @Value("${vision-space.vision-recognition.base-url}")
-    private String baseUrl;
-
-    @Value("${vision-space.vision-recognition.api-key}")
-    private String apiKey;
-
-    @Value("${vision-space.vision-recognition.model}")
-    private String model;
-
+    // 与图片描述共用同一个视觉客户端：端点、模型、凭据只有一份
+    private final VisionClient visionClient;
 
     private ChatClient visionChatClient;
+
+    public ImageFeatureAnalyzerTool(VisionClient visionClient) {
+        this.visionClient = visionClient;
+    }
 
     private static final String ANALYSIS_PROMPT = """
             请对这张图片进行全面的视觉分析，严格按以下 JSON 格式返回结果，不要输出任何其他文字：
@@ -62,16 +56,8 @@ public class ImageFeatureAnalyzerTool {
 
     @PostConstruct
     private void init() {
-        OpenAiApi visionApi = OpenAiApi.builder().baseUrl(baseUrl).apiKey(apiKey).build();
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(model)
-                .temperature(0.2)
-                .build();
-        OpenAiChatModel visionModel = OpenAiChatModel.builder()
-                .openAiApi(visionApi)
-                .defaultOptions(options)
-                .build();
-        this.visionChatClient = ChatClient.builder(visionModel)
+        this.visionChatClient = visionClient.chatClient()
+                .mutate()
                 .defaultSystem(ANALYSIS_PROMPT)
                 .build();
     }

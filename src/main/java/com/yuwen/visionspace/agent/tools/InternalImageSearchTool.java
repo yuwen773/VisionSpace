@@ -2,7 +2,8 @@ package com.yuwen.visionspace.agent.tools;
 
 import com.yuwen.visionspace.agent.model.ImageCategoryEnum;
 import com.yuwen.visionspace.agent.model.ImageResource;
-import com.yuwen.visionspace.service.GalleryIndex;
+import com.yuwen.visionspace.rag.PictureIndex;
+import com.yuwen.visionspace.rag.RagVectorStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
@@ -18,11 +19,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 站内图片向量搜索工具
+ * 站内图片向量搜索工具。
+ *
+ * <p>文档标识、元数据键与可见范围都来自 {@link PictureIndex}：写入方
+ * （{@code PictureEmbeddingServiceImpl}）与这里共用同一份契约。
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
+@ConditionalOnProperty(name = RagVectorStore.PROPERTY, havingValue = RagVectorStore.CHROMA)
 public class InternalImageSearchTool {
 
     @Resource
@@ -43,14 +47,14 @@ public class InternalImageSearchTool {
                     .query(query)
                     .topK(k)
                     .similarityThreshold(0.0)
-                    .filterExpression(GalleryIndex.publicGalleryFilter())
+                    .filterExpression(PictureIndex.publicGalleryFilter())
                     .build();
 
             List<Document> docs = vectorStore.similaritySearch(searchRequest);
 
             for (Document doc : docs) {
                 Map<String, Object> meta = doc.getMetadata();
-                String imageUrl = (String) meta.getOrDefault("imageUrl", "");
+                String imageUrl = (String) meta.getOrDefault(PictureIndex.META_IMAGE_URL, "");
                 String description = doc.getText();
 
                 if (!imageUrl.isEmpty()) {

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * 没被用过时报告 UNKNOWN——「还没连过」不等于「坏了」。</p>
  */
 @Component
-@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
+@ConditionalOnProperty(name = RagVectorStore.PROPERTY, havingValue = RagVectorStore.CHROMA)
 public class RagHealthIndicator implements HealthIndicator {
 
     private final ResilientVectorStore vectorStore;

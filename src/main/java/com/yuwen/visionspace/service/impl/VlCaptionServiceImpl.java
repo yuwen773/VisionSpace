@@ -1,15 +1,12 @@
 package com.yuwen.visionspace.service.impl;
 
+import com.yuwen.visionspace.manager.vision.VisionClient;
 import com.yuwen.visionspace.service.VlCaptionService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.content.Media;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -25,37 +22,21 @@ public class VlCaptionServiceImpl implements VlCaptionService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VlCaptionServiceImpl.class);
 
-    // 视觉描述走与 ImageFeatureAnalyzerTool 同一套识别服务配置：
-    // 主 ChatModel 是纯文本模型，不能直接拿来读图。
-    @Value("${vision-space.vision-recognition.base-url}")
-    private String baseUrl;
-
-    @Value("${vision-space.vision-recognition.api-key}")
-    private String apiKey;
-
-    @Value("${vision-space.vision-recognition.model}")
-    private String model;
-
     private final StringRedisTemplate redisTemplate;
+
+    // 视觉识别客户端由 VisionClient 统一构建：配置与凭据只有一份
+    private final VisionClient visionClient;
 
     private ChatClient chatClient;
 
-    public VlCaptionServiceImpl(StringRedisTemplate redisTemplate) {
+    public VlCaptionServiceImpl(StringRedisTemplate redisTemplate, VisionClient visionClient) {
         this.redisTemplate = redisTemplate;
+        this.visionClient = visionClient;
     }
 
     @PostConstruct
     private void init() {
-        OpenAiApi visionApi = OpenAiApi.builder().baseUrl(baseUrl).apiKey(apiKey).build();
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(model)
-                .temperature(0.2)
-                .build();
-        OpenAiChatModel visionModel = OpenAiChatModel.builder()
-                .openAiApi(visionApi)
-                .defaultOptions(options)
-                .build();
-        this.chatClient = ChatClient.builder(visionModel).build();
+        this.chatClient = visionClient.chatClient();
     }
 
     private static final String CACHE_PREFIX = "vl:caption:";
