@@ -257,4 +257,14 @@ const displayTime = computed(() => {
 .message-images:has(.img-more) {
   position: relative;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .user-message {
+    padding: 6px 12px;
+  }
+
+  .message-content {
+    max-width: 88%;
+  }
+}
 </style>

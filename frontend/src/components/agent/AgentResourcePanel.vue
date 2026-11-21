@@ -428,4 +428,19 @@ const totalCount = computed(() => props.images.length + props.links.length)
   font-size: 11px;
   color: var(--color-text-tertiary);
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .asset-snapshots {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .panel-header {
+    padding: 12px;
+  }
+
+  .image-grid {
+    gap: 6px;
+  }
+}
 </style>

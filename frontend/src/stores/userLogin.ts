@@ -8,10 +8,17 @@ export const useLoginUserStore = defineStore('userLogin', () => {
   })
 
   //向服务器获取用户信息
-  async function fetchUserLogin() {
-    const res = await getLoginUserUsingGet()
-    if (res.data.code === 0 && res.data.data) {
-      loginUser.value = res.data.data
+  // 返回请求是否完成（不代表已登录）：后端不可用时返回 false 并保持匿名态，
+  // 调用方（尤其是路由守卫）不能因为一次网络失败把整个首屏卡死。
+  async function fetchUserLogin(): Promise<boolean> {
+    try {
+      const res = await getLoginUserUsingGet()
+      if (res.data.code === 0 && res.data.data) {
+        loginUser.value = res.data.data
+      }
+      return true
+    } catch {
+      return false
     }
   }
 

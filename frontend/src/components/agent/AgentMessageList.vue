@@ -1,6 +1,9 @@
 <template>
   <div class="agent-message-list" ref="listRef">
     <div class="messages-container">
+      <!-- 流式回复的读屏器播报通道：
+           生成中只播状态，结束后一次播报正文开头，避免逐字刷屏 -->
+      <p class="sr-only" role="status" aria-live="polite">{{ liveAnnouncement }}</p>
       <!-- Welcome Screen -->
       <div v-if="messages.length === 0" class="welcome">
         <!-- 星云光晕 -->
@@ -355,6 +358,15 @@ const emit = defineEmits<{
 }>()
 
 const quickHints = ['一张赛博朋克风格的城市夜景', '用水彩风格画一只猫', '复古海报风格的旅行插画']
+
+// 读屏器播报：生成中只报状态，结束后播报正文开头
+const liveAnnouncement = computed(() => {
+  if (props.loading) return '正在生成回复'
+  const last = [...props.messages].reverse().find((msg) => msg.type === 'assistant')
+  if (!last || last.isLoading) return ''
+  const text = last.content.replace(/\s+/g, ' ').trim()
+  return text ? `回复完成：${text.slice(0, 160)}` : '回复完成'
+})
 
 const listRef = ref<HTMLElement | null>(null)
 const unreadCount = ref(0)
@@ -1175,5 +1187,25 @@ watch(
 
 .typing-fade-leave-to {
   opacity: 0;
+}
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .agent-message-list {
+    padding: 12px 0;
+  }
+
+  .messages-container {
+    padding: 0 12px;
+  }
+
+  .welcome-desc {
+    max-width: 100%;
+    font-size: 14px;
+  }
+
+  .welcome-hints {
+    gap: 8px;
+    margin-top: 20px;
+  }
 }
 </style>

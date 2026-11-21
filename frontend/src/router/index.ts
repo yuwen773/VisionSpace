@@ -1,24 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LandingPage from '@/pages/LandingPage.vue'
-import ExplorePage from '@/pages/ExplorePage.vue'
-import UserLoginPage from '@/pages/user/UserLoginPage.vue'
-import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
 import BasicLayout from '@/layout/BasicLayout.vue'
-import AdminLayout from '../layout/AdminLayout.vue'
-import AddPicturePage from '@/pages/AddPicturePage.vue'
-import PictureManagePage from '@/pages/admin/PictureManagePage.vue'
-import PictureDetailPage from '@/pages/PictureDetailPage.vue'
-import SpaceManagePage from '@/pages/admin/SpaceManagePage.vue'
-import AddSpacePage from '@/pages/user/AddSpacePage.vue'
-import MySpacePage from '@/pages/MySpacePage.vue'
-import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
-import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
-import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
-import StorageConfigManagePage from '@/pages/admin/StorageConfigManagePage.vue'
-import DashboardPage from '@/pages/admin/DashboardPage.vue'
-import UserManagePage from '@/pages/admin/UserManagePage.vue'
-import AgentChatPage from '@/pages/AgentChatPage.vue'
-import UserCenterPage from '@/pages/user/UserCenterPage.vue'
+import AdminLayout from '@/layout/AdminLayout.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,12 +9,14 @@ const router = createRouter({
     {
       path: '/user/login',
       name: 'login',
-      component: UserLoginPage,
+      component: () => import('@/pages/user/UserLoginPage.vue'),
+      meta: { title: '登录' },
     },
     {
       path: '/user/register',
       name: 'register',
-      component: UserRegisterPage,
+      component: () => import('@/pages/user/UserRegisterPage.vue'),
+      meta: { title: '注册' },
     },
     // 用户端路由（BasicLayout 包裹）
     {
@@ -42,68 +26,71 @@ const router = createRouter({
         {
           path: '',
           name: 'home',
-          component: LandingPage,
+          component: () => import('@/pages/LandingPage.vue'),
           meta: { fullWidth: true, showFooter: false },
         },
         {
           path: 'explore',
           name: 'Explore',
-          component: ExplorePage,
-          meta: { showFooter: true },
+          component: () => import('@/pages/ExplorePage.vue'),
+          meta: { showFooter: true, title: '探索图库' },
         },
         {
           path: 'add_picture',
           name: 'AddPicture',
-          component: AddPicturePage,
-          meta: { fullWidth: true },
+          component: () => import('@/pages/AddPicturePage.vue'),
+          meta: { fullWidth: true, title: '添加图片' },
         },
         {
           path: 'picture/:id',
           name: 'PictureDetail',
-          component: PictureDetailPage,
+          component: () => import('@/pages/PictureDetailPage.vue'),
           props: true,
+          meta: { title: '图片详情' },
         },
         {
           path: 'add_space',
           name: 'AddSpace',
-          component: AddSpacePage,
+          component: () => import('@/pages/user/AddSpacePage.vue'),
+          meta: { title: '创建空间' },
         },
         {
           path: 'my_space',
           name: 'MySpace',
-          component: MySpacePage,
-          meta: { showFooter: true },
+          component: () => import('@/pages/MySpacePage.vue'),
+          meta: { showFooter: true, title: '我的空间' },
         },
         {
           path: 'space/:id',
           name: 'SpaceDetail',
-          component: SpaceDetailPage,
+          component: () => import('@/pages/SpaceDetailPage.vue'),
           props: true,
-          meta: { fullWidth: true },
+          meta: { fullWidth: true, title: '空间详情' },
         },
         {
           path: 'space_analyze',
           name: 'SpaceAnalyze',
-          component: SpaceAnalyzePage,
+          component: () => import('@/pages/SpaceAnalyzePage.vue'),
           props: true,
-          meta: { showFooter: true },
+          meta: { showFooter: true, title: '空间分析' },
         },
         {
           path: 'spaceUserManage/:spaceId',
           name: 'SpaceUserManage',
-          component: SpaceUserManagePage,
+          component: () => import('@/pages/admin/SpaceUserManagePage.vue'),
           props: true,
+          meta: { title: '空间成员' },
         },
         {
           path: 'agent',
           name: 'AgentChat',
-          component: AgentChatPage,
+          component: () => import('@/pages/AgentChatPage.vue'),
           meta: { title: 'SpaceMind', fullScreen: true },
         },
         {
           path: 'user/center',
           name: 'UserCenter',
-          component: UserCenterPage,
+          component: () => import('@/pages/user/UserCenterPage.vue'),
           meta: { title: '用户中心', requiresAuth: true },
         },
         {
@@ -124,36 +111,52 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'Dashboard',
-          component: DashboardPage,
+          component: () => import('@/pages/admin/DashboardPage.vue'),
+          meta: { title: '控制台' },
         },
         {
           path: 'user_manage',
           name: 'UserManage',
-          component: UserManagePage,
+          component: () => import('@/pages/admin/UserManagePage.vue'),
+          meta: { title: '用户管理' },
         },
         {
           path: 'picture_manage',
           name: 'PictureManage',
-          component: PictureManagePage,
+          component: () => import('@/pages/admin/PictureManagePage.vue'),
+          meta: { title: '图片管理' },
         },
         {
           path: 'space_manage',
           name: 'SpaceManage',
-          component: SpaceManagePage,
+          component: () => import('@/pages/admin/SpaceManagePage.vue'),
+          meta: { title: '空间管理' },
         },
         {
           path: 'storage_config_manage',
           name: 'StorageConfigManage',
-          component: StorageConfigManagePage,
+          component: () => import('@/pages/admin/StorageConfigManagePage.vue'),
+          meta: { title: '存储配置' },
         },
         {
           path: 'feedback_manage',
           name: 'FeedbackManage',
           component: () => import('@/pages/admin/FeedbackManagePage.vue'),
+          meta: { title: '反馈管理' },
         },
       ],
     },
   ],
+})
+
+const APP_NAME = 'VisionSpace'
+const DEFAULT_TITLE = 'VisionSpace · 视觉发现与 AI 创作空间'
+
+// 每条路由在 meta.title 里声明页面名，导航后同步 document.title，
+// 否则所有页面共用 index.html 的标题，历史记录与辅助技术都无法区分。
+router.afterEach((to) => {
+  const title = to.meta.title as string | undefined
+  document.title = title ? `${title} · ${APP_NAME}` : DEFAULT_TITLE
 })
 
 export default router

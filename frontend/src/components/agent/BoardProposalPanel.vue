@@ -468,4 +468,11 @@ caption {
   border-radius: 4px;
   margin-bottom: 4px;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .proposal-panel {
+    margin-top: 12px;
+    padding: 12px;
+  }
+}
 </style>

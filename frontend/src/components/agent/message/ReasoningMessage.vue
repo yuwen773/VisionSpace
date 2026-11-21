@@ -126,4 +126,10 @@ const preview = computed(
   margin: 0 0 4px 0;
   padding-left: 16px;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .reasoning-message {
+    padding: 6px 10px;
+  }
+}
 </style>

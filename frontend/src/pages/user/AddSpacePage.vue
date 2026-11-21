@@ -633,7 +633,11 @@ onMounted(() => {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-strong) 0%,
+    var(--color-secondary-strong) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -677,7 +681,11 @@ onMounted(() => {
   transform: translateY(40px);
 
   &:nth-child(1) {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-strong) 0%,
+      var(--color-primary-dark) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -984,7 +992,11 @@ onMounted(() => {
   position: relative;
   width: 100%;
   height: 56px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-strong) 0%,
+    var(--color-secondary-strong) 100%
+  );
   border: none;
   border-radius: 16px;
   color: white;
@@ -1132,7 +1144,11 @@ onMounted(() => {
   &.planet-size-2 {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-strong) 0%,
+      var(--color-secondary-strong) 100%
+    );
     box-shadow: 0 0 20px var(--color-primary-light);
   }
 
@@ -1229,7 +1245,11 @@ onMounted(() => {
   transform: translateY(-50%);
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-strong) 0%,
+    var(--color-primary-dark) 100%
+  );
   border-radius: 50%;
   display: flex;
   align-items: center;

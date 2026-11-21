@@ -75,4 +75,10 @@ defineProps<Props>()
   margin-bottom: 12px;
   line-height: 1.5;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .tool-confirm {
+    padding: 10px 12px;
+  }
+}
 </style>
