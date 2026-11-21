@@ -1,10 +1,7 @@
 <template>
   <div id="spaceDetailPage" class="aw-page" :class="{ 'is-light': isLight }">
     <!-- 氛围层 -->
-    <div class="aw-atmosphere" aria-hidden="true">
-      <div class="aw-aurora aw-aurora-a"></div>
-      <div class="aw-aurora aw-aurora-b"></div>
-    </div>
+    <EditorialAtmosphere variant="award" :light="isLight" />
 
     <div class="aw-shell sd-shell">
       <!-- 顶部操作条 -->
@@ -404,6 +401,7 @@
 </template>
 
 <script setup lang="ts">
+import EditorialAtmosphere from '@/components/EditorialAtmosphere.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
