@@ -563,5 +563,4 @@ const groupedHistories = computed(() => {
     padding: 14px 12px 10px;
   }
 }
-
 </style>

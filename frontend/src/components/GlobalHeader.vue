@@ -88,12 +88,7 @@
 
         <div v-if="loginUserStore.loginUser.id" class="user-section">
           <a-dropdown :placement="'bottomRight'" class="cosmic-dropdown">
-            <button
-              type="button"
-              class="user-trigger"
-              aria-label="用户菜单"
-              aria-haspopup="menu"
-            >
+            <button type="button" class="user-trigger" aria-label="用户菜单" aria-haspopup="menu">
               <div class="user-avatar-wrapper">
                 <a-avatar :src="loginUserStore.loginUser.userAvatar" class="user-avatar" />
                 <span class="avatar-ring"></span>
@@ -965,7 +960,8 @@ onUnmounted(() => {
     inset: -2px;
     border-radius: var(--radius-lg);
     border: 2px solid transparent;
-    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong)) border-box;
+    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong))
+      border-box;
     mask:
       linear-gradient(#fff 0 0) padding-box,
       linear-gradient(#fff 0 0);

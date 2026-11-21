@@ -266,7 +266,11 @@
     rgba(236, 72, 153, 0.12) 100%
   );
   --gradient-deep-space: linear-gradient(160deg, #faf7ff 0%, #f3e8ff 55%, #fce7f3 100%);
-  --gradient-cosmic: radial-gradient(ellipse at 50% 0%, rgba(168, 85, 247, 0.12) 0%, transparent 60%);
+  --gradient-cosmic: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(168, 85, 247, 0.12) 0%,
+    transparent 60%
+  );
   --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55));
   --shadow-glow-sm: 0 0 15px rgba(168, 85, 247, 0.18);
   --shadow-glow-md: 0 0 30px rgba(168, 85, 247, 0.22);
@@ -294,4 +298,3 @@
   font-style: normal;
   font-display: swap;
 }
-

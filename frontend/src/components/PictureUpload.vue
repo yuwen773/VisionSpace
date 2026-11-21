@@ -5,25 +5,17 @@
       :show-upload-list="false"
       :custom-request="handleUpload"
       :before-upload="beforeUpload"
-      class="pop-upload"
+      class="ap-uploader"
     >
-      <div v-if="picture?.url" class="uploaded-image">
-        <img :src="picture?.url" alt="avatar" />
-        <div class="image-overlay">
-          <span class="overlay-text"
-            ><Camera :size="20" style="vertical-align: middle; margin-right: 4px" /> 点击更换</span
-          >
-        </div>
-      </div>
-      <div v-else class="upload-placeholder">
-        <div class="upload-icon">
-          <loading-outlined v-if="loading" class="animate-spin" />
-          <Camera v-else :size="40" class="icon-plus" />
-        </div>
-        <div class="upload-text">
-          <span class="text-main">点击或拖拽上传</span>
-          <span class="text-sub">支持 JPG、PNG 格式</span>
-        </div>
+      <div class="ap-uploader-empty">
+        <span class="ap-uploader-mark" :class="{ 'is-loading': loading }" aria-hidden="true">
+          <LoadingOutlined v-if="loading" class="animate-spin" />
+          <Camera v-else :size="30" :stroke-width="1.3" />
+        </span>
+        <span class="ap-uploader-main">{{ loading ? '正在上传' : '拖入图片，或点击选择' }}</span>
+        <span class="ap-uploader-sub aw-mono">
+          {{ loading ? 'UPLOADING — 请稍候' : 'JPG / PNG · ≤ 2 MB' }}
+        </span>
       </div>
     </a-upload>
   </div>
@@ -59,13 +51,13 @@ const handleUpload = async ({ file }: any) => {
     }
     const res = await uploadPictureUsingPost({ pictureUploadRequest: params }, file)
     if (res.data.code === 0 && res.data.data) {
-      message.success('🎉 图片上传成功')
+      message.success('图片上传成功')
       props.onSuccess?.(res.data.data)
     } else {
-      message.error('😅 ' + (res.data.message || '上传失败'))
+      message.error(res.data.message || '上传失败')
     }
   } catch (err: any) {
-    message.error('😅 图片上传失败：' + err.message)
+    message.error('图片上传失败：' + err.message)
   }
   loading.value = false
 }
@@ -74,11 +66,11 @@ const handleUpload = async ({ file }: any) => {
 const beforeUpload = (file: NonNullable<UploadProps['fileList']>[number]) => {
   const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png'
   if (!isJpgOrPng) {
-    message.error('😅 不支持上传该格式文件')
+    message.error('不支持上传该格式文件')
   }
   const isLt2M = (file.size ?? 0) / 1024 / 1024 < 2
   if (!isLt2M) {
-    message.error('😅 图片大小不能超过2MB')
+    message.error('图片大小不能超过 2MB')
   }
   return isJpgOrPng && isLt2M
 }
@@ -87,129 +79,98 @@ const beforeUpload = (file: NonNullable<UploadProps['fileList']>[number]) => {
 <style scoped lang="less">
 .picture-upload {
   width: 100%;
+  height: 100%;
+  display: flex;
 }
 
-.pop-upload {
+.ap-uploader {
   width: 100% !important;
   height: 100% !important;
 
-  :deep(.ant-upload) {
+  :deep(.ant-upload-wrapper) {
+    width: 100%;
+    height: 100%;
+  }
+
+  :deep(.ant-upload.ant-upload-select) {
     width: 100% !important;
     height: 100% !important;
-    min-height: 280px;
-    min-width: 280px;
-    max-width: 500px;
-    border: 3px dashed var(--border-bold);
-    border-radius: var(--radius-2xl);
-    background: var(--bg-tertiary);
-    transition: all var(--transition-bounce);
+    min-height: clamp(300px, 44vh, 520px);
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    overflow: visible;
+    transition: none;
 
     &:hover {
-      border-color: var(--color-sunshine);
-      background: var(--bg-hover);
-      transform: translate(-2px, -2px);
-      box-shadow: var(--shadow-pop);
+      border: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transform: none !important;
     }
   }
 }
 
-/* ========== 已上传的图片 ========== */
-.uploaded-image {
-  position: relative;
+.ap-uploader-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   width: 100%;
   height: 100%;
-  min-height: 280px;
-  overflow: hidden;
-  border-radius: var(--radius-xl);
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  &:hover .image-overlay {
-    opacity: 1;
-  }
-}
-
-.image-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(45, 52, 54, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity var(--transition-smooth);
-}
-
-.overlay-text {
-  color: white;
-  font-weight: 700;
-  font-size: var(--text-lg);
-}
-
-/* ========== 上传占位符 ========== */
-.upload-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  padding: var(--space-8);
-  height: 100%;
-  min-height: 280px;
-}
-
-.upload-icon {
-  color: var(--color-coral);
-
-  .icon-plus {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-.upload-text {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
+  min-height: clamp(300px, 44vh, 520px);
+  padding: 24px;
   text-align: center;
+  cursor: pointer;
 }
 
-.text-main {
-  font-weight: 700;
-  color: var(--color-text-primary);
-  font-size: var(--text-lg);
+.ap-uploader-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 4px;
+  border: 1px solid var(--aw-line-2);
+  border-radius: 50%;
+  color: var(--aw-ink-2);
+  transition:
+    color 0.4s var(--aw-ease),
+    border-color 0.4s var(--aw-ease),
+    transform 0.5s var(--aw-ease),
+    background-color 0.4s var(--aw-ease);
 }
 
-.text-sub {
-  font-size: var(--text-sm);
-  color: var(--color-text-tertiary);
+.ap-uploader:hover .ap-uploader-mark {
+  color: var(--aw-accent);
+  border-color: var(--aw-accent);
+  background: var(--aw-accent-soft);
+  transform: translateY(-2px);
+}
+
+.ap-uploader-mark.is-loading {
+  color: var(--aw-accent);
+  border-color: var(--aw-accent);
+}
+
+.ap-uploader-main {
+  font-family: var(--aw-sans);
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--aw-ink);
 }
 
-/* ========== 响应式 ========== */
-@media (max-width: 640px) {
-  .pop-upload :deep(.ant-upload) {
-    min-height: 220px;
-    min-width: 220px;
-  }
+.ap-uploader-sub {
+  color: var(--aw-ink-3);
+}
 
-  .uploaded-image,
-  .upload-placeholder {
-    min-height: 220px;
-  }
-
-  .upload-icon {
-    font-size: var(--text-4xl);
-  }
-
-  .text-main {
-    font-size: var(--text-base);
+@media (max-width: 480px) {
+  .ap-uploader-empty,
+  .ap-uploader :deep(.ant-upload.ant-upload-select) {
+    min-height: 260px;
   }
 }
 </style>

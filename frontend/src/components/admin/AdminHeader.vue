@@ -449,5 +449,4 @@ const doLogout = async () => {
     display: none;
   }
 }
-
 </style>

@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       globals: true,
+      setupFiles: ['./src/test/setup.ts'],
     },
     server: {
       allowedHosts: process.env.VITE_DEV_HOST ? [process.env.VITE_DEV_HOST] : [],

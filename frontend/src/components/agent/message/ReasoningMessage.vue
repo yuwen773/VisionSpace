@@ -132,5 +132,4 @@ const preview = computed(
     padding: 6px 10px;
   }
 }
-
 </style>

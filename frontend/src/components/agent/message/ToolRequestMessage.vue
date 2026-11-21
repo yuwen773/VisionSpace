@@ -243,5 +243,4 @@ const isEmptyArgs = (args: Record<string, any>) => {
     padding: 6px 10px 8px;
   }
 }
-
 </style>

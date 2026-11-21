@@ -291,5 +291,4 @@ const getStatusLabel = (status: string) => {
     min-width: 0;
   }
 }
-
 </style>

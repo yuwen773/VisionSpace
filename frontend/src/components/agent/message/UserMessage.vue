@@ -267,5 +267,4 @@ const displayTime = computed(() => {
     max-width: 88%;
   }
 }
-
 </style>

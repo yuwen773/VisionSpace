@@ -1208,5 +1208,4 @@ watch(
     margin-top: 20px;
   }
 }
-
 </style>

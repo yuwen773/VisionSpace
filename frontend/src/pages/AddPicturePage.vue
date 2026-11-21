@@ -1,406 +1,272 @@
 <template>
-  <div id="addPicturePage">
-    <!-- 紫漾梦幻氛围背景 -->
-    <div class="ambient-bg">
-      <div class="gradient-orb orb-1"></div>
-      <div class="gradient-orb orb-2"></div>
-      <div class="gradient-orb orb-3"></div>
-      <div class="floating-shapes">
-        <div class="shape-dot dot-1"></div>
-        <div class="shape-dot dot-2"></div>
-        <div class="shape-dot dot-3"></div>
-        <div class="shape-dot dot-4"></div>
-        <div class="shape-dot dot-5"></div>
-      </div>
+  <div id="addPicturePage" class="aw-page" :class="{ 'is-light': isLight }">
+    <!-- 氛围层 -->
+    <div class="aw-atmosphere" aria-hidden="true">
+      <div class="aw-aurora aw-aurora-a"></div>
+      <div class="aw-aurora aw-aurora-b"></div>
     </div>
 
-    <!-- 顶部导航栏 -->
-    <header class="page-header">
-      <button @click="goBack" class="back-btn">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-        <span>返回</span>
-      </button>
+    <div class="aw-shell ap-shell">
+      <!-- 顶部信息条 -->
+      <header class="ap-bar">
+        <button class="aw-back" type="button" @click="goBack">
+          <ArrowLeft :size="14" :stroke-width="1.8" />
+          <span>返回</span>
+        </button>
 
-      <div class="header-center">
-        <div class="brand-indicator">
-          <span class="indicator-dot"></span>
-          <span class="indicator-text">{{ route.query.id ? '编辑模式' : '上传通道' }}</span>
+        <div class="ap-bar-meta">
+          <span class="aw-mono">{{ isEdit ? 'EDIT MODE' : 'UPLOAD MODE' }}</span>
+          <span class="ap-bar-dot" aria-hidden="true"></span>
+          <span class="aw-mono header-space ap-bar-space">{{ spaceName || '未选择空间' }}</span>
         </div>
-      </div>
+      </header>
 
-      <div class="header-space">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-        <span>{{ spaceName }}</span>
-      </div>
-    </header>
-
-    <!-- 主内容区 -->
-    <div class="main-content">
-      <!-- Hero 上传区域 -->
-      <section class="upload-hero">
-        <div class="hero-text">
-          <h1 class="hero-title">
-            <span
-              class="title-word"
-              v-for="(word, i) in titleWords"
-              :key="i"
-              :style="{ animationDelay: `${i * 0.12}s` }"
-            >
-              {{ word }}
-            </span>
+      <!-- 引言 -->
+      <section class="ap-intro">
+        <div class="ap-intro-main">
+          <p class="aw-kicker">{{ isEdit ? 'REVISE — 校对作品' : 'NEW WORK — 新作品' }}</p>
+          <h1 class="aw-display ap-title">
+            {{ isEdit ? '把作品，' : '让作品，' }}<br />
+            <span class="aw-display-quiet">{{ isEdit ? '再校对一次。' : '找到它的位置。' }}</span>
           </h1>
-          <p class="hero-subtitle">
-            {{ route.query.id ? '更新你的视觉作品' : '将你的视觉作品传送到 VisionSpace' }}
-          </p>
         </div>
 
-        <!-- 上传方式切换 -->
-        <div class="upload-mode-toggle visible">
-          <button
-            class="mode-btn"
-            :class="{ active: uploadType === 'file' }"
-            @click="uploadType = 'file'"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            <span>本地上传</span>
-          </button>
-          <button
-            class="mode-btn"
-            :class="{ active: uploadType === 'url' }"
-            @click="uploadType = 'url'"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            <span>URL 上传</span>
-          </button>
+        <div class="ap-intro-side">
+          <p class="aw-lede">
+            一张图片进入 VisionSpace
+            之前，先给它一个名字、一段来处。颜色与情绪会被记住，下一次检索就从这里开始。
+          </p>
+          <dl class="ap-facts">
+            <div>
+              <dt class="aw-mono">FORMAT</dt>
+              <dd>JPG / PNG</dd>
+            </div>
+            <div>
+              <dt class="aw-mono">LIMIT</dt>
+              <dd>≤ 2 MB</dd>
+            </div>
+            <div>
+              <dt class="aw-mono">SPACE</dt>
+              <dd class="ap-facts-space">{{ spaceName || '—' }}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
-      <!-- 上传内容区 -->
-      <div class="upload-content" :class="{ 'has-image': !!picture }">
-        <!-- 左侧：上传区域 -->
-        <div class="upload-section">
-          <!-- 上传 Portal -->
-          <div class="upload-portal" :class="{ 'drag-over': isDragOver, 'has-file': !!picture }">
-            <!-- Portal 边框光环 -->
-            <div class="portal-ring outer"></div>
-            <div class="portal-ring inner"></div>
-            <div class="portal-glow"></div>
+      <!-- 上传方式 -->
+      <div class="ap-modes" role="tablist" aria-label="上传方式">
+        <button
+          type="button"
+          role="tab"
+          class="ap-mode"
+          :class="{ active: uploadType === 'file' }"
+          :aria-selected="uploadType === 'file'"
+          @click="uploadType = 'file'"
+        >
+          <span class="ap-mode-no">01</span>
+          <span>本地文件</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="ap-mode"
+          :class="{ active: uploadType === 'url' }"
+          :aria-selected="uploadType === 'url'"
+          @click="uploadType = 'url'"
+        >
+          <span class="ap-mode-no">02</span>
+          <span>图片链接</span>
+        </button>
+        <span class="ap-modes-note aw-mono">{{
+          uploadType === 'file' ? 'FROM DEVICE' : 'FROM URL'
+        }}</span>
+      </div>
 
-            <!-- 上传组件 -->
-            <div class="portal-content">
+      <!-- 显影台 + 作品标签 -->
+      <div class="ap-stage" :class="{ 'has-image': !!picture }">
+        <section class="ap-table-wrap" aria-label="图片上传区">
+          <div
+            class="ap-table"
+            :class="{ 'is-filled': !!picture, 'is-dragover': isDragOver }"
+            @dragover.prevent="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+          >
+            <span class="ap-corner c-tl" aria-hidden="true"></span>
+            <span class="ap-corner c-tr" aria-hidden="true"></span>
+            <span class="ap-corner c-bl" aria-hidden="true"></span>
+            <span class="ap-corner c-br" aria-hidden="true"></span>
+
+            <div class="ap-table-inner">
               <PictureUpload
                 v-if="uploadType === 'file' && !picture"
                 :picture="picture"
                 :spaceId="spaceId"
                 :on-success="onSuccess"
-                class="upload-component"
+                class="ap-upload"
               />
               <UrlPictureUpload
                 v-else-if="uploadType === 'url' && !picture"
                 :picture="picture"
                 :spaceId="spaceId"
                 :on-success="onSuccess"
-                class="upload-component"
+                class="ap-upload"
               />
 
-              <!-- 图片预览 -->
-              <div v-if="picture" class="preview-portal">
-                <div class="preview-image-wrap">
-                  <img :src="contentSrc(picture.url)" :alt="picture.name" class="preview-image" />
-                  <div class="preview-overlay">
-                    <button class="preview-action-btn" @click="changeImage">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
-                      <span>更换图片</span>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 快速操作按钮 -->
-                <div class="quick-actions">
-                  <button class="quick-action-btn" @click="doEditPicture" title="裁剪编辑" aria-label="裁剪编辑">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <circle cx="6" cy="6" r="3" />
-                      <circle cx="6" cy="18" r="3" />
-                      <line x1="20" y1="4" x2="8.12" y2="15.88" />
-                      <line x1="14.47" y1="14.48" x2="20" y2="20" />
-                      <line x1="8.12" y1="8.12" x2="12" y2="12" />
-                    </svg>
-                    <span>裁剪</span>
-                  </button>
-                  <button class="quick-action-btn" @click="doImagePainting" title="AI 扩图" aria-label="AI 扩图">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12" />
-                      <path d="M12 8v4l2 2" />
-                      <path d="M2.5 12a9.5 9.5 0 0 1 1.5-3" />
-                    </svg>
-                    <span>AI 扩图</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- 装饰粒子 -->
-            <div class="portal-particles">
-              <span
-                v-for="i in 6"
-                :key="i"
-                class="particle"
-                :style="{ animationDelay: `${i * 0.3}s` }"
-              ></span>
+              <figure v-if="picture" class="ap-print">
+                <img
+                  :src="contentSrc(picture.url)"
+                  :alt="picture.name || '作品预览'"
+                  class="ap-print-img"
+                />
+                <button type="button" class="ap-replace" @click="changeImage">
+                  <RefreshCw :size="14" :stroke-width="1.8" />
+                  <span>更换图片</span>
+                </button>
+              </figure>
             </div>
           </div>
-        </div>
 
-        <!-- 右侧：图片信息表单 -->
-        <Transition name="form-reveal">
-          <div v-if="picture" class="info-section">
-            <div class="info-card">
-              <div class="card-shine"></div>
+          <div class="ap-table-foot">
+            <div class="ap-foot-meta">
+              <span class="aw-mono ap-foot-name">LIGHT TABLE / 显影台</span>
+              <span v-if="picture" class="aw-mono ap-print-meta">
+                <span>{{ picture.picWidth }} × {{ picture.picHeight }}</span>
+                <i class="ap-sep" aria-hidden="true">/</i>
+                <span>{{ (picture.picFormat || 'IMG').toUpperCase() }}</span>
+                <i class="ap-sep" aria-hidden="true">/</i>
+                <span>{{ formatSize(picture.picSize || 0) }}</span>
+              </span>
+              <span v-else class="aw-mono ap-print-meta">NO FILE — 等待一张图片</span>
+            </div>
 
-              <div class="card-header">
-                <div class="header-icon-wrap">
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                  </svg>
+            <div v-if="picture" class="ap-quick">
+              <button type="button" class="ap-quick-btn" title="裁剪编辑" @click="doEditPicture">
+                <Crop :size="15" :stroke-width="1.7" />
+                <span>裁剪</span>
+              </button>
+              <button type="button" class="ap-quick-btn" title="AI 扩图" @click="doImagePainting">
+                <Scan :size="15" :stroke-width="1.7" />
+                <span>AI 扩图</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <Transition name="ap-form">
+          <aside v-if="picture" class="ap-label" aria-labelledby="ap-label-title">
+            <header class="ap-label-head">
+              <span class="aw-mono">WALL LABEL / 作品标签</span>
+              <h2 id="ap-label-title" class="ap-label-title">作品信息</h2>
+              <p class="ap-label-sub">名字与描述会和图像一起进入检索。</p>
+            </header>
+
+            <form class="ap-form" @submit.prevent="handSubmit">
+              <div class="ap-field">
+                <div class="ap-field-head">
+                  <label class="ap-field-label" for="ap-name">
+                    <span class="ap-field-no">01</span>
+                    作品名称
+                  </label>
+                  <span class="aw-mono ap-field-hint">REQUIRED</span>
                 </div>
-                <div class="header-text">
-                  <h3 class="card-title">作品信息</h3>
-                  <p class="card-subtitle">完善图片详情，让作品更具价值</p>
-                </div>
+                <input
+                  id="ap-name"
+                  v-model="pictureForm.name"
+                  type="text"
+                  class="ap-input"
+                  placeholder="给它一个名字"
+                  autocomplete="off"
+                />
               </div>
 
-              <form class="info-form" @submit.prevent="handSubmit">
-                <div class="form-group">
-                  <label class="form-label">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-                      />
-                      <line x1="7" y1="7" x2="7.01" y2="7" />
-                    </svg>
-                    <span>作品名称</span>
+              <div class="ap-field">
+                <div class="ap-field-head">
+                  <label class="ap-field-label" for="ap-introduction">
+                    <span class="ap-field-no">02</span>
+                    作品简介
                   </label>
+                  <span class="aw-mono ap-field-hint">OPTIONAL</span>
+                </div>
+                <textarea
+                  id="ap-introduction"
+                  v-model="pictureForm.introduction"
+                  class="ap-input ap-textarea"
+                  placeholder="这张图片从哪里来，想留下什么？"
+                  rows="3"
+                ></textarea>
+              </div>
+
+              <div class="ap-field-row">
+                <div class="ap-field">
+                  <div class="ap-field-head">
+                    <label class="ap-field-label" for="ap-category">
+                      <span class="ap-field-no">03</span>
+                      分类
+                    </label>
+                  </div>
                   <input
-                    v-model="pictureForm.name"
+                    id="ap-category"
+                    v-model="pictureForm.category"
                     type="text"
-                    class="form-input"
-                    placeholder="给你的作品起个名字"
+                    class="ap-input"
+                    placeholder="选择或输入"
+                    list="categoryList"
                     autocomplete="off"
                   />
+                  <datalist id="categoryList">
+                    <option v-for="cat in categoryOptions" :key="cat.value" :value="cat.value" />
+                  </datalist>
                 </div>
 
-                <div class="form-group">
-                  <label class="form-label">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                    </svg>
-                    <span>作品简介</span>
-                  </label>
-                  <textarea
-                    v-model="pictureForm.introduction"
-                    class="form-textarea"
-                    placeholder="讲述这张图片背后的故事..."
-                    rows="3"
-                  ></textarea>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                        />
-                      </svg>
-                      <span>分类</span>
+                <div class="ap-field">
+                  <div class="ap-field-head">
+                    <label class="ap-field-label" for="ap-tags">
+                      <span class="ap-field-no">04</span>
+                      标签
                     </label>
-                    <input
-                      v-model="pictureForm.category"
-                      type="text"
-                      class="form-input"
-                      placeholder="选择分类"
-                      list="categoryList"
-                      autocomplete="off"
-                    />
-                    <datalist id="categoryList">
-                      <option v-for="cat in categoryOptions" :key="cat.value" :value="cat.value" />
-                    </datalist>
                   </div>
-
-                  <div class="form-group">
-                    <label class="form-label">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-                        />
-                        <line x1="7" y1="7" x2="7.01" y2="7" />
-                      </svg>
-                      <span>标签</span>
-                    </label>
-                    <input
-                      v-model="tagInput"
-                      type="text"
-                      class="form-input"
-                      placeholder="输入标签后回车"
-                      @keydown.enter.prevent="addTag"
-                      autocomplete="off"
-                    />
-                    <div class="tag-list" v-if="pictureForm.tags?.length">
-                      <span v-for="tag in pictureForm.tags" :key="tag" class="tag-item">
-                        {{ tag }}
-                        <button type="button" class="tag-remove" @click="removeTag(tag)">
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="3"
-                          >
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
-                      </span>
-                    </div>
-                  </div>
+                  <input
+                    id="ap-tags"
+                    v-model="tagInput"
+                    type="text"
+                    class="ap-input"
+                    placeholder="输入后回车"
+                    autocomplete="off"
+                    @keydown.enter.prevent="addTag"
+                  />
                 </div>
+              </div>
 
-                <div class="form-actions">
-                  <button type="submit" class="submit-btn primary">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    <span>{{ route.query.id ? '保存修改' : '创建作品' }}</span>
+              <div v-if="pictureForm.tags?.length" class="ap-tags">
+                <span v-for="tag in pictureForm.tags" :key="tag" class="ap-tag">
+                  {{ tag }}
+                  <button
+                    type="button"
+                    class="ap-tag-remove"
+                    :aria-label="`移除标签 ${tag}`"
+                    @click="removeTag(tag)"
+                  >
+                    <X :size="11" :stroke-width="2" />
                   </button>
-                  <button type="button" class="submit-btn secondary" @click="goBack">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                    <span>取消</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+                </span>
+              </div>
+
+              <div class="ap-actions">
+                <button
+                  type="submit"
+                  class="aw-btn aw-btn--primary ap-submit"
+                  :disabled="!pictureForm.name?.trim()"
+                >
+                  <span>{{ isEdit ? '保存修改' : '创建作品' }}</span>
+                  <ArrowRight :size="17" :stroke-width="1.8" />
+                </button>
+                <button type="button" class="aw-btn aw-btn--quiet ap-cancel" @click="goBack">
+                  取消
+                </button>
+              </div>
+            </form>
+          </aside>
         </Transition>
       </div>
     </div>
@@ -431,19 +297,26 @@ import PictureUpload from '@/components/PictureUpload.vue'
 import UrlPictureUpload from '@/components/UrlPictureUpload.vue'
 import ImageCropper from '@/components/ImageCropper.vue'
 import ImageOutPainting from '@/components/ImageOutPainting.vue'
-import { reactive, ref, onMounted, computed } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { ArrowLeft, ArrowRight, Crop, RefreshCw, Scan, X } from 'lucide-vue-next'
 import {
   editPictureUsingPost,
   getPictureVoByIdUsingGet,
   listPictureTagCategoryUsingGet,
 } from '@/api/pictureController.ts'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { contentSrc, toId } from '@/utils'
+import { contentSrc, formatSize, toId } from '@/utils'
+import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
+const { currentTheme } = useTheme()
+
+/* 两套主题共用一套版式，只换纸面与墨色 */
+const isLight = computed(() => currentTheme.value === 'pop')
+const isEdit = computed(() => !!route.query.id)
 
 // Refs
 const imageCropperRef = ref()
@@ -459,12 +332,9 @@ const isDragOver = ref(false)
 // 标签输入
 const tagInput = ref('')
 
-const titleWords = computed(() => (route.query.id ? ['编辑', '作品'] : ['上传', '作品']))
-
 // 空间ID
 const spaceId = computed(() => toId(route.query?.spaceId as string | undefined))
 const spaceName = ref<string>('')
-const imageLoaded = computed(() => !!picture.value)
 
 // 上传成功
 const onSuccess = (newPicture: API.PictureVO) => {
@@ -473,6 +343,7 @@ const onSuccess = (newPicture: API.PictureVO) => {
   pictureForm.introduction = newPicture.introduction || ''
   pictureForm.category = newPicture.category || ''
   pictureForm.tags = newPicture.tags || []
+  isDragOver.value = false
 }
 
 // 裁剪成功
@@ -509,6 +380,23 @@ const changeImage = () => {
   pictureForm.tags = []
 }
 
+// 拖拽反馈（真正的投放由上传组件处理）
+const onDragOver = () => {
+  isDragOver.value = true
+}
+
+const onDragLeave = (event: DragEvent) => {
+  const current = event.currentTarget as HTMLElement | null
+  const next = event.relatedTarget as Node | null
+  if (!current || !next || !current.contains(next)) {
+    isDragOver.value = false
+  }
+}
+
+const onDrop = () => {
+  isDragOver.value = false
+}
+
 // 提交表单
 const handSubmit = async () => {
   const pictureId = picture.value?.id
@@ -516,10 +404,18 @@ const handSubmit = async () => {
     message.error('请先上传图片')
     return
   }
+  if (!pictureForm.name?.trim()) {
+    message.warning('请先给作品起个名字')
+    return
+  }
   try {
-    const res = await editPictureUsingPost({ id: pictureId, ...pictureForm })
+    const res = await editPictureUsingPost({
+      id: pictureId,
+      ...pictureForm,
+      name: pictureForm.name.trim(),
+    })
     if (res.data.code === 0 && res.data.data) {
-      message.success(route.query.id ? '修改成功' : '创建成功')
+      message.success(isEdit.value ? '修改成功' : '创建成功')
       router.push(`/picture/${pictureId}`)
     } else {
       message.error('操作失败：' + res.data.message)
@@ -603,1009 +499,829 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
-/* Aurora 主题变量别名 */
 #addPicturePage {
-  /* 颜色别名 */
-  --color-primary: var(--color-primary-500);
-  --color-primary-dark: var(--color-primary-600);
-  --color-primary-light: var(--color-primary-300);
-  --color-secondary: var(--color-secondary-500);
-  --color-secondary-dark: var(--color-secondary-600);
-  --color-violet: var(--color-accent-purple);
-  --color-pink: var(--color-accent-pink);
-  --color-rose: var(--color-accent-pink);
-  --color-cyan: var(--color-accent-cyan);
-  --color-cyan-dark: var(--color-accent-cyan-dark);
-
-  /* 背景和卡片 */
-  --bg-primary: var(--color-bg-primary);
-  --bg-secondary: var(--color-bg-secondary);
-  --bg-tertiary: var(--color-bg-tertiary);
-  --bg-elevated: var(--color-bg-elevated);
-  --bg-hover: var(--color-bg-hover);
-  --bg-card: var(--gradient-card);
-
-  /* 文字颜色 */
-  --text-primary: var(--color-text-primary);
-  --text-secondary: var(--color-text-secondary);
-  --text-tertiary: var(--color-text-tertiary);
-  --text-disabled: var(--color-text-disabled);
-
-  /* 边框颜色 */
-  --border-default: var(--color-border-default);
-  --border-subtle: var(--color-border-subtle);
-  --border-strong: var(--color-border-strong);
-  --border-accent: var(--color-border-accent);
-
-  /* 阴影 */
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
-  --shadow-glow-purple: 0 0 30px rgba(110, 53, 235, 0.35);
-
-  min-height: 100vh;
-  background: var(--bg-primary);
-  position: relative;
-  overflow-x: hidden;
+  padding-bottom: clamp(64px, 10vh, 120px);
 }
 
-/* ========== 紫漾氛围背景 ========== */
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
+.ap-shell {
+  padding-top: 0;
 }
 
-.gradient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.5;
-  animation: float-orb 25s ease-in-out infinite;
-}
-
-.orb-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
-  top: 30%;
-  left: -150px;
-  animation-delay: -8s;
-}
-
-.orb-3 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-  bottom: -100px;
-  right: 20%;
-  animation-delay: -16s;
-}
-
-@keyframes float-orb {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(40px, -40px) scale(1.05);
-  }
-  50% {
-    transform: translate(-30px, 30px) scale(0.95);
-  }
-  75% {
-    transform: translate(25px, 15px) scale(1.03);
-  }
-}
-
-/* 浮动装饰点 */
-.floating-shapes {
-  position: absolute;
-  inset: 0;
-}
-
-.shape-dot {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.4;
-  animation: float-dot 15s ease-in-out infinite;
-}
-
-.dot-1 {
-  width: 12px;
-  height: 12px;
-  background: var(--color-primary);
-  top: 15%;
-  left: 10%;
-  animation-delay: 0s;
-}
-
-.dot-2 {
-  width: 8px;
-  height: 8px;
-  background: var(--color-secondary);
-  top: 25%;
-  right: 20%;
-  animation-delay: -3s;
-}
-
-.dot-3 {
-  width: 16px;
-  height: 16px;
-  background: var(--color-violet);
-  bottom: 30%;
-  left: 15%;
-  animation-delay: -6s;
-}
-
-.dot-4 {
-  width: 10px;
-  height: 10px;
-  background: var(--color-pink);
-  top: 60%;
-  right: 25%;
-  animation-delay: -9s;
-}
-
-.dot-5 {
-  width: 6px;
-  height: 6px;
-  background: var(--color-primary-light);
-  bottom: 20%;
-  right: 40%;
-  animation-delay: -12s;
-}
-
-@keyframes float-dot {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  25% {
-    transform: translate(10px, -15px) rotate(90deg);
-  }
-  50% {
-    transform: translate(-5px, 10px) rotate(180deg);
-  }
-  75% {
-    transform: translate(15px, 5px) rotate(270deg);
-  }
-}
-
-/* ========== 页面头部 ========== */
-.page-header {
-  position: relative;
-  z-index: 10;
+/* ========== 顶部信息条 ========== */
+.ap-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 20px 32px;
+  gap: 24px;
+  padding: 26px 0 18px;
+  border-bottom: 1px solid var(--aw-line);
 }
 
-.back-btn {
+.ap-bar-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 40px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: translateX(-4px);
-    box-shadow: var(--shadow-glow-purple);
-
-    svg {
-      transform: translateX(-2px);
-    }
-  }
-
-  svg {
-    transition: transform 0.3s ease;
-  }
-}
-
-.header-center {
-  display: flex;
-  align-items: center;
-}
-
-.brand-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(168, 85, 247, 0.1);
-  border: 1px solid var(--color-primary-light);
-  border-radius: 20px;
-}
-
-.indicator-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--color-primary);
-  border-radius: 50%;
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.8);
-  }
-}
-
-.indicator-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-primary-dark);
-  letter-spacing: 1px;
-}
-
-.header-space {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 40px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: var(--shadow-sm);
-
-  svg {
-    color: var(--text-tertiary);
-  }
-}
-
-/* ========== 主内容区 ========== */
-.main-content {
-  position: relative;
-  z-index: 1;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px 32px 80px;
-}
-
-/* ========== Hero 区域 ========== */
-.upload-hero {
-  text-align: center;
-  margin-bottom: 48px;
-}
-
-.hero-text {
-  margin-bottom: 32px;
-}
-
-.hero-title {
-  font-family: var(--font-display);
-  font-size: clamp(36px, 6vw, 64px);
-  font-weight: 800;
-  line-height: 1.1;
-  margin: 0 0 16px 0;
-  display: flex;
-  justify-content: center;
   gap: 12px;
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.title-word {
-  display: inline-block;
-  animation: title-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  opacity: 0;
-  transform: translateY(30px);
-
-  &:nth-child(1) {
-    background: linear-gradient(
-      135deg,
-      var(--color-primary) 0%,
-      var(--color-primary-dark) 50%,
-      var(--color-violet) 100%
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  &:nth-child(2) {
-    background: linear-gradient(
-      135deg,
-      var(--color-secondary) 0%,
-      var(--color-secondary-dark) 50%,
-      var(--color-pink) 100%
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-}
-
-@keyframes title-reveal {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.hero-subtitle {
-  font-size: clamp(14px, 2vw, 18px);
-  color: var(--text-secondary);
-  margin: 0;
-  font-weight: 600;
-  letter-spacing: 1px;
-  animation: fade-up 0.8s ease-out 0.3s forwards;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-@keyframes fade-up {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ========== 上传模式切换 ========== */
-.upload-mode-toggle {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.5s ease;
-
-  &.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 40px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  svg {
-    color: var(--text-secondary);
-    transition: color 0.3s ease;
-  }
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    color: var(--text-primary);
-
-    svg {
-      color: var(--text-primary);
-    }
-  }
-
-  &.active {
-    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-    border-color: transparent;
-    color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
-
-    svg {
-      color: white;
-    }
-  }
-}
-
-/* ========== 上传内容区 ========== */
-.upload-content {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 32px;
-  transition: all 0.5s ease;
-
-  &.has-image {
-    grid-template-columns: 1fr 420px;
-
-    @media (max-width: 1024px) {
-      grid-template-columns: 1fr;
-    }
-  }
-}
-
-/* ========== 上传 Portal ========== */
-.upload-section {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.upload-portal {
-  position: relative;
-  width: 100%;
-  max-width: 560px;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border-radius: 32px;
-  border: 2px solid var(--border-default);
-  overflow: hidden;
-  transition: all 0.4s ease;
-  box-shadow: var(--shadow-card);
-
-  &.drag-over {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 60px rgba(168, 85, 247, 0.3);
-    transform: scale(1.02);
-
-    .portal-ring {
-      animation-play-state: running;
-    }
-
-    .portal-glow {
-      opacity: 1;
-    }
-  }
-
-  &.has-file {
-    aspect-ratio: auto;
-    min-height: 400px;
-  }
-}
-
-.portal-ring {
-  position: absolute;
+.ap-bar-dot {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  border: 2px solid transparent;
-  opacity: 0.6;
-
-  &.outer {
-    width: calc(100% + 40px);
-    height: calc(100% + 40px);
-    border-top-color: rgba(168, 85, 247, 0.4);
-    border-right-color: rgba(168, 85, 247, 0.2);
-    animation: rotate-ring 8s linear infinite paused;
-  }
-
-  &.inner {
-    width: calc(100% + 20px);
-    height: calc(100% + 20px);
-    border-top-color: rgba(236, 72, 153, 0.3);
-    border-right-color: rgba(236, 72, 153, 0.15);
-    animation: rotate-ring 6s linear infinite reverse paused;
-  }
-}
-
-@keyframes rotate-ring {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.portal-glow {
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.portal-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-}
-
-.upload-component {
-  width: 100%;
-  height: 100%;
-}
-
-/* ========== 预览区域 ========== */
-.preview-portal {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-image-wrap {
-  position: relative;
-  flex: 1;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-}
-
-.preview-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.preview-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(250, 247, 255, 0.8);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.preview-image-wrap:hover .preview-overlay {
-  opacity: 1;
-}
-
-.preview-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 24px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 16px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-md);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: scale(1.05);
-    box-shadow: var(--shadow-glow-purple);
-  }
-}
-
-.quick-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  justify-content: center;
-}
-
-.quick-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 30px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  svg {
-    color: var(--text-tertiary);
-    transition: color 0.3s ease;
-  }
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary-light);
-    color: var(--text-primary);
-
-    svg {
-      color: var(--color-primary);
-    }
-  }
-}
-
-/* ========== Portal 装饰粒子 ========== */
-.portal-particles {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: var(--color-primary);
-  border-radius: 50%;
-  opacity: 0.6;
-
-  &:nth-child(1) {
-    top: 20%;
-    left: 10%;
-    animation: float-particle 4s ease-in-out infinite;
-  }
-  &:nth-child(2) {
-    top: 30%;
-    right: 15%;
-    animation: float-particle 5s ease-in-out infinite 0.5s;
-  }
-  &:nth-child(3) {
-    bottom: 25%;
-    left: 20%;
-    animation: float-particle 4.5s ease-in-out infinite 1s;
-  }
-  &:nth-child(4) {
-    bottom: 35%;
-    right: 10%;
-    animation: float-particle 5.5s ease-in-out infinite 1.5s;
-  }
-  &:nth-child(5) {
-    top: 50%;
-    left: 5%;
-    animation: float-particle 4s ease-in-out infinite 2s;
-  }
-  &:nth-child(6) {
-    top: 40%;
-    right: 8%;
-    animation: float-particle 4.8s ease-in-out infinite 2.5s;
-  }
-}
-
-@keyframes float-particle {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translate(10px, -15px) scale(1.2);
-    opacity: 1;
-  }
-}
-
-/* ========== 信息卡片 ========== */
-.info-section {
-  position: relative;
-}
-
-.info-card {
-  position: relative;
-  padding: 32px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-2px);
-  }
-}
-
-.card-shine {
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
-  pointer-events: none;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.header-icon-wrap {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(168, 85, 247, 0.1);
-  border: 1px solid var(--color-primary-light);
-  border-radius: 14px;
-  color: var(--color-primary);
+  background: var(--aw-accent);
+  box-shadow: 0 0 0 4px var(--aw-accent-soft);
   flex-shrink: 0;
 }
 
-.header-text {
-  flex: 1;
+.ap-bar-space {
+  color: var(--aw-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 34ch;
 }
 
-.card-title {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 6px 0;
+/* ========== 引言 ========== */
+.ap-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: end;
+  padding: clamp(44px, 8vh, 92px) 0 clamp(36px, 6vh, 64px);
 }
 
-.card-subtitle {
-  font-size: 13px;
-  color: var(--text-tertiary);
+.ap-title {
+  margin-top: 22px;
+}
+
+.ap-intro-side {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  padding-bottom: 4px;
+}
+
+.ap-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: start;
+  gap: clamp(20px, 3vw, 44px);
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--aw-line);
+}
+
+.ap-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ap-facts dt {
   margin: 0;
 }
 
-/* ========== 表单 ========== */
-.info-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-
-  @media (max-width: 480px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-
-  svg {
-    color: var(--color-primary);
-  }
-}
-
-.form-input,
-.form-textarea {
-  padding: 14px 18px;
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border-default);
-  border-radius: 12px;
-  color: var(--text-primary);
+.ap-facts dd {
+  margin: 0;
+  font-family: var(--aw-serif);
   font-size: 15px;
-  transition: all 0.3s ease;
-  outline: none;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
-
-  &:focus {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
-  }
+  font-weight: 500;
+  color: var(--aw-ink);
+  white-space: nowrap;
 }
 
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-  font-family: inherit;
+.ap-facts-space {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 18ch;
 }
 
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.tag-item {
+/* ========== 上传方式 ========== */
+.ap-modes {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(168, 85, 247, 0.1);
-  border: 1px solid var(--color-primary-light);
-  border-radius: 20px;
-  font-size: 13px;
-  color: var(--color-primary-dark);
-  animation: tag-appear 0.3s ease;
+  gap: clamp(20px, 3vw, 40px);
+  border-bottom: 1px solid var(--aw-line);
+  margin-bottom: clamp(26px, 4vh, 44px);
 }
 
-@keyframes tag-appear {
+.ap-mode {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 0;
+  border: 0;
+  background: none;
+  color: var(--aw-ink-3);
+  font-family: var(--aw-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.35s var(--aw-ease);
+}
+
+.ap-mode::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--aw-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s var(--aw-ease);
+}
+
+.ap-mode:hover {
+  color: var(--aw-ink-2);
+}
+
+.ap-mode.active {
+  color: var(--aw-ink);
+}
+
+.ap-mode.active::after {
+  transform: scaleX(1);
+}
+
+.ap-mode:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 4px;
+}
+
+.ap-mode-no {
+  font-family: var(--aw-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--aw-accent);
+}
+
+.ap-modes-note {
+  margin-left: auto;
+}
+
+/* ========== 舞台 ========== */
+.ap-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: start;
+  animation: ap-stage-in 0.9s var(--aw-ease) 0.1s both;
+}
+
+.ap-stage.has-image {
+  grid-template-columns: minmax(0, 1.42fr) minmax(350px, 0.82fr);
+}
+
+@keyframes ap-stage-in {
   from {
     opacity: 0;
-    transform: scale(0.8);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
-.tag-remove {
+/* ========== 显影台 ========== */
+.ap-table-wrap {
+  min-width: 0;
+}
+
+.ap-table {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  background: rgba(168, 85, 247, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: var(--color-primary-dark);
+  min-height: clamp(380px, 56vh, 640px);
+  padding: clamp(22px, 3vw, 44px);
+  border: 1px solid var(--aw-line);
+  background: linear-gradient(
+    180deg,
+    rgba(242, 238, 230, 0.038) 0%,
+    rgba(242, 238, 230, 0.01) 100%
+  );
+  box-shadow: inset 0 0 90px rgba(185, 166, 255, 0.05);
+  transition:
+    border-color 0.5s var(--aw-ease),
+    box-shadow 0.5s var(--aw-ease);
+}
+
+.ap-table.is-dragover {
+  border-color: var(--aw-accent);
+  box-shadow:
+    inset 0 0 120px rgba(185, 166, 255, 0.14),
+    0 0 0 1px var(--aw-accent);
+}
+
+.ap-table.is-filled {
+  min-height: 0;
+  padding: clamp(16px, 2.4vw, 32px);
+}
+
+.ap-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-style: solid;
+  border-color: var(--aw-line-2);
+  transition:
+    border-color 0.5s var(--aw-ease),
+    transform 0.5s var(--aw-ease);
+  pointer-events: none;
+}
+
+.c-tl {
+  top: 10px;
+  left: 10px;
+  border-width: 1px 0 0 1px;
+}
+
+.c-tr {
+  top: 10px;
+  right: 10px;
+  border-width: 1px 1px 0 0;
+}
+
+.c-bl {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 1px 1px;
+}
+
+.c-br {
+  bottom: 10px;
+  right: 10px;
+  border-width: 0 1px 1px 0;
+}
+
+.ap-table:hover .ap-corner,
+.ap-table.is-dragover .ap-corner {
+  border-color: var(--aw-accent);
+}
+
+.ap-table:hover .c-tl {
+  transform: translate(-2px, -2px);
+}
+
+.ap-table:hover .c-tr {
+  transform: translate(2px, -2px);
+}
+
+.ap-table:hover .c-bl {
+  transform: translate(-2px, 2px);
+}
+
+.ap-table:hover .c-br {
+  transform: translate(2px, 2px);
+}
+
+.ap-table-inner {
+  width: 100%;
+  min-height: clamp(300px, 44vh, 520px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 上传组件铺满显影台 */
+.ap-upload {
+  width: 100%;
+  height: 100%;
+}
+
+.ap-upload :deep(.ant-upload-wrapper),
+.ap-upload :deep(.ant-upload-select) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ap-upload :deep(.ant-upload) {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: clamp(300px, 44vh, 520px) !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.ap-upload :deep(.ant-upload:hover) {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.ap-print {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ap-print-in 0.9s var(--aw-ease) both;
+}
+
+@keyframes ap-print-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ap-print-img {
+  display: block;
+  max-width: 100%;
+  max-height: clamp(340px, 60vh, 620px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  box-shadow: 0 34px 70px -38px rgba(0, 0, 0, 0.75);
+}
+
+.ap-replace {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--aw-line-2);
+  border-radius: 999px;
+  background: var(--aw-bg);
+  color: var(--aw-ink-2);
+  font-family: var(--aw-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: var(--color-rose);
-  }
+  opacity: 0.72;
+  transition:
+    opacity 0.35s var(--aw-ease),
+    color 0.35s var(--aw-ease),
+    border-color 0.35s var(--aw-ease),
+    background-color 0.35s var(--aw-ease);
 }
 
-/* ========== 提交按钮 ========== */
-.form-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
+.ap-replace:hover {
+  opacity: 1;
+  color: var(--aw-ink);
+  border-color: var(--aw-accent);
+  background: var(--aw-accent-soft);
 }
 
-.submit-btn {
-  flex: 1;
+.ap-replace:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 3px;
+}
+
+.ap-table-foot {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px 2px 0;
+}
+
+.ap-foot-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ap-foot-name {
+  color: var(--aw-ink-2);
+}
+
+.ap-print-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-sep {
+  font-style: normal;
+  color: var(--aw-line-2);
+}
+
+.ap-quick {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 16px 24px;
-  border-radius: 14px;
-  font-size: 15px;
+}
+
+.ap-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--aw-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--aw-ink-2);
+  font-family: var(--aw-sans);
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    color 0.35s var(--aw-ease),
+    border-color 0.35s var(--aw-ease),
+    background-color 0.35s var(--aw-ease),
+    transform 0.35s var(--aw-ease);
+}
 
-  svg {
-    transition: transform 0.3s ease;
+.ap-quick-btn svg {
+  transition: transform 0.4s var(--aw-ease);
+}
+
+.ap-quick-btn:hover {
+  color: var(--aw-ink);
+  border-color: var(--aw-line-2);
+  background: var(--aw-accent-soft);
+  transform: translateY(-1px);
+}
+
+.ap-quick-btn:hover svg {
+  transform: rotate(-8deg) scale(1.06);
+}
+
+.ap-quick-btn:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 3px;
+}
+
+/* ========== 作品标签（表单） ========== */
+.ap-label {
+  position: sticky;
+  top: 28px;
+  align-self: start;
+  padding: clamp(24px, 2.8vw, 36px);
+  border: 1px solid var(--aw-line);
+  border-left: 1px solid var(--aw-line-2);
+  background: linear-gradient(
+    180deg,
+    rgba(242, 238, 230, 0.045) 0%,
+    rgba(242, 238, 230, 0.012) 100%
+  );
+}
+
+.ap-label-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--aw-line);
+}
+
+.ap-label-title {
+  margin: 0;
+  font-family: var(--aw-serif);
+  font-size: clamp(22px, 2.1vw, 28px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--aw-ink);
+}
+
+.ap-label-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--aw-ink-3);
+}
+
+.ap-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 24px;
+}
+
+.ap-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ap-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ap-field-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--aw-ink-2);
+  cursor: pointer;
+}
+
+.ap-field-no {
+  font-family: var(--aw-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--aw-accent);
+}
+
+.ap-field-hint {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  opacity: 0.75;
+}
+
+.ap-input {
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid var(--aw-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--aw-ink);
+  font-family: var(--aw-sans);
+  font-size: 15.5px;
+  line-height: 1.5;
+  outline: none;
+  transition:
+    border-color 0.4s var(--aw-ease),
+    background-color 0.4s var(--aw-ease);
+}
+
+.ap-input::placeholder {
+  color: var(--aw-ink-3);
+}
+
+.ap-input:hover {
+  border-bottom-color: var(--aw-line-2);
+}
+
+.ap-input:focus {
+  border-bottom-color: var(--aw-accent);
+}
+
+.ap-textarea {
+  min-height: 84px;
+  resize: none;
+  font-family: var(--aw-sans);
+}
+
+.ap-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+}
+
+.ap-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -8px;
+}
+
+.ap-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--aw-line-2);
+  border-radius: 999px;
+  color: var(--aw-ink-2);
+  font-family: var(--aw-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  animation: ap-tag-in 0.35s var(--aw-ease) both;
+}
+
+@keyframes ap-tag-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
-
-  &.primary {
-    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
-
-    &:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
-
-      svg {
-        transform: scale(1.1);
-      }
-    }
-  }
-
-  &.secondary {
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    color: var(--text-primary);
-
-    &:hover {
-      background: var(--bg-hover);
-      border-color: var(--color-primary);
-
-      svg {
-        transform: rotate(90deg);
-      }
-    }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
-/* ========== 表单过渡动画 ========== */
-.form-reveal-enter-active {
-  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+.ap-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--aw-ink-3);
+  cursor: pointer;
+  transition:
+    color 0.3s var(--aw-ease),
+    transform 0.3s var(--aw-ease),
+    background-color 0.3s var(--aw-ease);
 }
 
-.form-reveal-leave-active {
-  transition: all 0.3s ease;
+.ap-tag-remove:hover {
+  color: var(--aw-danger);
+  background: var(--aw-accent-soft);
+  transform: rotate(90deg);
 }
 
-.form-reveal-enter-from {
+.ap-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 6px;
+}
+
+.ap-submit {
+  flex: 1;
+}
+
+.ap-cancel {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--aw-ink-3);
+}
+
+/* 表单入场 */
+.ap-form-enter-active {
+  transition:
+    opacity 0.7s var(--aw-ease),
+    transform 0.7s var(--aw-ease);
+}
+
+.ap-form-leave-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.ap-form-enter-from {
   opacity: 0;
-  transform: translateX(30px);
+  transform: translateX(26px);
 }
 
-.form-reveal-leave-to {
+.ap-form-leave-to {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(14px);
+}
+
+/* ========== 浅色主题 ========== */
+#addPicturePage.is-light .ap-table {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.62) 100%);
+  box-shadow: inset 0 0 80px rgba(168, 85, 247, 0.05);
+}
+
+#addPicturePage.is-light .ap-table.is-dragover {
+  box-shadow:
+    inset 0 0 110px rgba(168, 85, 247, 0.1),
+    0 0 0 1px var(--aw-accent);
+}
+
+#addPicturePage.is-light .ap-label {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.66) 100%);
+}
+
+#addPicturePage.is-light .ap-print-img {
+  box-shadow: 0 30px 60px -36px rgba(76, 29, 149, 0.34);
+}
+
+#addPicturePage.is-light .ap-replace {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 /* ========== 响应式 ========== */
-@media (max-width: 768px) {
-  .page-header {
-    padding: 16px 20px;
+@media (max-width: 1080px) {
+  .ap-intro {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: start;
   }
 
-  .header-space span {
-    display: none;
+  .ap-intro-side {
+    max-width: 640px;
   }
 
-  .header-space {
-    padding: 10px;
-  }
-
-  .back-btn span {
-    display: none;
-  }
-
-  .back-btn {
-    padding: 10px;
-  }
-
-  .main-content {
-    padding: 16px 20px 60px;
-  }
-
-  .upload-portal {
-    max-width: 100%;
-    aspect-ratio: 4/3;
-  }
-
-  .info-card {
-    padding: 24px;
-  }
-
-  .form-row {
+  .ap-stage.has-image {
     grid-template-columns: 1fr;
   }
 
-  .form-actions {
+  .ap-label {
+    position: static;
+  }
+}
+
+@media (max-width: 820px) {
+  .ap-title {
+    font-size: clamp(30px, 6.4vw, 44px);
+  }
+
+  .ap-table {
+    min-height: 380px;
+  }
+
+  .ap-table-inner,
+  .ap-upload :deep(.ant-upload) {
+    min-height: 300px !important;
+  }
+
+  .ap-print-img {
+    max-height: 58vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .ap-bar {
+    padding-top: 18px;
+  }
+
+  .ap-bar-meta .aw-mono:first-child {
+    display: none;
+  }
+
+  .ap-bar-space {
+    max-width: 24ch;
+  }
+
+  .ap-modes-note {
+    display: none;
+  }
+
+  .ap-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .ap-field-row {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .ap-actions {
     flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .ap-cancel {
+    align-self: center;
+  }
+
+  .ap-table-foot {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ap-foot-meta {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ap-table {
+    min-height: 320px;
+    padding: 16px;
+  }
+
+  .ap-table-inner,
+  .ap-upload :deep(.ant-upload) {
+    min-height: 260px !important;
+  }
+
+  .ap-print-meta {
+    font-size: 10px;
+  }
+
+  .ap-replace span {
+    display: none;
+  }
+
+  .ap-replace {
+    padding: 9px;
   }
 }
 </style>

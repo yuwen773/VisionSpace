@@ -443,5 +443,4 @@ const totalCount = computed(() => props.images.length + props.links.length)
     gap: 6px;
   }
 }
-
 </style>

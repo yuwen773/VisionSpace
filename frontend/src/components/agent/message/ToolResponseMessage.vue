@@ -195,5 +195,4 @@ const highlightedContent = computed(() => {
     padding: 0 10px 8px;
   }
 }
-
 </style>

@@ -1,571 +1,392 @@
 <template>
-  <div id="spaceDetailPage">
-    <!-- 紫漾梦幻氛围背景 -->
-    <div class="ambient-bg">
-      <div class="gradient-orb orb-1"></div>
-      <div class="gradient-orb orb-2"></div>
-      <div class="gradient-orb orb-3"></div>
-      <div class="floating-shapes">
-        <div class="shape-dot dot-1"></div>
-        <div class="shape-dot dot-2"></div>
-        <div class="shape-dot dot-3"></div>
-        <div class="shape-dot dot-4"></div>
-        <div class="shape-dot dot-5"></div>
-      </div>
+  <div id="spaceDetailPage" class="aw-page" :class="{ 'is-light': isLight }">
+    <!-- 氛围层 -->
+    <div class="aw-atmosphere" aria-hidden="true">
+      <div class="aw-aurora aw-aurora-a"></div>
+      <div class="aw-aurora aw-aurora-b"></div>
     </div>
 
-    <!-- 主内容区 -->
-    <div class="main-content">
-      <!-- 顶部导航栏 -->
-      <header class="detail-header">
-        <button @click="goBack" class="back-btn">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
+    <div class="aw-shell sd-shell">
+      <!-- 顶部操作条 -->
+      <header class="sd-bar">
+        <button class="aw-back" type="button" @click="goBack">
+          <ArrowLeft :size="14" :stroke-width="1.8" />
           <span>返回</span>
         </button>
 
-        <div class="header-actions">
-          <button v-if="canUploadPicture" class="action-btn primary" @click="goToUpload">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span>创建图片</span>
-          </button>
+        <div class="sd-bar-actions">
           <button
             v-if="canManageSpaceUsers"
-            class="action-icon-btn"
-            @click="goToUserManage"
+            class="aw-icon-btn"
+            type="button"
             title="成员管理"
+            aria-label="成员管理"
+            @click="goToUserManage"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
+            <Users :size="17" :stroke-width="1.7" />
           </button>
           <button
             v-if="canManageSpaceUsers"
-            class="action-icon-btn"
-            @click="goToAnalyze"
+            class="aw-icon-btn"
+            type="button"
             title="空间分析"
+            aria-label="空间分析"
+            @click="goToAnalyze"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
+            <ChartColumn :size="17" :stroke-width="1.7" />
           </button>
           <button
             v-if="canEditPicture"
-            class="action-icon-btn"
-            @click="doBatchEdit"
+            class="aw-icon-btn"
+            type="button"
             title="批量编辑"
+            aria-label="批量编辑"
+            @click="doBatchEdit"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
+            <PencilLine :size="17" :stroke-width="1.7" />
+          </button>
+          <button
+            v-if="canUploadPicture"
+            class="aw-btn aw-btn--primary sd-create"
+            type="button"
+            @click="goToUpload"
+          >
+            <Plus :size="16" :stroke-width="1.9" />
+            <span>创建图片</span>
           </button>
         </div>
       </header>
 
-      <!-- 空间信息区域 -->
-      <section class="space-hero">
-        <div class="space-hero-bg">
-          <div class="space-glow"></div>
-        </div>
-        <div class="space-hero-content">
-          <div class="space-icon">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle
-                cx="24"
-                cy="24"
-                r="22"
-                stroke="url(#spaceGradZiyan)"
-                stroke-width="2"
-                stroke-dasharray="6 3"
-              />
-              <circle cx="24" cy="24" r="14" fill="url(#spaceGradZiyan)" opacity="0.2" />
-              <circle cx="24" cy="24" r="8" fill="url(#spaceGradZiyan)" opacity="0.4" />
-              <circle cx="24" cy="24" r="3" fill="url(#spaceGradZiyan)" />
-              <defs>
-                <linearGradient id="spaceGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#a855f7" />
-                  <stop offset="50%" stop-color="#ec4899" />
-                  <stop offset="100%" stop-color="#f472b6" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <div class="space-info">
-            <h1 class="space-name">{{ space.spaceName }}</h1>
-            <div class="space-meta">
-              <span class="space-type-badge" :class="space.spaceType === 1 ? 'team' : 'private'">
-                {{ space.spaceType !== undefined ? SPACE_TYPE_MAP[space.spaceType] : '' }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 统计卡片 -->
-      <section class="stats-section">
-        <div class="stats-grid">
-          <div class="stat-card" :style="{ animationDelay: '0.1s' }">
-            <div class="stat-icon">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{ total }}</span>
-              <span class="stat-label">图片数量</span>
-            </div>
-            <div class="stat-decoration">
-              <div class="stat-orb"></div>
-            </div>
+      <!-- 空间档案 -->
+      <section class="sd-hero" aria-labelledby="sd-space-title">
+        <div class="sd-hero-copy">
+          <div class="sd-hero-head">
+            <p class="aw-kicker">SPACE ARCHIVE — 空间档案</p>
+            <span class="aw-mono sd-hero-id">NO. {{ spaceNo }}</span>
           </div>
 
-          <div class="stat-card" :style="{ animationDelay: '0.2s' }">
-            <div class="stat-icon purple">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{ formatSize(space.totalSize || 0) }}</span>
-              <span class="stat-label">已用空间</span>
-            </div>
-            <div class="stat-decoration">
-              <div class="stat-orb purple"></div>
-            </div>
-          </div>
+          <h1 id="sd-space-title" class="aw-display sd-title">
+            {{ space.spaceName || '空间' }}
+          </h1>
 
-          <div class="stat-card" :style="{ animationDelay: '0.3s' }">
-            <div class="stat-icon cyan">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{ formatSize(space.maxSize || 0) }}</span>
-              <span class="stat-label">总空间</span>
-            </div>
-            <div class="stat-decoration">
-              <div class="stat-orb cyan"></div>
-            </div>
-          </div>
-
-          <div class="stat-card capacity-card" :style="{ animationDelay: '0.4s' }">
-            <div class="capacity-ring">
-              <svg viewBox="0 0 100 100" class="ring-svg">
-                <circle cx="50" cy="50" r="42" class="ring-bg" />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  class="ring-progress"
-                  :stroke-dasharray="`${getUsagePercent()} ${100 - getUsagePercent()} 100`"
-                />
-              </svg>
-              <div class="ring-center">
-                <span class="ring-value">{{ getUsagePercent() }}%</span>
-                <span class="ring-label">使用率</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 搜索和筛选区域 -->
-      <section class="search-section" :class="{ visible: isLoaded }">
-        <div class="search-bar">
-          <div class="search-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
+          <div class="sd-hero-meta">
+            <span class="sd-type">{{ typeLabel }}</span>
+            <span class="sd-meta-dot" aria-hidden="true"></span>
+            <span>{{ total }} 件作品</span>
+            <span class="sd-meta-dot" aria-hidden="true"></span>
+            <span
+              >{{ formatSize(space.totalSize || 0) }} / {{ formatSize(space.maxSize || 0) }}</span
             >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
           </div>
+        </div>
+
+        <div class="sd-hero-plates" aria-hidden="true">
+          <figure
+            v-for="(pic, i) in heroPlates"
+            :key="pic?.id ?? `empty-${i}`"
+            class="sd-plate"
+            :class="`sd-plate-${i + 1}`"
+          >
+            <img
+              v-if="pic"
+              :src="contentSrc(pic.thumbnailUrl || pic.url)"
+              alt=""
+              decoding="async"
+            />
+            <span v-else class="sd-plate-empty aw-mono">EMPTY</span>
+            <figcaption class="aw-mono">
+              {{ String(i + 1).padStart(2, '0') }} — {{ pic?.name?.slice(0, 14) || '待收录' }}
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 目录数据 -->
+      <section class="sd-catalogue" aria-label="空间数据">
+        <div class="sd-cat">
+          <span class="aw-mono">WORKS</span>
+          <p class="sd-cat-value">
+            <b>{{ total }}</b>
+            <span class="sd-cat-unit">件</span>
+          </p>
+        </div>
+        <div class="sd-cat">
+          <span class="aw-mono">USED</span>
+          <p class="sd-cat-value">
+            <b>{{ formatSize(space.totalSize || 0) }}</b>
+          </p>
+        </div>
+        <div class="sd-cat">
+          <span class="aw-mono">CAPACITY</span>
+          <p class="sd-cat-value">
+            <b>{{ formatSize(space.maxSize || 0) }}</b>
+          </p>
+        </div>
+        <div class="sd-cat sd-cat--usage">
+          <div class="sd-cat-head">
+            <span class="aw-mono">USAGE</span>
+            <b class="sd-usage-value">{{ usagePercent }}%</b>
+          </div>
+          <div
+            class="sd-rail"
+            role="progressbar"
+            :aria-valuenow="usagePercent"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-label="空间使用率"
+          >
+            <i :style="{ transform: `scaleX(${usagePercent / 100})` }"></i>
+          </div>
+        </div>
+      </section>
+
+      <!-- 检索与视图 -->
+      <section class="sd-tools" aria-label="检索与视图">
+        <div class="sd-search">
+          <Search :size="16" :stroke-width="1.7" class="sd-search-icon" aria-hidden="true" />
           <input
             v-model="searchText"
             type="text"
-            placeholder="搜索图片名称、标签..."
-            class="search-input"
+            class="sd-search-input"
+            placeholder="搜索作品名称…"
+            aria-label="搜索作品名称"
+            autocomplete="off"
             @keydown.enter="doSearch"
           />
-          <button class="search-btn" @click="doSearch">
-            <span>搜索</span>
+          <button
+            v-if="searchText"
+            class="sd-search-clear"
+            type="button"
+            aria-label="清空搜索"
+            @click="clearSearch"
+          >
+            <X :size="13" :stroke-width="2" />
           </button>
+          <button class="sd-search-go" type="button" @click="doSearch">搜索</button>
         </div>
 
-        <div class="filter-row">
-          <div class="filter-item">
-            <span class="filter-label">按颜色筛选</span>
-            <color-picker format="hex" @pureColorChange="onColorChange" size="small" />
-          </div>
-          <button v-if="hasActiveFilters" class="clear-filters-btn" @click="clearFilters">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            <span>清除筛选</span>
+        <div class="sd-filter">
+          <span class="aw-mono sd-filter-label">COLOR</span>
+          <color-picker
+            v-model:pureColor="pickerColor"
+            format="hex"
+            size="small"
+            @pureColorChange="onColorChange"
+          />
+          <span v-if="activeColor" class="sd-color-chip">
+            <i :style="{ background: activeColor }" aria-hidden="true"></i>
+            <code>{{ activeColor }}</code>
+          </span>
+        </div>
+
+        <div class="sd-view" role="group" aria-label="视图切换">
+          <button
+            type="button"
+            :class="{ active: viewMode === 'grid' }"
+            :aria-pressed="viewMode === 'grid'"
+            title="网格视图"
+            @click="setView('grid')"
+          >
+            <LayoutGrid :size="14" :stroke-width="1.8" />
+            <span>GRID</span>
+          </button>
+          <button
+            type="button"
+            :class="{ active: viewMode === 'masonry' }"
+            :aria-pressed="viewMode === 'masonry'"
+            title="瀑布流视图"
+            @click="setView('masonry')"
+          >
+            <Rows3 :size="14" :stroke-width="1.8" />
+            <span>MASONRY</span>
           </button>
         </div>
       </section>
 
-      <!-- 图片画廊 -->
-      <section class="gallery-section">
-        <div class="gallery-header" v-if="!loading && dataList.length > 0">
-          <div class="gallery-count">
-            <span class="count-number">{{ total }}</span>
-            <span class="count-label">张图片</span>
+      <!-- 生效中的筛选 -->
+      <div v-if="hasActiveFilters" class="sd-active">
+        <span class="aw-mono">FILTER</span>
+        <span v-if="searchText" class="sd-active-item">名称含「{{ searchText }}」</span>
+        <span v-if="activeColor" class="sd-active-item">
+          颜色 <code>{{ activeColor }}</code>
+        </span>
+        <button class="sd-clear" type="button" @click="clearFilters">
+          <X :size="11" :stroke-width="2" />
+          清除筛选
+        </button>
+      </div>
+
+      <!-- 陈列 -->
+      <section class="sd-gallery" aria-labelledby="sd-gallery-title">
+        <header class="sd-gallery-head">
+          <div class="sd-gallery-title-wrap">
+            <span class="aw-index"><b>02</b> — 作品</span>
+            <h2 id="sd-gallery-title" class="sd-gallery-title">陈列</h2>
           </div>
-          <div class="gallery-view-toggle">
-            <button
-              class="view-btn"
-              :class="{ active: viewMode === 'grid' }"
-              @click="viewMode = 'grid'"
-              title="网格视图"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-            </button>
-            <button
-              class="view-btn"
-              :class="{ active: viewMode === 'masonry' }"
-              @click="viewMode = 'masonry'"
-              title="瀑布流视图"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
-            </button>
+          <span class="aw-mono sd-gallery-count" aria-live="polite">
+            {{ total }} WORKS · {{ viewMode === 'grid' ? 'GRID' : 'MASONRY' }}
+          </span>
+        </header>
+
+        <!-- 加载骨架 -->
+        <div v-if="loading" class="sd-skeleton" aria-busy="true" aria-label="正在加载作品">
+          <div class="sd-skeleton-bar"><i></i></div>
+          <div class="sd-skeleton-grid">
+            <div v-for="n in 8" :key="n" class="sd-skeleton-tile"></div>
           </div>
         </div>
 
-        <!-- 加载状态 -->
-        <div v-if="loading" class="loading-state">
-          <div class="loader-orb">
-            <div class="orb-inner"></div>
-            <div class="orb-ring"></div>
-            <div class="orb-ring ring-2"></div>
-          </div>
-          <span class="loader-text">正在加载精彩内容 ✨</span>
-        </div>
-
-        <!-- 网格视图 -->
-        <div v-else-if="viewMode === 'grid'" class="picture-grid">
-          <div
+        <!-- 作品列表（网格 / 瀑布流共用一套结构） -->
+        <div
+          v-else-if="dataList.length"
+          class="sd-list"
+          :class="viewMode === 'grid' ? 'is-grid' : 'is-masonry'"
+        >
+          <article
             v-for="(picture, index) in dataList"
             :key="picture.id"
-            class="gallery-item"
-            :style="{ animationDelay: `${(index % 12) * 0.05}s` }"
+            class="sd-card"
+            :style="{ '--i': index % 8 }"
+            role="link"
+            tabindex="0"
+            :aria-label="`打开作品 ${picture.name || '未命名'}`"
             @click="handlePictureClick(picture)"
+            @keydown.enter="handlePictureClick(picture)"
+            @keydown.space.prevent="handlePictureClick(picture)"
           >
-            <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
-              <div class="item-skeleton" v-if="!picture.id || !loadedImages.has(picture.id)"></div>
+            <div class="sd-card-media" :style="{ paddingBottom: getAspectRatio(picture) }">
+              <div class="sd-card-skeleton" :class="{ loaded: isLoadedImage(picture) }"></div>
               <img
                 :src="contentSrc(picture.thumbnailUrl || picture.url)"
-                :alt="picture.name"
-                class="item-image"
-                :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
+                :alt="picture.name || '作品'"
+                class="sd-card-img"
+                :class="{ loaded: isLoadedImage(picture) }"
+                loading="lazy"
+                decoding="async"
                 @load="picture.id && onImageLoad(picture.id)"
               />
-              <div class="item-overlay">
-                <div class="overlay-content">
-                  <h3 class="item-title">{{ picture.name }}</h3>
-                  <div class="item-meta">
-                    <span>{{ picture.picWidth }}×{{ picture.picHeight }}</span>
-                    <span class="meta-divider">•</span>
-                    <span>{{ picture.picFormat?.toUpperCase() }}</span>
-                  </div>
-                </div>
-                <div class="overlay-actions" v-if="canEditPicture || canDeletePicture">
-                  <button
-                    class="action-btn-icon"
-                    @click.stop="doShare(picture)"
-                    v-if="showOp"
-                    title="分享"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <circle cx="18" cy="5" r="3" />
-                      <circle cx="6" cy="12" r="3" />
-                      <circle cx="18" cy="19" r="3" />
-                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                    </svg>
-                  </button>
-                  <button
-                    class="action-btn-icon"
-                    @click.stop="doEdit(picture)"
-                    v-if="showOp && canEditPicture"
-                    title="编辑"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button
-                    class="action-btn-icon delete"
-                    @click.stop="doDelete(picture)"
-                    v-if="showOp && canDeletePicture"
-                    title="删除"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path
-                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <!-- 瀑布流视图 -->
-        <div v-else class="masonry-wrapper">
-          <div class="masonry-column" v-for="col in 4" :key="col">
-            <div
-              v-for="picture in getColumnPictures(col - 1)"
-              :key="picture.id"
-              class="gallery-item masonry-item"
-              @click="handlePictureClick(picture)"
-            >
-              <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
-                <div
-                  class="item-skeleton"
-                  v-if="!picture.id || !loadedImages.has(picture.id)"
-                ></div>
-                <img
-                  :src="contentSrc(picture.thumbnailUrl || picture.url)"
-                  :alt="picture.name"
-                  class="item-image"
-                  :class="{ loaded: !!picture.id && loadedImages.has(picture.id) }"
-                  @load="picture.id && onImageLoad(picture.id)"
-                />
-                <div class="item-overlay">
-                  <div class="overlay-content">
-                    <h3 class="item-title">{{ picture.name }}</h3>
-                  </div>
-                </div>
+              <div class="sd-card-veil" aria-hidden="true"></div>
+
+              <div class="sd-card-body">
+                <h3 class="sd-card-title">{{ picture.name || '未命名作品' }}</h3>
+                <p class="sd-card-meta aw-mono">
+                  <span>{{ picture.picWidth }}×{{ picture.picHeight }}</span>
+                  <i aria-hidden="true">/</i>
+                  <span>{{ (picture.picFormat || 'IMG').toUpperCase() }}</span>
+                </p>
+              </div>
+
+              <div v-if="showOp" class="sd-card-ops">
+                <button
+                  class="sd-card-op"
+                  type="button"
+                  title="分享"
+                  aria-label="分享作品"
+                  @click.stop="doShare(picture)"
+                >
+                  <Share2 :size="15" :stroke-width="1.8" />
+                </button>
+                <button
+                  v-if="canEditPicture"
+                  class="sd-card-op"
+                  type="button"
+                  title="编辑"
+                  aria-label="编辑作品"
+                  @click.stop="doEdit(picture)"
+                >
+                  <PencilLine :size="15" :stroke-width="1.8" />
+                </button>
+                <button
+                  v-if="canDeletePicture"
+                  class="sd-card-op sd-card-op--danger"
+                  type="button"
+                  title="删除"
+                  aria-label="删除作品"
+                  @click.stop="doDelete(picture)"
+                >
+                  <Trash2 :size="15" :stroke-width="1.8" />
+                </button>
               </div>
             </div>
-          </div>
+          </article>
         </div>
 
         <!-- 空状态 -->
-        <div v-if="!loading && dataList.length === 0" class="empty-state">
-          <div class="empty-illustration">
-            <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-              <circle
-                cx="60"
-                cy="60"
-                r="50"
-                stroke="var(--color-primary-light)"
-                stroke-width="2"
-                stroke-dasharray="8 4"
-              />
-              <rect
-                x="35"
-                y="35"
-                width="50"
-                height="50"
-                rx="8"
-                stroke="var(--color-primary)"
-                stroke-width="2"
-              />
-              <circle cx="50" cy="50" r="6" fill="var(--color-primary)" />
-              <path
-                d="M35 75 L55 55 L70 70 L85 55 L85 85 L35 85 Z"
-                fill="var(--bg-tertiary)"
-                stroke="var(--color-primary)"
-                stroke-width="2"
-              />
-            </svg>
-          </div>
-          <h3 class="empty-title">暂无图片</h3>
-          <p class="empty-desc">这个空间还没有上传任何图片，开始你的创作吧 ✨</p>
-          <button v-if="canUploadPicture" class="empty-action" @click="goToUpload">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
+        <div v-if="!loading && dataList.length === 0" class="sd-empty">
+          <span class="sd-empty-no aw-mono">— 00 —</span>
+          <h3 class="sd-empty-title">
+            {{ hasActiveFilters ? '没有匹配的作品。' : '这个展厅还空着。' }}
+          </h3>
+          <p class="sd-empty-desc">
+            {{
+              hasActiveFilters
+                ? '换一个关键词，或清除筛选重新浏览。'
+                : '上传第一张图片，让它成为这里的起点。'
+            }}
+          </p>
+          <div class="sd-empty-actions">
+            <button
+              v-if="hasActiveFilters"
+              class="aw-btn aw-btn--ghost"
+              type="button"
+              @click="clearFilters"
             >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span>上传图片</span>
-          </button>
+              清除筛选
+            </button>
+            <button
+              v-if="canUploadPicture && !hasActiveFilters"
+              class="aw-btn aw-btn--primary"
+              type="button"
+              @click="goToUpload"
+            >
+              <Plus :size="16" :stroke-width="1.9" />
+              <span>上传图片</span>
+            </button>
+          </div>
         </div>
 
         <!-- 分页 -->
-        <div v-if="total > pageSize" class="pagination-wrapper">
-          <div class="pagination">
-            <button class="page-btn" :disabled="currentPage <= 1" @click="prevPage">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-            <div class="page-numbers">
-              <button
-                v-for="page in getVisiblePages()"
-                :key="page"
-                class="page-number"
-                :class="{ active: page === currentPage, ellipsis: page === '...' }"
-                :disabled="page === '...'"
-                @click="page !== '...' && goToPage(page)"
-              >
-                {{ page }}
-              </button>
-            </div>
-            <button class="page-btn" :disabled="currentPage >= getTotalPages()" @click="nextPage">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
+        <nav v-if="total > pageSize" class="sd-pager" aria-label="分页">
+          <button
+            class="sd-page-arrow"
+            type="button"
+            :disabled="currentPage <= 1"
+            aria-label="上一页"
+            @click="prevPage"
+          >
+            <ChevronLeft :size="16" :stroke-width="1.8" />
+          </button>
+
+          <span class="sd-page-index aw-mono">
+            PAGE {{ String(currentPage).padStart(2, '0') }} /
+            {{ String(getTotalPages()).padStart(2, '0') }}
+          </span>
+
+          <div class="sd-page-numbers">
+            <button
+              v-for="page in getVisiblePages()"
+              :key="page"
+              class="sd-page-number"
+              type="button"
+              :class="{ active: page === currentPage, ellipsis: page === '...' }"
+              :disabled="page === '...'"
+              @click="page !== '...' && goToPage(page)"
+            >
+              {{ page === '...' ? '…' : String(page).padStart(2, '0') }}
             </button>
           </div>
-        </div>
+
+          <button
+            class="sd-page-arrow"
+            type="button"
+            :disabled="currentPage >= getTotalPages()"
+            aria-label="下一页"
+            @click="nextPage"
+          >
+            <ChevronRight :size="16" :stroke-width="1.8" />
+          </button>
+        </nav>
       </section>
     </div>
 
@@ -583,9 +404,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
+import {
+  ArrowLeft,
+  ChartColumn,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  PencilLine,
+  Plus,
+  Rows3,
+  Search,
+  Share2,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-vue-next'
 import {
   deletePictureUsingPost,
   searchPictureByColorUsingPost,
@@ -594,6 +430,7 @@ import {
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import { contentSrc, formatSize, toId } from '@/utils'
 import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
+import { useTheme } from '@/composables/useTheme'
 import BatchEditPicture from '@/components/BatchEditPicture.vue'
 import ShareModal from '@/components/ShareModal.vue'
 import { ColorPicker } from 'vue3-colorpicker'
@@ -606,6 +443,9 @@ interface Props {
 const props = defineProps<Props>()
 const spaceId = computed(() => toId(props.id))
 const router = useRouter()
+const { currentTheme } = useTheme()
+
+const isLight = computed(() => currentTheme.value === 'pop')
 
 // Refs
 const batchEditPictureModalRef = ref()
@@ -618,7 +458,8 @@ const dataList = ref<API.PictureVO[]>([])
 const total = ref(0)
 const loading = ref(false)
 const searchText = ref('')
-const isLoaded = ref(false)
+const activeColor = ref('')
+const pickerColor = ref('#b9a6ff')
 const viewMode = ref<'grid' | 'masonry'>('grid')
 const loadedImages = ref<Set<number>>(new Set())
 
@@ -629,10 +470,6 @@ const searchParams = ref<API.PictureQueryRequest>({
   sortOrder: 'descend',
   sortField: 'createTime',
 })
-
-// Column assignment for masonry
-const columnAssignment = ref<Map<number, number>>(new Map())
-const columnHeights = ref<number[]>([0, 0, 0, 0])
 
 // Permission checks
 const createPermissionChecker = (permission: string) => {
@@ -645,16 +482,17 @@ const canEditPicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_EDI
 const canDeletePicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_DELETE)
 const showOp = computed(() => canEditPicture.value || canDeletePicture.value)
 
-// Active filters check
-const hasActiveFilters = computed(() => {
-  return searchText.value || false
-})
-
-// Get usage percentage
-const getUsagePercent = () => {
+// Derived
+const spaceNo = computed(() => String(spaceId.value ?? 0).padStart(3, '0'))
+const typeLabel = computed(() =>
+  space.value.spaceType !== undefined ? SPACE_TYPE_MAP[space.value.spaceType] : '空间',
+)
+const usagePercent = computed(() => {
   if (!space.value.totalSize || !space.value.maxSize) return 0
   return Math.min(100, Math.round((space.value.totalSize / space.value.maxSize) * 100))
-}
+})
+const hasActiveFilters = computed(() => !!searchText.value || !!activeColor.value)
+const heroPlates = computed(() => [0, 1, 2].map((i) => dataList.value[i] ?? null))
 
 // Fetch space detail
 const fetchDetailSpace = async () => {
@@ -682,7 +520,6 @@ const fetchData = async () => {
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data.records ?? []
       total.value = Number(res.data.data.total ?? 0)
-      assignPicturesToColumns(res.data.data.records ?? [])
     } else {
       message.error('获取数据失败')
     }
@@ -690,45 +527,19 @@ const fetchData = async () => {
     message.error(error.message)
   } finally {
     loading.value = false
-    isLoaded.value = true
   }
 }
 
-// Column distribution for masonry
-const getColumnPictures = (colIndex: number) => {
-  return dataList.value.filter(
-    (picture) => picture.id !== undefined && columnAssignment.value.get(picture.id) === colIndex,
-  )
-}
-
-const getShortestColumn = () => {
-  return columnHeights.value.indexOf(Math.min(...columnHeights.value))
-}
-
+// Aspect ratio placeholder
 const getAspectRatio = (picture: any) => {
   if (!picture.picWidth || !picture.picHeight) return '75%'
   return `${(picture.picHeight / picture.picWidth) * 100}%`
 }
 
-const calculatePictureHeight = (picture: any): number => {
-  if (!picture.picWidth || !picture.picHeight) return 300 * 0.75 + 60
-  const estimatedCardWidth = (window.innerWidth - 96) / 4 - 20
-  const ratio = picture.picHeight / picture.picWidth
-  return estimatedCardWidth * ratio + 60
-}
-
-const assignPicturesToColumns = (pictures: any[]) => {
-  if (viewMode.value !== 'masonry') return
-  pictures.forEach((picture) => {
-    if (picture.id === undefined) return
-    const shortestCol = getShortestColumn()
-    columnAssignment.value.set(picture.id, shortestCol)
-    const estimatedHeight = calculatePictureHeight(picture)
-    columnHeights.value[shortestCol] += estimatedHeight + 20
-  })
-}
-
 // Image load
+const isLoadedImage = (picture: API.PictureVO) =>
+  picture.id !== undefined && loadedImages.value.has(picture.id)
+
 const onImageLoad = (pictureId: number) => {
   loadedImages.value.add(pictureId)
 }
@@ -741,17 +552,26 @@ const goToAnalyze = () => router.push(`/space_analyze?spaceId=${props.id}`)
 
 // Search
 const doSearch = () => {
+  activeColor.value = ''
   searchParams.value = {
     ...searchParams.value,
     current: 1,
-    name: searchText.value || undefined,
+    name: searchText.value.trim() || undefined,
   }
   fetchData()
+}
+
+const clearSearch = () => {
+  searchText.value = ''
+  doSearch()
 }
 
 // Color search
 const onColorChange = async (color: string) => {
   if (!color) return
+  searchText.value = ''
+  activeColor.value = color
+  searchParams.value = { ...searchParams.value, current: 1, name: undefined }
   loading.value = true
   try {
     const res = await searchPictureByColorUsingPost({ picColor: color, spaceId: spaceId.value })
@@ -771,8 +591,15 @@ const onColorChange = async (color: string) => {
 // Clear filters
 const clearFilters = () => {
   searchText.value = ''
-  searchParams.value.current = 1
+  activeColor.value = ''
+  pickerColor.value = '#b9a6ff'
+  searchParams.value = { ...searchParams.value, current: 1, name: undefined }
   fetchData()
+}
+
+// View switch
+const setView = (mode: 'grid' | 'masonry') => {
+  viewMode.value = mode
 }
 
 // Batch edit
@@ -831,19 +658,19 @@ const currentPage = computed(() => searchParams.value.current ?? 1)
 const getTotalPages = () => Math.ceil(total.value / pageSize.value)
 
 const getVisiblePages = () => {
-  const total = getTotalPages()
+  const totalPages = getTotalPages()
   const current = currentPage.value
   const pages: (number | '...')[] = []
 
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i)
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
   } else {
     if (current <= 3) {
-      pages.push(1, 2, 3, 4, '...', total)
-    } else if (current >= total - 2) {
-      pages.push(1, '...', total - 3, total - 2, total - 1, total)
+      pages.push(1, 2, 3, 4, '...', totalPages)
+    } else if (current >= totalPages - 2) {
+      pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
     } else {
-      pages.push(1, '...', current - 1, current, current + 1, '...', total)
+      pages.push(1, '...', current - 1, current, current + 1, '...', totalPages)
     }
   }
   return pages
@@ -883,872 +710,583 @@ watch(
 </script>
 
 <style scoped lang="less">
-/* Aurora 主题变量别名 */
 #spaceDetailPage {
-  /* 颜色别名 - 修复未定义的变量 */
-  --color-primary: var(--color-primary-500);
-  --color-primary-light: var(--color-primary-300);
-  --color-secondary: var(--color-secondary-500);
-  --color-violet: var(--color-accent-purple);
-  --color-pink: var(--color-accent-pink);
-  --color-cyan: var(--color-accent-cyan);
-  --color-primary-bg: var(--color-primary-500);
-
-  /* 背景和卡片 */
-  --bg-primary: var(--color-bg-primary);
-  --bg-secondary: var(--color-bg-secondary);
-  --bg-tertiary: var(--color-bg-tertiary);
-  --bg-elevated: var(--color-bg-elevated);
-  --bg-hover: var(--color-bg-hover);
-  --bg-card: var(--gradient-card);
-
-  /* 文字颜色 */
-  --text-primary: var(--color-text-primary);
-  --text-secondary: var(--color-text-secondary);
-  --text-tertiary: var(--color-text-tertiary);
-  --text-disabled: var(--color-text-disabled);
-
-  /* 边框颜色 */
-  --border-default: var(--color-border-default);
-  --border-subtle: var(--color-border-subtle);
-  --border-strong: var(--color-border-strong);
-
-  /* 阴影 */
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.5);
-
-  min-height: 100vh;
-  background: var(--bg-primary);
-  position: relative;
-  overflow-x: hidden;
+  padding-bottom: clamp(64px, 10vh, 120px);
 }
 
-/* ========== 紫漾氛围背景 ========== */
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.gradient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.5;
-  animation: float-orb 25s ease-in-out infinite;
-}
-
-.orb-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
-  top: -250px;
-  right: -150px;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
-  top: 30%;
-  left: -200px;
-  animation-delay: -8s;
-}
-
-.orb-3 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-  bottom: -100px;
-  right: 10%;
-  animation-delay: -16s;
-}
-
-@keyframes float-orb {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(40px, -40px) scale(1.05);
-  }
-  50% {
-    transform: translate(-30px, 30px) scale(0.95);
-  }
-  75% {
-    transform: translate(25px, 15px) scale(1.03);
-  }
-}
-
-/* 浮动装饰点 */
-.floating-shapes {
-  position: absolute;
-  inset: 0;
-}
-
-.shape-dot {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.4;
-  animation: float-dot 15s ease-in-out infinite;
-}
-
-.dot-1 {
-  width: 12px;
-  height: 12px;
-  background: var(--color-primary);
-  top: 15%;
-  left: 10%;
-  animation-delay: 0s;
-}
-
-.dot-2 {
-  width: 8px;
-  height: 8px;
-  background: var(--color-secondary);
-  top: 25%;
-  right: 20%;
-  animation-delay: -3s;
-}
-
-.dot-3 {
-  width: 16px;
-  height: 16px;
-  background: var(--color-violet);
-  bottom: 30%;
-  left: 15%;
-  animation-delay: -6s;
-}
-
-.dot-4 {
-  width: 10px;
-  height: 10px;
-  background: var(--color-pink);
-  top: 60%;
-  right: 25%;
-  animation-delay: -9s;
-}
-
-.dot-5 {
-  width: 6px;
-  height: 6px;
-  background: var(--color-primary-light);
-  bottom: 20%;
-  right: 40%;
-  animation-delay: -12s;
-}
-
-@keyframes float-dot {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  25% {
-    transform: translate(10px, -15px) rotate(90deg);
-  }
-  50% {
-    transform: translate(-5px, 10px) rotate(180deg);
-  }
-  75% {
-    transform: translate(15px, 5px) rotate(270deg);
-  }
-}
-
-/* ========== 主内容区 ========== */
-.main-content {
-  position: relative;
-  z-index: 1;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 32px 80px;
-}
-
-/* ========== 顶部导航栏 ========== */
-.detail-header {
+/* ========== 顶部操作条 ========== */
+.sd-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 24px 0;
-}
-
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 40px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: translateX(-4px);
-    box-shadow: var(--shadow-glow-purple);
-
-    svg {
-      transform: translateX(-2px);
-    }
-  }
-
-  svg {
-    transition: transform 0.3s ease;
-  }
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  border-radius: 40px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-
-  &.primary {
-    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-    color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
-
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
-    }
-  }
-}
-
-.action-icon-btn {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-glow-purple);
-  }
-}
-
-/* ========== 空间信息区域 ========== */
-.space-hero {
-  position: relative;
-  padding: 48px 0;
-  margin-bottom: 32px;
-}
-
-.space-hero-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.space-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 600px;
-  height: 300px;
-  background: radial-gradient(
-    ellipse,
-    rgba(168, 85, 247, 0.15) 0%,
-    rgba(236, 72, 153, 0.08) 40%,
-    transparent 70%
-  );
-  filter: blur(40px);
-}
-
-.space-hero-content {
-  position: relative;
-  display: flex;
-  align-items: center;
   gap: 24px;
-  animation: fade-up 0.8s ease-out forwards;
+  padding: 26px 0 18px;
+  border-bottom: 1px solid var(--aw-line);
 }
 
-.space-icon {
-  width: 80px;
-  height: 80px;
+.sd-bar-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 20px;
-  box-shadow: var(--shadow-card);
-  animation: pulse-glow 3s ease-in-out infinite;
-
-  svg {
-    filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.3));
-  }
+  gap: 10px;
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: var(--shadow-card);
-  }
-  50% {
-    transform: scale(1.03);
-    box-shadow: var(--shadow-glow-purple);
-  }
+.sd-create {
+  margin-left: 6px;
+  padding: 11px 20px;
+  font-size: 13.5px;
 }
 
-.space-info {
-  flex: 1;
-}
-
-.space-name {
-  font-family: var(--font-display);
-  font-size: 36px;
-  font-weight: 800;
-  margin: 0 0 12px 0;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary) 0%,
-    var(--color-secondary) 50%,
-    var(--color-pink) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.space-meta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.space-type-badge {
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-
-  &.private {
-    background: rgba(168, 85, 247, 0.1);
-    color: var(--color-primary);
-    border: 1px solid rgba(168, 85, 247, 0.2);
-  }
-
-  &.team {
-    background: rgba(236, 72, 153, 0.1);
-    color: var(--color-secondary);
-    border: 1px solid rgba(236, 72, 153, 0.2);
-  }
-}
-
-.space-intro {
-  font-size: 14px;
-  color: var(--text-tertiary);
-}
-
-/* ========== 统计卡片 ========== */
-.stats-section {
-  margin-bottom: 40px;
-}
-
-.stats-grid {
+/* ========== 空间档案 ========== */
+.sd-hero {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.stat-card {
-  position: relative;
-  padding: 24px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 20px;
-  display: flex;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: clamp(32px, 6vw, 88px);
   align-items: center;
-  gap: 16px;
-  overflow: hidden;
-  animation: card-reveal 0.6s ease-out forwards;
-  opacity: 0;
-  transform: translateY(20px);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-4px);
-  }
+  padding: clamp(44px, 8vh, 96px) 0 clamp(40px, 6vh, 72px);
 }
 
-@keyframes card-reveal {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(168, 85, 247, 0.1);
-  border-radius: 14px;
-  color: var(--color-primary);
-  flex-shrink: 0;
-
-  &.purple {
-    background: rgba(168, 85, 247, 0.15);
-    color: var(--color-primary);
-  }
-
-  &.cyan {
-    background: rgba(34, 211, 238, 0.1);
-    color: var(--color-cyan);
-  }
-}
-
-.stat-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 1;
-}
-
-.stat-value {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-
-.stat-decoration {
-  position: absolute;
-  right: -20px;
-  bottom: -20px;
-  pointer-events: none;
-}
-
-.stat-orb {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
-
-  &.purple {
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
-  }
-
-  &.cyan {
-    background: radial-gradient(circle, rgba(34, 211, 238, 0.2) 0%, transparent 70%);
-  }
-}
-
-/* Capacity card */
-.capacity-card {
-  padding: 20px;
-}
-
-.capacity-ring {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  margin: 0 auto;
-}
-
-.ring-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.ring-bg {
-  fill: none;
-  stroke: var(--border-default);
-  stroke-width: 8;
-}
-
-.ring-progress {
-  fill: none;
-  stroke: var(--color-primary);
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.5s ease;
-}
-
-.ring-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring-value {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.ring-label {
-  font-size: 10px;
-  color: var(--text-tertiary);
-}
-
-/* ========== 搜索区域 ========== */
-.search-section {
-  margin-bottom: 32px;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.6s ease;
-
-  &.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 6px 6px 20px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 60px;
-  margin-bottom: 16px;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: var(--shadow-glow-purple);
-  }
-}
-
-.search-icon {
-  color: var(--text-tertiary);
-  display: flex;
-}
-
-.search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 16px;
-  color: var(--text-primary);
+.sd-hero-copy {
   min-width: 0;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
 }
 
-.search-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-  border: none;
-  border-radius: 40px;
-  color: white;
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
-  }
-}
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.filter-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.clear-filters-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 20px;
-  color: #dc2626;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: rgba(239, 68, 68, 0.15);
-    transform: translateY(-1px);
-  }
-}
-
-/* ========== 画廊区域 ========== */
-.gallery-section {
-  min-height: 400px;
-}
-
-.gallery-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  padding: 16px 20px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.gallery-count {
+.sd-hero-head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
 }
 
-.count-number {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.sd-hero-id {
+  flex-shrink: 0;
 }
 
-.count-label {
-  font-size: 14px;
-  color: var(--text-tertiary);
+.sd-title {
+  overflow-wrap: anywhere;
 }
 
-.gallery-view-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.view-btn {
-  width: 40px;
-  height: 40px;
+.sd-hero-meta {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  &.active {
-    background: rgba(168, 85, 247, 0.1);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+  font-family: var(--aw-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--aw-ink-3);
 }
 
-/* ========== 加载状态 ========== */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding: 80px 40px;
+.sd-type {
+  padding: 4px 10px;
+  border: 1px solid var(--aw-line-2);
+  border-radius: 999px;
+  color: var(--aw-ink-2);
+  letter-spacing: 0.12em;
 }
 
-.loader-orb {
-  position: relative;
-  width: 60px;
-  height: 60px;
-}
-
-.orb-inner {
-  position: absolute;
-  inset: 15px;
-  background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong));
+.sd-meta-dot {
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  animation: pulse-orb 1.5s ease-in-out infinite;
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+  background: var(--aw-line-2);
 }
 
-.orb-ring {
+/* 三张作品组成的档案拼贴 */
+.sd-hero-plates {
+  position: relative;
+  height: clamp(230px, 26vw, 340px);
+  min-width: 0;
+}
+
+.sd-plate {
+  position: absolute;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--aw-line);
+  background: var(--aw-bg-2);
+  box-shadow: 0 26px 60px -40px rgba(0, 0, 0, 0.8);
+}
+
+.sd-plate img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 1.1s var(--aw-ease);
+}
+
+.sd-plate:hover img {
+  transform: scale(1.03);
+}
+
+.sd-plate-1 {
+  left: 0;
+  top: 12%;
+  width: 41%;
+  height: 74%;
+  z-index: 1;
+}
+
+.sd-plate-2 {
+  left: 29%;
+  top: 0;
+  width: 44%;
+  height: 88%;
+  z-index: 2;
+}
+
+.sd-plate-3 {
+  right: 0;
+  top: 16%;
+  width: 36%;
+  height: 68%;
+  z-index: 1;
+}
+
+.sd-plate figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px 10px 9px;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(180deg, transparent 0%, rgba(6, 5, 11, 0.76) 100%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 第三张画板左侧被第二张压住，题注右对齐才能完整落在可见区域 */
+.sd-plate-3 figcaption {
+  text-align: right;
+}
+
+.sd-plate-empty {
   position: absolute;
   inset: 0;
-  border: 2px solid transparent;
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin-ring 1.2s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.5));
-
-  &.ring-2 {
-    inset: 5px;
-    border-top-color: var(--color-secondary);
-    animation-duration: 1.8s;
-    animation-direction: reverse;
-    filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.5));
-  }
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--aw-line);
+  font-size: 9px;
+  letter-spacing: 0.2em;
 }
 
-@keyframes pulse-orb {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(0.8);
-    opacity: 0.6;
-  }
+#spaceDetailPage.is-light .sd-plate {
+  box-shadow: 0 26px 60px -42px rgba(76, 29, 149, 0.36);
 }
 
-@keyframes spin-ring {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.loader-text {
-  font-size: 14px;
-  color: var(--text-secondary);
-  letter-spacing: 1px;
-}
-
-/* ========== 图片网格 ========== */
-.picture-grid {
+/* ========== 目录数据 ========== */
+.sd-catalogue {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(220px, 1.2fr);
+  border-top: 1px solid var(--aw-line);
+  border-bottom: 1px solid var(--aw-line);
 }
 
-.gallery-item {
-  opacity: 0;
-  animation: item-reveal 0.6s ease-out forwards;
+.sd-cat {
+  padding: 22px 0;
+  min-width: 0;
+}
+
+.sd-cat + .sd-cat {
+  padding-left: clamp(16px, 2.4vw, 32px);
+  border-left: 1px solid var(--aw-line);
+}
+
+.sd-cat-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.sd-cat-value b {
+  font-family: var(--aw-serif);
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--aw-ink);
+  white-space: nowrap;
+}
+
+.sd-cat-unit {
+  font-family: var(--aw-mono);
+  font-size: 10px;
+  color: var(--aw-ink-3);
+}
+
+.sd-cat--usage {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+.sd-cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sd-usage-value {
+  font-family: var(--aw-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--aw-ink);
+}
+
+.sd-rail {
   position: relative;
-  cursor: pointer;
-
-  &:hover {
-    .item-overlay {
-      opacity: 1;
-    }
-    .item-image {
-      transform: scale(1.05);
-    }
-  }
+  height: 2px;
+  background: var(--aw-line);
+  overflow: hidden;
 }
 
-@keyframes item-reveal {
+.sd-rail i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: var(--aw-accent);
+  transition: transform 1.2s var(--aw-ease);
+}
+
+/* ========== 检索与视图 ========== */
+.sd-tools {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 3vw, 40px);
+  flex-wrap: wrap;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--aw-line);
+}
+
+.sd-search {
+  flex: 1 1 260px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--aw-line);
+  transition: border-color 0.4s var(--aw-ease);
+}
+
+.sd-search:focus-within {
+  border-bottom-color: var(--aw-accent);
+}
+
+.sd-search-icon {
+  flex-shrink: 0;
+  color: var(--aw-ink-3);
+}
+
+.sd-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--aw-ink);
+  font-family: var(--aw-sans);
+  font-size: 15px;
+  outline: none;
+}
+
+.sd-search-input::placeholder {
+  color: var(--aw-ink-3);
+}
+
+.sd-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--aw-accent-soft);
+  color: var(--aw-ink-2);
+  cursor: pointer;
+  transition:
+    color 0.3s var(--aw-ease),
+    transform 0.3s var(--aw-ease);
+}
+
+.sd-search-clear:hover {
+  color: var(--aw-ink);
+  transform: rotate(90deg);
+}
+
+.sd-search-go {
+  flex-shrink: 0;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--aw-ink-2);
+  font-family: var(--aw-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.35s var(--aw-ease);
+}
+
+.sd-search-go:hover {
+  color: var(--aw-ink);
+}
+
+.sd-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sd-filter-label {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+}
+
+.sd-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px;
+  border: 1px solid var(--aw-line);
+  border-radius: 999px;
+}
+
+.sd-color-chip i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.sd-color-chip code {
+  font-family: var(--aw-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--aw-ink-2);
+}
+
+/* 第三方取色器只保留一个圆点触发器，与编辑体工具栏同一质感 */
+.sd-filter :deep(.vc-color-wrap) {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--aw-line-2);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+  transition:
+    border-color 0.35s var(--aw-ease),
+    transform 0.35s var(--aw-ease);
+}
+
+.sd-filter :deep(.vc-color-wrap:hover) {
+  border-color: var(--aw-accent);
+  transform: translateY(-1px);
+}
+
+.sd-filter :deep(.vc-color-wrap .current-color) {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.sd-view {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.sd-view button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  color: var(--aw-ink-3);
+  font-family: var(--aw-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.35s var(--aw-ease);
+}
+
+.sd-view button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--aw-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.45s var(--aw-ease);
+}
+
+.sd-view button:hover {
+  color: var(--aw-ink-2);
+}
+
+.sd-view button.active {
+  color: var(--aw-ink);
+}
+
+.sd-view button.active::after {
+  transform: scaleX(1);
+}
+
+.sd-view button:focus-visible,
+.sd-search-go:focus-visible,
+.sd-search-clear:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 3px;
+}
+
+/* ========== 生效中的筛选 ========== */
+.sd-active {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--aw-line);
+  font-size: 12px;
+  color: var(--aw-ink-2);
+}
+
+.sd-active-item {
+  padding: 3px 9px;
+  border: 1px solid var(--aw-line);
+  border-radius: 999px;
+}
+
+.sd-active-item code {
+  font-family: var(--aw-mono);
+  font-size: 10px;
+}
+
+.sd-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--aw-ink-3);
+  font-family: var(--aw-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: color 0.3s var(--aw-ease);
+}
+
+.sd-clear:hover {
+  color: var(--aw-danger);
+}
+
+/* ========== 陈列 ========== */
+.sd-gallery {
+  padding-top: clamp(32px, 5vh, 52px);
+}
+
+.sd-gallery-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--aw-line);
+  margin-bottom: clamp(24px, 4vh, 40px);
+}
+
+.sd-gallery-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sd-gallery-title {
+  margin: 0;
+  font-family: var(--aw-serif);
+  font-size: clamp(24px, 2.6vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--aw-ink);
+}
+
+.sd-gallery-count {
+  text-align: right;
+}
+
+/* 列表：网格与瀑布流共用一套卡片 */
+.sd-list.is-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 30px 22px;
+}
+
+/* 网格视图统一画幅，行与行之间不再被不同长宽比撑出空洞 */
+.sd-list.is-grid .sd-card-media {
+  padding-bottom: 125% !important;
+}
+
+.sd-list.is-masonry {
+  column-count: 4;
+  column-gap: 22px;
+}
+
+.sd-list.is-masonry .sd-card {
+  break-inside: avoid;
+  margin-bottom: 26px;
+}
+
+.sd-card {
+  position: relative;
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+  outline: none;
+  animation: sd-card-in 0.7s var(--aw-ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes sd-card-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
-.item-image-wrap {
+.sd-card:focus-visible .sd-card-media {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 3px;
+}
+
+.sd-card-media {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: 16px;
-  background: var(--bg-tertiary);
-  box-shadow: var(--shadow-sm);
+  background: var(--aw-bg-2);
+  box-shadow: inset 0 0 0 1px var(--aw-line);
 }
 
-.item-skeleton {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    var(--bg-tertiary) 0%,
-    var(--bg-hover) 50%,
-    var(--bg-tertiary) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton 1.5s infinite;
-}
-
-@keyframes skeleton {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.item-image {
+.sd-card-img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1756,332 +1294,585 @@ watch(
   object-fit: cover;
   opacity: 0;
   transition:
-    opacity 0.4s ease,
-    transform 0.4s ease;
+    opacity 0.8s var(--aw-ease),
+    transform 1s var(--aw-ease);
+}
 
-  &.loaded {
-    opacity: 1;
+.sd-card-img.loaded {
+  opacity: 1;
+}
+
+.sd-card:hover .sd-card-img.loaded,
+.sd-card:focus-visible .sd-card-img.loaded {
+  transform: scale(1.035);
+}
+
+.sd-card-skeleton {
+  position: absolute;
+  inset: 0;
+  background: var(--aw-accent-soft);
+  overflow: hidden;
+  transition: opacity 0.4s var(--aw-ease);
+}
+
+.sd-card-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(242, 238, 230, 0.06) 50%,
+    transparent 100%
+  );
+  animation: sd-shimmer 1.6s ease-in-out infinite;
+}
+
+#spaceDetailPage.is-light .sd-card-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    transparent 100%
+  );
+}
+
+.sd-card-skeleton.loaded {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes sd-shimmer {
+  to {
+    transform: translateX(100%);
   }
 }
 
-.item-overlay {
+.sd-card-veil {
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    to top,
-    rgba(30, 27, 75, 0.95) 0%,
-    rgba(30, 27, 75, 0.6) 40%,
-    rgba(30, 27, 75, 0.2) 100%
+    180deg,
+    transparent 42%,
+    rgba(6, 5, 11, 0.28) 68%,
+    rgba(6, 5, 11, 0.86) 100%
   );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 20px;
+  opacity: 0.92;
+  transition: opacity 0.5s var(--aw-ease);
+  pointer-events: none;
 }
 
-.overlay-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+#spaceDetailPage.is-light .sd-card-veil {
+  background: linear-gradient(
+    180deg,
+    transparent 42%,
+    rgba(30, 27, 75, 0.16) 68%,
+    rgba(30, 27, 75, 0.78) 100%
+  );
 }
 
-.item-title {
+.sd-card:hover .sd-card-veil,
+.sd-card:focus-visible .sd-card-veil {
+  opacity: 1;
+}
+
+.sd-card-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 15px 13px;
+  color: #fff;
+  pointer-events: none;
+}
+
+.sd-card-title {
+  margin: 0;
+  font-family: var(--aw-serif);
   font-size: 15px;
   font-weight: 600;
-  color: white;
-  margin: 0 0 8px 0;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.4);
 }
 
-.item-meta {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+.sd-card-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin: 5px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.76);
 }
 
-.meta-divider {
+.sd-card-meta i {
+  font-style: normal;
   opacity: 0.5;
 }
 
-.overlay-actions {
+.sd-card-ops {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: flex;
-  gap: 10px;
-  margin-top: 16px;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 0.35s var(--aw-ease),
+    transform 0.35s var(--aw-ease);
 }
 
-.action-btn-icon {
-  width: 36px;
-  height: 36px;
-  display: flex;
+.sd-card:hover .sd-card-ops,
+.sd-card:focus-within .sd-card-ops {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: none) {
+  .sd-card-ops {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sd-card-op {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 50%;
-  color: white;
+  background: rgba(6, 5, 11, 0.5);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.3s var(--aw-ease),
+    border-color 0.3s var(--aw-ease),
+    transform 0.3s var(--aw-ease);
+}
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: scale(1.1);
+.sd-card-op:hover {
+  background: rgba(6, 5, 11, 0.78);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.sd-card-op--danger:hover {
+  background: rgba(153, 27, 27, 0.8);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.sd-card-op:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 2px;
+}
+
+/* ========== 骨架屏 ========== */
+.sd-skeleton-bar {
+  height: 2px;
+  margin-bottom: 28px;
+  background: var(--aw-line);
+  overflow: hidden;
+}
+
+.sd-skeleton-bar i {
+  display: block;
+  width: 30%;
+  height: 100%;
+  background: var(--aw-accent);
+  animation: sd-bar 1.4s var(--aw-ease) infinite;
+}
+
+@keyframes sd-bar {
+  0% {
+    transform: translateX(-110%);
   }
-
-  &.delete:hover {
-    background: rgba(239, 68, 68, 0.4);
-    border-color: rgba(239, 68, 68, 0.5);
+  100% {
+    transform: translateX(360%);
   }
 }
 
-/* ========== 瀑布流视图 ========== */
-.masonry-wrapper {
-  display: flex;
-  gap: 20px;
+.sd-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px 22px;
 }
 
-.masonry-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.sd-skeleton-tile {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background: var(--aw-accent-soft);
+  overflow: hidden;
 }
 
-.masonry-item {
-  break-inside: avoid;
+.sd-skeleton-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(242, 238, 230, 0.05) 50%,
+    transparent 100%
+  );
+  animation: sd-shimmer 1.6s ease-in-out infinite;
+}
+
+#spaceDetailPage.is-light .sd-skeleton-tile::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    transparent 100%
+  );
 }
 
 /* ========== 空状态 ========== */
-.empty-state {
+.sd-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 80px 40px;
   text-align: center;
+  padding: clamp(64px, 12vh, 140px) 20px;
 }
 
-.empty-illustration {
-  margin-bottom: 32px;
-  opacity: 0.8;
-  animation: float-illustration 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 20px rgba(168, 85, 247, 0.2));
+.sd-empty-no {
+  font-size: 10px;
+  letter-spacing: 0.24em;
 }
 
-@keyframes float-illustration {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.empty-title {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 12px 0;
-}
-
-.empty-desc {
-  font-size: 15px;
-  color: var(--text-tertiary);
-  margin: 0 0 32px 0;
-  max-width: 300px;
-}
-
-.empty-action {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 32px;
-  background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-  border: none;
-  border-radius: 40px;
-  color: white;
+.sd-empty-title {
+  margin: 20px 0 0;
+  font-family: var(--aw-serif);
+  font-size: clamp(26px, 3.2vw, 40px);
   font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 25px rgba(168, 85, 247, 0.35);
+  letter-spacing: -0.01em;
+  color: var(--aw-ink);
+}
 
-  &:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 35px rgba(168, 85, 247, 0.45);
-  }
+.sd-empty-desc {
+  max-width: 34ch;
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--aw-ink-3);
+  text-wrap: pretty;
+}
+
+.sd-empty-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
 }
 
 /* ========== 分页 ========== */
-.pagination-wrapper {
-  margin-top: 48px;
-  display: flex;
-  justify-content: center;
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 16px;
-  box-shadow: var(--shadow-sm);
-}
-
-.page-btn {
-  width: 40px;
-  height: 40px;
+.sd-pager {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  color: var(--text-secondary);
+  gap: clamp(16px, 3vw, 36px);
+  margin-top: clamp(44px, 7vh, 72px);
+  padding-top: 24px;
+  border-top: 1px solid var(--aw-line);
+}
+
+.sd-page-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--aw-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--aw-ink-2);
   cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover:not(:disabled) {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    color: var(--text-primary);
-    transform: translateY(-1px);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
+  transition:
+    color 0.3s var(--aw-ease),
+    border-color 0.3s var(--aw-ease),
+    background-color 0.3s var(--aw-ease);
 }
 
-.page-numbers {
+.sd-page-arrow:hover:not(:disabled) {
+  color: var(--aw-ink);
+  border-color: var(--aw-line-2);
+  background: var(--aw-accent-soft);
+}
+
+.sd-page-arrow:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.sd-page-arrow:focus-visible,
+.sd-page-number:focus-visible {
+  outline: 2px solid var(--aw-accent);
+  outline-offset: 3px;
+}
+
+.sd-page-index {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+
+.sd-page-numbers {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-.page-number {
-  min-width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+.sd-page-number {
+  position: relative;
+  min-width: 30px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--aw-ink-3);
+  font-family: var(--aw-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover:not(:disabled):not(.active) {
-    background: var(--bg-hover);
-    transform: translateY(-1px);
-  }
-
-  &.active {
-    background: linear-gradient(135deg, var(--color-primary-strong) 0%, var(--color-secondary-strong) 100%);
-    border-color: transparent;
-    color: white;
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-  }
-
-  &.ellipsis {
-    cursor: default;
-    border: none;
-    background: transparent;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-  }
+  transition: color 0.3s var(--aw-ease);
 }
 
-/* ========== 动画 ========== */
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.sd-page-number::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 2px;
+  height: 1px;
+  background: var(--aw-ink);
+  transform: scaleX(0);
+  transition: transform 0.35s var(--aw-ease);
+}
+
+.sd-page-number:hover {
+  color: var(--aw-ink-2);
+}
+
+.sd-page-number.active {
+  color: var(--aw-ink);
+}
+
+.sd-page-number.active::after {
+  transform: scaleX(1);
+}
+
+.sd-page-number.ellipsis {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ========== 浅色主题 ========== */
+#spaceDetailPage.is-light .sd-plate-empty {
+  color: var(--aw-ink-3);
+}
+
+#spaceDetailPage.is-light .sd-card-op {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(30, 27, 75, 0.42);
+}
+
+#spaceDetailPage.is-light .sd-card-op:hover {
+  background: rgba(30, 27, 75, 0.68);
 }
 
 /* ========== 响应式 ========== */
-@media (max-width: 768px) {
-  .main-content {
-    padding: 0 16px 60px;
+@media (max-width: 1180px) {
+  .sd-list.is-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .space-hero-content {
-    flex-direction: column;
-    text-align: center;
+  .sd-list.is-masonry {
+    column-count: 3;
   }
 
-  .space-name {
-    font-size: 28px;
+  .sd-skeleton-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .space-meta {
-    flex-direction: column;
+  .sd-catalogue {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sd-cat:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--aw-line);
+  }
+
+  .sd-cat:nth-child(4) {
+    border-top: 1px solid var(--aw-line);
+  }
+}
+
+@media (max-width: 1080px) {
+  .sd-hero {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .sd-hero-plates {
+    max-width: 560px;
+    height: clamp(220px, 34vw, 320px);
+  }
+}
+
+@media (max-width: 880px) {
+  .sd-list.is-grid,
+  .sd-skeleton-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sd-list.is-masonry {
+    column-count: 2;
+  }
+
+  .sd-title {
+    font-size: clamp(30px, 6.6vw, 46px);
+  }
+}
+
+@media (max-width: 820px) {
+  .sd-view {
+    margin-left: 0;
+  }
+
+  .sd-tools {
+    gap: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .sd-bar {
+    padding-top: 18px;
+    gap: 12px;
+  }
+
+  .sd-bar-actions {
     gap: 8px;
   }
 
-  .detail-header {
+  .sd-create span {
+    display: none;
+  }
+
+  .sd-create {
+    padding: 11px;
+  }
+
+  .sd-hero {
+    padding-top: 36px;
+  }
+
+  .sd-hero-head {
     flex-direction: column;
-    gap: 16px;
     align-items: flex-start;
+    gap: 10px;
   }
 
-  .header-actions {
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .sd-hero-plates {
+    height: 210px;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .sd-catalogue {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .picture-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
+  .sd-cat {
+    padding: 18px 0;
   }
 
-  .search-bar {
-    flex-wrap: wrap;
+  .sd-cat + .sd-cat {
+    padding-left: 14px;
   }
 
-  .search-btn {
-    width: 100%;
-    justify-content: center;
+  .sd-search {
+    flex-basis: 100%;
   }
 
-  .gallery-header {
-    flex-direction: column;
-    gap: 12px;
+  .sd-view {
+    margin-left: auto;
+  }
+
+  .sd-gallery-head {
     align-items: flex-start;
-  }
-
-  .masonry-wrapper {
     flex-direction: column;
     gap: 12px;
   }
 
-  .pagination-wrapper {
-    overflow-x: auto;
+  .sd-gallery-count {
+    text-align: left;
+  }
+
+  .sd-pager {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .sd-page-index {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+
+  .sd-page-numbers {
+    order: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .sd-list.is-grid,
+  .sd-skeleton-grid {
+    gap: 18px 12px;
+  }
+
+  .sd-list.is-masonry {
+    column-gap: 12px;
+  }
+
+  .sd-list.is-masonry .sd-card {
+    margin-bottom: 18px;
+  }
+
+  .sd-card-title {
+    font-size: 13px;
+  }
+
+  .sd-card-body {
+    padding: 10px 10px 9px;
+  }
+
+  .sd-card-meta {
+    font-size: 9px;
+  }
+
+  .sd-card-ops {
+    top: 6px;
+    right: 6px;
+  }
+
+  .sd-card-op {
+    width: 28px;
+    height: 28px;
+  }
+
+  .sd-empty {
+    padding: 56px 12px;
   }
 }
 </style>

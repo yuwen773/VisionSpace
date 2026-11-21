@@ -81,5 +81,4 @@ defineProps<Props>()
     padding: 10px 12px;
   }
 }
-
 </style>

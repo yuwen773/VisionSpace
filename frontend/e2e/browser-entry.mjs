@@ -263,10 +263,10 @@ try {
       )
       const beforeLogin = pageCalls.length
 
-      await page.fill('input[placeholder="用户账号"]', account)
-      await page.fill('input[placeholder="密码"]', PASSWORD)
-      // 登录按钮是原生 <button>（html-type 是 antd 的 a-button 属性，不会渲染成 type）
-      await page.click('.pop-btn.primary')
+      // 用稳定的 id / 类名定位，避免登录页改文案时 e2e 跟着碎
+      await page.fill('input#login-account', account)
+      await page.fill('input#login-password', PASSWORD)
+      await page.click('button.auth-submit[type="submit"]')
 
       // 登录成功后会跳走；不依赖任何既有会话，只等 URL 离开登录页
       await page

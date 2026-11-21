@@ -39,7 +39,7 @@ const router = createRouter({
           path: 'add_picture',
           name: 'AddPicture',
           component: () => import('@/pages/AddPicturePage.vue'),
-          meta: { title: '添加图片' },
+          meta: { fullWidth: true, title: '添加图片' },
         },
         {
           path: 'picture/:id',
@@ -65,7 +65,7 @@ const router = createRouter({
           name: 'SpaceDetail',
           component: () => import('@/pages/SpaceDetailPage.vue'),
           props: true,
-          meta: { title: '空间详情' },
+          meta: { fullWidth: true, title: '空间详情' },
         },
         {
           path: 'space_analyze',

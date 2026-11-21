@@ -314,5 +314,4 @@ const review = (action: RecoveryAction, decision: 'confirm' | 'dismiss') => {
     gap: 6px;
   }
 }
-
 </style>

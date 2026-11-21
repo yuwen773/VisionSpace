@@ -475,5 +475,4 @@ caption {
     padding: 12px;
   }
 }
-
 </style>
