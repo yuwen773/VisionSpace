@@ -1,5 +1,5 @@
 <template>
-  <div id="landingPage" ref="root">
+  <div id="landingPage" ref="root" :class="{ 'is-light': isLight }">
     <!-- ============ Atmosphere ============ -->
     <div class="atmosphere" aria-hidden="true">
       <div class="aurora aurora-a"></div>
@@ -300,7 +300,7 @@
           :drag-sensitivity="20"
           :enlarge-transition-ms="300"
           :grayscale="true"
-          overlay-blur-color="#05060c"
+          :overlay-blur-color="domeOverlay"
           image-border-radius="3px"
           opened-image-width="260px"
           opened-image-height="360px"
@@ -412,7 +412,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRight,
@@ -425,16 +425,21 @@ import {
 } from 'lucide-vue-next'
 import DomeGallery from '@/components/vue-bits/components/DomeGallery.vue'
 import GlobalFooter from '@/components/GlobalFooter.vue'
+import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
+const { currentTheme, applyTheme } = useTheme()
 const root = ref<HTMLElement | null>(null)
 const heroVisual = ref<HTMLElement | null>(null)
+
+/* 落地页两套主题共用一套版式，只换纸面与墨色 */
+const isLight = computed(() => currentTheme.value === 'pop')
+const domeOverlay = computed(() => (isLight.value ? '#faf7ff' : '#05060c'))
 
 const seen = ref<Record<string, boolean>>({})
 const progress = ref(0)
 
 let observer: IntersectionObserver | null = null
-let previousTheme: string | null = null
 let reduceMotion = false
 let scrollRaf = 0
 
@@ -503,15 +508,10 @@ const onPointerLeave = () => {
 }
 
 onMounted(async () => {
-  // 落地页始终以深空极光呈现，离开时还原用户此前的主题
-  const html = document.documentElement
-  previousTheme = html.classList.contains('theme-aurora')
-    ? 'theme-aurora'
-    : html.classList.contains('theme-pop')
-      ? 'theme-pop'
-      : null
-  html.classList.remove('theme-pop', 'theme-aurora')
-  html.classList.add('theme-aurora')
+  // 没手动选过主题的访客，落地页以深空极光开场；选过就尊重其选择（含页头开关的实时切换）
+  if (!localStorage.getItem('ycloud-theme')) {
+    applyTheme('aurora', false)
+  }
 
   reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -544,10 +544,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', onScroll)
   if (scrollRaf) cancelAnimationFrame(scrollRaf)
-
-  const html = document.documentElement
-  html.classList.remove('theme-pop', 'theme-aurora')
-  if (previousTheme) html.classList.add(previousTheme)
 })
 </script>
 
@@ -720,7 +716,7 @@ onBeforeUnmount(() => {
 .msg-grid img,
 .outpaint-frame img,
 .outpaint-stage > img,
-.board-tile {
+.board-tile-wrap img {
   filter: saturate(0.36) contrast(1.08) brightness(0.8);
   transition: filter 0.9s var(--lp-ease);
 }
@@ -1916,6 +1912,10 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 10px;
   bottom: 8px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(5, 6, 12, 0.55);
+  backdrop-filter: blur(4px);
   font-size: 9px;
   letter-spacing: 0.16em;
   color: var(--lp-mint);
@@ -1993,6 +1993,163 @@ onBeforeUnmount(() => {
 .footer-wrap {
   padding: 0;
   border-top: 1px solid var(--lp-line);
+}
+
+/* ===================================================================
+   Light theme（theme-pop）：同一套版式，换成暖纸与墨字
+   =================================================================== */
+#landingPage.is-light {
+  --lp-bg: #faf7ff;
+  --lp-bg-raised: #f5f3ff;
+  --lp-ink: #1e1b4b;
+  --lp-ink-2: rgba(30, 27, 75, 0.74);
+  --lp-ink-3: rgba(30, 27, 75, 0.52);
+  --lp-line: rgba(124, 58, 237, 0.16);
+  --lp-line-2: rgba(124, 58, 237, 0.34);
+  --lp-violet: #9333ea;
+  --lp-violet-deep: #7c3aed;
+  --lp-mint: #0f9d6e;
+}
+
+#landingPage.is-light .atmosphere {
+  background: radial-gradient(120% 80% at 50% -10%, #ffffff 0%, var(--lp-bg) 55%, #efe9ff 100%);
+}
+
+#landingPage.is-light .aurora {
+  opacity: 0.3;
+}
+
+#landingPage.is-light .aurora-a {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 68%);
+}
+
+#landingPage.is-light .aurora-b {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.18) 0%, transparent 70%);
+}
+
+#landingPage.is-light .aurora-c {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.14) 0%, transparent 70%);
+}
+
+#landingPage.is-light .aurora-grid {
+  background-image:
+    linear-gradient(to right, rgba(124, 58, 237, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(124, 58, 237, 0.07) 1px, transparent 1px);
+}
+
+#landingPage.is-light .grain {
+  opacity: 0.028;
+}
+
+#landingPage.is-light .vignette {
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 40%,
+    transparent 55%,
+    rgba(237, 233, 254, 0.55) 100%
+  );
+}
+
+/* 照片在亮底上不再压暗，只保留一层轻冷调 */
+#landingPage.is-light .plate img,
+#landingPage.is-light .essence-plate img,
+#landingPage.is-light .color-strip img,
+#landingPage.is-light .mini-results img,
+#landingPage.is-light .msg-grid img,
+#landingPage.is-light .outpaint-frame img,
+#landingPage.is-light .outpaint-stage > img,
+#landingPage.is-light .board-tile-wrap img {
+  filter: saturate(0.58) contrast(1.02) brightness(1);
+}
+
+#landingPage.is-light .plate::after,
+#landingPage.is-light .essence-plate::after,
+#landingPage.is-light .msg-grid figure::after,
+#landingPage.is-light .outpaint-frame::after,
+#landingPage.is-light .board-tile-wrap::after {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.08) 0%, rgba(250, 247, 255, 0.12) 100%);
+}
+
+#landingPage.is-light .plate {
+  box-shadow:
+    0 30px 60px -34px rgba(76, 29, 149, 0.32),
+    0 0 0 1px rgba(124, 58, 237, 0.08);
+}
+
+#landingPage.is-light .btn-primary {
+  color: #fff;
+  background: linear-gradient(120deg, #a855f7 0%, #c026d3 55%, #ec4899 100%);
+  box-shadow: 0 10px 30px -12px rgba(168, 85, 247, 0.5);
+
+  &:hover {
+    box-shadow: 0 16px 40px -14px rgba(236, 72, 153, 0.55);
+  }
+}
+
+#landingPage.is-light .btn-ghost {
+  background: rgba(255, 255, 255, 0.7);
+
+  &:hover {
+    background: #fff;
+    border-color: rgba(124, 58, 237, 0.5);
+  }
+}
+
+#landingPage.is-light .swatch {
+  box-shadow: inset 0 0 0 1px rgba(76, 29, 149, 0.16);
+}
+
+#landingPage.is-light .card {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%);
+}
+
+#landingPage.is-light .card::after {
+  background: radial-gradient(120% 90% at 50% 0%, rgba(168, 85, 247, 0.14), transparent 60%);
+}
+
+#landingPage.is-light .panel {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.76) 100%);
+}
+
+#landingPage.is-light .mini-ai,
+#landingPage.is-light .msg-ai {
+  background: #fff;
+}
+
+#landingPage.is-light .collab-board {
+  background-color: rgba(255, 255, 255, 0.75);
+  background-image: radial-gradient(circle at 1px 1px, rgba(124, 58, 237, 0.18) 1px, transparent 0);
+}
+
+#landingPage.is-light .avatar {
+  background: #fff;
+  border-color: rgba(124, 58, 237, 0.22);
+}
+
+#landingPage.is-light .av-2 {
+  background: #f5f3ff;
+}
+
+#landingPage.is-light .outpaint-core {
+  border-color: rgba(236, 72, 153, 0.9);
+  box-shadow: 0 0 0 9999px rgba(124, 58, 237, 0.3);
+}
+
+/* 深色小药丸上的文字在亮主题里换回亮薄荷，保证对比 */
+#landingPage.is-light .outpaint-badge,
+#landingPage.is-light .core-label {
+  color: #34d399;
+}
+
+#landingPage.is-light .composer-send {
+  color: #fff;
+}
+
+#landingPage.is-light .cta-glow {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.24) 0%, transparent 62%);
+}
+
+#landingPage.is-light .progress-rail span {
+  background: linear-gradient(90deg, transparent, #a855f7 55%, #ec4899);
 }
 
 /* ===================================================================
