@@ -102,7 +102,7 @@ const router = createRouter({
           path: 'user/center',
           name: 'UserCenter',
           component: UserCenterPage,
-          meta: { title: '用户中心', requiresAuth: true },
+          meta: { title: '用户中心', requiresAuth: true, fullWidth: true },
         },
         {
           // 违规资源处置：独立于平台管理员的处置角色

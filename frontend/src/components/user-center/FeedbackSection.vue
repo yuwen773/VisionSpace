@@ -1,111 +1,141 @@
 <template>
-  <div class="glass-section">
-    <h2 class="section-title">意见反馈</h2>
-    <p class="feedback-subtitle">您的问题和建议是我们改进的动力</p>
-
-    <!-- 反馈类型 -->
-    <div class="form-group">
-      <label class="form-label">反馈类型</label>
-      <div class="type-cards">
-        <div
-          v-for="item in feedbackTypeOptions"
-          :key="item.value"
-          class="type-card"
-          :class="{ active: feedbackForm.type === item.value }"
-          @click="feedbackForm.type = item.value"
-        >
-          <component :is="item.icon" :size="24" class="type-icon" />
-          <span class="type-name">{{ item.label }}</span>
-          <div v-if="feedbackForm.type === item.value" class="type-glow" />
+  <RecordSection
+    index="05"
+    title="意见反馈"
+    label="FEEDBACK"
+    lede="你遇到的问题和建议是我们改进的依据。选择一个类型，写下发生了什么；最多可以附五张截图。"
+  >
+    <form class="feedback-form" novalidate @submit.prevent="doFeedbackSubmit">
+      <!-- 类型 -->
+      <fieldset class="type-fieldset">
+        <legend class="uc-label">
+          <span>反馈类型</span>
+          <span class="mono">TYPE</span>
+        </legend>
+        <div class="type-cards">
+          <label
+            v-for="(item, index) in feedbackTypeOptions"
+            :key="item.value"
+            class="type-card"
+            :class="{ 'is-active': feedbackForm.type === item.value }"
+          >
+            <input
+              v-model="feedbackForm.type"
+              class="type-input sr-only"
+              type="radio"
+              name="uc-feedback-type"
+              :value="item.value"
+            />
+            <span class="type-index mono">{{ String(index + 1).padStart(2, '0') }}</span>
+            <component :is="item.icon" :size="22" :stroke-width="1.5" class="type-icon" />
+            <span class="type-name">{{ item.label }}</span>
+            <Check
+              v-if="feedbackForm.type === item.value"
+              :size="15"
+              :stroke-width="1.8"
+              class="type-check"
+              aria-hidden="true"
+            />
+          </label>
         </div>
+      </fieldset>
+
+      <!-- 标题 -->
+      <div class="uc-form-row">
+        <label class="uc-label" for="uc-feedback-title">
+          <span>标题</span>
+          <span class="mono">{{ feedbackForm.title.length }} / 50</span>
+        </label>
+        <input
+          id="uc-feedback-title"
+          v-model="feedbackForm.title"
+          class="uc-field"
+          type="text"
+          maxlength="50"
+          placeholder="请简要描述你的问题"
+          @input="formError = ''"
+        />
       </div>
-    </div>
 
-    <!-- 标题 -->
-    <div class="form-group">
-      <label class="form-label">标题</label>
-      <a-input
-        v-model:value="feedbackForm.title"
-        placeholder="请简要描述您的问题"
-        :maxlength="50"
-        show-count
-        class="glass-input"
-      />
-    </div>
-
-    <!-- 详细描述 -->
-    <div class="form-group">
-      <label class="form-label">详细描述</label>
-      <a-textarea
-        v-model:value="feedbackForm.content"
-        placeholder="请详细描述您的问题或建议..."
-        :rows="6"
-        :maxlength="2000"
-        show-count
-        class="glass-input"
-      />
-    </div>
-
-    <!-- 附件截图 -->
-    <div class="form-group">
-      <label class="form-label">附件截图（可选，最多5张）</label>
-      <div class="upload-list">
-        <div
-          v-for="(attachment, index) in feedbackForm.attachments"
-          :key="attachment.id ?? index"
-          class="upload-item"
-        >
-          <img :src="contentSrc(attachment.url)" alt="附件" />
-          <span class="upload-remove" @click="removeFeedbackPicture(index)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </span>
-        </div>
-        <div
-          v-if="feedbackForm.attachments.length < 5"
-          class="upload-trigger"
-          @click="triggerFeedbackUpload"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span>上传图片</span>
-        </div>
+      <!-- 描述 -->
+      <div class="uc-form-row">
+        <label class="uc-label" for="uc-feedback-content">
+          <span>详细描述</span>
+          <span class="mono">{{ feedbackForm.content.length }} / 2000</span>
+        </label>
+        <textarea
+          id="uc-feedback-content"
+          v-model="feedbackForm.content"
+          class="uc-field"
+          rows="6"
+          maxlength="2000"
+          placeholder="请详细描述你的问题或建议……"
+          @input="formError = ''"
+        ></textarea>
       </div>
-      <input
-        ref="feedbackFileInputRef"
-        type="file"
-        accept="image/*"
-        multiple
-        style="display: none"
-        @change="handleFeedbackFileChange"
-      />
-    </div>
 
-    <!-- 提交 -->
-    <div class="form-actions">
-      <a-button
-        type="primary"
-        size="large"
-        :loading="feedbackSubmitting"
-        class="submit-btn"
-        @click="doFeedbackSubmit"
-      >
-        提交反馈
-      </a-button>
-    </div>
-  </div>
+      <!-- 附件 -->
+      <div class="uc-form-row">
+        <span class="uc-label">
+          <span>附件截图</span>
+          <span class="mono">{{ feedbackForm.attachments.length }} / 5 · 单张 ≤ 5MB</span>
+        </span>
+        <div class="upload-list">
+          <div
+            v-for="(attachment, index) in feedbackForm.attachments"
+            :key="attachment.id ?? index"
+            class="upload-item"
+          >
+            <img :src="contentSrc(attachment.url)" alt="反馈附件截图" />
+            <button
+              type="button"
+              class="upload-remove"
+              :aria-label="`移除第 ${index + 1} 张附件`"
+              @click="removeFeedbackPicture(index)"
+            >
+              <X :size="12" :stroke-width="2.2" />
+            </button>
+          </div>
+          <button
+            v-if="feedbackForm.attachments.length < 5"
+            type="button"
+            class="upload-trigger"
+            @click="triggerFeedbackUpload"
+          >
+            <Plus :size="20" :stroke-width="1.5" aria-hidden="true" />
+            <span class="mono">ADD IMAGE</span>
+          </button>
+        </div>
+        <input
+          ref="feedbackFileInputRef"
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          @change="handleFeedbackFileChange"
+        />
+      </div>
+
+      <p v-if="formError" class="uc-status uc-status--error" role="alert">{{ formError }}</p>
+
+      <div class="uc-actions submit-row">
+        <button type="submit" class="uc-btn uc-btn--solid" :disabled="feedbackSubmitting">
+          {{ feedbackSubmitting ? '提交中…' : '提交反馈' }}
+        </button>
+        <span class="mono submit-note">FEEDBACK GOES TO THE VISIONSPACE TEAM</span>
+      </div>
+    </form>
+  </RecordSection>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { Lightbulb, Flag, Ticket } from 'lucide-vue-next'
+import { Lightbulb, Flag, Ticket, Plus, X, Check } from 'lucide-vue-next'
 import { addFeedbackUsingPost, uploadFeedbackAttachmentUsingPost } from '@/api/feedbackController'
 import { attachmentIdsOf } from '@/api-custom/resourceProtection'
 import { contentSrc } from '@/utils'
+import RecordSection from '@/components/user-center/RecordSection.vue'
 
 const feedbackTypeOptions = [
   { value: 1, label: '产品建议', icon: Lightbulb },
@@ -122,6 +152,7 @@ const feedbackForm = ref({
 })
 
 const feedbackSubmitting = ref(false)
+const formError = ref('')
 const feedbackFileInputRef = ref<HTMLInputElement | null>(null)
 
 const triggerFeedbackUpload = () => {
@@ -174,13 +205,14 @@ const removeFeedbackPicture = (index: number) => {
 
 const doFeedbackSubmit = async () => {
   if (!feedbackForm.value.title.trim()) {
-    message.warning('请输入标题')
+    formError.value = '请填写标题，让团队知道这条反馈关于什么。'
     return
   }
   if (!feedbackForm.value.content.trim()) {
-    message.warning('请输入详细描述')
+    formError.value = '请补充详细描述，方便我们复现或理解。'
     return
   }
+  formError.value = ''
 
   feedbackSubmitting.value = true
   try {
@@ -193,13 +225,13 @@ const doFeedbackSubmit = async () => {
       attachmentIds: attachmentIdsOf(feedbackForm.value.attachments),
     })
     if (res.data.code === 0) {
-      message.success('反馈提交成功！感谢您的宝贵意见')
+      message.success('反馈提交成功，感谢你的意见')
       feedbackForm.value = { type: 1, title: '', content: '', attachments: [] }
     } else {
-      message.error(res.data.message || '提交失败')
+      formError.value = res.data.message || '提交失败，请稍后重试。'
     }
-  } catch (err) {
-    message.error('提交失败，请重试')
+  } catch {
+    formError.value = '提交失败，请稍后重试。'
   } finally {
     feedbackSubmitting.value = false
   }
@@ -207,91 +239,104 @@ const doFeedbackSubmit = async () => {
 </script>
 
 <style scoped>
-.feedback-subtitle {
-  color: var(--color-text-tertiary);
-  font-size: var(--text-sm);
-  margin-bottom: var(--space-6);
+.feedback-form {
+  max-width: 780px;
 }
 
-/* Form */
-.form-group {
-  margin-bottom: var(--space-5);
+/* ============ 类型 ============ */
+.type-fieldset {
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  border: none;
 }
 
-.form-label {
-  display: block;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
+.type-fieldset legend {
+  padding: 0;
+  width: 100%;
 }
 
-/* Type Cards */
 .type-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .type-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 16px 16px;
+  border: 1px solid var(--uc-line-strong);
+  background: transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  overflow: hidden;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .type-card:hover {
-  border-color: var(--color-primary-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--uc-ink-3);
 }
 
-.type-card.active {
-  border-color: var(--color-primary);
-  background: rgba(168, 85, 247, 0.06);
+.type-card.is-active {
+  border-color: var(--uc-accent);
+  background: rgba(183, 162, 255, 0.06);
 }
 
-.type-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center, rgba(168, 85, 247, 0.08), transparent 70%);
-  pointer-events: none;
+.is-light .type-card.is-active {
+  background: rgba(124, 58, 237, 0.06);
+}
+
+.type-input:focus-visible + .type-index {
+  outline: 2px solid var(--uc-accent);
+  outline-offset: 3px;
+}
+
+.type-index {
+  font-size: 9px;
+  color: var(--uc-ink-3);
+}
+
+.type-card.is-active .type-index {
+  color: var(--uc-accent);
 }
 
 .type-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: var(--uc-ink-2);
+}
+
+.type-card.is-active .type-icon {
+  color: var(--uc-accent);
 }
 
 .type-name {
-  font-weight: 700;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--uc-ink);
 }
 
-/* Upload */
+.type-check {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--uc-accent);
+}
+
+/* ============ 附件 ============ */
 .upload-list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: 10px;
 }
 
 .upload-item {
   position: relative;
-  width: 96px;
-  height: 96px;
-  border-radius: var(--radius-xl);
+  width: 92px;
+  height: 92px;
+  border: 1px solid var(--uc-line);
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
 }
 
 .upload-item img {
@@ -304,84 +349,84 @@ const doFeedbackSubmit = async () => {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 22px;
-  height: 22px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(5, 6, 12, 0.72);
+  color: #fff;
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .upload-remove:hover {
-  background: rgba(239, 68, 68, 0.8);
-}
-
-.upload-remove svg {
-  width: 12px;
-  height: 12px;
-  color: white;
+  background: rgba(185, 28, 28, 0.9);
 }
 
 .upload-trigger {
-  width: 96px;
-  height: 96px;
-  border: 2px dashed var(--border-default);
-  border-radius: var(--radius-xl);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  color: var(--color-text-tertiary);
+  gap: 8px;
+  width: 92px;
+  height: 92px;
+  padding: 0;
+  border: 1px dashed var(--uc-line-strong);
+  background: transparent;
+  color: var(--uc-ink-3);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  background: var(--bg-secondary);
+  transition:
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .upload-trigger:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: rgba(168, 85, 247, 0.04);
+  border-color: var(--uc-accent);
+  color: var(--uc-accent);
 }
 
-.upload-trigger svg {
-  width: 22px;
-  height: 22px;
+.upload-trigger .mono {
+  font-size: 8px;
 }
 
-.upload-trigger span {
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-/* Submit */
-.form-actions {
-  display: flex;
-  justify-content: center;
+/* ============ 提交 ============ */
+.submit-row {
   margin-top: var(--space-6);
 }
 
-.submit-btn {
-  min-width: 180px;
-  height: 44px;
-  border-radius: var(--radius-full);
-  font-weight: 700;
-  font-size: var(--text-base);
-  box-shadow: var(--shadow-glow-purple);
+.submit-note {
+  font-size: 8px;
+  letter-spacing: 0.14em;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .type-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .upload-list {
-    justify-content: center;
+  .type-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .type-index {
+    order: -1;
+  }
+
+  .type-name {
+    flex: 1;
+  }
+
+  .type-check {
+    position: static;
+    margin-left: auto;
   }
 }
 </style>
