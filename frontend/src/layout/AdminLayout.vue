@@ -17,7 +17,8 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, provide } from 'vue'
+import { ref, provide, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import AdminSidebar from '@/components/admin/AdminSidebar.vue'
 import AdminHeader from '@/components/admin/AdminHeader.vue'
 
@@ -25,10 +26,21 @@ import AdminHeader from '@/components/admin/AdminHeader.vue'
 import '@/styles/admin-theme.css'
 
 const sidebarRef = ref<InstanceType<typeof AdminSidebar> | null>(null)
-const sidebarCollapsed = ref(false)
+// 窄屏默认收成图标栏：240px 的展开态会盖住大部分表格
+const isNarrowViewport = () => window.matchMedia('(max-width: 1024px)').matches
+const sidebarCollapsed = ref(isNarrowViewport())
 
-// 可以通过 provide 向子组件传递侧边栏折叠状态
+// 可以在子组件中注入侧边栏折叠状态
 provide('sidebarCollapsed', sidebarCollapsed)
+
+// 窄屏下跳转后收起侧栏，避免浮层一直挡在内容上
+const route = useRoute()
+watch(
+  () => route.path,
+  () => {
+    if (isNarrowViewport()) sidebarCollapsed.value = true
+  },
+)
 </script>
 
 <style lang="less" scoped>
@@ -51,9 +63,21 @@ provide('sidebarCollapsed', sidebarCollapsed)
   }
 }
 
+@media (max-width: 1024px) {
+  /* 侧栏固定 64px 图标栏，展开时浮在内容之上 */
+  .admin-main,
+  .admin-main.sidebar-collapsed {
+    margin-left: 64px;
+  }
+
+  .admin-content {
+    padding: var(--admin-space-4);
+  }
+}
+
 @media (max-width: 640px) {
-  .admin-main {
-    margin-left: 0;
+  .admin-content {
+    padding: var(--admin-space-3);
   }
 }
 

@@ -151,4 +151,14 @@ button:focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 3px;
 }
+@media (max-width: 640px) {
+  .asset-result {
+    padding: 12px;
+  }
+
+  .result-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+}
 </style>

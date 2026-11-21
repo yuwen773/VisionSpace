@@ -38,7 +38,12 @@
 
       <!-- 操作按钮栏（类 Grok） -->
       <div class="message-actions">
-        <button class="action-icon-btn" title="重新生成" @click="emit('regenerate')">
+        <button
+          class="action-icon-btn"
+          title="重新生成"
+          aria-label="重新生成"
+          @click="emit('regenerate')"
+        >
           <svg
             width="14"
             height="14"
@@ -51,7 +56,7 @@
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
         </button>
-        <button class="action-icon-btn" title="复制" @click="copyContent">
+        <button class="action-icon-btn" title="复制" aria-label="复制" @click="copyContent">
           <svg
             width="14"
             height="14"
@@ -64,7 +69,7 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
           </svg>
         </button>
-        <button class="action-icon-btn" title="分享" @click="emit('share')">
+        <button class="action-icon-btn" title="分享" aria-label="分享" @click="emit('share')">
           <svg
             width="14"
             height="14"
@@ -428,7 +433,7 @@ const copyContent = async () => {
   justify-content: center;
   gap: 4px;
   padding: 6px 14px !important;
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%) !important;
+  background: linear-gradient(135deg, #9333ea 0%, #db2777 100%) !important;
   border: none !important;
   color: #fff !important;
   border-radius: 6px !important;
@@ -785,5 +790,19 @@ const copyContent = async () => {
 
 .action-icon-btn.liked {
   color: var(--color-primary-500);
+}
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .assistant-message {
+    padding: 6px 12px;
+  }
+
+  .message-content {
+    padding: 8px 12px;
+  }
+
+  .markdown-body :deep(pre) {
+    font-size: 12px;
+  }
 }
 </style>

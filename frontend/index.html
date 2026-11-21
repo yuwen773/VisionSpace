@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -7,9 +7,33 @@
     <link rel="icon" type="image/svg+xml" sizes="32x32" href="/favicon-32x32.svg">
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisionSpace</title>
+    <meta
+      name="description"
+      content="VisionSpace 视觉创作空间：按颜色与语义检索高清免费图片，用 AI 生成、扩图与协作编辑。"
+    >
+    <meta name="theme-color" content="#0b0f1f" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#faf7ff" media="(prefers-color-scheme: light)">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VisionSpace">
+    <meta property="og:title" content="VisionSpace · 视觉发现与 AI 创作空间">
+    <meta
+      property="og:description"
+      content="按颜色与语义检索高清免费图片，用 AI 生成、扩图与协作编辑。"
+    >
+    <meta name="twitter:card" content="summary_large_image">
+    <title>VisionSpace · 视觉发现与 AI 创作空间</title>
+    <!-- 网页字体只在这里加载一次：先预连接，再用一条样式表统一取
+         Fredoka / Nunito / JetBrains Mono（KaushanScript 走本地 @font-face）。
+         之前各样式表重复 @import、跨 .cn/.com 两个域名，还把本地已覆盖的
+         KaushanScript 塞进同一个请求；css2 对不认识的字族整条报错，
+         品牌字体因此全部回退成系统字体。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.cn" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.cn/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+    />
     <!-- draw.io 渲染库改为本地依赖（mxgraph），不再从公共 CDN 加载第三方脚本 -->
-    <meta name="VisionSpace" content="获取高清免费大图">
   </head>
   <body>
     <div id="app"></div>

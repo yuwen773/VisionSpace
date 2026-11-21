@@ -145,7 +145,8 @@
 
   p {
     font-size: var(--text-sm);
-    color: var(--color-text-disabled);
+    /* footer 版权是正文信息，不能用 disabled 色（1.8–2.6:1） */
+    color: var(--color-text-tertiary);
     margin: 0;
   }
 }

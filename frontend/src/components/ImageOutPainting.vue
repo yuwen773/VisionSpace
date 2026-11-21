@@ -350,7 +350,8 @@ onUnmounted(() => {
 
 <style scoped lang="less">
 /* ========== Aurora (Dark) Theme ========== */
-[data-theme='aurora'] {
+/* 变量挂在 <html data-theme> 上，必须用 :global 穿透 scoped 编译。 */
+:global([data-theme='aurora']) {
   --modal-bg: rgba(15, 23, 42, 0.95);
   --modal-border: rgba(255, 255, 255, 0.1);
   --modal-glow-color: rgba(168, 85, 247, 0.12);
@@ -373,7 +374,7 @@ onUnmounted(() => {
 }
 
 /* ========== Pop (Light) Theme ========== */
-[data-theme='pop'] {
+:global([data-theme='pop']) {
   --modal-bg: #ffffff;
   --modal-border: var(--border-light);
   --modal-glow-color: rgba(155, 93, 229, 0.08);

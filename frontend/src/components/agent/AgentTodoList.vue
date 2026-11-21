@@ -277,4 +277,18 @@ const getStatusLabel = (status: string) => {
   padding-top: 0;
   padding-bottom: 0;
 }
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+  .todo-collapsed {
+    padding: 8px 12px;
+  }
+
+  .steps-row {
+    gap: 4px;
+  }
+
+  .item-title {
+    min-width: 0;
+  }
+}
 </style>

@@ -58,7 +58,13 @@
           <!-- 操作工具栏 -->
           <div class="cropper-toolbar">
             <div class="toolbar-group">
-              <button class="tool-btn" @click="rotateLeft" :disabled="!canEdit" title="向左旋转">
+              <button
+                class="tool-btn"
+                @click="rotateLeft"
+                :disabled="!canEdit"
+                title="向左旋转"
+                aria-label="向左旋转"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -72,7 +78,13 @@
                 </svg>
                 <span>左旋</span>
               </button>
-              <button class="tool-btn" @click="rotateRight" :disabled="!canEdit" title="向右旋转">
+              <button
+                class="tool-btn"
+                @click="rotateRight"
+                :disabled="!canEdit"
+                title="向右旋转"
+                aria-label="向右旋转"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -86,7 +98,13 @@
                 </svg>
                 <span>右旋</span>
               </button>
-              <button class="tool-btn" @click="changeScale(1)" :disabled="!canEdit" title="放大">
+              <button
+                class="tool-btn"
+                @click="changeScale(1)"
+                :disabled="!canEdit"
+                title="放大"
+                aria-label="放大"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -102,7 +120,13 @@
                 </svg>
                 <span>放大</span>
               </button>
-              <button class="tool-btn" @click="changeScale(-1)" :disabled="!canEdit" title="缩小">
+              <button
+                class="tool-btn"
+                @click="changeScale(-1)"
+                :disabled="!canEdit"
+                title="缩小"
+                aria-label="缩小"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -479,7 +503,9 @@ const editAction = (action: string) => {
 
 <style scoped lang="less">
 /* ========== Aurora (Dark) Theme ========== */
-[data-theme='aurora'] {
+/* 变量挂在 <html data-theme> 上，必须用 :global 穿透 scoped 编译，
+   否则选择器会被附加 data-v 属性而永远匹配不到。 */
+:global([data-theme='aurora']) {
   --modal-bg: rgba(15, 23, 42, 0.95);
   --modal-border: rgba(255, 255, 255, 0.1);
   --modal-glow-color: rgba(168, 85, 247, 0.12);
@@ -502,7 +528,7 @@ const editAction = (action: string) => {
 }
 
 /* ========== Pop (Light) Theme ========== */
-[data-theme='pop'] {
+:global([data-theme='pop']) {
   --modal-bg: #ffffff;
   --modal-border: var(--border-light);
   --modal-glow-color: rgba(155, 93, 229, 0.08);

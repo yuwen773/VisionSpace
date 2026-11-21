@@ -72,9 +72,11 @@
       <!-- 用户区域 -->
       <div class="header-right">
         <!-- 主题切换按钮 -->
-        <div
+        <button
+          type="button"
           class="theme-toggle-wrapper"
           @click="toggleTheme"
+          :aria-label="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'"
           :title="currentTheme === 'aurora' ? '切换到浅色主题' : '切换到极光主题'"
         >
           <div class="theme-toggle-pill" :class="currentTheme">
@@ -82,11 +84,11 @@
             <span class="theme-icon-item moon"><Moon :size="14" /></span>
             <div class="theme-toggle-slider"></div>
           </div>
-        </div>
+        </button>
 
         <div v-if="loginUserStore.loginUser.id" class="user-section">
           <a-dropdown :placement="'bottomRight'" class="cosmic-dropdown">
-            <div class="user-trigger">
+            <button type="button" class="user-trigger" aria-label="用户菜单" aria-haspopup="menu">
               <div class="user-avatar-wrapper">
                 <a-avatar :src="loginUserStore.loginUser.userAvatar" class="user-avatar" />
                 <span class="avatar-ring"></span>
@@ -110,7 +112,7 @@
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </span>
-            </div>
+            </button>
             <template #overlay>
               <div class="cosmic-dropdown-menu">
                 <!-- 用户信息头部 -->
@@ -195,9 +197,12 @@
 
         <!-- 汉堡菜单按钮（移动端） -->
         <button
+          type="button"
           class="hamburger-btn"
           @click="toggleMobileMenu"
           :class="{ active: mobileMenuVisible }"
+          :aria-label="mobileMenuVisible ? '关闭菜单' : '打开菜单'"
+          :aria-expanded="mobileMenuVisible"
         >
           <span class="hamburger-line"></span>
           <span class="hamburger-line"></span>
@@ -774,7 +779,7 @@ onUnmounted(() => {
     content: '';
     width: 16px;
     height: 2px;
-    background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-purple));
+    background: linear-gradient(90deg, var(--color-primary-strong), var(--color-accent-strong));
     border-radius: 2px;
   }
 }
@@ -875,7 +880,7 @@ onUnmounted(() => {
         transform: translateX(-50%);
         width: 20px;
         height: 3px;
-        background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-purple));
+        background: linear-gradient(90deg, var(--color-primary-strong), var(--color-accent-strong));
         border-radius: 2px;
         box-shadow: 0 0 10px var(--color-primary-500);
       }
@@ -916,6 +921,9 @@ onUnmounted(() => {
   background: var(--bg-secondary);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-default);
+  color: inherit;
+  font: inherit;
+  text-align: left;
 
   &:hover {
     border-color: var(--color-primary);
@@ -952,7 +960,8 @@ onUnmounted(() => {
     inset: -2px;
     border-radius: var(--radius-lg);
     border: 2px solid transparent;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) border-box;
+    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-secondary-strong))
+      border-box;
     mask:
       linear-gradient(#fff 0 0) padding-box,
       linear-gradient(#fff 0 0);
@@ -1220,7 +1229,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-purple));
+    background: linear-gradient(135deg, var(--color-primary-strong), var(--color-accent-strong));
     border-radius: 50%;
     color: white;
 
@@ -1272,6 +1281,7 @@ onUnmounted(() => {
   align-items: center;
   position: relative;
   flex-shrink: 0;
+  color: inherit;
 
   &:hover {
     border-color: var(--color-primary-400);
@@ -1416,11 +1426,12 @@ onUnmounted(() => {
   }
 
   &.primary {
+    /* 用 *-strong 令牌：白字需在渐变的每一段上都 ≥4.5:1 */
     background: linear-gradient(
       135deg,
-      var(--color-primary-500) 0%,
-      var(--color-secondary-500) 50%,
-      var(--color-accent-purple) 100%
+      var(--color-primary-strong) 0%,
+      var(--color-secondary-strong) 50%,
+      var(--color-accent-strong) 100%
     );
     color: white;
     border: none;

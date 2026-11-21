@@ -211,4 +211,11 @@ const toggleCollapse = () => {
     white-space: nowrap;
   }
 }
+/* ============ 响应式 ============ */
+/* 窄屏下展开的侧栏是浮层，需要阴影区分层级 */
+@media (max-width: 1024px) {
+  .admin-sidebar:not(.collapsed) {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  }
+}
 </style>

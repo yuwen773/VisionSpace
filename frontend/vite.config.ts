@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       globals: true,
+      setupFiles: ['./src/test/setup.ts'],
     },
     server: {
       allowedHosts: process.env.VITE_DEV_HOST ? [process.env.VITE_DEV_HOST] : [],
@@ -36,6 +37,24 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: 'http://localhost:8081',
           changeOrigin: true,
+        },
+      },
+    },
+    build: {
+      // 重依赖按用途拆包：首屏只加载当前路由需要的块
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return
+            if (id.includes('/three/')) return 'vendor-three'
+            if (id.includes('/echarts/') || id.includes('/zrender/')) return 'vendor-echarts'
+            if (id.includes('/mxgraph/')) return 'vendor-mxgraph'
+            if (id.includes('ant-design-vue') || id.includes('@ant-design')) return 'vendor-antd'
+            // 其余交给 Rollup 默认分包：mermaid 的图表渲染器本身已按需动态加载，
+            // 强行合并会退化成单个大 chunk，失去按需加载的意义。
+            return undefined
+          },
         },
       },
     },
