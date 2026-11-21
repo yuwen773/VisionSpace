@@ -31,7 +31,9 @@ import com.yuwen.visionspace.model.vo.PictureTagCategory;
 import com.yuwen.visionspace.model.vo.PictureVO;
 import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.service.PictureContentService;
+import com.yuwen.visionspace.service.PictureDeletionService;
 import com.yuwen.visionspace.service.PictureService;
+import com.yuwen.visionspace.service.PictureUploadService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
@@ -63,6 +65,12 @@ public class PictureController {
 
     @Resource
     private PictureService pictureService;
+
+    @Resource
+    private PictureUploadService pictureUploadService;
+
+    @Resource
+    private PictureDeletionService pictureDeletionService;
 
     @Resource
     private SpaceService spaceService;
@@ -98,7 +106,7 @@ public class PictureController {
             PictureUploadRequest pictureUploadRequest,
             HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
-        PictureVO pictureVO = pictureService.uploadPicture(multipartFile, pictureUploadRequest, loginUser);
+        PictureVO pictureVO = pictureUploadService.uploadPicture(multipartFile, pictureUploadRequest, loginUser);
         return ResultUtils.success(pictureVO);
     }
 
@@ -111,7 +119,7 @@ public class PictureController {
             HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         String fileUrl = pictureUploadRequest.getFileUrl();
-        PictureVO pictureVO = pictureService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
+        PictureVO pictureVO = pictureUploadService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
         return ResultUtils.success(pictureVO);
     }
 
@@ -130,7 +138,7 @@ public class PictureController {
         User loginUser = userService.getLoginUser(request);
         // 隔离中的资源保留原文等待人工处置：删除不能成为绕过恢复与审计的路径。
         // 判定放在服务层，直接调用服务的入口同样受约束。
-        pictureService.deletePicture(deleteRequest.getId(), loginUser);
+        pictureDeletionService.deletePicture(deleteRequest.getId(), loginUser);
         return ResultUtils.success(true);
     }
 
@@ -387,7 +395,7 @@ public class PictureController {
                                                       HttpServletRequest request) {
         ThrowUtils.throwIf(pictureUploadByBatchRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
-        int uploadCount = pictureService.uploadPictureByBatch(pictureUploadByBatchRequest, loginUser);
+        int uploadCount = pictureUploadService.uploadPictureByBatch(pictureUploadByBatchRequest, loginUser);
         return ResultUtils.success(uploadCount);
     }
 
