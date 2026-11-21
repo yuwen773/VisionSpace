@@ -1,6 +1,7 @@
 package com.yuwen.visionspace.agent;
 
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunLifecycle;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -57,6 +58,7 @@ class ImageAgentPendingReviewGateTest {
         ReflectionTestUtils.setField(imageAgent, "sessionGuard", sessionGuard);
         ReflectionTestUtils.setField(imageAgent, "recoveryService", recoveryService);
         ReflectionTestUtils.setField(imageAgent, "runStateStore", runStateStore);
+        ReflectionTestUtils.setField(imageAgent, "runLifecycle", new AgentRunLifecycle(runStateStore));
         ReflectionTestUtils.setField(imageAgent, "chatHistoryService", chatHistoryService);
 
         // 存在结果未知的动作：所有入口都必须停住
