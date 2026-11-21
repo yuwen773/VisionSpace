@@ -128,9 +128,7 @@ src/main/java/com/yuwen/visionspace/
 │   │   ├── ImageGeneratorTool.java    # 图片生成
 │   │   ├── ImageFeatureAnalyzerTool.java # 特征分析
 │   │   ├── QualityEvaluatorTool.java  # 质量评估
-│   │   ├── SimilarImageSearchTool.java # 相似图搜索
-│   │   ├── MermaidDiagramTool.java    # Mermaid 图表
-│   │   └── UndrawIllustrationTool.java # 插画生成
+│   │   └── SimilarImageSearchTool.java # 相似图搜索
 │   ├── hooks/             # Agent 钩子
 │   │   ├── IterationControlHook.java  # 迭代控制
 │   │   ├── MessageTrimmingHook.java    # 消息裁剪
@@ -284,8 +282,6 @@ double similarity = ColorSimilarUtils.calculateSimilarity("#FF5733", "#FF0000");
 | ImageFeatureAnalyzerTool | 特征分析 |
 | QualityEvaluatorTool | 质量评估 |
 | SimilarImageSearchTool | 相似图搜索 |
-| MermaidDiagramTool | Mermaid 图表生成 |
-| UndrawIllustrationTool | 插画生成 |
 
 **Agent Hooks：**
 

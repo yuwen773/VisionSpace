@@ -19,7 +19,6 @@ class ExternalActionPolicyTest {
     void readOnlyToolsCanSafelyRetryIncludingInternalSearch() {
         assertTrue(ExternalActionPolicy.canSafelyRetry("searchContentImages"));
         assertTrue(ExternalActionPolicy.canSafelyRetry("searchSimilarImages"));
-        assertTrue(ExternalActionPolicy.canSafelyRetry("searchIllustrations"));
         assertTrue(ExternalActionPolicy.canSafelyRetry("searchInternalImages"));
         assertTrue(ExternalActionPolicy.canSafelyRetry("analyzeImageFeatures"));
         assertTrue(ExternalActionPolicy.canSafelyRetry("evaluateImageQuality"));

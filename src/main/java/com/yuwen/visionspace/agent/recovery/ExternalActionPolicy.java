@@ -48,7 +48,6 @@ public final class ExternalActionPolicy {
     private static final Set<String> IDEMPOTENT_TOOLS = Set.of(
             "searchContentImages",
             "searchSimilarImages",
-            "searchIllustrations",
             "searchInternalImages",
             "analyzeImageFeatures",
             "evaluateImageQuality"

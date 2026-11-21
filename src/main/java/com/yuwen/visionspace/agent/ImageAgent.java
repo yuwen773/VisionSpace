@@ -168,7 +168,6 @@ public class ImageAgent {
             #### 用户用文字描述需求
             1. 首先调用 searchInternalImages 在站内图片库中搜索匹配的图片
             2. 如果站内搜索结果不足，再调用 searchContentImages 从 Pexels 搜索补充
-            3. 可按需调用 searchIllustrations 搜索插画
 
             #### 通用后续步骤
             - 调用 evaluateImageQuality 评估搜索结果
