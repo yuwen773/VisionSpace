@@ -5,8 +5,10 @@
  * 风格: 深邃星空、神秘星云、沉浸光晕
  */
 
-/* ========== 导入字体 ========== */
-@import url('https://fonts.googleapis.cn/css2?family=Fredoka:wght@300;400;500;600;700;800&family=Nunito:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=KaushanScript&display=swap');
+/* ========== 导入字体 ==========
+   Noto Serif SC 只用于登录/注册页的大标题与竖排引句这类需要印刷感的中文；
+   Fredoka/Nunito 都没有中文字形，中文标题此前一直落到系统默认黑体。 */
+@import url('https://fonts.googleapis.cn/css2?family=Fredoka:wght@300;400;500;600;700;800&family=Nunito:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=KaushanScript&family=Noto+Serif+SC:wght@600;700;900&display=swap');
 
 /* ========== 品牌字体 - Kaushan Script (本地加载确保可靠性) ========== */
 @font-face {
