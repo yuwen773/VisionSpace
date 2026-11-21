@@ -98,7 +98,7 @@
             v-model="inputText"
             :placeholder="
               inputText.length === 0 && attachments.length === 0
-                ? 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片'
+                ? 'Enter 发送，Shift+Enter 换行，Ctrl+V 粘贴图片'
                 : ''
             "
             :rows="1"
@@ -296,41 +296,29 @@ onUnmounted(() => {
 <style scoped>
 /* ============ Root ============ */
 .agent-chat-input {
-  padding: 8px 16px 6px;
+  padding: 10px clamp(16px, 4vw, 24px) 8px;
   position: relative;
   z-index: 10;
 }
 
 /* ============ Input Container ============ */
 .input-container {
-  border-radius: 20px;
-  border: 1.5px solid var(--color-border-subtle);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-default);
   background: var(--color-bg-elevated);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
 .agent-chat-input.focused .input-container {
-  border-color: var(--color-primary-500);
+  border-color: var(--color-primary);
   box-shadow:
-    0 0 0 3px rgba(168, 85, 247, 0.12),
-    0 4px 16px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
-}
-
-[data-theme='aurora'] .agent-chat-input.focused .input-container {
-  border-color: #2268f5;
-  box-shadow:
-    0 0 0 3px rgba(34, 104, 245, 0.15),
-    0 4px 16px rgba(34, 104, 245, 0.08);
-}
-
-[data-theme='pop'] .agent-chat-input.focused .input-container {
-  border-color: #a855f7;
-  box-shadow:
-    0 0 0 3px rgba(168, 85, 247, 0.15),
-    0 4px 16px rgba(168, 85, 247, 0.06);
+    0 0 0 4px color-mix(in srgb, var(--color-primary) 14%, transparent),
+    var(--shadow-md);
 }
 
 /* ============ Attachment Strip ============ */
@@ -371,11 +359,9 @@ onUnmounted(() => {
 }
 
 .img-preview:hover {
-  border-color: var(--color-primary-500);
-  box-shadow:
-    0 0 0 2px rgba(168, 85, 247, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: scale(1.05);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  transform: scale(1.04);
 }
 
 .img-preview:hover .img-zoom-hint {
@@ -517,18 +503,8 @@ onUnmounted(() => {
 }
 
 .attach-btn:hover {
-  color: var(--color-primary-500);
-  background: rgba(168, 85, 247, 0.08);
-}
-
-[data-theme='aurora'] .attach-btn:hover {
-  color: #2268f5;
-  background: rgba(34, 104, 245, 0.08);
-}
-
-[data-theme='pop'] .attach-btn:hover {
-  color: #a855f7;
-  background: rgba(168, 85, 247, 0.06);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 /* ============ Textarea ============ */
@@ -542,7 +518,7 @@ onUnmounted(() => {
   width: 100%;
   padding: 9px 44px 9px 6px;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
   color: var(--color-text-primary);
   background: transparent;
@@ -597,142 +573,68 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
   margin-bottom: 1px;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
-/* -- Send button: prominent gradient -- */
+/* -- Send: 单一强调色实底，不使用外发光环 -- */
 .send-btn {
-  background: linear-gradient(135deg, #9333ea, #7c3aed);
-  color: white;
-  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
+  background: var(--color-primary-600);
+  color: #ffffff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
 
 .send-btn:disabled {
   background: var(--color-bg-tertiary);
   color: var(--color-text-tertiary);
-  opacity: 0.5;
-  cursor: not-allowed;
   box-shadow: none;
-  filter: none;
-  transform: none;
+  cursor: not-allowed;
 }
 
 .send-btn:not(:disabled):hover {
-  transform: translateY(-1px) scale(1.08);
-  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.35);
-  filter: brightness(1.08);
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--color-primary) 34%, transparent);
 }
 
 .send-btn:not(:disabled):active {
-  transform: scale(0.93);
-  box-shadow: 0 1px 4px rgba(168, 85, 247, 0.2);
+  transform: scale(0.94);
+  box-shadow: none;
 }
 
-/* Theme variants */
-[data-theme='aurora'] .send-btn:not(:disabled) {
-  background: linear-gradient(135deg, #2268f5, #4f46e5);
-  box-shadow: 0 2px 8px rgba(34, 104, 245, 0.25);
-}
-
-[data-theme='aurora'] .send-btn:not(:disabled):hover {
-  box-shadow:
-    0 4px 20px rgba(34, 104, 245, 0.4),
-    0 0 40px rgba(79, 70, 229, 0.15);
-}
-
-[data-theme='pop'] .send-btn:not(:disabled) {
-  background: linear-gradient(135deg, #a855f7, #ec4899);
-  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
-}
-
-[data-theme='pop'] .send-btn:not(:disabled):hover {
-  box-shadow:
-    0 4px 20px rgba(168, 85, 247, 0.4),
-    0 0 40px rgba(236, 72, 153, 0.12);
-}
-
-/* Animated glow ring */
-.send-btn:not(:disabled)::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 14px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-}
-
-[data-theme='aurora'] .send-btn:not(:disabled)::after {
-  background: conic-gradient(
-    from 0deg,
-    transparent,
-    rgba(34, 104, 245, 0.25),
-    transparent,
-    rgba(79, 70, 229, 0.25),
-    transparent
-  );
-  animation: glowSpin 3s linear infinite;
-}
-
-[data-theme='pop'] .send-btn:not(:disabled)::after {
-  background: conic-gradient(
-    from 0deg,
-    transparent,
-    rgba(168, 85, 247, 0.25),
-    transparent,
-    rgba(236, 72, 153, 0.25),
-    transparent
-  );
-  animation: glowSpin 3s linear infinite;
-}
-
-.agent-chat-input.focused .send-btn:not(:disabled)::after {
-  opacity: 1;
-}
-
-@keyframes glowSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* -- Stop button: urgent red -- */
+/* -- Stop：表示「正在输出」的状态色 -- */
 .stop-btn {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-  animation: stopPulse 1.5s ease-in-out infinite;
+  background: var(--color-error);
+  color: #ffffff;
+  animation: stop-breathe 1.8s ease-in-out infinite;
 }
 
 .stop-btn:hover {
-  filter: brightness(1.15);
-  transform: scale(1.05);
+  filter: brightness(1.08);
+  transform: scale(1.04);
 }
 
 .stop-btn:active {
-  transform: scale(0.93);
+  transform: scale(0.94);
   animation: none;
 }
 
-@keyframes stopPulse {
+@keyframes stop-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+    opacity: 1;
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    opacity: 0.82;
   }
 }
 

@@ -38,6 +38,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .agent-chat-layout {
+  position: relative;
   display: flex;
   height: 100%;
   overflow: hidden;
@@ -50,17 +51,20 @@ const emit = defineEmits<{
 }
 
 .layout-left {
-  width: 260px;
+  width: 276px;
   flex-shrink: 0;
   transition:
     width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.3s ease;
+    opacity 0.25s ease;
   overflow: hidden;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-subtle);
 }
 
 .layout-left.collapsed {
   width: 0;
   opacity: 0;
+  border-right-color: transparent;
 }
 
 .layout-center {
@@ -70,6 +74,7 @@ const emit = defineEmits<{
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background: var(--color-bg-primary);
 }
 
 .layout-right {
@@ -82,8 +87,20 @@ const emit = defineEmits<{
 }
 
 .layout-right.expanded {
-  width: 320px;
+  width: 340px;
 }
+
+@media (max-width: 1280px) {
+  .layout-right.expanded {
+    width: 300px;
+  }
+}
+
+/*
+ * 窄屏：左右两栏改为覆盖式抽屉。
+ * 否则 276px 侧栏会挤掉消息区，手机上只剩一条窄缝。
+ * （断点统一在下方 1024px 区块，这里不重复声明）
+ */
 
 /* 平板及以下：两侧栏改成浮层，不再挤压对话区
  * （375px 下左栏 260px 一开，中间只剩 115px，消息无法阅读） */

@@ -117,13 +117,13 @@ const displayTime = computed(() => {
   background: var(--color-bg-elevated);
   border: 1px solid;
   border-color: transparent;
-  border-radius: 18px 18px 4px 18px;
+  border-radius: 16px 16px 4px 16px;
   position: relative;
   overflow: hidden;
   word-break: break-word;
 }
 
-/* 顶部渐变光带 — 模拟深空霓虹 */
+/* 顶部渐变光带 - 模拟深空霓虹 */
 .message-content::before {
   content: '';
   position: absolute;
@@ -134,9 +134,8 @@ const displayTime = computed(() => {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(34, 104, 245, 0.5) 20%,
-    rgba(110, 53, 235, 0.5) 50%,
-    rgba(168, 85, 247, 0.3) 80%,
+    color-mix(in srgb, var(--color-primary) 45%, transparent) 28%,
+    color-mix(in srgb, var(--color-secondary) 35%, transparent) 68%,
     transparent 100%
   );
   pointer-events: none;
@@ -152,8 +151,7 @@ const displayTime = computed(() => {
   width: 1.5px;
   background: linear-gradient(
     180deg,
-    rgba(34, 104, 245, 0.4) 0%,
-    rgba(110, 53, 235, 0.2) 50%,
+    color-mix(in srgb, var(--color-primary) 40%, transparent) 0%,
     transparent 100%
   );
   border-radius: 1px;
@@ -161,8 +159,8 @@ const displayTime = computed(() => {
 }
 
 .message-text {
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.65;
   color: var(--color-text-primary);
   padding: 2px 0;
 }
@@ -207,10 +205,7 @@ const displayTime = computed(() => {
 }
 
 .img-thumb:hover {
-  border-color: var(--color-primary-500);
-  box-shadow:
-    0 0 0 2px rgba(168, 85, 247, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
   transform: scale(1.05);
 }
 

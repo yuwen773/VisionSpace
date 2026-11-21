@@ -155,6 +155,7 @@ interface DomeGalleryProps {
   imageBorderRadius?: string
   openedImageBorderRadius?: string
   grayscale?: boolean
+  autoRotate?: boolean
 }
 
 const DEFAULT_IMAGES: ImageItem[] = [
@@ -207,6 +208,7 @@ const props = withDefaults(defineProps<DomeGalleryProps>(), {
   imageBorderRadius: '30px',
   openedImageBorderRadius: '30px',
   grayscale: true,
+  autoRotate: true,
 })
 
 const imagesSource = computed(() => props.images || DEFAULT_IMAGES)
@@ -408,10 +410,18 @@ const autoRotateStep = (now: number) => {
 }
 
 const startAutoRotate = () => {
-  if (autoRotateAnimationFrame !== null) return
+  if (!props.autoRotate || autoRotateAnimationFrame !== null) return
   lastAutoRotateTime = 0
   autoRotateAnimationFrame = requestAnimationFrame(autoRotateStep)
 }
+
+watch(
+  () => props.autoRotate,
+  (enabled) => {
+    if (enabled) startAutoRotate()
+    else stopAutoRotate()
+  },
+)
 
 const onDragStart = (e: MouseEvent | TouchEvent) => {
   if (focusedElement.value) return

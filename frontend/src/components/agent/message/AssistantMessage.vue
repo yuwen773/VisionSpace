@@ -291,7 +291,7 @@ const copyContent = async () => {
 .message-content {
   max-width: min(680px, 100%);
   padding: 10px 16px;
-  border-radius: 18px 18px 18px 4px;
+  border-radius: 16px 16px 16px 4px;
   border: 1px solid var(--color-border-subtle);
   position: relative;
 }
@@ -322,8 +322,8 @@ const copyContent = async () => {
 }
 
 .message-body {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--color-text-primary);
   word-break: break-word;
   padding-left: 2px;
