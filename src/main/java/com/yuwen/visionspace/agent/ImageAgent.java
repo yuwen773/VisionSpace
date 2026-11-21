@@ -29,7 +29,6 @@ import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
 import com.yuwen.visionspace.agent.interceptor.TextMcpModelInterceptor;
 import com.yuwen.visionspace.agent.model.ActionType;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -473,32 +472,28 @@ public class ImageAgent {
      */
     public String handleFeedback(String threadId, Long userId,
                                  Boolean satisfied, String reason,
-                                 ActionType action, AgentPhase currentPhase) {
+                                 ActionType action) {
 
         sessionGuard.requireOwned(threadId, userId);
         // 反馈会触发一次模型执行，同样不能绕过待核对暂停
         recoveryService.requireNoPendingReview(threadId, userId);
-        int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
             userPreferenceService.saveFeedback(userId, action, reason);
         }
 
-        // 构造增强的反馈消息
+        // 构造增强的反馈消息。
+        // 阶段与探索次数不写进提示：阶段此前由客户端在请求体里声明、计数是硬编码 0，
+        // 两者都不是执行身份观察到的状态。
         String feedbackMessage;
         if (Boolean.TRUE.equals(satisfied)) {
-            feedbackMessage = String.format(
-                    "[用户反馈] 满意度: 满意 | 阶段: %s | 探索次数: %d",
-                    currentPhase, exploreCount
-            );
+            feedbackMessage = "[用户反馈] 满意度: 满意";
         } else {
             feedbackMessage = String.format(
-                    "[用户反馈] 满意度: 不满意 | 动作: %s | 原因: %s | 阶段: %s | 探索次数: %d",
+                    "[用户反馈] 满意度: 不满意 | 动作: %s | 原因: %s",
                     action,
-                    reason != null ? reason : "未说明",
-                    currentPhase,
-                    exploreCount
+                    reason != null ? reason : "未说明"
             );
         }
 
@@ -650,15 +645,6 @@ public class ImageAgent {
                 .addMetadata(DualCheckpointSaver.MCP_SERVER_CODES_METADATA_KEY,
                         JsonUtils.toJson(mcpServerCodes == null ? List.of() : mcpServerCodes))
                 .build();
-    }
-
-    /**
-     * 获取当前探索次数（从 state 中读取）
-     * TODO: 需要通过 MemorySaver 获取会话状态，暂返回 0
-     */
-    private int getExploreCount(String threadId) {
-        // 后续可通过 MemorySaver 或 Redis 读取实际计数
-        return 0;
     }
 
     /**

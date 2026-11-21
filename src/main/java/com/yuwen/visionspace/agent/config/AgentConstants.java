@@ -23,16 +23,6 @@ public class AgentConstants {
     private int messagesToKeep = 10;
 
     /**
-     * 探索阶段最大迭代次数
-     */
-    private int maxExploreCount = 3;
-
-    /**
-     * 确认阶段最大迭代次数
-     */
-    private int maxConfirmCount = 2;
-
-    /**
      * 总体最大迭代次数
      */
     private int maxIterationCount = 15;

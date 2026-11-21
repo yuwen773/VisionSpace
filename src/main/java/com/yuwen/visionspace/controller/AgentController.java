@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.AssetSearchAgent;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
 import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
@@ -122,9 +121,9 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         String threadId = resolveThreadId(request.getThreadId());
 
-        log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}, phase={}",
+        log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}",
                 threadId, loginUser.getId(), request.getSatisfied(),
-                request.getReason(), request.getCurrentPhase());
+                request.getReason());
 
         // 归属在 handleFeedback 进入模型前核对；不属于当前用户时不写偏好、不执行
         String result = imageAgent.handleFeedback(
@@ -132,8 +131,7 @@ public class AgentController {
                 loginUser.getId(),
                 request.getSatisfied(),
                 request.getReason(),
-                request.getAction(),
-                request.getCurrentPhase() != null ? request.getCurrentPhase() : AgentPhase.EXPLORATION
+                request.getAction()
         );
 
         return ResultUtils.success(result);

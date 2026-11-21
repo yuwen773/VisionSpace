@@ -77,8 +77,6 @@ vision-space:
   agent:
     summary-threshold: 20
     messages-to-keep: 10
-    max-explore-count: 3
-    max-confirm-count: 2
     max-iteration-count: 15
     history-truncate-length: 100
     history-truncate-reserve: 97

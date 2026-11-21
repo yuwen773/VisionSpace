@@ -86,7 +86,7 @@ class ImageAgentPendingReviewGateTest {
     @Test
     void feedbackIsBlockedWhileAnActionNeedsReview() {
         assertThrows(BusinessException.class,
-                () -> imageAgent.handleFeedback(THREAD, OWNER, false, "不好看", null, null));
+                () -> imageAgent.handleFeedback(THREAD, OWNER, false, "不好看", null));
     }
 
     @Test
