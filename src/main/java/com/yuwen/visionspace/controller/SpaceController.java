@@ -9,7 +9,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
-import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.model.dto.space.*;
 import com.yuwen.visionspace.model.entity.Space;
 import com.yuwen.visionspace.model.entity.User;
@@ -43,7 +43,7 @@ public class SpaceController {
     private SpaceService spaceService;
 
     @Resource
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     @PostMapping("/add")
     public BaseResponse<Long> addSpace(@RequestBody SpaceAddRequest spaceAddRequest, HttpServletRequest request) {
@@ -127,11 +127,11 @@ public class SpaceController {
         // 查询数据库
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
-        // 私有空间仅所有者与管理员可读；团队空间仅成员可读
-        ThrowUtils.throwIf(spaceUserAuthManager.getPermissionList(space, loginUser).isEmpty(),
-                ErrorCode.NO_AUTH_ERROR);
+        // 私有空间仅所有者可读；团队空间仅成员可读。
+        // 平台管理员不因平台角色读取私人空间；管理端元数据走独立的管理入口。
+        List<String> permissionList = spaceAuthority.spacePermissions(space, loginUser);
+        ThrowUtils.throwIf(permissionList.isEmpty(), ErrorCode.NO_AUTH_ERROR);
         SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
-        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
         spaceVO.setPermissionList(permissionList);
         // 获取封装类
         return ResultUtils.success(spaceVO);

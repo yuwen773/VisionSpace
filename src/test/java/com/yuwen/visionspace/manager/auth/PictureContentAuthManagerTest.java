@@ -1,15 +1,12 @@
 package com.yuwen.visionspace.manager.auth;
 
-import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.Space;
-import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.service.ResourceAccessGrantService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
-import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -50,10 +45,7 @@ class PictureContentAuthManagerTest {
     private SpaceService spaceService;
 
     @Mock
-    private SpaceUserService spaceUserService;
-
-    @Mock
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     @Mock
     private ResourceIsolationService resourceIsolationService;
@@ -74,7 +66,6 @@ class PictureContentAuthManagerTest {
             User user = invocation.getArgument(0);
             return user != null && user.getId() != null && user.getId() == MODERATOR;
         });
-        when(spaceUserAuthManager.hasPermission(anyString(), anyString())).thenReturn(true);
         when(resourceIsolationService.isQuarantined(anyString(), any())).thenReturn(false);
         when(resourceAccessGrantService.hasActiveGrant(any(), any())).thenReturn(false);
     }
@@ -126,6 +117,11 @@ class PictureContentAuthManagerTest {
         Picture picture = spacePicture(SPACE_ID);
         Space space = space(OWNER, SpaceTypeEnum.PRIVATE.getValue());
         when(spaceService.getById(SPACE_ID)).thenReturn(space);
+        when(spaceAuthority.canOperateSpace(any(Space.class), any(), anyString()))
+                .thenAnswer(invocation -> {
+                    User viewer = invocation.getArgument(1);
+                    return viewer != null && viewer.getId() != null && viewer.getId() == OWNER;
+                });
 
         assertFalse(manager.canReadContent(picture, null));
         assertFalse(manager.canReadContent(picture, user(STRANGER)));
@@ -138,10 +134,8 @@ class PictureContentAuthManagerTest {
     void platformAdminDoesNotGainTeamMembership() {
         Picture picture = spacePicture(SPACE_ID);
         when(spaceService.getById(SPACE_ID)).thenReturn(space(OWNER, SpaceTypeEnum.TEAM.getValue()));
-        LambdaQueryChainWrapper<SpaceUser> noMemberQuery = queryReturning(null);
-        when(spaceUserService.lambdaQuery()).thenReturn(noMemberQuery);
 
-        // 与 StpInterfaceImpl 一致：平台管理员不因平台角色自动获得团队成员权限
+        // 空间判定统一由 SpaceAuthority 给出：平台管理员不因平台角色自动成为团队成员
         assertFalse(manager.canReadContent(picture, user(ADMIN)));
     }
 
@@ -149,14 +143,11 @@ class PictureContentAuthManagerTest {
     void teamMemberReadsWhilePresentAndIsDeniedAfterRemoval() {
         Picture picture = spacePicture(SPACE_ID);
         when(spaceService.getById(SPACE_ID)).thenReturn(space(OWNER, SpaceTypeEnum.TEAM.getValue()));
-        LambdaQueryChainWrapper<SpaceUser> memberQuery = queryReturning(spaceUser(VIEWER, "viewer"));
-        when(spaceUserService.lambdaQuery()).thenReturn(memberQuery);
+        // 每次读取都重新询问空间判定：成员在位时允许，被移除后同一次判定立即拒绝
+        when(spaceAuthority.canOperateSpace(any(Space.class), any(), anyString()))
+                .thenReturn(true, false);
 
         assertTrue(manager.canReadContent(picture, user(VIEWER)));
-
-        // 成员被移除后，同一请求上下文的下一次判定必须拒绝
-        LambdaQueryChainWrapper<SpaceUser> removedQuery = queryReturning(null);
-        when(spaceUserService.lambdaQuery()).thenReturn(removedQuery);
         assertFalse(manager.canReadContent(picture, user(VIEWER)));
     }
 
@@ -164,9 +155,6 @@ class PictureContentAuthManagerTest {
     void downgradedRoleLosesViewPermission() {
         Picture picture = spacePicture(SPACE_ID);
         when(spaceService.getById(SPACE_ID)).thenReturn(space(OWNER, SpaceTypeEnum.TEAM.getValue()));
-        LambdaQueryChainWrapper<SpaceUser> memberQuery = queryReturning(spaceUser(VIEWER, "editor"));
-        when(spaceUserService.lambdaQuery()).thenReturn(memberQuery);
-        when(spaceUserAuthManager.hasPermission(eq("editor"), anyString())).thenReturn(false);
 
         assertFalse(manager.canReadContent(picture, user(VIEWER)));
     }
@@ -211,25 +199,9 @@ class PictureContentAuthManagerTest {
         return space;
     }
 
-    private SpaceUser spaceUser(long userId, String role) {
-        SpaceUser spaceUser = new SpaceUser();
-        spaceUser.setSpaceId(SPACE_ID);
-        spaceUser.setUserId(userId);
-        spaceUser.setSpaceRole(role);
-        return spaceUser;
-    }
-
     private User user(long id) {
         User user = new User();
         user.setId(id);
         return user;
-    }
-
-    private LambdaQueryChainWrapper<SpaceUser> queryReturning(SpaceUser result) {
-        @SuppressWarnings("unchecked")
-        LambdaQueryChainWrapper<SpaceUser> wrapper = mock(LambdaQueryChainWrapper.class);
-        when(wrapper.eq(any(), any())).thenReturn(wrapper);
-        when(wrapper.one()).thenReturn(result);
-        return wrapper;
     }
 }

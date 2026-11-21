@@ -35,7 +35,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 
 ## 真实链路与替身边界
 
-`HttpBaselineTest` 通过真实随机 TCP 端口访问 Spring Boot，经过现有 `HttpRequestWrapperFilter`、JSON 请求绑定、Sa-Token 拦截器、控制器和业务服务；注册/登录走 HTTP，Spring Session 与 Sa-Token 使用真实隔离 Redis，数据和事务使用真实隔离 MySQL。
+`HttpBaselineTest` 通过真实随机 TCP 端口访问 Spring Boot，经过 JSON 请求绑定、Sa-Token 拦截器、控制器和业务服务；注册/登录走 HTTP，Spring Session 与 Sa-Token 使用真实隔离 Redis，数据和事务使用真实隔离 MySQL。
 
 公开作者删除成功、未登录删除拒绝、其他用户删除拒绝及登录/匿名业务查询均有回归。拒绝路径同时检查图片未删除、空间额度未变和外部调用数未增加。外部存储位于测试传输边界：替换 `PictureStorageService` 为发送到本机 HTTP 记录器的适配器；不会实际删除云对象。模型及可配置外部 HTTP 地址指向本机记录器，未知调用返回 503 并记录；没有模拟真实模型推理或云服务成功。硬编码 SDK/URL 等未执行路径不据此认定已受全面出站限制。
 

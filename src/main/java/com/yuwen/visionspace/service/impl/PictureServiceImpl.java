@@ -15,7 +15,7 @@ import com.yuwen.visionspace.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
-import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.lock.ResourceLockManager;
 import com.yuwen.visionspace.manager.websocket.lease.PictureEditLeaseManager;
@@ -32,7 +32,6 @@ import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.PictureFile;
 import com.yuwen.visionspace.model.entity.PictureStats;
 import com.yuwen.visionspace.model.entity.Space;
-import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureFilePurposeEnum;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
@@ -48,7 +47,6 @@ import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
-import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.StorageCleanupService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.utils.ColorSimilarUtils;
@@ -128,10 +126,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private AliYunAiApi aliYunAiApi;
 
     @Resource
-    private SpaceUserService spaceUserService;
-
-    @Resource
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     @Resource
     private ResourceIsolationService resourceIsolationService;
@@ -194,7 +189,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             Picture oldPicture = this.getById(pictureId);
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
             // 重新上传会覆盖原图，业务边界必须复核归属
-            checkPictureAuth(loginUser, oldPicture);
+            checkPictureAuth(loginUser, oldPicture, SpaceUserPermissionConstant.PICTURE_EDIT);
             // 预检：请求开始前就已隔离的资源直接拒绝，不进入对象存储
             // 事务内还有一次权威判定（行锁 + 锁定读），覆盖预检之后隔离才生效的竞态
             ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，不能替换");
@@ -307,7 +302,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     if (teamReplacement) {
                         // 团队图片替换：锁内再复核归属与连接专属凭据，
                         // 与 #44 的「过期租约迟到保存不得落库」保持同一判定点。
-                        checkPictureAuth(loginUser, locked);
+                        checkPictureAuth(loginUser, locked, SpaceUserPermissionConstant.PICTURE_EDIT);
                         ThrowUtils.throwIf(!pictureEditLeaseManager.canSave(finalPictureId, loginUser.getId(),
                                 pictureUploadRequest.getCollaborationToken()), ErrorCode.NO_AUTH_ERROR, "协作编辑权已失效");
                     }
@@ -778,7 +773,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Picture oldPicture = this.getById(pictureId);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
-        checkPictureAuth(loginUser, oldPicture);
+        checkPictureAuth(loginUser, oldPicture, SpaceUserPermissionConstant.PICTURE_DELETE);
         // 预检：请求开始前就已隔离的资源直接拒绝
         ThrowUtils.throwIf(isQuarantined(pictureId), ErrorCode.OPERATION_ERROR, "资源处于隔离状态，暂不能删除");
         // 开启事务
@@ -834,7 +829,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Picture oldPicture = this.getById(id);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 业务边界最终复核：注解鉴权依赖请求上下文，直接调用服务时不能跳过归属判断
-        checkPictureAuth(loginUser, oldPicture);
+        checkPictureAuth(loginUser, oldPicture, SpaceUserPermissionConstant.PICTURE_EDIT);
         // 补充审核参数
         this.fillReviewParams(picture, loginUser);
         // 操作数据库
@@ -851,28 +846,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     /**
-     * 空间成员权限：所有者与平台管理员放行，其余按当前数据库成员关系的角色判定。
+     * 空间写操作的统一判定：所有者完整权限；私有空间仅所有者；团队空间按成员角色。
+     *
+     * <p>平台管理员不因平台角色获得他人空间的写权限。
      *
      * @param loginUser  当前登录用户
      * @param space      目标空间
      * @param permission 需要的权限码
      */
     private void checkSpaceWriteAuth(User loginUser, Space space, String permission) {
-        if (userService.isAdmin(loginUser)) {
-            return;
-        }
-        if (space.getUserId() != null && space.getUserId().equals(loginUser.getId())) {
-            return;
-        }
-        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        SpaceUser spaceUser = spaceUserService.lambdaQuery()
-                .eq(SpaceUser::getSpaceId, space.getId())
-                .eq(SpaceUser::getUserId, loginUser.getId())
-                .one();
-        ThrowUtils.throwIf(spaceUser == null, ErrorCode.NO_AUTH_ERROR);
-        ThrowUtils.throwIf(!spaceUserAuthManager.hasPermission(spaceUser.getSpaceRole(), permission),
+        ThrowUtils.throwIf(!spaceAuthority.canOperateSpace(space, loginUser, permission),
                 ErrorCode.NO_AUTH_ERROR);
     }
 
@@ -922,37 +905,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         pictureVO.setQuarantined(true);
     }
 
-    @Override
-    public void checkPictureAuth(User loginUser, Picture picture) {
+    /**
+     * 图片写操作的统一判定：公开图库仅作者，私有空间仅所有者，团队空间按成员角色。
+     *
+     * <p>平台管理员身份不在这里获得私人内容的写权限；违规处置走独立的管理入口。
+     *
+     * @param loginUser  当前登录用户
+     * @param picture    目标图片
+     * @param permission 需要的权限码（编辑 / 删除）
+     */
+    private void checkPictureAuth(User loginUser, Picture picture, String permission) {
         ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NO_AUTH_ERROR);
-        // 平台管理员保留违规内容处置能力（独立的管理入口由后续工单负责）
-        if (userService.isAdmin(loginUser)) {
-            return;
-        }
-        Long spaceId = picture.getSpaceId();
-        Long loginUserId = loginUser.getId();
-        if (spaceId == null) {
-            // 公共图库，仅作者可修改
-            ThrowUtils.throwIf(!picture.getUserId().equals(loginUserId), ErrorCode.NO_AUTH_ERROR);
-            return;
-        }
-        Space space = spaceService.getById(spaceId);
-        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (space.getUserId() != null && space.getUserId().equals(loginUserId)) {
-            return;
-        }
-        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间，仅空间所有者可修改
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        // 团队空间，角色来自数据库成员关系：viewer 只读，editor 及以上可修改
-        SpaceUser spaceUser = spaceUserService.lambdaQuery()
-                .eq(SpaceUser::getSpaceId, spaceId)
-                .eq(SpaceUser::getUserId, loginUserId)
-                .one();
-        ThrowUtils.throwIf(spaceUser == null, ErrorCode.NO_AUTH_ERROR);
-        ThrowUtils.throwIf(!spaceUserAuthManager.hasPermission(
-                        spaceUser.getSpaceRole(), SpaceUserPermissionConstant.PICTURE_EDIT),
+        ThrowUtils.throwIf(!spaceAuthority.canOperatePicture(picture, loginUser, permission),
                 ErrorCode.NO_AUTH_ERROR);
     }
 
@@ -1064,7 +1028,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Picture picture = Optional.ofNullable(this.getById(pictureId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图片不存在"));
         // 业务边界最终复核：扩图会读取原图并产生外部任务
-        checkPictureAuth(loginUser, picture);
+        checkPictureAuth(loginUser, picture, SpaceUserPermissionConstant.PICTURE_EDIT);
         // 创建扩图任务
         CreateOutPaintingTaskRequest createOutPaintingTaskRequest = new CreateOutPaintingTaskRequest();
         CreateOutPaintingTaskRequest.Input input = new CreateOutPaintingTaskRequest.Input();

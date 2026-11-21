@@ -115,14 +115,6 @@ public interface PictureService extends IService<Picture> {
     void editPicture(PictureEditRequest pictureEditRequest, User loginUser);
 
     /**
-     * 校验空间图片的权限
-     *
-     * @param loginUser
-     * @param picture
-     */
-    void checkPictureAuth(User loginUser, Picture picture);
-
-    /**
      * 平台管理用的图片视图：保留审核与排查所需元数据，但不含内容地址。
      *
      * <p>原图、缩略图与预览地址一律置空，避免管理列表成为私人内容的读取旁路。

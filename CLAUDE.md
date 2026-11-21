@@ -59,7 +59,7 @@ Multi-layered architecture with cross-cutting managers:
 - `service/` — Interface + Impl pattern. Business logic and transactions.
 - `mapper/` — MyBatis Plus mappers. XML in `resources/mapper/`.
 - `manager/` — Cross-cutting concerns:
-  - `auth/` — Sa-Token auth + space-level permissions (`@SaSpaceCheckPermission`)
+  - `auth/` — `SpaceAuthority` owns the ADR-0001 decision matrix (team role, platform admin, private ownership); `SpaceUserAuthManager` only maps roles to permission codes
   - `upload/` — Template Method pattern (`PictureUploadTemplate` → `FilePictureUpload`, `UrlPictureUpload`)
   - `storage/` — Multi-platform storage via x-file-storage
   - `websocket/` — Real-time collaboration (Disruptor event queue)

@@ -4,33 +4,20 @@ import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserAuthConfig;
-import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserRole;
-import com.yuwen.visionspace.model.entity.Space;
-import com.yuwen.visionspace.model.entity.SpaceUser;
-import com.yuwen.visionspace.model.entity.User;
-import com.yuwen.visionspace.model.enums.SpaceRoleEnum;
-import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
-import com.yuwen.visionspace.service.SpaceUserService;
-import com.yuwen.visionspace.service.UserService;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.Resource;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * 空间成员权限管理
+ * 空间角色权限配置。
+ *
+ * <p>只负责“某个空间角色拥有哪些权限码”这一件事。成员资格、平台角色与
+ * 资源归属的判定在 {@link SpaceAuthority}，两者通过权限码衔接。
  */
 @Component
 public class SpaceUserAuthManager {
-
-    @Resource
-    private UserService userService;
-
-    @Resource
-    private SpaceUserService spaceUserService;
 
     public static final SpaceUserAuthConfig SPACE_USER_AUTH_CONFIG;
 
@@ -42,8 +29,8 @@ public class SpaceUserAuthManager {
     /**
      * 根据角色获取权限列表
      *
-     * @param spaceUserRole
-     * @return
+     * @param spaceUserRole 空间角色
+     * @return 权限码列表，角色为空或不存在时为空列表
      */
     public List<String> getPermissionsByRole(String spaceUserRole) {
         if (StrUtil.isBlank(spaceUserRole)) {
@@ -60,11 +47,8 @@ public class SpaceUserAuthManager {
         return role.getPermissions();
     }
 
-
     /**
      * 判断某个空间角色是否具备指定权限。
-     *
-     * <p>服务层做业务边界复核时统一走这里，避免各处重复解析角色配置。
      *
      * @param spaceUserRole 空间角色，可为空
      * @param permission    权限码
@@ -72,53 +56,5 @@ public class SpaceUserAuthManager {
      */
     public boolean hasPermission(String spaceUserRole, String permission) {
         return StrUtil.isNotBlank(permission) && getPermissionsByRole(spaceUserRole).contains(permission);
-    }
-
-    /**
-     * 获取权限列表
-     *
-     * @param space
-     * @param loginUser
-     * @return
-     */
-    public List<String> getPermissionList(Space space, User loginUser) {
-        if (loginUser == null) {
-            return new ArrayList<>();
-        }
-        // 管理员权限
-        List<String> ADMIN_PERMISSIONS = getPermissionsByRole(SpaceRoleEnum.ADMIN.getValue());
-        // 公共图库
-        if (space == null) {
-            if (userService.isAdmin(loginUser)) {
-                return ADMIN_PERMISSIONS;
-            }
-            return Collections.singletonList(SpaceUserPermissionConstant.PICTURE_VIEW);
-        }
-        SpaceTypeEnum spaceTypeEnum = SpaceTypeEnum.getEnumByValue(space.getSpaceType());
-        if (spaceTypeEnum == null) {
-            return new ArrayList<>();
-        }
-        // 根据空间获取对应的权限
-        switch (spaceTypeEnum) {
-            case PRIVATE:
-                // 私有空间，仅本人或管理员有所有权限
-                if (space.getUserId().equals(loginUser.getId()) || userService.isAdmin(loginUser)) {
-                    return ADMIN_PERMISSIONS;
-                } else {
-                    return new ArrayList<>();
-                }
-            case TEAM:
-                // 团队空间，查询 SpaceUser 并获取角色和权限
-                SpaceUser spaceUser = spaceUserService.lambdaQuery()
-                        .eq(SpaceUser::getSpaceId, space.getId())
-                        .eq(SpaceUser::getUserId, loginUser.getId())
-                        .one();
-                if (spaceUser == null) {
-                    return new ArrayList<>();
-                } else {
-                    return getPermissionsByRole(spaceUser.getSpaceRole());
-                }
-        }
-        return new ArrayList<>();
     }
 }

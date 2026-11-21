@@ -10,6 +10,7 @@ import com.yuwen.visionspace.common.SortKeyResolver;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.model.dto.space.SpaceAddRequest;
 import com.yuwen.visionspace.model.dto.space.SpaceQueryRequest;
 import com.yuwen.visionspace.model.entity.Space;
@@ -48,6 +49,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Resource
     private SpaceUserService spaceUserService;
+
+    @Resource
+    private SpaceAuthority spaceAuthority;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -294,10 +298,10 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Override
     public void checkSpaceAuth(User loginUser, Space space) {
-        // 仅本人或管理员可编辑
-        if (!space.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+        // 空间元数据属于平台管理范围：所有者与平台管理员都可以编辑。
+        // 私人内容的读取与写操作另由 SpaceAuthority 判定，不在这里放行。
+        ThrowUtils.throwIf(!spaceAuthority.canEditSpaceMetadata(space, loginUser),
+                ErrorCode.NO_AUTH_ERROR);
     }
 }
 

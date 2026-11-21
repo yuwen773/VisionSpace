@@ -5,23 +5,18 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.mapper.ResourceAccessGrantMapper;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.ResourceAccessGrant;
-import com.yuwen.visionspace.model.entity.Space;
-import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.ResourceGrantStatusEnum;
 import com.yuwen.visionspace.model.enums.ResourceIsolationStatusEnum;
 import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
-import com.yuwen.visionspace.model.enums.SpaceRoleEnum;
-import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.model.vo.ResourceGrantVO;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.ResourceAccessGrantService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
-import com.yuwen.visionspace.service.SpaceService;
-import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -53,10 +48,7 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
     private UserService userService;
 
     @Resource
-    private SpaceService spaceService;
-
-    @Resource
-    private SpaceUserService spaceUserService;
+    private SpaceAuthority spaceAuthority;
 
     @Resource
     private PictureService pictureService;
@@ -195,33 +187,8 @@ public class ResourceAccessGrantServiceImpl extends ServiceImpl<ResourceAccessGr
 
     @Override
     public boolean canGrant(Picture picture, User user) {
-        if (picture == null || user == null || user.getId() == null) {
-            return false;
-        }
-        Long spaceId = picture.getSpaceId();
-        if (spaceId == null) {
-            // 公共图库中的个人资源：所有者本人；平台管理员不因平台角色获得授权资格
-            return Objects.equals(picture.getUserId(), user.getId());
-        }
-        Space space = spaceService.getById(spaceId);
-        if (space == null) {
-            return false;
-        }
-        if (Objects.equals(space.getUserId(), user.getId())) {
-            return true;
-        }
-        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间仅所有者；平台管理员不能代为授权
-            return false;
-        }
-        // 团队空间按成员关系判定：平台管理员若独立持有团队管理员身份，
-        // 该身份照常生效；平台角色本身不额外扩大授权范围
-        SpaceUser spaceUser = spaceUserService.lambdaQuery()
-                .eq(SpaceUser::getSpaceId, spaceId)
-                .eq(SpaceUser::getUserId, user.getId())
-                .one();
-        return spaceUser != null
-                && SpaceRoleEnum.ADMIN.getValue().equals(spaceUser.getSpaceRole());
+        // 授权主体：个人资源所有者或团队管理员；平台管理员身份本身不构成授权依据。
+        return spaceAuthority.canGrantResource(picture, user);
     }
 
     @Override

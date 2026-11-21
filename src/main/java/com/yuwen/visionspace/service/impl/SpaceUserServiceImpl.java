@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserAddRequest;
 import com.yuwen.visionspace.model.dto.spaceuser.SpaceUserQueryRequest;
 import com.yuwen.visionspace.model.entity.Space;
@@ -47,6 +48,9 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
     @Resource
     @Lazy
     private SpaceService spaceService;
+
+    @Resource
+    private SpaceAuthority spaceAuthority;
 
     @Override
     public long addSpaceUser(SpaceUserAddRequest spaceUserAddRequest, User operator) {
@@ -94,17 +98,7 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         ThrowUtils.throwIf(spaceId == null, ErrorCode.PARAMS_ERROR);
         Space space = spaceService.getById(spaceId);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (space.getUserId() != null && space.getUserId().equals(operator.getId())) {
-            return;
-        }
-        SpaceUser membership = this.lambdaQuery()
-                .eq(SpaceUser::getSpaceId, spaceId)
-                .eq(SpaceUser::getUserId, operator.getId())
-                .one();
-        ThrowUtils.throwIf(membership == null,
-                ErrorCode.NO_AUTH_ERROR, "没有空间成员管理权限");
-        boolean isSpaceAdmin = SpaceRoleEnum.ADMIN.getValue().equals(membership.getSpaceRole());
-        ThrowUtils.throwIf(!isSpaceAdmin,
+        ThrowUtils.throwIf(!spaceAuthority.canManageMembers(space, operator),
                 ErrorCode.NO_AUTH_ERROR, "没有空间成员管理权限");
     }
 
