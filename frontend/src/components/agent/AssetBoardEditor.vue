@@ -64,10 +64,10 @@
               v-if="item.display"
               class="board-preview"
               aria-label="预览候选素材"
-              @click="emit('preview', contentUrl(item.display.contentRef))"
+              @click="emit('preview', contentSrc(item.display.contentRef))"
             >
               <img
-                :src="contentUrl(item.display.contentRef)"
+                :src="contentSrc(item.display.contentRef)"
                 alt="候选素材预览"
                 @error="previewFailed"
               />
@@ -136,7 +136,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useLoginUserStore } from '@/stores/userLogin'
-import { apiUrl } from '@/apiOrigin'
+import { contentSrc } from '@/utils'
 import type { AssetResult } from '@/api-custom/assetSearch'
 import BoardProposalPanel from './BoardProposalPanel.vue'
 import {
@@ -184,7 +184,6 @@ const groupName = ref('')
 const boardSpaceId = ref<string>()
 let epoch = 0
 let readSequence = 0
-const contentUrl = (ref: string) => apiUrl(`/api${ref}`)
 watch(
   () => props.results,
   (results) => {

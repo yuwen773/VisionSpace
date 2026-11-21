@@ -16,10 +16,10 @@
             type="button"
             class="asset-preview"
             aria-label="预览素材"
-            @click="$emit('preview', contentUrl(item.display.contentRef))"
+            @click="$emit('preview', contentSrc(item.display.contentRef))"
           >
             <img
-              :src="contentUrl(item.display.contentRef)"
+              :src="contentSrc(item.display.contentRef)"
               alt="团队素材预览"
               loading="lazy"
               @error="$emit('previewError')"
@@ -47,11 +47,10 @@
 
 <script setup lang="ts">
 import type { AssetResult } from '@/api-custom/assetSearch'
-import { apiUrl } from '@/apiOrigin'
+import { contentSrc } from '@/utils'
 
 defineProps<{ result: AssetResult }>()
 defineEmits<{ refresh: []; preview: [url: string]; previewError: [] }>()
-const contentUrl = (ref: string) => apiUrl(ref.startsWith('/api/') ? ref : `/api${ref}`)
 </script>
 
 <style scoped>
