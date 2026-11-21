@@ -1,413 +1,313 @@
 <template>
-  <div id="pictureDetailPage">
-    <!-- 紫漾梦幻氛围背景 -->
-    <div class="ambient-bg">
-      <div class="gradient-orb orb-1"></div>
-      <div class="gradient-orb orb-2"></div>
-      <div class="gradient-orb orb-3"></div>
-      <div class="floating-shapes">
-        <div class="shape-dot dot-1"></div>
-        <div class="shape-dot dot-2"></div>
-        <div class="shape-dot dot-3"></div>
-        <div class="shape-dot dot-4"></div>
-        <div class="shape-dot dot-5"></div>
-      </div>
+  <div id="pictureDetailPage" :style="pageVars">
+    <div class="wall" aria-hidden="true">
+      <div class="wall-wash"></div>
+      <div class="wall-grain"></div>
     </div>
 
-    <!-- 顶部导航栏 -->
-    <header class="detail-header">
-      <button @click="goBack" class="back-btn">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-        <span>返回</span>
-      </button>
+    <div class="page-shell">
+      <!-- 顶部工具条：返回 + 作品操作 -->
+      <nav class="page-rail" aria-label="作品操作">
+        <button type="button" class="rail-back" @click="goBack">
+          <ArrowLeft :size="18" :stroke-width="1.75" aria-hidden="true" />
+          <span>返回</span>
+        </button>
 
-      <div class="header-actions">
-        <button class="action-icon-btn" @click="doShare" title="分享">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+        <div class="rail-tools">
+          <button
+            type="button"
+            class="rail-tool"
+            title="分享作品"
+            aria-label="分享作品"
+            @click="doShare"
           >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
-        </button>
-        <button class="action-icon-btn" @click="doDownload" title="下载">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+            <Share2 :size="18" :stroke-width="1.75" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="rail-tool rail-tool-download"
+            title="下载原图"
+            aria-label="下载原图"
+            @click="doDownload"
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </button>
-        <button v-if="canEdit" @click="doEdit" class="action-icon-btn" title="编辑">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+            <Download :size="18" :stroke-width="1.75" aria-hidden="true" />
+          </button>
+          <button
+            v-if="canEdit"
+            type="button"
+            class="rail-tool"
+            title="编辑作品"
+            aria-label="编辑作品"
+            @click="doEdit"
           >
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </button>
-        <button v-if="canDelete" @click="doDelete" class="action-icon-btn delete" title="删除">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+            <Pencil :size="18" :stroke-width="1.75" aria-hidden="true" />
+          </button>
+          <button
+            v-if="canDelete"
+            type="button"
+            class="rail-tool rail-tool-danger"
+            title="删除作品"
+            aria-label="删除作品"
+            @click="doDelete"
           >
-            <polyline points="3 6 5 6 21 6" />
-            <path
-              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-            />
-          </svg>
-        </button>
-      </div>
-    </header>
+            <Trash2 :size="18" :stroke-width="1.75" aria-hidden="true" />
+          </button>
+        </div>
+      </nav>
 
-    <!-- 主内容区 -->
-    <div class="main-container">
-      <!-- 左侧：图片画廊区 -->
-      <section class="gallery-section">
-        <!-- 图片展示区 -->
-        <div class="image-stage" ref="imageStage">
-          <!-- 主图片 -->
-          <div
-            class="main-image-wrapper"
-            :class="{ loaded: imageLoaded }"
+      <main v-if="!loadError" class="detail-grid">
+        <!-- 作品：让画面占据主位 -->
+        <section class="stage" aria-label="作品画面">
+          <button
+            v-if="!imageError"
+            type="button"
+            class="plate"
+            :class="{ 'is-ready': imageLoaded, 'cursor-on': cursorOn }"
+            :aria-label="`全屏查看《${picture.name || '未命名作品'}》`"
             @click="toggleFullscreen"
+            @pointermove="onPlateMove"
+            @pointerleave="onPlateLeave"
           >
-            <!-- 加载骨架 -->
-            <div class="image-skeleton" v-if="!imageLoaded">
-              <div class="skeleton-shimmer"></div>
-            </div>
+            <span class="plate-mat">
+              <span v-if="!imageLoaded" class="plate-skeleton" aria-hidden="true">
+                <span class="skeleton-shimmer"></span>
+              </span>
 
-            <!-- 实际图片 -->
-            <img
-              :src="contentSrc(picture.previewUrl || picture.url)"
-              :alt="picture.name"
-              class="main-image"
-              @load="onImageLoad"
-              :class="{ visible: imageLoaded }"
-            />
+              <img
+                v-if="imageSrc"
+                :key="imageKey"
+                :src="imageSrc"
+                :alt="picture.name || '作品预览'"
+                class="plate-image"
+                :class="{ visible: imageLoaded }"
+                draggable="false"
+                @load="onImageLoad"
+                @error="onImageError"
+              />
 
-            <!-- 悬停时的缩放提示 -->
-            <div class="zoom-hint">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
+              <span
+                v-if="imageLoaded"
+                class="plate-hint"
+                :class="{ hidden: cursorOn }"
+                aria-hidden="true"
               >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-                <path d="M11 8v6M8 11h6" />
-              </svg>
-              <span>点击全屏预览</span>
-            </div>
+                <Maximize2 :size="14" :stroke-width="2" />
+                点击放大
+              </span>
+            </span>
+
+            <span
+              ref="cursorEl"
+              v-if="imageLoaded"
+              class="plate-cursor"
+              :class="{ visible: cursorOn }"
+              aria-hidden="true"
+            >
+              <ArrowUpRight :size="22" :stroke-width="1.75" />
+            </span>
+          </button>
+
+          <div v-else class="plate-fallback" role="alert">
+            <ImageOff :size="28" :stroke-width="1.5" aria-hidden="true" />
+            <span class="fallback-title">画面暂时无法加载</span>
+            <span class="fallback-hint">文件可能已移动，或当前网络无法取回内容</span>
+            <button type="button" class="fallback-retry" @click="retryImage">
+              <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
+              重新加载
+            </button>
           </div>
 
-          <!-- 图片装饰边框 -->
-          <div class="image-frame frame-top"></div>
-          <div class="image-frame frame-bottom"></div>
-          <div class="image-frame frame-left"></div>
-          <div class="image-frame frame-right"></div>
+          <div class="stage-rule" :class="{ visible: imageLoaded }" aria-hidden="true"></div>
 
-          <!-- 底部图片信息条 -->
-          <div class="image-info-bar" :class="{ visible: imageLoaded }">
-            <div class="info-bar-item">
-              <span class="info-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </span>
-              <span class="info-text">{{ picture.picWidth }} × {{ picture.picHeight }}</span>
+          <dl class="spec-strip" :class="{ visible: imageLoaded }">
+            <div v-if="picture.picWidth && picture.picHeight" class="spec">
+              <dt>尺寸</dt>
+              <dd>{{ picture.picWidth }} × {{ picture.picHeight }}</dd>
             </div>
-            <div class="info-divider"></div>
-            <div class="info-bar-item">
-              <span class="info-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-              </span>
-              <span class="info-text">{{ picture.picFormat?.toUpperCase() }}</span>
+            <div v-if="ratioLabel" class="spec">
+              <dt>比例</dt>
+              <dd>{{ ratioLabel }}</dd>
             </div>
-            <div class="info-divider"></div>
-            <div class="info-bar-item">
-              <span class="info-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                  />
-                </svg>
-              </span>
-              <span class="info-text">{{ formatSize(picture.picSize ?? 0) }}</span>
+            <div v-if="picture.picFormat" class="spec">
+              <dt>格式</dt>
+              <dd>{{ picture.picFormat.toUpperCase() }}</dd>
             </div>
-            <div class="info-divider"></div>
-            <div class="info-bar-item">
-              <span class="info-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
-                  />
-                  <polyline points="22,6 12,13 2,6" />
-                </svg>
-              </span>
-              <span class="info-text">{{ picture.picScale }}</span>
+            <div v-if="picture.picSize" class="spec">
+              <dt>体积</dt>
+              <dd>{{ formatSize(picture.picSize) }}</dd>
             </div>
-          </div>
+          </dl>
+        </section>
+
+        <!-- 说明牌：标题、出处、参数、动作 -->
+        <aside class="placard" :class="{ ready: placardReady }">
+          <template v-if="loading">
+            <div class="sk-line sk-title" aria-hidden="true"></div>
+            <div class="sk-line sk-title short" aria-hidden="true"></div>
+            <div class="sk-line sk-text" aria-hidden="true"></div>
+            <div class="sk-line sk-text short" aria-hidden="true"></div>
+            <div class="sk-byline" aria-hidden="true">
+              <span class="sk-avatar"></span>
+              <span class="sk-line sk-name"></span>
+            </div>
+            <span class="visually-hidden" role="status">正在加载作品信息</span>
+          </template>
+
+          <template v-else>
+            <header class="placard-head reveal" style="--i: 0">
+              <h1 class="work-title">{{ picture.name || '未命名作品' }}</h1>
+              <p v-if="picture.introduction" class="work-intro">{{ picture.introduction }}</p>
+            </header>
+
+            <div class="byline reveal" style="--i: 1">
+              <a-avatar
+                :src="picture.user?.userAvatar"
+                :size="44"
+                class="byline-avatar"
+                :alt="picture.user?.userName || '作者头像'"
+              />
+              <div class="byline-text">
+                <span class="byline-name">{{ picture.user?.userName || '未知作者' }}</span>
+                <span v-if="picture.user?.userAccount" class="byline-handle"
+                  >@{{ picture.user.userAccount }}</span
+                >
+              </div>
+            </div>
+
+            <dl v-if="hasFacts" class="facts reveal" style="--i: 2">
+              <div v-if="picture.category" class="fact">
+                <dt>分类</dt>
+                <dd>{{ picture.category }}</dd>
+              </div>
+
+              <div v-if="artHex" class="fact">
+                <dt>主色</dt>
+                <dd>
+                  <button
+                    type="button"
+                    class="color-copy"
+                    :aria-label="`复制主色色值 ${artHex}`"
+                    @click="copyColor"
+                  >
+                    <span class="color-swatch" :style="{ backgroundColor: artHex }"></span>
+                    <span class="color-hex">{{ artHex }}</span>
+                    <Check
+                      v-if="copyState === 'copied'"
+                      :size="14"
+                      :stroke-width="2"
+                      class="copy-icon copied"
+                      aria-hidden="true"
+                    />
+                    <Copy
+                      v-else
+                      :size="14"
+                      :stroke-width="1.75"
+                      class="copy-icon"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </dd>
+              </div>
+
+              <div v-if="picture.tags?.length" class="fact">
+                <dt>标签</dt>
+                <dd class="tag-list">
+                  <span v-for="tag in picture.tags" :key="tag" class="tag-chip">{{ tag }}</span>
+                </dd>
+              </div>
+            </dl>
+
+            <div class="actions reveal" style="--i: 3">
+              <button
+                type="button"
+                class="btn btn-primary"
+                :disabled="!imageLoaded"
+                @click="toggleFullscreen"
+              >
+                <Maximize2 :size="18" :stroke-width="1.9" aria-hidden="true" />
+                全屏预览
+              </button>
+              <button type="button" class="btn btn-secondary" @click="doDownload">
+                <Download :size="18" :stroke-width="1.9" aria-hidden="true" />
+                下载原图
+              </button>
+            </div>
+
+            <div class="placard-foot reveal" style="--i: 4">
+              <PictureGrantPanel :picture-id="rawPictureId" />
+            </div>
+          </template>
+        </aside>
+      </main>
+
+      <section v-else class="state-page" role="alert">
+        <span class="state-icon">
+          <ImageOff :size="30" :stroke-width="1.5" aria-hidden="true" />
+        </span>
+        <h1 class="state-title">作品信息没有取回来</h1>
+        <p class="state-hint">{{ loadError }}</p>
+        <div class="state-actions">
+          <button type="button" class="btn btn-primary" @click="fetchDetailPicture">
+            <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
+            重新加载
+          </button>
+          <button type="button" class="btn btn-secondary" @click="goBack">
+            <ArrowLeft :size="17" :stroke-width="2" aria-hidden="true" />
+            返回画廊
+          </button>
         </div>
       </section>
-
-      <!-- 右侧：信息面板 -->
-      <aside class="info-panel" :class="{ visible: imageLoaded }">
-        <!-- 作者卡片 -->
-        <div class="author-card" :style="{ animationDelay: '0.1s' }">
-          <div class="author-glow"></div>
-          <div class="author-content">
-            <a-avatar :src="picture.user?.userAvatar" :size="56" class="author-avatar" />
-            <div class="author-info">
-              <span class="author-name">{{ picture.user?.userName || '未知用户' }}</span>
-              <span class="author-account">@{{ picture.user?.userAccount }}</span>
-            </div>
-          </div>
-          <div class="author-decoration">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <circle
-                cx="20"
-                cy="20"
-                r="18"
-                stroke="url(#authorGradZiyan)"
-                stroke-width="2"
-                stroke-dasharray="4 4"
-              />
-              <defs>
-                <linearGradient id="authorGradZiyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#a855f7" />
-                  <stop offset="100%" stop-color="#ec4899" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </div>
-
-        <!-- 图片标题 -->
-        <div class="title-section" :style="{ animationDelay: '0.2s' }">
-          <h1 class="picture-title">{{ picture.name || '未命名作品' }}</h1>
-          <p class="picture-intro" v-if="picture.introduction">{{ picture.introduction }}</p>
-        </div>
-
-        <!-- 元数据网格 -->
-        <div class="meta-grid" :style="{ animationDelay: '0.3s' }">
-          <div class="meta-card" v-if="picture.category">
-            <div class="meta-icon">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                />
-              </svg>
-            </div>
-            <div class="meta-content">
-              <span class="meta-label">分类</span>
-              <span class="meta-value">{{ picture.category }}</span>
-            </div>
-          </div>
-
-          <div class="meta-card color-card" v-if="picture.picColor">
-            <div class="meta-icon">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="13.5" cy="6.5" r="3" />
-                <circle cx="17.5" cy="10.5" r="3" />
-                <circle cx="8.5" cy="7.5" r="3" />
-                <circle cx="6.5" cy="12.5" r="3" />
-                <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.5-2.5-4.5L12 22z" />
-              </svg>
-            </div>
-            <div class="meta-content">
-              <span class="meta-label">主色调</span>
-              <div class="color-value">
-                <span class="meta-value">{{ picture.picColor }}</span>
-                <span
-                  class="color-swatch"
-                  :style="{ backgroundColor: toHexColor(picture.picColor) }"
-                ></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="meta-card" v-if="picture.tags?.length">
-            <div class="meta-icon">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-                />
-                <line x1="7" y1="7" x2="7.01" y2="7" />
-              </svg>
-            </div>
-            <div class="meta-content">
-              <span class="meta-label">标签</span>
-              <div class="tags-wrap">
-                <span class="tag-chip" v-for="tag in picture.tags" :key="tag">{{ tag }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 操作按钮组 -->
-        <div class="action-group" :style="{ animationDelay: '0.4s' }">
-          <button class="action-btn primary" @click="toggleFullscreen">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-              />
-            </svg>
-            <span>全屏预览</span>
-          </button>
-          <button class="action-btn secondary" @click="doDownload">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>免费下载</span>
-          </button>
-        </div>
-
-        <!-- 缩放信息 -->
-        <div class="zoom-tips" :style="{ animationDelay: '0.5s' }">
-          <div class="tip-item">
-            <kbd>Scroll</kbd>
-            <span>缩放图片</span>
-          </div>
-          <div class="tip-item">
-            <kbd>Drag</kbd>
-            <span>移动视图</span>
-          </div>
-        </div>
-
-        <!-- 单资源限时授权：仅资源所有者与团队管理员可见 -->
-        <PictureGrantPanel :picture-id="rawPictureId" />
-      </aside>
     </div>
 
-    <!-- 全屏预览模态框 -->
-    <ImagePreview
-      v-model:open="isFullscreen"
-      :url="contentSrc(picture.previewUrl || picture.url)"
-      :alt="picture.name"
-    />
+    <!-- 移动端：把主要动作固定在拇指够得着的位置 -->
+    <div v-if="!loading && !loadError" class="mobile-actions">
+      <button
+        type="button"
+        class="btn btn-primary"
+        :disabled="!imageLoaded"
+        @click="toggleFullscreen"
+      >
+        <Maximize2 :size="18" :stroke-width="1.9" aria-hidden="true" />
+        全屏预览
+      </button>
+      <button type="button" class="btn btn-secondary" @click="doDownload" aria-label="下载原图">
+        <Download :size="18" :stroke-width="1.9" aria-hidden="true" />
+      </button>
+    </div>
 
-    <!-- 分享弹窗 -->
+    <ImagePreview v-model:open="isFullscreen" :url="imageSrc" :alt="picture.name" />
+
     <ShareModal ref="shareModalRef" :link="shareLink" title="分享图片" />
+
+    <span class="visually-hidden" aria-live="polite">{{
+      copyState === 'copied' ? '主色色值已复制' : ''
+    }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { deletePictureUsingPost, getPictureVoByIdUsingGet } from '@/api/pictureController.ts'
-import { message } from 'ant-design-vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { contentSrc, downloadImage, formatSize, toHexColor } from '@/utils'
+import { message } from 'ant-design-vue'
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Check,
+  Copy,
+  Download,
+  ImageOff,
+  Maximize2,
+  Pencil,
+  RefreshCw,
+  Share2,
+  Trash2,
+} from 'lucide-vue-next'
+import { deletePictureUsingPost, getPictureVoByIdUsingGet } from '@/api/pictureController.ts'
+import { contentSrc, downloadImage, formatSize, toId } from '@/utils'
 import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import ShareModal from '@/components/ShareModal.vue'
 import ImagePreview from '@/components/ImagePreview.vue'
 import PictureGrantPanel from '@/components/picture/PictureGrantPanel.vue'
-import { toId } from '@/utils'
 import { usePictureAction } from '@/composables/usePictureAction'
 import { ActionTypeEnum, ActionSourceEnum } from '@/api-custom/picture'
 
@@ -425,35 +325,114 @@ const rawPictureId = computed(() =>
 const router = useRouter()
 const { report: reportAction } = usePictureAction()
 
-// Refs
-const imageStage = ref<HTMLElement>()
-
 // State
 const picture = ref<API.PictureVO>({})
+const loading = ref(true)
+const loadError = ref('')
 const imageLoaded = ref(false)
+const imageError = ref(false)
+const imageKey = ref(0)
 const isFullscreen = ref(false)
+const copyState = ref<'idle' | 'copied'>('idle')
+let copyTimer: ReturnType<typeof setTimeout> | undefined
+
+// 作品自身的颜色：墙面、投影与细线都从它取色，而不是写死品牌紫
+const imageSrc = computed(() => contentSrc(picture.value.previewUrl || picture.value.url))
+const artHex = computed(() => normalizeHex(picture.value.picColor))
+const artRgb = computed(() => hexToRgb(artHex.value))
+// 竖幅作品不该被拉成一条横幅：画框宽度按画面的长宽比收窄，说明条跟着画框走
+const artRatio = computed(() => {
+  const width = picture.value.picWidth
+  const height = picture.value.picHeight
+  if (!width || !height) return 1.5
+  return Math.min(Math.max(width / height, 0.28), 3)
+})
+const pageVars = computed<Record<string, string>>(() => {
+  const vars: Record<string, string> = { '--art-ratio': String(artRatio.value) }
+  if (artRgb.value && artHex.value) {
+    vars['--art'] = artHex.value
+    vars['--art-rgb'] = artRgb.value.join(', ')
+  }
+  return vars
+})
+
+const ratioLabel = computed(() => {
+  const width = picture.value.picWidth
+  const height = picture.value.picHeight
+  if (!width || !height) return ''
+  const divisor = gcd(Math.round(width), Math.round(height))
+  return `${Math.round(width / divisor)} : ${Math.round(height / divisor)}`
+})
+
+const hasFacts = computed(() =>
+  Boolean(picture.value.category || artHex.value || picture.value.tags?.length),
+)
+const placardReady = computed(() => !loading.value && !loadError.value)
+
+// Cursor badge: 只在指针设备上跟随，作为“可放大的画面”提示
+const cursorEl = ref<HTMLElement>()
+const cursorOn = ref(false)
+let queuedPoint: { x: number; y: number } | null = null
+let cursorFrame = 0
+
+const paintCursor = () => {
+  cursorFrame = 0
+  if (!queuedPoint || !cursorEl.value) return
+  cursorEl.value.style.transform = `translate3d(${queuedPoint.x}px, ${queuedPoint.y}px, 0)`
+  queuedPoint = null
+}
+
+const onPlateMove = (event: PointerEvent) => {
+  if (event.pointerType !== 'mouse' || imageError.value || !imageLoaded.value) return
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  cursorOn.value = true
+  queuedPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+  if (!cursorFrame) cursorFrame = requestAnimationFrame(paintCursor)
+}
+
+const onPlateLeave = () => {
+  cursorOn.value = false
+}
 
 // Fetch picture detail
 const fetchDetailPicture = async () => {
+  loading.value = true
+  loadError.value = ''
   try {
     const res = await getPictureVoByIdUsingGet({ id: pictureId.value as number })
     if (res.data.code === 0 && res.data.data) {
+      imageLoaded.value = false
+      imageError.value = false
       picture.value = res.data.data
       // 详情页浏览：与曝光、点击一样进入同一套事件通道
       if (pictureId.value !== undefined) {
         await reportAction(pictureId.value, ActionTypeEnum.VIEW, ActionSourceEnum.DETAIL)
       }
     } else {
-      message.error('获取图片详情失败')
+      loadError.value = res.data.message || '获取图片详情失败'
     }
   } catch (error: any) {
-    message.error(error.message)
+    loadError.value = error?.message || '网络请求失败，请稍后再试'
+  } finally {
+    loading.value = false
   }
 }
 
-// Image load handler
 const onImageLoad = () => {
   imageLoaded.value = true
+  imageError.value = false
+}
+
+const onImageError = () => {
+  if (!imageSrc.value) return
+  imageLoaded.value = false
+  imageError.value = true
+}
+
+const retryImage = () => {
+  imageError.value = false
+  imageLoaded.value = false
+  imageKey.value += 1
 }
 
 // Permission checks
@@ -511,767 +490,1159 @@ const goBack = () => {
 
 // Fullscreen
 const toggleFullscreen = () => {
+  if (!imageLoaded.value) return
   isFullscreen.value = !isFullscreen.value
+}
+
+const copyColor = async () => {
+  if (!artHex.value) return
+  try {
+    await navigator.clipboard.writeText(artHex.value)
+    copyState.value = 'copied'
+    clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => (copyState.value = 'idle'), 1600)
+  } catch {
+    message.error('复制失败，请手动选择色值')
+  }
+}
+
+function normalizeHex(input?: string): string {
+  if (!input) return ''
+  const raw = input.trim().replace(/^#/, '').replace(/^0x/i, '')
+  if (!/^[0-9a-f]{6}$/i.test(raw)) return ''
+  return `#${raw.toLowerCase()}`
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  if (!hex) return null
+  const value = hex.replace('#', '')
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ]
+}
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
 }
 
 onMounted(() => {
   fetchDetailPicture()
 })
 
+onBeforeUnmount(() => {
+  clearTimeout(copyTimer)
+  if (cursorFrame) cancelAnimationFrame(cursorFrame)
+})
+
 watch(
   () => props.id,
   () => {
+    imageLoaded.value = false
+    imageError.value = false
     fetchDetailPicture()
   },
 )
 </script>
 
 <style scoped lang="less">
+@import url('https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@600;700&display=swap');
+
+/* =========================================================
+   作品详情：画面主导，说明牌退后，颜色从作品里长出来
+   ========================================================= */
+
 #pictureDetailPage {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  position: relative;
-  overflow-x: hidden;
-}
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --stage-max: calc(100vh - 230px);
+  --plate-width: min(100%, calc(var(--stage-max) * var(--art-ratio, 1.5)));
 
-/* ========== 紫漾氛围背景 ========== */
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
+  /* 没有主色时的回退：紫漾主题取品牌紫 */
+  --art: var(--color-primary, var(--color-accent-purple, #a855f7));
+  --art-rgb: 168, 85, 247;
 
-.gradient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.5;
-  animation: float-orb 25s ease-in-out infinite;
-}
+  /* 展墙本身就是作品颜色的延伸：整面墙都染上一点画面的色相 */
+  --wall-high: 0.3;
+  --wall-low: 0.15;
+  --wall-flat: 0.07;
+  --wall-floor: 0.15;
 
-.orb-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
-  top: -250px;
-  right: -150px;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
-  top: 30%;
-  left: -200px;
-  animation-delay: -8s;
-}
-
-.orb-3 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-  bottom: -100px;
-  right: 10%;
-  animation-delay: -16s;
-}
-
-@keyframes float-orb {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(40px, -40px) scale(1.05);
-  }
-  50% {
-    transform: translate(-30px, 30px) scale(0.95);
-  }
-  75% {
-    transform: translate(25px, 15px) scale(1.03);
-  }
-}
-
-/* 浮动装饰点 */
-.floating-shapes {
-  position: absolute;
-  inset: 0;
-}
-
-.shape-dot {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.4;
-  animation: float-dot 15s ease-in-out infinite;
-}
-
-.dot-1 {
-  width: 12px;
-  height: 12px;
-  background: var(--color-primary);
-  top: 15%;
-  left: 10%;
-  animation-delay: 0s;
-}
-
-.dot-2 {
-  width: 8px;
-  height: 8px;
-  background: var(--color-secondary);
-  top: 25%;
-  right: 20%;
-  animation-delay: -3s;
-}
-
-.dot-3 {
-  width: 16px;
-  height: 16px;
-  background: var(--color-violet);
-  bottom: 30%;
-  left: 15%;
-  animation-delay: -6s;
-}
-
-.dot-4 {
-  width: 10px;
-  height: 10px;
-  background: var(--color-pink);
-  top: 60%;
-  right: 25%;
-  animation-delay: -9s;
-}
-
-.dot-5 {
-  width: 6px;
-  height: 6px;
-  background: var(--color-primary-light);
-  bottom: 20%;
-  right: 40%;
-  animation-delay: -12s;
-}
-
-@keyframes float-dot {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  25% {
-    transform: translate(10px, -15px) rotate(90deg);
-  }
-  50% {
-    transform: translate(-5px, 10px) rotate(180deg);
-  }
-  75% {
-    transform: translate(15px, 5px) rotate(270deg);
-  }
-}
-
-/* ========== 顶部导航栏 ========== */
-.detail-header {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 32px;
-  margin-bottom: 24px;
-}
-
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 40px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: translateX(-4px);
-    box-shadow: var(--shadow-glow-purple);
-
-    svg {
-      transform: translateX(-2px);
-    }
-  }
-
-  svg {
-    transition: transform 0.3s ease;
-  }
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.action-icon-btn {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 2px solid var(--border-default);
-  border-radius: 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-glow-purple);
-  }
-
-  &.delete:hover {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.5);
-  }
-}
-
-/* ========== 主容器 ========== */
-.main-container {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 48px;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 0 48px 60px;
   min-height: 100vh;
+  padding: clamp(4px, 1vw, 12px) 0 clamp(56px, 8vw, 96px);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
 
-  @media (max-width: 1200px) {
-    grid-template-columns: 1fr;
-    gap: 32px;
-    padding: 90px 24px 40px;
+:global(.theme-aurora) #pictureDetailPage {
+  --art: var(--color-primary-500, #2268f5);
+  --art-rgb: 34, 104, 245;
+  --art-soft: rgba(var(--art-rgb), 0.24);
+  --art-wash: rgba(var(--art-rgb), 0.38);
+  --plate-bg: color-mix(in srgb, var(--art) 16%, #070b14);
+  --plate-shadow:
+    0 44px 100px -40px rgba(var(--art-rgb), 0.62), 0 24px 60px -36px rgba(0, 0, 0, 0.9);
+  --wall-high: 0.46;
+  --wall-low: 0.26;
+  --wall-flat: 0.13;
+  --wall-floor: 0.24;
+}
+
+#pictureDetailPage {
+  --art-soft: rgba(var(--art-rgb), 0.16);
+  --art-wash: rgba(var(--art-rgb), 0.26);
+  --plate-bg: color-mix(in srgb, var(--art) 8%, var(--bg-card));
+  --plate-shadow:
+    0 38px 84px -44px rgba(var(--art-rgb), 0.62), 0 18px 40px -28px rgba(30, 27, 75, 0.32);
+}
+
+/* ========== 墙面 ========== */
+.wall {
+  /* 墙面盖住整份文档，而不是只盖住首屏：滚动到说明牌底部时，
+     房间的颜色也不该断成一条直线 */
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wall-wash {
+  position: absolute;
+  inset: -12% -8%;
+  background:
+    radial-gradient(
+      ellipse 68% 58% at 28% 6%,
+      rgba(var(--art-rgb), var(--wall-high)) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 58% 54% at 82% 68%,
+      rgba(var(--art-rgb), var(--wall-low)) 0%,
+      transparent 66%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(var(--art-rgb), var(--wall-flat)) 0%,
+      rgba(var(--art-rgb), var(--wall-floor)) 100%
+    );
+  filter: blur(38px) saturate(112%);
+}
+
+.wall-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* ========== 页面骨架 ========== */
+.page-shell {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 0 clamp(4px, 2.4vw, 32px);
+}
+
+.page-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding-bottom: 12px;
+  margin-bottom: clamp(20px, 3vw, 36px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  border-radius: 8px;
+  transition:
+    color 0.25s ease,
+    gap 0.35s var(--ease-expo);
+
+  &:hover {
+    color: var(--text-primary);
+    gap: 12px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--art);
+    outline-offset: 4px;
   }
 }
 
-/* ========== 画廊区 ========== */
-.gallery-section {
+.rail-tools {
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.rail-tool {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color 0.22s ease,
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.22s var(--ease-expo);
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--art-soft);
+    border-color: var(--border-subtle);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--art);
+    outline-offset: 2px;
+  }
+
+  &.rail-tool-danger:hover {
+    color: var(--color-error, #dc2626);
+    background: color-mix(in srgb, var(--color-error, #dc2626) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-error, #dc2626) 32%, transparent);
+  }
 }
 
-.image-stage {
-  position: relative;
-  width: 100%;
-  max-width: 1000px;
+/* ========== 主栅格 ========== */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 27vw, 396px);
+  gap: clamp(32px, 5vw, 88px);
+  align-items: start;
 }
 
-.main-image-wrapper {
+/* ========== 画面 ========== */
+.stage {
   position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  /* 竖幅与方幅贴着版心左缘悬挂，留白落在画面与说明牌之间，
+     而不是把画面夹在两侧等宽的空白里 */
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.plate {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: var(--plate-width);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: zoom-in;
-  opacity: 0;
-  transform: scale(0.95);
-  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: var(--shadow-card);
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
 
-  &.loaded {
+  /* 作品的光落在墙上：画面自己的颜色扩散到周围，而不是一块装饰光斑 */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -7% -8%;
+    background: radial-gradient(ellipse at 50% 46%, var(--art-wash), transparent 68%);
+    filter: blur(54px);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--art);
+    outline-offset: 6px;
+  }
+}
+
+.plate-mat {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  /* 作品不裁角：照片就是照片，圆角与描边只会把它变成一张卡片 */
+  border-radius: 0;
+  background: var(--plate-bg);
+  box-shadow: var(--plate-shadow);
+
+  .plate.is-ready & {
+    animation: plate-in 1s var(--ease-expo) both;
+  }
+}
+
+@keyframes plate-in {
+  from {
+    clip-path: inset(5% 4% 5% 4%);
+    opacity: 0.55;
+    transform: translateY(14px) scale(0.995);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.plate-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: var(--stage-max);
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(1.035);
+  transition:
+    opacity 0.6s ease 0.12s,
+    transform 1.2s var(--ease-expo);
+
+  &.visible {
     opacity: 1;
     transform: scale(1);
   }
 
-  &:hover .zoom-hint {
-    opacity: 1;
+  .plate:hover & {
+    transform: scale(1.012);
+    transition: transform 1.1s var(--ease-expo);
   }
 }
 
-.image-skeleton {
+.plate-skeleton {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  min-height: 260px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--art) 8%, var(--bg-tertiary));
+}
+
+.skeleton-shimmer {
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    90deg,
-    var(--bg-tertiary) 0%,
-    var(--bg-secondary) 50%,
-    var(--bg-tertiary) 100%
+    100deg,
+    transparent 20%,
+    rgba(var(--art-rgb), 0.16) 46%,
+    rgba(255, 255, 255, 0.24) 52%,
+    transparent 78%
   );
-  background-size: 200% 100%;
-  animation: skeleton 1.5s infinite;
+  background-size: 220% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
-@keyframes skeleton {
+@keyframes shimmer {
   0% {
-    background-position: 200% 0;
+    background-position: 140% 0;
   }
   100% {
-    background-position: -200% 0;
+    background-position: -60% 0;
   }
 }
 
-.main-image {
-  display: block;
-  width: 100%;
-  max-height: 75vh;
-  object-fit: contain;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-
-  &.visible {
-    opacity: 1;
-  }
-}
-
-.zoom-hint {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 20px;
-  color: var(--text-primary);
-  font-size: 13px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  box-shadow: var(--shadow-md);
-}
-
-/* 图片装饰边框 */
-.image-frame {
-  position: absolute;
-  pointer-events: none;
-
-  &.frame-top {
-    top: -3px;
-    left: 10%;
-    right: 10%;
-    height: 3px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--color-primary),
-      var(--color-secondary),
-      transparent
-    );
-  }
-
-  &.frame-bottom {
-    bottom: -3px;
-    left: 10%;
-    right: 10%;
-    height: 3px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--color-sky),
-      var(--color-mint),
-      transparent
-    );
-  }
-
-  &.frame-left {
-    left: -3px;
-    top: 10%;
-    bottom: 10%;
-    width: 3px;
-    background: linear-gradient(180deg, transparent, var(--color-coral), transparent);
-  }
-
-  &.frame-right {
-    right: -3px;
-    top: 10%;
-    bottom: 10%;
-    width: 3px;
-    background: linear-gradient(180deg, transparent, var(--color-sunshine), transparent);
-  }
-}
-
-/* 底部信息条 */
-.image-info-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  margin-top: 20px;
-  padding: 16px 24px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: 16px;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.5s ease 0.3s;
-  box-shadow: var(--shadow-sm);
-
-  &.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.info-bar-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.info-icon {
-  color: var(--text-tertiary);
-  display: flex;
-}
-
-.info-text {
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: var(--font-mono);
-}
-
-.info-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--border-default);
-}
-
-/* ========== 信息面板 ========== */
-.info-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  opacity: 0;
-  transform: translateX(20px);
-  transition: all 0.6s ease;
-
-  &.visible {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  > div {
-    opacity: 0;
-    animation: panel-reveal 0.5s ease forwards;
-  }
-}
-
-@keyframes panel-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(15px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 作者卡片 */
-.author-card {
-  position: relative;
-  padding: 20px;
-  background: var(--bg-card);
-  border-radius: 20px;
-  border: 1px solid var(--border-default);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-2px);
-  }
-}
-
-.author-glow {
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
-  pointer-events: none;
-}
-
-.author-content {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  z-index: 1;
-}
-
-.author-avatar {
-  border: 3px solid var(--color-primary-light);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
-}
-
-.author-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.author-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.author-account {
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-
-.author-decoration {
+.plate-hint {
   position: absolute;
   right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.3;
-  animation: spin-slow 20s linear infinite;
-}
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  border: 1px solid var(--border-default);
+  backdrop-filter: blur(14px) saturate(160%);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.35s ease,
+    transform 0.45s var(--ease-expo);
 
-@keyframes spin-slow {
-  to {
-    transform: translateY(-50%) rotate(360deg);
+  .plate:hover &,
+  .plate:focus-visible & {
+    opacity: 1;
+    transform: none;
+  }
+
+  &.hidden,
+  .plate:hover &.hidden {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
 
-/* 标题区 */
-.title-section {
-  padding: 0 4px;
+.plate-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.4;
+  transition:
+    opacity 0.25s ease,
+    scale 0.4s var(--ease-expo);
+  will-change: transform;
+
+  &.visible {
+    opacity: 0.92;
+    scale: 1;
+  }
 }
 
-.picture-title {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 12px 0;
-  line-height: 1.3;
-}
-
-.picture-intro {
-  font-size: 15px;
-  color: var(--text-tertiary);
-  margin: 0;
-  line-height: 1.6;
-}
-
-/* 元数据网格 */
-.meta-grid {
+.plate-fallback {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.meta-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  background: var(--bg-tertiary);
-  border-radius: 14px;
-  border: 1px solid var(--border-subtle);
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: var(--bg-hover);
-    border-color: var(--color-primary-light);
-    transform: translateX(4px);
-    box-shadow: var(--shadow-sm);
-  }
-}
-
-.meta-icon {
-  width: 36px;
-  height: 36px;
-  display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(168, 85, 247, 0.1);
-  border-radius: 10px;
-  color: var(--color-primary);
-  flex-shrink: 0;
+  gap: 10px;
+  width: var(--plate-width);
+  max-width: 100%;
+  min-height: clamp(300px, 58vh, 560px);
+  padding: 32px;
+  border-radius: 0;
+  background: var(--plate-bg);
+  box-shadow: var(--plate-shadow);
+  color: var(--text-secondary);
+  text-align: center;
+
+  .fallback-title {
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .fallback-hint {
+    max-width: 34ch;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .fallback-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+
+    &:hover {
+      border-color: var(--art);
+      background: var(--art-soft);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--art);
+      outline-offset: 3px;
+    }
+  }
 }
 
-.meta-content {
+.stage-rule {
+  position: relative;
+  z-index: 1;
+  width: var(--plate-width);
+  max-width: 100%;
+  height: 1px;
+  margin-top: clamp(20px, 2.6vw, 28px);
+  background: linear-gradient(
+    90deg,
+    rgba(var(--art-rgb), 0.72) 0%,
+    var(--border-default) 46%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: scaleX(0.96);
+  transform-origin: left center;
+  transition:
+    opacity 0.8s ease 0.25s,
+    transform 1s var(--ease-expo) 0.25s;
+
+  &.visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.spec-strip {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  width: var(--plate-width);
+  max-width: 100%;
+  gap: clamp(24px, 4vw, 56px);
+  margin: 0;
+  padding: 18px 0 0;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.7s ease 0.3s,
+    transform 0.8s var(--ease-expo) 0.3s;
+
+  &.visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.spec {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
+  gap: 5px;
+
+  dt {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+}
+
+/* ========== 说明牌 ========== */
+.placard {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.meta-label {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+
+  .placard.ready & {
+    animation: rise 0.85s var(--ease-expo) forwards;
+    animation-delay: calc(var(--i) * 70ms + 120ms);
+  }
 }
 
-.meta-value {
-  font-size: 15px;
-  font-weight: 600;
+@keyframes rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.work-title {
+  margin: 0 0 18px;
   color: var(--text-primary);
+  /* 有宋体骨架的展示字：中文标题也有自己的字形，而不是回落到系统黑体 */
+  font-family: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', 'SimSun', serif;
+  font-size: clamp(2rem, 3.1vw, 3.05rem);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
-.color-value {
+.work-intro {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.85;
+  letter-spacing: 0.005em;
+}
+
+.byline {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  margin: clamp(24px, 3vw, 34px) 0;
+  padding-top: clamp(20px, 2.4vw, 26px);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.byline-avatar {
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+  box-shadow: 0 2px 10px -4px rgba(30, 27, 75, 0.35);
+}
+
+.byline-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.byline-name {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.byline-handle {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.facts {
+  margin: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border-subtle);
+
+  dt {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    white-space: nowrap;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+}
+
+.color-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 4px 4px;
+  margin-left: -4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    background: var(--art-soft);
+    border-color: var(--border-subtle);
+
+    .copy-icon {
+      color: var(--art);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--art);
+    outline-offset: 2px;
+  }
 }
 
 .color-swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: 2px solid var(--border-default);
-  box-shadow: 0 0 15px currentColor;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 0 0 1px rgba(var(--art-rgb), 0.56);
 }
 
-.tags-wrap {
+.color-hex {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.copy-icon {
+  color: var(--text-tertiary);
+  transition: color 0.2s ease;
+
+  &.copied {
+    color: var(--color-success, #10b981);
+  }
+}
+
+.tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 7px;
 }
 
 .tag-chip {
-  padding: 5px 12px;
-  background: rgba(168, 85, 247, 0.1);
-  border: 1px solid var(--color-primary-light);
-  border-radius: 20px;
-  font-size: 13px;
-  color: var(--color-primary-dark);
-  transition: all 0.2s ease;
+  padding: 4px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background-color 0.2s ease;
 
   &:hover {
-    background: rgba(168, 85, 247, 0.2);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--art) 55%, var(--border-default));
+    background: var(--art-soft);
+    color: var(--text-primary);
   }
 }
 
-/* 操作按钮组 */
-.action-group {
+/* ========== 动作 ========== */
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: clamp(26px, 3vw, 34px);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 52px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color 0.24s ease,
+    border-color 0.24s ease,
+    color 0.24s ease,
+    box-shadow 0.3s ease,
+    transform 0.25s var(--ease-expo);
+
+  svg {
+    flex-shrink: 0;
+    transition: transform 0.35s var(--ease-expo);
+  }
+
+  &:hover svg {
+    transform: scale(1.08);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+    box-shadow: none;
+
+    &:hover svg {
+      transform: none;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--art);
+    outline-offset: 3px;
+  }
+}
+
+.btn-primary {
+  flex: 1.15;
+  border: 1px solid var(--text-primary);
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: 0 10px 24px -14px rgba(30, 27, 75, 0.75);
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-primary) 88%, var(--art));
+    border-color: transparent;
+    box-shadow: 0 16px 30px -16px rgba(var(--art-rgb), 0.6);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-secondary {
+  flex: 1;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+
+  &:hover {
+    background: var(--art-soft);
+    border-color: color-mix(in srgb, var(--art) 60%, var(--border-strong));
+    transform: translateY(-1px);
+  }
+}
+
+.btn-primary:disabled:hover {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.btn-secondary:disabled:hover {
+  background: transparent;
+  border-color: var(--border-strong);
+}
+
+.placard-foot {
+  margin-top: clamp(28px, 3.4vw, 40px);
+  padding-top: clamp(20px, 2.6vw, 28px);
+  border-top: 1px solid var(--border-subtle);
+
+  /* 授权面板属于说明牌的附属信息：去掉它自带的卡片外壳，
+     按说明牌的细线行来排，免得一块白卡从墙面里跳出来 */
+  :deep(.grant-panel) {
+    margin-top: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  :deep(.panel-title svg) {
+    color: var(--art);
+  }
+
+  :deep(.grant-list) {
+    gap: 0;
+  }
+
+  :deep(.grant-item) {
+    padding: 13px 0;
+    border: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+/* ========== 加载 / 失败态 ========== */
+.sk-line {
+  height: 14px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-tertiary) 16%, var(--bg-secondary)) 0%,
+    color-mix(in srgb, var(--text-tertiary) 26%, var(--bg-secondary)) 50%,
+    color-mix(in srgb, var(--text-tertiary) 16%, var(--bg-secondary)) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.6s ease-in-out infinite;
+
+  &.sk-title {
+    height: 34px;
+    width: 86%;
+    margin-bottom: 14px;
+  }
+
+  &.sk-title.short {
+    width: 54%;
+    margin-bottom: 26px;
+  }
+
+  &.sk-text {
+    width: 100%;
+  }
+
+  &.sk-text.short {
+    width: 72%;
+    margin-bottom: 30px;
+  }
+
+  &.sk-name {
+    width: 42%;
+    margin-bottom: 0;
+  }
+}
+
+.sk-byline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sk-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-tertiary) 16%, var(--bg-secondary));
+}
+
+@keyframes sk-shimmer {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+/* ========== 整体失败态 ========== */
+.state-page {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 12px;
-  margin-top: 8px;
+  min-height: 62vh;
+  padding: 48px 0 80px;
+  text-align: center;
 }
 
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 16px 24px;
-  border-radius: 14px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &.primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
-
-    &:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
-    }
-  }
-
-  &.secondary {
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    color: var(--text-primary);
-
-    &:hover {
-      background: var(--bg-hover);
-      border-color: var(--color-primary);
-      transform: translateY(-2px);
-    }
-  }
+.state-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--art-soft);
+  color: var(--text-primary);
 }
 
-/* 缩放提示 */
-.zoom-tips {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  padding: 16px;
-  margin-top: auto;
+.state-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', 'SimSun', serif;
+  font-size: clamp(1.6rem, 2.8vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
 }
 
-.tip-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
+.state-hint {
+  max-width: 44ch;
+  margin: 0;
   color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
-kbd {
-  padding: 4px 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-secondary);
+.state-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+
+  .btn {
+    flex: none;
+    min-width: 152px;
+  }
+}
+
+/* ========== 移动端动作条 ========== */
+.mobile-actions {
+  display: none;
+}
+
+/* ========== 浏览器自带表面 ========== */
+#pictureDetailPage ::selection {
+  background: var(--art-soft);
+  color: var(--text-primary);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ========== 响应式 ========== */
-@media (max-width: 768px) {
-  .detail-header {
-    padding: 12px 16px;
+@media (max-width: 1100px) {
+  #pictureDetailPage {
+    --stage-max: 70vh;
   }
 
-  .back-btn span {
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .placard {
+    position: static;
+    max-width: 640px;
+  }
+
+  .plate-image {
+    max-height: var(--stage-max);
+  }
+}
+
+@media (max-width: 640px) {
+  #pictureDetailPage {
+    padding-bottom: 112px;
+  }
+
+  .page-shell {
+    padding: 0 16px;
+  }
+
+  .page-rail {
+    margin-bottom: 18px;
+  }
+
+  .rail-tool-download {
     display: none;
   }
 
-  .main-container {
-    padding: 0 16px 40px;
+  .work-title {
+    font-size: clamp(1.75rem, 7.4vw, 2.3rem);
   }
 
-  .image-info-bar {
-    flex-wrap: wrap;
+  .work-intro {
+    font-size: 14.5px;
+    line-height: 1.8;
+  }
+
+  .spec-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+
+  .fact {
+    grid-template-columns: 52px minmax(0, 1fr);
     gap: 12px;
-    padding: 12px 16px;
   }
 
-  .info-divider {
+  .placard {
+    max-width: none;
+  }
+
+  .plate-cursor {
     display: none;
   }
 
-  .picture-title {
-    font-size: 22px;
-  }
-
-  .author-card {
-    padding: 16px;
-  }
-
-  .author-decoration {
+  .actions {
     display: none;
   }
 
-  .zoom-tips {
+  .mobile-actions {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    gap: 10px;
+    padding: 12px clamp(16px, 4vw, 24px) calc(12px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+    border-top: 1px solid var(--border-subtle);
+    backdrop-filter: blur(18px) saturate(170%);
+
+    .btn-primary {
+      flex: 1;
+    }
+
+    .btn-secondary {
+      flex: 0 0 60px;
+      padding: 0;
+    }
+  }
+}
+
+/* ========== 降低动态效果 ========== */
+@media (prefers-reduced-motion: reduce) {
+  #pictureDetailPage *,
+  #pictureDetailPage *::before,
+  #pictureDetailPage *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .plate-mat {
+    clip-path: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .plate-image {
+    opacity: 1;
+    transform: none;
+  }
+
+  .plate-cursor {
     display: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
   }
 }
 </style>
