@@ -168,18 +168,10 @@
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
-      "count": 5
+      "count": 4
     }
   },
   "src/pages/AgentChatPage.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/pages/ExplorePage.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
@@ -194,7 +186,7 @@
   },
   "src/pages/SpaceDetailPage.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 9
+      "count": 7
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
@@ -253,9 +245,6 @@
   },
   "src/pages/user/UserRegisterPage.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
   },

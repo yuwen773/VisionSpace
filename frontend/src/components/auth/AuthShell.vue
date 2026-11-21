@@ -8,7 +8,15 @@
         <span class="auth-tagline">视觉灵感空间</span>
         <router-link to="/" class="auth-back">
           <span>返回首页</span>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
             <path d="M7 17 17 7M9 7h8v8" />
           </svg>
         </router-link>
@@ -78,9 +86,7 @@
         <span class="scene-ring ring-3"></span>
       </div>
 
-      <p class="scene-quote">
-        {{ quoteFirst }}<br />{{ quoteSecond }}
-      </p>
+      <p class="scene-quote">{{ quoteFirst }}<br />{{ quoteSecond }}</p>
 
       <div class="scene-meta">
         <span>VisionSpace</span>
@@ -208,7 +214,8 @@ withDefaults(
   max-width: 25rem;
   margin: auto;
   padding: 2.5rem 0;
-}.auth-eyebrow {
+}
+.auth-eyebrow {
   display: flex;
   align-items: center;
   gap: 0.75rem;
