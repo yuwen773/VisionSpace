@@ -1,7 +1,7 @@
 package com.yuwen.visionspace.agent.config;
 
 import com.yuwen.visionspace.agent.mcp.McpToolOutcomeUnknownException;
-import com.yuwen.visionspace.agent.recovery.AgentActionInterceptor;
+import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.tools.ImageGenerationException;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
@@ -16,12 +16,12 @@ import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
  * 拦截器看到的是「工具正常返回了内容」，于是把一次超时的非幂等调用记成成功。
  * 只测工具本身发现不了，必须走框架的真实调用链才暴露。
  *
- * <p>这里按<b>工具的幂等性</b>而不是异常类型决定语义：
+ * <p>这里把「结果是否不明」和「不明时能不能重试」都交给
+ * {@link ExternalActionPolicy}，本类只决定异常是重抛还是交回框架：
  * <ul>
- *   <li><b>结果未知的非幂等工具</b>（传输超时、响应丢失——外部可能已产生副作用）：
- *       原样重抛，动作台账判成「结果未知」进入待核对并暂停自动执行。
- *       覆盖所有非幂等工具，不针对某个错误文本或某类异常开特例；</li>
- *   <li><b>生成类异常</b>（{@link ImageGenerationException}）：保持既有语义原样重抛；</li>
+ *   <li><b>结果未知且分类为待核对</b>（传输超时、响应丢失、生成失败——外部可能已产生
+ *       副作用）：原样重抛，动作台账进入待核对并暂停自动执行。覆盖所有非幂等工具，
+ *       不针对某个错误文本或某类异常开特例；</li>
  *   <li><b>其余</b>（幂等只读工具的失败、明确业务失败）：交给框架默认行为转成
  *       文本/error 响应，模型可见、可换方式继续，不中断整轮执行。</li>
  * </ul>
@@ -53,12 +53,14 @@ public final class AgentToolExceptionPolicy {
 
     private static String process(ToolExecutionException exception) {
         Throwable cause = exception.getCause();
-        if (cause instanceof ImageGenerationException) {
-            // 生成类动作无法证明外部没发生：原样重抛，由台账判成「结果未知」
-            throw (RuntimeException) cause;
-        }
-        if (cause instanceof McpToolOutcomeUnknownException
-                && !AgentActionInterceptor.isIdempotent(toolName(exception))) {
+        String toolName = toolName(exception);
+        // 「这次结果是否不明」和「不明时能不能重试」都交给同一个分类器：
+        // 这里只看它给出的结论，不再自己维护一份幂等名单
+        boolean outcomeUnknown = cause instanceof ImageGenerationException
+                || cause instanceof McpToolOutcomeUnknownException;
+        if (outcomeUnknown
+                && ExternalActionPolicy.unknownOutcome(toolName)
+                        == ExternalActionPolicy.Outcome.NEEDS_REVIEW) {
             // 非幂等工具的结果未知：重抛后由台账进入待核对并暂停后续执行
             throw exception;
         }

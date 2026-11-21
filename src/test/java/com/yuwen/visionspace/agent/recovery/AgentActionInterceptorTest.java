@@ -206,11 +206,13 @@ class AgentActionInterceptorTest {
 
     @Test
     void idempotencyClassificationIsExplicit() {
-        assertTrue(AgentActionInterceptor.isIdempotent("searchContentImages"));
-        assertTrue(AgentActionInterceptor.isIdempotent("evaluateImageQuality"));
-        assertFalse(AgentActionInterceptor.isIdempotent("generateImages"),
+        assertTrue(ExternalActionPolicy.canSafelyRetry("searchContentImages"));
+        assertTrue(ExternalActionPolicy.canSafelyRetry("evaluateImageQuality"));
+        assertTrue(ExternalActionPolicy.canSafelyRetry("searchInternalImages"),
+                "站内检索是只读调用，漏登记会被误判成待核对");
+        assertFalse(ExternalActionPolicy.canSafelyRetry("generateImages"),
                 "generation creates external resources and cannot be proven idempotent");
-        assertFalse(AgentActionInterceptor.isIdempotent(null));
+        assertFalse(ExternalActionPolicy.canSafelyRetry(null));
     }
 
     private String status(String toolName) {

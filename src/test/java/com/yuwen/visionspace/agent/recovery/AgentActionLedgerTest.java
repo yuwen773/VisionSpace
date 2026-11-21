@@ -180,7 +180,8 @@ class AgentActionLedgerTest {
                 AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW, "network reset")).thenReturn(1);
 
         assertTrue(ledger.markUnknown(
-                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"), false, "network reset"));
+                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"),
+                ExternalActionPolicy.Outcome.NEEDS_REVIEW, "network reset"));
     }
 
     @Test
@@ -189,7 +190,8 @@ class AgentActionLedgerTest {
                 AgentActionRecord.STATUS_FAILED, "network reset")).thenReturn(1);
 
         assertTrue(ledger.markUnknown(
-                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"), true, "network reset"));
+                AgentActionClaim.acquired(THREAD, OWNER, ACTION, "token"),
+                ExternalActionPolicy.Outcome.SAFE_TO_RETRY, "network reset"));
     }
 
     @Test

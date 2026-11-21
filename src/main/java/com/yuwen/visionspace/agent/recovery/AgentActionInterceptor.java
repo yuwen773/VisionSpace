@@ -10,8 +10,6 @@ import com.yuwen.visionspace.model.entity.AgentActionRecord;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
-
 /**
  * 工具执行边界：每次工具调用都在台账里留下可核对的动作标识、状态和结果摘要。
  *
@@ -29,19 +27,6 @@ import java.util.Set;
 @Slf4j
 @Component
 public class AgentActionInterceptor extends ToolInterceptor {
-
-    /**
-     * 可证明幂等的工具：同样的参数重复执行不会产生额外外部副作用。
-     *
-     * <p>搜索、分析、评估都是只读调用；生成类工具会产生新的外部资源，不能证明幂等，
-     * 因此默认不在这个集合里——结果未知时一律进入待核对。
-     */
-    static final Set<String> IDEMPOTENT_TOOLS = Set.of(            "searchContentImages",
-            "searchSimilarImages",
-            "searchIllustrations",
-            "analyzeImageFeatures",
-            "evaluateImageQuality"
-    );
 
     private final AgentActionLedger ledger;
 
@@ -69,15 +54,16 @@ public class AgentActionInterceptor extends ToolInterceptor {
 
         String toolName = request.getToolName();
         String actionId = AgentActionLedger.actionId(threadId, request.getToolCallId());
-        boolean idempotent = isIdempotent(toolName);
+        ExternalActionPolicy.Outcome unknownOutcome = ExternalActionPolicy.unknownOutcome(toolName);
+        boolean retryable = unknownOutcome == ExternalActionPolicy.Outcome.SAFE_TO_RETRY;
 
         AgentActionClaim claim = ledger.claim(threadId, userId, actionId, toolName,
                 request.getArguments(),
-                idempotent ? AgentActionRecord.IDEMPOTENCY_PROVEN
+                retryable ? AgentActionRecord.IDEMPOTENCY_PROVEN
                         : AgentActionRecord.IDEMPOTENCY_NOT_PROVEN);
 
         if (!claim.acquired()) {
-            return blocked(request, toolName, claim.outcome(), idempotent);
+            return blocked(request, toolName, claim.outcome(), retryable);
         }
 
         try {
@@ -99,11 +85,12 @@ public class AgentActionInterceptor extends ToolInterceptor {
             return response;
         } catch (RuntimeException e) {
             // 异常分不清「外部没做」还是「做了但没拿到结果」：按结果未知处理。
-            // 只有可证明幂等的动作退回 FAILED 允许重试，其余进入待核对。
-            ledger.markUnknown(claim, idempotent,
+            // 去向由同一个分类器决定：可证明幂等的动作退回 FAILED 允许重试，
+            // 其余进入待核对并中断本次执行。
+            ledger.markUnknown(claim, unknownOutcome,
                     "执行异常: " + e.getClass().getSimpleName());
-            if (!idempotent) {
-                throw new PendingReviewException(toolName);
+            if (unknownOutcome == ExternalActionPolicy.Outcome.NEEDS_REVIEW) {
+                throw ExternalActionPolicy.pauseForReview(toolName);
             }
             throw e;
         }
@@ -117,7 +104,7 @@ public class AgentActionInterceptor extends ToolInterceptor {
      * {@code ALREADY_SUCCEEDED} 才能用「已完成」的说法。
      */
     private ToolCallResponse blocked(ToolCallRequest request, String toolName,
-                                     AgentActionClaim.Outcome outcome, boolean idempotent) {
+                                     AgentActionClaim.Outcome outcome, boolean retryable) {
         String toolCallId = request.getToolCallId();
         return switch (outcome) {
             case ALREADY_SUCCEEDED -> {
@@ -129,12 +116,12 @@ public class AgentActionInterceptor extends ToolInterceptor {
                 // 不能只回一条「正在执行中」就放行：模型会换个 toolCallId 再来一次，
                 // 于是同一个外部副作用产生两次。没有完成证据就不能继续，
                 // 这与「结果未知」是同一件事——差别只在证据还没到。
-                yield needsReview(toolCallId, toolName, idempotent,
+                yield needsReview(toolCallId, toolName, retryable,
                         "该动作正在执行中，本次不会重复执行。请稍后刷新结果。");
             }
             case NEEDS_REVIEW -> {
                 log.warn("动作结果未知，需要人工核对后才能继续, tool={}", toolName);
-                yield needsReview(toolCallId, toolName, idempotent);
+                yield needsReview(toolCallId, toolName, retryable);
             }
             case DISMISSED -> {
                 log.info("动作已被用户核对为未执行，不再自动执行, tool={}", toolName);
@@ -159,25 +146,20 @@ public class AgentActionInterceptor extends ToolInterceptor {
      * 否则模型会收到一条「工具出错」的消息后换个方式继续做副作用。
      * 幂等动作没有副作用，回一条错误信息即可。
      */
-    private ToolCallResponse needsReview(String toolCallId, String toolName, boolean idempotent) {
-        return needsReview(toolCallId, toolName, idempotent,
+    private ToolCallResponse needsReview(String toolCallId, String toolName, boolean retryable) {
+        return needsReview(toolCallId, toolName, retryable,
                 "该动作上次执行结果未知，请先核对后再继续。");
     }
 
     /**
-     * @param idempotentMessage 幂等工具回到模型的那句提示；非幂等工具会直接中断，用不到它
+     * @param retryableMessage 可安全重试的工具回到模型的那句提示；其余会直接中断，用不到它
      */
-    private ToolCallResponse needsReview(String toolCallId, String toolName, boolean idempotent,
-                                         String idempotentMessage) {
-        if (!idempotent) {
-            throw new PendingReviewException(toolName);
+    private ToolCallResponse needsReview(String toolCallId, String toolName, boolean retryable,
+                                         String retryableMessage) {
+        if (!retryable) {
+            throw ExternalActionPolicy.pauseForReview(toolName);
         }
-        return ToolCallResponse.error(toolCallId, toolName, idempotentMessage);
-    }
-
-    /** 异常策略（config 包）也要按同一份幂等集合判定重抛与否，保持公开 */
-    public static boolean isIdempotent(String toolName) {
-        return toolName != null && IDEMPOTENT_TOOLS.contains(toolName);
+        return ToolCallResponse.error(toolCallId, toolName, retryableMessage);
     }
 
     private Long ownerUserId(RunnableConfig config) {

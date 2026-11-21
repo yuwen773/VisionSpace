@@ -15,6 +15,7 @@ import com.yuwen.visionspace.agent.config.AgentToolExceptionPolicy;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
 import com.yuwen.visionspace.agent.recovery.AgentRunLifecycle;
+import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.PendingReviewException;
 import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
@@ -259,20 +260,13 @@ public class ImageAgent {
 
     @PostConstruct
     public void init() {
-        // 创建人工介入 Hook - 仅拦截 generateImages（AIGC 生成前需用户确认）
-        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
-                .approvalOn("generateImages", ToolConfig.builder()
-                        .description("即将使用 AIGC 生成图片，需要用户确认")
-                        .build())
-                .build();
-
         agent = ReactAgent.builder()
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
                 .methodTools(methodTools())
                 .hooks(List.of(
-                        hitlHook,
+                        humanApprovalHook(),
                         iterationControlHook,
                         messageTrimmingHook,
                         summarizationHook,
@@ -313,7 +307,7 @@ public class ImageAgent {
             // 而实际必须先核对。暂停状态也要落库，界面才能给出核对入口。
             runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             // 异常原文可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
@@ -435,13 +429,10 @@ public class ImageAgent {
                         } else if (output instanceof InterruptionMetadata interruptionMetadata) {
                             MessageDTO messageDTO = new MessageDTO();
                             messageDTO.setMessageType(MessageType.TOOL_CONFIRM);
-                            StringBuilder sb = new StringBuilder();
-                            for (InterruptionMetadata.ToolFeedback feedback : interruptionMetadata.toolFeedbacks()) {
-                                sb.append("工具: ").append(feedback.getName()).append("\n");
-                                sb.append("评估: ").append(feedback.getDescription()).append("\n");
-                            }
-                            messageDTO.setContent(sb.toString());
-                            chatHistoryService.saveToolConfirmMessage(threadId, userId, sb.toString());
+                            String confirmText = ExternalActionPolicy
+                                    .confirmationText(interruptionMetadata.toolFeedbacks());
+                            messageDTO.setContent(confirmText);
+                            chatHistoryService.saveToolConfirmMessage(threadId, userId, confirmText);
                             // 人工确认信息随完整状态一起落库：重启后仍能区分
                             // 「停在待确认」与「已经确认过」
                             persistAwaitingConfirmation(threadId, userId, interruptionMetadata);
@@ -454,8 +445,7 @@ public class ImageAgent {
                         MessageDTO messageDTO = new MessageDTO();
                         messageDTO.setMessageType(MessageType.ACTION_UNKNOWN);
                         messageDTO.setToolName(error.getToolName());
-                        messageDTO.setContent("工具 " + error.getToolName()
-                                + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
+                        messageDTO.setContent(ExternalActionPolicy.pausedMessage(error.getToolName()));
                         runLifecycle.pausedForUnknownAction(threadId, userId, error.getToolName());
                         return Flux.just(messageDTO);
                     })
@@ -523,7 +513,7 @@ public class ImageAgent {
             // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
             runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题，请稍后重试";
@@ -588,7 +578,7 @@ public class ImageAgent {
             // 结果未知：暂停并等待核对，与「明确失败」区分
             runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             // 明确失败：可安全重试。不能把失败包装成一条成功的助手回复，
             // 否则界面会把它显示成正常回答。
@@ -673,16 +663,24 @@ public class ImageAgent {
     }
 
     /**
-     * 构建支持 MCP 工具的 Agent
-     * 合并内置工具和 MCP 回调
+     * 人工确认点：AIGC 生成前必须由用户确认。
+     *
+     * <p>内置 agent 与 MCP agent 共用这一处构造：两个 builder 各写一份钩子，
+     * 迟早会出现「一个确认、另一个不确认」的漂移。
      */
-    private ReactAgent buildMcpAgent(ToolCallback[] mcpCallbacks) {
-        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
+    private HumanInTheLoopHook humanApprovalHook() {
+        return HumanInTheLoopHook.builder()
                 .approvalOn("generateImages", ToolConfig.builder()
                         .description("即将使用 AIGC 生成图片，需要用户确认")
                         .build())
                 .build();
+    }
 
+    /**
+     * 构建支持 MCP 工具的 Agent
+     * 合并内置工具和 MCP 回调
+     */
+    private ReactAgent buildMcpAgent(ToolCallback[] mcpCallbacks) {
         return ReactAgent.builder()
                 .name("image_assistant_mcp")
                 .model(chatModel)
@@ -690,7 +688,7 @@ public class ImageAgent {
                 .methodTools(methodTools())
                 .tools(mcpCallbacks)
                 .hooks(List.of(
-                        hitlHook,
+                        humanApprovalHook(),
                         iterationControlHook,
                         messageTrimmingHook,
                         summarizationHook,
@@ -768,7 +766,7 @@ public class ImageAgent {
             // 与其它入口的暂停语义不一致
             runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return Optional.empty();

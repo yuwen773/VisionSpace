@@ -9,6 +9,7 @@ import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.AssetSearchAgent;
 import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -243,16 +244,10 @@ public class AgentController {
     }
 
     private String buildInterruptionResponse(InterruptionMetadata interruption) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("【需要确认】\n\n");
-
-        for (InterruptionMetadata.ToolFeedback feedback : interruption.toolFeedbacks()) {
-            sb.append("工具: ").append(feedback.getName()).append("\n");
-            sb.append("评估结果: ").append(feedback.getDescription()).append("\n");
-        }
-
-        sb.append("\n请选择是否满意上述结果，或提供改进建议。");
-        return sb.toString();
+        // 确认措辞由外部动作政策统一给出：流式入口的确认消息用的是同一份文本
+        return "【需要确认】\n\n"
+                + ExternalActionPolicy.confirmationText(interruption.toolFeedbacks())
+                + "\n请选择是否满意上述结果，或提供改进建议。";
     }
 
     /**
