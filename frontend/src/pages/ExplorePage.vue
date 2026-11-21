@@ -172,10 +172,10 @@
               @click="handlePictureClick(picture)"
               @keydown="onCardKeydown($event, picture)"
             >
-              <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
+              <div class="item-image-wrap" :style="{ paddingBottom: pictureAspectRatio(picture) }">
                 <div v-if="!isLoaded(picture)" class="item-skeleton"></div>
                 <img
-                  :src="contentSrc(picture.thumbnailUrl || picture.url)"
+                  :src="pictureImageSrc(picture)"
                   :alt="picture.name"
                   class="item-image"
                   :class="{ loaded: isLoaded(picture), 'is-error': isFailed(picture) }"
@@ -412,7 +412,8 @@ import {
   listPictureTagCategoryUsingGet,
   listPictureVoByPageUsingPost,
 } from '@/api/pictureController'
-import { contentSrc, toId } from '@/utils'
+import { toId } from '@/utils'
+import { pictureAspectRatio, pictureImageSrc } from '@/utils/pictureCard'
 
 /** 推荐接口返回的图片字段（Long 可能以字符串序列化） */
 interface ExplorePicture {
@@ -558,14 +559,6 @@ const onImageLoad = (pictureId: number | string) => {
 const onImageError = (pictureId: number | string) => {
   failedImages.value.add(String(pictureId))
   loadedImages.value.add(String(pictureId))
-}
-
-/**
- * 计算图片宽高比
- */
-const getAspectRatio = (picture: ExplorePicture) => {
-  if (!picture.picWidth || !picture.picHeight) return '75%'
-  return `${(picture.picHeight / picture.picWidth) * 100}%`
 }
 
 /**
