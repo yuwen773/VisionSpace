@@ -23,6 +23,13 @@ spring:
     timeout: 300
     redis:
       namespace: acceptance:session
+  # 与 application.yml 保持一致的自动配置排除项（本文件通过 spring.config.location
+  # 整体替换默认配置，不会继承 application.yml）。排除项决定「开启 RAG 时会不会
+  # 在启动期连向量库」，两份配置必须一致，否则本地验收跑的是另一套装配。
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.chroma.autoconfigure.ChromaVectorStoreAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   ai:
     openai:
       api-key: acceptance-dummy
