@@ -14,12 +14,11 @@
       @finish="handleSubmit"
     >
       <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
-        <label class="field-label" for="register-account">账号</label>
-        <a-input
+        <AuthTextField
           id="register-account"
-          v-model:value="formState.userAccount"
+          v-model="formState.userAccount"
+          label="账号"
           placeholder="设置你的账号"
-          size="large"
           autocomplete="username"
         />
       </a-form-item>
@@ -31,28 +30,14 @@
           { min: 8, message: '密码不能小于8位' },
         ]"
       >
-        <label class="field-label" for="register-password">密码</label>
-        <a-input
+        <AuthTextField
           id="register-password"
-          v-model:value="formState.userPassword"
-          :type="showPassword ? 'text' : 'password'"
+          v-model="formState.userPassword"
+          label="密码"
+          type="password"
           placeholder="至少 8 位"
-          size="large"
           autocomplete="new-password"
-        >
-          <template #suffix>
-            <button
-              type="button"
-              class="field-toggle"
-              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-              :aria-pressed="showPassword"
-              @click="showPassword = !showPassword"
-            >
-              <EyeOff v-if="showPassword" :size="16" aria-hidden="true" />
-              <Eye v-else :size="16" aria-hidden="true" />
-            </button>
-          </template>
-        </a-input>
+        />
       </a-form-item>
 
       <a-form-item
@@ -63,37 +48,17 @@
           { validator: validateConfirmPassword, trigger: 'change' },
         ]"
       >
-        <label class="field-label" for="register-confirm">确认密码</label>
-        <a-input
+        <AuthTextField
           id="register-confirm"
-          v-model:value="formState.checkPassword"
-          :type="showConfirm ? 'text' : 'password'"
+          v-model="formState.checkPassword"
+          label="确认密码"
+          type="password"
           placeholder="再输入一次"
-          size="large"
           autocomplete="new-password"
-        >
-          <template #suffix>
-            <button
-              type="button"
-              class="field-toggle"
-              :aria-label="showConfirm ? '隐藏确认密码' : '显示确认密码'"
-              :aria-pressed="showConfirm"
-              @click="showConfirm = !showConfirm"
-            >
-              <EyeOff v-if="showConfirm" :size="16" aria-hidden="true" />
-              <Eye v-else :size="16" aria-hidden="true" />
-            </button>
-          </template>
-        </a-input>
+        />
       </a-form-item>
 
-      <button type="submit" class="auth-submit" :disabled="submitting">
-        <Loader2 v-if="submitting" :size="17" class="spin" aria-hidden="true" />
-        <span>{{ submitting ? '创建中' : '创建账号' }}</span>
-        <span v-if="!submitting" class="submit-arrow" aria-hidden="true">
-          <ArrowRight :size="17" />
-        </span>
-      </button>
+      <AuthSubmitButton :loading="submitting" label="创建账号" loading-label="创建中" />
     </a-form>
 
     <template #footer>
@@ -111,8 +76,9 @@ import { reactive, ref } from 'vue'
 import { userRegisterUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
-import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import AuthShell from '@/components/auth/AuthShell.vue'
+import AuthTextField from '@/components/auth/AuthTextField.vue'
+import AuthSubmitButton from '@/components/auth/AuthSubmitButton.vue'
 
 const formState = reactive<API.UserRegisterRequest>({
   userAccount: '',
@@ -121,8 +87,6 @@ const formState = reactive<API.UserRegisterRequest>({
 })
 
 const submitting = ref(false)
-const showPassword = ref(false)
-const showConfirm = ref(false)
 
 /** 确认密码随输入实时校验，不必等到提交才提示 */
 const validateConfirmPassword = async (_rule: unknown, value: string) => {

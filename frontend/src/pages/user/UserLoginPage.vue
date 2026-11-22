@@ -14,12 +14,11 @@
       @finish="handleSubmit"
     >
       <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
-        <label class="field-label" for="login-account">账号</label>
-        <a-input
+        <AuthTextField
           id="login-account"
-          v-model:value="formState.userAccount"
+          v-model="formState.userAccount"
+          label="账号"
           placeholder="输入你的账号"
-          size="large"
           autocomplete="username"
         />
       </a-form-item>
@@ -31,37 +30,17 @@
           { min: 8, message: '密码不能小于8位' },
         ]"
       >
-        <label class="field-label" for="login-password">密码</label>
-        <a-input
+        <AuthTextField
           id="login-password"
-          v-model:value="formState.userPassword"
-          :type="showPassword ? 'text' : 'password'"
+          v-model="formState.userPassword"
+          label="密码"
+          type="password"
           placeholder="输入密码"
-          size="large"
           autocomplete="current-password"
-        >
-          <template #suffix>
-            <button
-              type="button"
-              class="field-toggle"
-              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-              :aria-pressed="showPassword"
-              @click="showPassword = !showPassword"
-            >
-              <EyeOff v-if="showPassword" :size="16" aria-hidden="true" />
-              <Eye v-else :size="16" aria-hidden="true" />
-            </button>
-          </template>
-        </a-input>
+        />
       </a-form-item>
 
-      <button type="submit" class="auth-submit" :disabled="submitting">
-        <Loader2 v-if="submitting" :size="17" class="spin" aria-hidden="true" />
-        <span>{{ submitting ? '登录中' : '登录' }}</span>
-        <span v-if="!submitting" class="submit-arrow" aria-hidden="true">
-          <ArrowRight :size="17" />
-        </span>
-      </button>
+      <AuthSubmitButton :loading="submitting" label="登录" loading-label="登录中" />
     </a-form>
 
     <template #footer>
@@ -79,8 +58,9 @@ import { useLoginUserStore } from '@/stores/userLogin.ts'
 import { userLoginUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import router from '@/router'
-import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import AuthShell from '@/components/auth/AuthShell.vue'
+import AuthTextField from '@/components/auth/AuthTextField.vue'
+import AuthSubmitButton from '@/components/auth/AuthSubmitButton.vue'
 
 const formState = reactive<API.UserLoginRequest>({
   userAccount: '',
@@ -89,7 +69,6 @@ const formState = reactive<API.UserLoginRequest>({
 
 const loginUserStore = useLoginUserStore()
 const submitting = ref(false)
-const showPassword = ref(false)
 
 const handleSubmit = async (values: any) => {
   if (submitting.value) return

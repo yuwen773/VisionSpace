@@ -312,15 +312,6 @@ withDefaults(
     margin-bottom: 0;
   }
 
-  :deep(.field-label) {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    color: var(--color-text-secondary);
-  }
-
   :deep(.ant-input),
   :deep(.ant-input-affix-wrapper) {
     min-height: 3rem;
@@ -363,32 +354,6 @@ withDefaults(
     color: var(--color-text-tertiary);
   }
 
-  /* 自绘的密码可见性切换：antd 自带图标 tabindex=-1，键盘无法操作 */
-  :deep(.field-toggle) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    margin-right: -0.25rem;
-    padding: 0;
-    border: none;
-    border-radius: 0.25rem;
-    background: transparent;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-    transition: color 0.2s ease;
-  }
-
-  :deep(.field-toggle:hover) {
-    color: var(--color-text-primary);
-  }
-
-  :deep(.field-toggle:focus-visible) {
-    outline: 2px solid var(--auth-accent);
-    outline-offset: 2px;
-  }
-
   :deep(.ant-input:focus),
   :deep(.ant-input-affix-wrapper:focus),
   :deep(.ant-input-affix-wrapper-focused) {
@@ -426,66 +391,6 @@ withDefaults(
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--color-error);
-  }
-
-  /* 提交按钮 */
-  :deep(.auth-submit) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 100%;
-    min-height: 3.125rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    border-radius: 0.5rem;
-    background: var(--auth-accent);
-    color: #fff;
-    font-family: inherit;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    transition:
-      background 0.25s ease,
-      transform 0.25s var(--auth-ease);
-  }
-
-  :deep(.auth-submit:hover:not(:disabled)) {
-    background: var(--auth-accent-strong);
-  }
-
-  :deep(.auth-submit:active:not(:disabled)) {
-    transform: translateY(1px);
-  }
-
-  :deep(.auth-submit:disabled) {
-    opacity: 0.65;
-    cursor: progress;
-  }
-
-  :deep(.auth-submit .submit-arrow) {
-    display: inline-flex;
-    transition: transform 0.3s var(--auth-ease);
-  }
-
-  :deep(.auth-submit:hover:not(:disabled) .submit-arrow) {
-    transform: translateX(3px);
-  }
-
-  :deep(.auth-submit:focus-visible) {
-    outline: 2px solid var(--auth-accent);
-    outline-offset: 3px;
-  }
-
-  :deep(.spin) {
-    animation: auth-spin 0.9s linear infinite;
-  }
-}
-
-@keyframes auth-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -748,8 +653,7 @@ withDefaults(
 /* ========== 触屏目标 ========== */
 @media (pointer: coarse) {
   .auth-slot :deep(.ant-input),
-  .auth-slot :deep(.ant-input-affix-wrapper),
-  .auth-slot :deep(.auth-submit) {
+  .auth-slot :deep(.ant-input-affix-wrapper) {
     min-height: 3rem;
   }
 }
