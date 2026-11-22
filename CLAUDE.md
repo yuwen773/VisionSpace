@@ -32,7 +32,7 @@ npm run build-only           # Just vite build, no type-check
 npm run type-check           # vue-tsc --build
 npm run lint                 # ESLint --fix
 npm run format               # Prettier --write src/
-npm run openapi2ts           # Regenerate API clients from OpenAPI spec
+npm run openapi2ts           # Regenerate API clients (needs a backend on :8081; see API regeneration)
 
 # Docker
 docker-compose up -d         # MySQL 8.0 + Redis 7 + backend
@@ -80,7 +80,7 @@ Multi-layered architecture with cross-cutting managers:
 - `pages/` — Route pages (Home, AddPicture, PictureDetail, SpaceDetail, AgentChat, admin/*)
 - `components/` — Shared components (agent chat UI, analyze charts, admin panel, user-center tabs)
 - `composables/` — `useTheme` (dual theme toggle), `useAgentStream` (SSE), `useMarkdown`, `useDiagramRenderer`
-- `api/` — **Auto-generated** from OpenAPI spec via `@umijs/openapi` (run `npm run openapi2ts` to regenerate). Hand-written: `pictureRecommend.ts`, `pictureAction.ts`
+- `api/` — **Auto-generated** from OpenAPI spec via `@umijs/openapi` (regenerate from the exported contract, see Conventions → API regeneration). Hand-written clients live in `api-custom/`; never edit `api/` by hand.
 - `stores/` — Pinia store (`userLogin.ts`)
 - `styles/` — Dual theme: `design-tokens.css` (aurora/Deep Space) + `design-tokens-ziyan.css` (紫漾/Pop Art), toggled via `useTheme`
 - `request.ts` — Axios instance with `withCredentials: true` (cookie-based auth via Sa-Token)
@@ -103,7 +103,7 @@ Multi-layered architecture with cross-cutting managers:
 - **Worktree test runs** — The worktree shell guard blocks `pwsh`/`cmd`. Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated MySQL/Redis and removes its datadir on exit.
 - **Before code review** — Run `python -I scripts/tests/check-review-target.py`; commit first so the review sees HEAD, not a stale index. Judgment-call standards are in `CODING_STANDARDS.md`.
 - **Design docs** — Plans saved to `docs/plans/` (gitignored, use `git add -f`)
-- **API regeneration** — After backend endpoint changes, run `npm run openapi2ts` in frontend
+- **API regeneration** — After backend endpoint changes, regenerate `frontend/src/api` from the contract that acceptance exports to `target/openapi-contract.json`; no live backend, MySQL or Redis needed. From `frontend/`: `OPENAPI_SCHEMA_PATH="$PWD/../target/openapi-contract.json" OPENAPI_SERVERS_PATH="$PWD/src" node scripts/openapi-check.mjs`. Only if that contract is missing, fall back to `npm run openapi2ts` (needs a backend on :8081)
 
 ## Agent skills
 

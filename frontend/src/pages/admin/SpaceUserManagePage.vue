@@ -603,10 +603,6 @@ const goBack = () => {
   font-weight: 800;
   color: var(--text-primary);
   margin: 0 0 8px 0;
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f472b6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .page-subtitle {
