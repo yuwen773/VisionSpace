@@ -280,6 +280,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     @Override
+    public List<UserVO> searchForAdmin(String keyword) {
+        String kw = StrUtil.trim(keyword);
+        if (StrUtil.isBlank(kw)) {
+            return new ArrayList<>();
+        }
+        // 姓名与账号任一命中即可：操作员手里可能只有其中一项
+        List<User> users = lambdaQuery()
+                .and(w -> w.like(User::getUserName, kw).or().like(User::getUserAccount, kw))
+                .orderByDesc(User::getCreateTime)
+                .last("LIMIT 20")
+                .list();
+        return getUserVOList(users);
+    }
+
+    @Override
     public QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest) {
         if (userQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");

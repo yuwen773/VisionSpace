@@ -13,6 +13,7 @@ import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.entity.UserFeedback;
 import com.yuwen.visionspace.model.enums.FeedbackAttachmentStatusEnum;
 import com.yuwen.visionspace.model.vo.FeedbackAttachmentVO;
+import com.yuwen.visionspace.model.vo.FeedbackStatsVO;
 import com.yuwen.visionspace.model.vo.FeedbackVO;
 import com.yuwen.visionspace.service.FeedbackAttachmentService;
 import com.yuwen.visionspace.service.FeedbackService;
@@ -117,6 +118,28 @@ public class FeedbackServiceImpl implements FeedbackService {
         }
         voPage.setRecords(records);
         return voPage;
+    }
+
+    @Override
+    public FeedbackStatsVO countByStatus(Integer type) {
+        long pending = countByStatus(type, 0);
+        long processing = countByStatus(type, 1);
+        long resolved = countByStatus(type, 2);
+        FeedbackStatsVO stats = new FeedbackStatsVO();
+        stats.setPending(pending);
+        stats.setProcessing(processing);
+        stats.setResolved(resolved);
+        stats.setTotal(pending + processing + resolved);
+        return stats;
+    }
+
+    private long countByStatus(Integer type, int status) {
+        QueryWrapper<UserFeedback> wrapper = new QueryWrapper<>();
+        wrapper.eq("status", status);
+        if (type != null) {
+            wrapper.eq("type", type);
+        }
+        return feedbackMapper.selectCount(wrapper);
     }
 
     @Override

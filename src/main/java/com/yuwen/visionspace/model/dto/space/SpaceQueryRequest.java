@@ -38,5 +38,15 @@ public class SpaceQueryRequest extends PageRequest implements Serializable {
      */
     private Integer spaceType;
 
+    /**
+     * 空间状态：0-禁用 1-正常
+     */
+    private Integer status;
+
+    /**
+     * 所有者关键字：匹配用户名或账号，用于管理端按人筛空间
+     */
+    private String userKeyword;
+
     private static final long serialVersionUID = 1L;
 }

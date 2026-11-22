@@ -69,6 +69,26 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
      */
     @Override
     public long addSpace(SpaceAddRequest spaceAddRequest, User loginUser) {
+        return addSpaceForOwner(spaceAddRequest, loginUser, loginUser.getId());
+    }
+
+    /**
+     * 创建空间并指定归属用户。
+     *
+     * <p>普通用户只能给自己建空间；管理员可以在管理端代某个用户建空间。
+     * 权限判断始终以操作者（operator）的身份进行，归属用户（ownerUserId）只决定
+     * 空间记在谁名下，二者不能混用，否则普通用户就能伪造 userId 越权建空间。
+     */
+    @Override
+    public long addSpaceForOwner(SpaceAddRequest spaceAddRequest, User operator, Long ownerUserId) {
+        ThrowUtils.throwIf(operator == null, ErrorCode.NOT_LOGIN_ERROR);
+        ThrowUtils.throwIf(ownerUserId == null || ownerUserId <= 0, ErrorCode.PARAMS_ERROR, "归属用户不能为空");
+        if (!ownerUserId.equals(operator.getId()) && !userService.isAdmin(operator)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限为其他用户创建空间");
+        }
+        User owner = userService.getById(ownerUserId);
+        ThrowUtils.throwIf(owner == null, ErrorCode.NOT_FOUND_ERROR, "归属用户不存在");
+
         // 1. 填充参数默认值
         // 转换实体类和 DTO
         Space space = new Space();
@@ -87,16 +107,15 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 2. 校验参数
         this.validSpace(space, true);
         // 3. 校验权限，非管理员只能创建普通级别的空间
-        Long userId = loginUser.getId();
-        space.setUserId(userId);
-        if (SpaceLevelEnum.COMMON.getValue() != space.getSpaceLevel() && !userService.isAdmin(loginUser)) {
+        space.setUserId(ownerUserId);
+        if (SpaceLevelEnum.COMMON.getValue() != space.getSpaceLevel() && !userService.isAdmin(operator)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限创建指定级别的空间");
         }
         // 4. 同一用户每种类型最多一个有效空间。
         //    唯一性由数据库的 activeKey 唯一索引保证，而不是进程内锁：
         //    进程内锁只在单个 JVM 内生效，两个实例同时创建时都会看到"不存在"。
         //    冲突时唯一索引让后提交的一方失败，事务整体回滚，不会留下半条记录。
-        space.setActiveKey(activeKeyOf(userId, space.getSpaceType()));
+        space.setActiveKey(activeKeyOf(ownerUserId, space.getSpaceType()));
         try {
             Long newSpaceId = transactionTemplate.execute(status -> {
                 // 创建
@@ -107,7 +126,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 if (SpaceTypeEnum.TEAM.getValue() == space.getSpaceType()) {
                     SpaceUser spaceUser = new SpaceUser();
                     spaceUser.setSpaceId(space.getId());
-                    spaceUser.setUserId(userId);
+                    spaceUser.setUserId(ownerUserId);
                     spaceUser.setSpaceRole(SpaceRoleEnum.ADMIN.getValue());
                     result = spaceUserService.save(spaceUser);
                     ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建团队成员记录失败");
@@ -261,6 +280,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         String spaceName = spaceQueryRequest.getSpaceName();
         Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
         Integer spaceType = spaceQueryRequest.getSpaceType();
+        Integer status = spaceQueryRequest.getStatus();
+        String userKeyword = spaceQueryRequest.getUserKeyword();
         String sortField = spaceQueryRequest.getSortField();
         String sortOrder = spaceQueryRequest.getSortOrder();
         // 拼接查询条件
@@ -269,6 +290,22 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
+        queryWrapper.eq(ObjUtil.isNotEmpty(status), "status", status);
+        // 所有者关键字：先按用户名/账号解析出用户 id，再收敛空间范围。
+        // 解析不到用户时用恒假条件返回空页，而不是忽略关键字返回全部空间。
+        if (StrUtil.isNotBlank(userKeyword)) {
+            List<Long> ownerIds = userService.lambdaQuery()
+                    .and(w -> w.like(User::getUserName, userKeyword).or().like(User::getUserAccount, userKeyword))
+                    .list()
+                    .stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList());
+            if (ownerIds.isEmpty()) {
+                queryWrapper.apply("1 = 0");
+            } else {
+                queryWrapper.in("userId", ownerIds);
+            }
+        }
         // 排序
         SortKeyResolver.Sort sort = SortKeyResolver.resolve(SortKeyResolver.SPACE_KEYS, sortField, sortOrder);
         if (!sort.isEmpty()) {
