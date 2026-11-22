@@ -130,21 +130,6 @@
       "count": 1
     }
   },
-  "src/components/user-center/FeedbackSection.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/user-center/PicturesSection.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/user-center/ProfileSection.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/composables/__tests__/useAgentStream.spec.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 3

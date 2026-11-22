@@ -1,225 +1,252 @@
 <template>
-  <div class="glass-section">
-    <h2 class="section-title">我的图片</h2>
+  <RecordSection
+    index="02"
+    title="我的图片"
+    label="ARCHIVE"
+    lede="你的上传、收藏与审核记录。最近六件作品同时作为封面印样出现在页首；点开任意一张继续查看。"
+  >
+    <!-- 最近上传 -->
+    <div class="sheet">
+      <div class="uc-subhead sheet-head">
+        <span>最近上传</span>
+        <span class="mono sheet-count">
+          <span>RECENT / {{ pictures.length.toString().padStart(2, '0') }}</span>
+          <span v-if="!loading" class="sheet-pass">
+            PASSED {{ stats.reviewPassCount ?? 0 }} / {{ stats.uploadCount ?? 0 }}
+          </span>
+        </span>
+      </div>
 
-    <!-- Stats -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-value text-gradient">{{ pictureStats.uploadCount ?? 0 }}</div>
-        <div class="stat-label">上传数量</div>
-        <div class="stat-bar bar-upload" />
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-gradient-pink">{{ pictureStats.likeCount ?? 0 }}</div>
-        <div class="stat-label">收藏数量</div>
-        <div class="stat-bar bar-like" />
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-gradient-violet">{{ pictureStats.reviewPassRate ?? 0 }}%</div>
-        <div class="stat-label">审核通过率</div>
-        <div class="stat-bar bar-pass" />
-      </div>
-    </div>
+      <p v-if="loading" class="sheet-status mono" role="status">正在读取档案…</p>
 
-    <!-- Recent Pictures -->
-    <div class="recent-section">
-      <h3 class="recent-title">最近上传</h3>
-      <a-spin :spinning="loading">
-        <div v-if="recentPictures.length > 0" class="picture-grid">
-          <div
-            v-for="pic in recentPictures"
-            :key="pic.id"
-            class="picture-item"
-            @click="$emit('goToPicture', pic.id!)"
+      <ul v-if="pictures.length" class="archive-grid">
+        <li v-for="(pic, index) in pictures" :key="pic.id">
+          <button
+            type="button"
+            class="archive-item"
+            :aria-label="`打开作品：${pic.name || '未命名'}`"
+            @click="pic.id && $emit('goToPicture', pic.id)"
           >
-            <img :src="pictureImageSrc(pic)" :alt="pic.name" />
-            <div class="picture-overlay">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </div>
-          </div>
+            <span class="archive-frame">
+              <img
+                :src="pictureImageSrc(pic)"
+                :alt="pic.name || '作品缩略图'"
+                loading="lazy"
+                decoding="async"
+              />
+              <span class="archive-open mono" aria-hidden="true">OPEN →</span>
+            </span>
+            <span class="archive-caption">
+              <span class="archive-name">{{ pic.name || '未命名作品' }}</span>
+              <span class="archive-no mono">{{ String(index + 1).padStart(2, '0') }}</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+
+      <div v-else-if="!loading" class="archive-empty">
+        <span class="archive-empty-mark mono" aria-hidden="true">Ø</span>
+        <div>
+          <p class="archive-empty-title">还没有上传作品。</p>
+          <p class="uc-hint">
+            上传第一张图片，它会出现在这里和页首的接触印样上。之后可以按颜色或语义把它找回来。
+          </p>
+          <button type="button" class="uc-btn uc-btn--solid empty-action" @click="$emit('goToAdd')">
+            上传作品
+          </button>
         </div>
-        <a-empty v-else description="暂无上传记录" />
-      </a-spin>
+      </div>
     </div>
-  </div>
+  </RecordSection>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { getUserPictureStatsUsingGet, getUserRecentPicturesUsingGet } from '@/api/userController'
 import { pictureImageSrc } from '@/utils/pictureCard'
+import RecordSection from '@/components/user-center/RecordSection.vue'
+
+defineProps<{
+  stats: API.UserPictureStatsResponse
+  pictures: API.PictureVO[]
+  loading: boolean
+}>()
 
 defineEmits<{
   goToPicture: [id: number]
+  goToAdd: []
 }>()
-
-const pictureStats = ref<API.UserPictureStatsResponse>({
-  uploadCount: 0,
-  likeCount: 0,
-  reviewPassRate: 0,
-})
-
-const recentPictures = ref<API.PictureVO[]>([])
-const loading = ref(false)
-
-const loadData = async () => {
-  loading.value = true
-  try {
-    const [statsRes, picturesRes] = await Promise.all([
-      getUserPictureStatsUsingGet(),
-      getUserRecentPicturesUsingGet({ count: 6 }),
-    ])
-    if (statsRes.data.code === 0) {
-      pictureStats.value = statsRes.data.data ?? pictureStats.value
-    }
-    if (picturesRes.data.code === 0) {
-      recentPictures.value = picturesRes.data.data ?? []
-    }
-  } catch (e) {
-    // 静默处理，已展示空状态
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(loadData)
 </script>
 
 <style scoped>
-/* Stats */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
-}
-
-.stat-card {
-  text-align: center;
-  padding: var(--space-5) var(--space-4);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-subtle);
-  position: relative;
-  overflow: hidden;
-  transition: all var(--transition-base);
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow-purple);
-  border-color: var(--border-accent);
-}
-
-.stat-value {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: var(--text-sm);
-  color: var(--color-text-tertiary);
-  margin-top: var(--space-2);
-  font-weight: 600;
-}
-
-.stat-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-}
-
-.bar-upload {
-  background: var(--gradient-sunset);
-}
-
-.bar-like {
-  background: var(--gradient-rose);
-}
-
-.bar-pass {
-  background: var(--gradient-violet);
-}
-
-/* Recent Pictures */
-.recent-title {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--space-4);
-}
-
-.picture-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+/* ============ 档案网格 ============ */
+.sheet-head {
   gap: var(--space-4);
 }
 
-.picture-item {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
+.sheet-count {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(12px, 2vw, 24px);
+  text-align: right;
+}
+
+.sheet-pass {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--uc-ink-3);
+}
+
+.sheet-status {
+  margin: 0 0 var(--space-4);
+  font-size: 10px;
+}
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(14px, 2.4vw, 28px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.archive-item {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--uc-ink);
+  text-align: left;
   cursor: pointer;
-  border: 1px solid var(--border-subtle);
-  transition: all var(--transition-base);
 }
 
-.picture-item:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-glow-purple);
-  border-color: var(--border-accent);
+.archive-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--uc-line);
+  background: var(--uc-bg-raised);
+  overflow: hidden;
 }
 
-.picture-item img {
+.archive-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: saturate(0.88) contrast(1.02);
+  transition:
+    transform 0.6s var(--uc-ease),
+    filter 0.4s ease;
 }
 
-.picture-overlay {
+.archive-item:hover .archive-frame img,
+.archive-item:focus-visible .archive-frame img {
+  transform: scale(1.035);
+  filter: saturate(1) contrast(1.02);
+}
+
+.archive-open {
   position: absolute;
-  inset: 0;
-  background: rgba(139, 92, 246, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  right: 10px;
+  bottom: 10px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: #fff;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transform: translateY(6px);
+  transition:
+    opacity 0.26s var(--uc-ease),
+    transform 0.26s var(--uc-ease);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
 }
 
-.picture-overlay svg {
-  width: 28px;
-  height: 28px;
-}
-
-.picture-item:hover .picture-overlay {
+.archive-item:hover .archive-open,
+.archive-item:focus-visible .archive-open {
   opacity: 1;
+  transform: translateY(0);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: 1fr;
-  }
+.archive-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 0;
+}
 
-  .picture-grid {
-    grid-template-columns: repeat(2, 1fr);
+.archive-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--uc-ink-2);
+}
+
+.archive-no {
+  flex-shrink: 0;
+  font-size: 9px;
+}
+
+/* ============ 空状态 ============ */
+.archive-empty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 40px);
+  align-items: start;
+  padding: clamp(28px, 5vw, 48px);
+  border: 1px solid var(--uc-line);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 15px,
+    rgba(244, 241, 234, 0.035) 15px,
+    rgba(244, 241, 234, 0.035) 16px
+  );
+}
+
+.is-light .archive-empty {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 15px,
+    rgba(124, 58, 237, 0.05) 15px,
+    rgba(124, 58, 237, 0.05) 16px
+  );
+}
+
+.archive-empty-mark {
+  font-family: var(--uc-serif);
+  font-size: 56px;
+  line-height: 0.9;
+  color: var(--uc-ink-3);
+}
+
+.archive-empty-title {
+  margin: 0 0 10px;
+  font-family: var(--uc-serif);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 600;
+  color: var(--uc-ink);
+}
+
+.empty-action {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 900px) {
+  .archive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 480px) {
-  .picture-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 640px) {
+  .archive-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .archive-empty-mark {
+    font-size: 40px;
   }
 }
 </style>

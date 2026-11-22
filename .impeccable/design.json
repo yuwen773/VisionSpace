@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-21T15:32:14Z",
+  "title": "Design System: VisionSpace",
+  "extensions": {
+    "colorMeta": {
+      "dark-paper": { "role": "neutral", "displayName": "Archive Paper", "canonical": "#05060c", "tonalRamp": ["#03040a", "#05060c", "#0a0c15", "#121522", "#202536", "#363c52", "#5c637d", "#a9aec0"] },
+      "dark-ink": { "role": "neutral", "displayName": "Warm Ink", "canonical": "#f4f1ea", "tonalRamp": ["#1a1917", "#3a3833", "#5c594f", "#7f7b70", "#a5a096", "#c9c4b9", "#e4e1d8", "#f4f1ea"] },
+      "dark-accent": { "role": "primary", "displayName": "Archive Violet", "canonical": "#b7a2ff", "tonalRamp": ["#1a0f3d", "#2e1a66", "#4a2e99", "#6746c4", "#8463e0", "#a184ee", "#b7a2ff", "#d8ccff"] },
+      "dark-positive": { "role": "tertiary", "displayName": "Mint Verdict", "canonical": "#86e3c8", "tonalRamp": ["#0b2f26", "#135445", "#1d7a63", "#2a9f83", "#45c2a4", "#68d7bd", "#86e3c8", "#c4f3e6"] },
+      "dark-danger": { "role": "tertiary", "displayName": "Rose Alarm", "canonical": "#ff8fa3", "tonalRamp": ["#3d0d16", "#661826", "#942639", "#c23a51", "#e05a70", "#f4748a", "#ff8fa3", "#ffd0d8"] },
+      "light-paper": { "role": "neutral", "displayName": "Warm Lilac Paper", "canonical": "#faf7ff", "tonalRamp": ["#2a2440", "#4a4166", "#6e648c", "#948bb0", "#bbb4d2", "#d8d3e6", "#eeeaf7", "#faf7ff"] },
+      "light-ink": { "role": "neutral", "displayName": "Indigo Ink", "canonical": "#1e1b4b", "tonalRamp": ["#0d0b20", "#1e1b4b", "#35306e", "#514a94", "#6f68b8", "#928cd4", "#bbb7e4", "#e4e2f4"] },
+      "light-accent": { "role": "primary", "displayName": "Light Archive Violet", "canonical": "#7c3aed", "tonalRamp": ["#1d0a3f", "#35116e", "#4f1aa0", "#6726c9", "#7c3aed", "#9f6cf2", "#c4a2f8", "#e5d4fc"] },
+      "pass-violet-mid": { "role": "secondary", "displayName": "Pass Violet Mid", "canonical": "#231044", "tonalRamp": ["#120a26", "#1a0c33", "#231044", "#31175f", "#44217f", "#5c319f", "#7a4bc0", "#a37ee0"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The owner's name in the masthead only." },
+      "headline": { "displayName": "Headline", "purpose": "The member pass status." },
+      "title": { "displayName": "Record Title", "purpose": "The five record headings and empty-state titles." },
+      "measurement": { "displayName": "Measurement", "purpose": "Ledger values with tabular figures." },
+      "body": { "displayName": "Body", "purpose": "Bio, ledes, prose and field values." },
+      "label": { "displayName": "Catalog Label", "purpose": "Metadata, dates, counts, units, IDs and state tokens." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-archive", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Record wipes, marker travel, image release and caption reveals." },
+      { "name": "snap-fast", "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Button, field and color state changes." },
+      { "name": "record-enter", "value": "260ms opacity/transform, 340ms clip-path", "purpose": "Record swap in: 14px rise with a clip-path reveal from inset(0 0 100% 0) to inset(0)." },
+      { "name": "record-leave", "value": "120ms ease", "purpose": "Record swap out: 6px lift and fade." },
+      { "name": "marker-travel", "value": "280ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "The 2px index marker moving between 56px rows." },
+      { "name": "plate-reveal", "value": "600ms transform, 400ms filter", "purpose": "Image scale 1.035 and saturation release on hover or focus." },
+      { "name": "caption-reveal", "value": "320ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Plate caption sliding up from below the frame." },
+      { "name": "icon-nudge", "value": "240ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Button icon translation on hover." }
+    ],
+    "breakpoints": [
+      { "name": "wide", "value": "1080px" },
+      { "name": "content-split", "value": "900px" },
+      { "name": "stack", "value": "860px" },
+      { "name": "compact", "value": "640px" },
+      { "name": "field-stack", "value": "520px" },
+      { "name": "minimum", "value": "320px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Solid Button",
+      "kind": "button",
+      "refersTo": "button-solid",
+      "description": "Primary action: Archive Ink fill at rest, Archive Violet on hover; 42px desktop, 44px below 860px.",
+      "html": "<button class=\"ds-btn ds-btn--solid\">上传作品 <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 7h10v10\"/><path d=\"M7 17 17 7\"/></svg></button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:0 18px; border:1px solid transparent; border-radius:2px; font-family:'Noto Sans SC',sans-serif; font-size:13px; font-weight:500; letter-spacing:0.02em; line-height:1; cursor:pointer; transition:background 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn svg { flex-shrink:0; transition:transform 240ms cubic-bezier(0.22,1,0.36,1); } .ds-btn--solid { background:#f4f1ea; border-color:#f4f1ea; color:#05060c; } .ds-btn--solid:hover { background:#b7a2ff; border-color:#b7a2ff; color:#0b0716; } .ds-btn--solid:hover svg { transform:translate(1px,-1px); } .ds-btn:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; } .ds-btn:disabled { opacity:0.42; cursor:not-allowed; }"
+    },
+    {
+      "name": "Line Button",
+      "kind": "button",
+      "refersTo": "button-line",
+      "description": "Secondary action: 1px Strong Rule border and Warm Ink text; hover turns border and text to Archive Violet.",
+      "html": "<button class=\"ds-btn ds-btn--line\">更换头像</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:0 18px; border:1px solid transparent; border-radius:2px; font-family:'Noto Sans SC',sans-serif; font-size:13px; font-weight:500; letter-spacing:0.02em; line-height:1; cursor:pointer; background:transparent; transition:background 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn--line { border-color:rgba(244,241,234,0.24); color:#f4f1ea; } .ds-btn--line:hover { border-color:#b7a2ff; color:#b7a2ff; } .ds-btn--line:hover svg { transform:translate(1px,-1px); } .ds-btn:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; }"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Tertiary action rendered as an underlined text link; no border, no padding, 1px underline at 4px offset.",
+      "html": "<button class=\"ds-btn ds-btn--quiet\">浏览图库 <svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-family:'Noto Sans SC',sans-serif; font-size:13px; line-height:1; cursor:pointer; } .ds-btn svg { flex-shrink:0; transition:transform 240ms cubic-bezier(0.22,1,0.36,1); } .ds-btn--quiet { min-height:0; padding:0; border:0; background:transparent; color:rgba(244,241,234,0.74); font-weight:400; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:4px; } .ds-btn--quiet:hover { color:#f4f1ea; background:transparent; } .ds-btn--quiet:hover svg { transform:translateX(2px); } .ds-btn:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive action: Rose Alarm text and a 45% mixed border; hover completes the border and adds an 8% fill.",
+      "html": "<button class=\"ds-btn ds-btn--danger\">清除全部偏好</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:0 18px; border:1px solid transparent; border-radius:2px; font-family:'Noto Sans SC',sans-serif; font-size:13px; font-weight:500; letter-spacing:0.02em; line-height:1; cursor:pointer; background:transparent; transition:background 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn--danger { border-color:rgba(255,143,163,0.45); color:#ff8fa3; } .ds-btn--danger:hover { border-color:#ff8fa3; background:rgba(255,143,163,0.08); } .ds-btn:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Flat 46px field with a 2px radius, transparent fill and a mono catalog label; focus turns the border and caret Archive Violet.",
+      "html": "<div class=\"ds-field-group\"><span class=\"ds-label\"><span>昵称</span><span>NAME</span></span><input class=\"ds-field\" value=\"林晚\" aria-label=\"昵称\" /></div>",
+      "css": ".ds-field-group { font-family:'Noto Sans SC',sans-serif; } .ds-label { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:9px; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:rgba(244,241,234,0.52); } .ds-field { display:block; width:100%; box-sizing:border-box; min-height:46px; padding:11px 14px; border:1px solid rgba(244,241,234,0.24); border-radius:2px; background:transparent; color:#f4f1ea; font-family:'Noto Sans SC',sans-serif; font-size:15px; line-height:1.6; caret-color:#b7a2ff; transition:border-color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-field::placeholder { color:rgba(244,241,234,0.52); opacity:1; } .ds-field:hover { border-color:rgba(244,241,234,0.52); } .ds-field:focus { outline:none; border-color:#b7a2ff; } .ds-field:focus-visible { outline:2px solid #b7a2ff; outline-offset:1px; }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Static preference token: 999px pill, transparent fill, 1px Strong Rule border, Muted Ink text.",
+      "html": "<span class=\"ds-chip\">水彩</span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid rgba(244,241,234,0.24); border-radius:999px; background:transparent; color:rgba(244,241,234,0.74); font-family:'Noto Sans SC',sans-serif; font-size:12px; line-height:1.5; }"
+    },
+    {
+      "name": "Switch",
+      "kind": "custom",
+      "description": "Auto-learn control: 46x26 pill track, 18px thumb, mono state label; the on state fills the track with Archive Violet.",
+      "html": "<button class=\"ds-switch is-on\" role=\"switch\" aria-checked=\"true\"><span class=\"ds-switch-track\"><span class=\"ds-switch-thumb\"></span></span><span class=\"ds-switch-state\">ON</span></button>",
+      "css": ".ds-switch { display:inline-flex; align-items:center; gap:10px; padding:4px; border:none; background:transparent; color:rgba(244,241,234,0.74); font-family:'Noto Sans SC',sans-serif; cursor:pointer; } .ds-switch-track { position:relative; display:block; width:46px; height:26px; box-sizing:border-box; border:1px solid rgba(244,241,234,0.24); border-radius:999px; background:transparent; transition:background 200ms cubic-bezier(0.4,0,0.2,1), border-color 200ms cubic-bezier(0.4,0,0.2,1); } .ds-switch-thumb { position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:rgba(244,241,234,0.52); transition:transform 240ms cubic-bezier(0.22,1,0.36,1), background 200ms cubic-bezier(0.4,0,0.2,1); } .ds-switch.is-on .ds-switch-track { background:#b7a2ff; border-color:#b7a2ff; } .ds-switch.is-on .ds-switch-thumb { transform:translateX(20px); background:#0b0716; } .ds-switch-state { min-width:26px; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.18em; text-transform:uppercase; } .ds-switch.is-on .ds-switch-state { color:#b7a2ff; } .ds-switch:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; }"
+    },
+    {
+      "name": "Contact Sheet Plate",
+      "kind": "custom",
+      "refersTo": "plate",
+      "description": "A 3/4 unrounded print frame on Raised Paper; the image lifts and releases saturation on hover or focus while the caption slides up. Replace the placeholder media with a user upload.",
+      "html": "<button class=\"ds-plate\" aria-label=\"打开作品：暮色\"><span class=\"ds-plate-media\" aria-hidden=\"true\"></span><span class=\"ds-plate-no\">01</span><span class=\"ds-plate-caption\"><span class=\"ds-plate-name\">暮色</span><span class=\"ds-plate-view\">VIEW</span></span></button>",
+      "css": ".ds-plate { position:relative; display:block; width:100%; aspect-ratio:3/4; padding:0; border:1px solid rgba(244,241,234,0.12); border-radius:0; background:#0a0c15; color:#f4f1ea; text-align:left; cursor:pointer; overflow:hidden; } .ds-plate-media { display:block; width:100%; height:100%; background:linear-gradient(145deg,#2a2434 0%,#0d0f18 55%,#1b1526 100%); filter:saturate(0.86) contrast(1.03); transition:transform 600ms cubic-bezier(0.22,1,0.36,1), filter 400ms ease; } .ds-plate:hover .ds-plate-media, .ds-plate:focus-visible .ds-plate-media { transform:scale(1.035); filter:saturate(1) contrast(1.03); } .ds-plate-no { position:absolute; top:8px; left:10px; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.18em; color:rgba(255,255,255,0.72); text-shadow:0 1px 4px rgba(0,0,0,0.4); } .ds-plate-caption { position:absolute; inset:auto 0 0 0; display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:10px 10px 9px; background:rgba(5,6,12,0.86); border-top:1px solid rgba(255,255,255,0.14); transform:translateY(100%); transition:transform 320ms cubic-bezier(0.22,1,0.36,1); } .ds-plate:hover .ds-plate-caption, .ds-plate:focus-visible .ds-plate-caption { transform:translateY(0); } .ds-plate-name { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; color:rgba(255,255,255,0.92); } .ds-plate-view { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.18em; color:rgba(255,255,255,0.62); } .ds-plate:focus-visible { outline:2px solid #b7a2ff; outline-offset:3px; }"
+    },
+    {
+      "name": "Member Pass",
+      "kind": "custom",
+      "refersTo": "member-pass",
+      "description": "The signature object and the only filled gradient: an active VIP pass with a guilloche field and a dashed stub. The issuer line is printed matter on the pass, not a page eyebrow.",
+      "html": "<div class=\"ds-pass\"><svg class=\"ds-pass-guilloche\" viewBox=\"0 0 640 240\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path d=\"M-40,10 C80,-50 180,70 300,10 S520,-50 680,10\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\"/><path d=\"M-40,50 C80,-10 180,110 300,50 S520,-10 680,50\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\"/><path d=\"M-40,90 C80,30 180,150 300,90 S520,30 680,90\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\"/><path d=\"M-40,130 C80,70 180,190 300,130 S520,70 680,130\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\"/><path d=\"M-40,170 C80,110 180,230 300,170 S520,110 680,170\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\"/></svg><div class=\"ds-pass-main\"><span class=\"ds-pass-issuer\">VISIONSPACE / MEMBER PASS</span><p class=\"ds-pass-status\">VIP</p><p class=\"ds-pass-holder\">林晚</p><div class=\"ds-pass-meta\"><span><span class=\"ds-pass-label\">状态 / STATUS</span><b>有效</b></span><span><span class=\"ds-pass-label\">有效至 / UNTIL</span><b>2027.06.30</b></span></div></div><div class=\"ds-pass-stub\"><span class=\"ds-pass-label\">NO.</span><span class=\"ds-pass-no\">000123</span><span class=\"ds-pass-label\">VS</span></div></div>",
+      "css": ".ds-pass { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 168px; min-height:224px; overflow:hidden; border:1px solid transparent; border-radius:0; background:radial-gradient(110% 140% at 92% 0%, rgba(183,162,255,0.24) 0%, transparent 58%), linear-gradient(118deg, #120a26 0%, #231044 50%, #3b1d70 100%); color:#fff; font-family:'Noto Sans SC',sans-serif; } .ds-pass-guilloche { position:absolute; inset:0; width:100%; height:100%; color:rgba(255,255,255,0.55); opacity:0.28; pointer-events:none; } .ds-pass-main { position:relative; z-index:1; padding:34px; min-width:0; } .ds-pass-issuer { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.2em; text-transform:uppercase; color:rgba(255,255,255,0.86); } .ds-pass-status { margin:26px 0 0; font-family:'Noto Serif SC',serif; font-size:62px; font-weight:600; line-height:1; letter-spacing:0.02em; } .ds-pass-holder { margin:10px 0 0; font-size:14px; color:rgba(255,255,255,0.9); } .ds-pass-meta { display:flex; flex-wrap:wrap; gap:56px; margin-top:32px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.28); } .ds-pass-meta span { display:flex; flex-direction:column; gap:6px; } .ds-pass-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:rgba(255,255,255,0.86); } .ds-pass-meta b { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; } .ds-pass-stub { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:22px 16px; border-left:1px dashed rgba(255,255,255,0.36); background:rgba(0,0,0,0.16); } .ds-pass-no { font-family:'JetBrains Mono',monospace; font-size:22px; line-height:1; writing-mode:vertical-rl; text-orientation:upright; letter-spacing:0.06em; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Private Print Room",
+    "overview": "The user center is an owner's archive, not a settings dashboard. It is lit like a print room after hours: near-black paper (#05060c), warm ink (#f4f1ea), one violet (#b7a2ff) for index numbers, selection and focus, and the user's own photographs as the main source of color on the page. There is no glass, no gradient headline and no shadowed card. Structure comes from hairlines, tonal paper steps, a ruled ledger and a numbered index rail whose marker travels between five records.\n\nType does the editorial work. The owner's name is set at billboard scale in Noto Serif SC; record titles, the member pass and measurement numerals stay serif; the interface speaks in Noto Sans SC; catalog metadata, dates, counts, IDs and states are JetBrains Mono. A staggered six-plate contact sheet prints recent uploads beside the masthead, each plate an unrounded frame whose caption slides in on hover or keyboard focus.\n\nLight and dark are the same layout under two lights: paper (#faf7ff), ink (#1e1b4b), violet (#7c3aed), with the same rhythm and rules. All photography is user content; the capture set under .impeccable/review uses picsum placeholders and is not a shipping asset. The older global Fredoka/Nunito tokens and glass helpers in design-tokens*.css belong to surfaces outside this system.",
+    "keyCharacteristics": [
+      "Near-black archive paper with warm ink; a warm-lilac paper and indigo ink in the light theme.",
+      "Noto Serif SC at billboard scale for the name, headings and measurements.",
+      "JetBrains Mono for catalog metadata, measurements, dates and state tokens.",
+      "Hairline rules and tonal paper steps instead of cards, shadows or glass.",
+      "User photographs supply the imagery and the dominant color; chrome stays paper, ink and violet.",
+      "A 01-05 index rail with a traveling 2px marker, beside a staggered contact sheet."
+    ],
+    "rules": [
+      { "name": "The Photographs Carry the Color Rule", "body": "Chrome stays inside paper, ink and violet. Outside that violet, saturation enters only through the user's uploaded images; no decorative gradients, neon glows or gradient text belong to the archive.", "section": "colors" },
+      { "name": "The Two Lightings Rule", "body": "Dark and light are one layout under two lights. Only the page-local color variables swap; type, spacing, shape and motion do not fork by theme.", "section": "colors" },
+      { "name": "The One Deep-Violet Object Rule", "body": "The active member pass is the only filled gradient surface. It is the single deliberate exception to flat paper, and it never leaves the violet family.", "section": "colors" },
+      { "name": "The Serif Names Rule", "body": "Names, record titles, the pass and measurement numerals are set in Noto Serif SC. Never set UI chrome, labels or long prose in the serif.", "section": "typography" },
+      { "name": "The Ledger Mono Rule", "body": "Any measurement, date, archive ID, count, unit or state token is JetBrains Mono, and numbers use tabular figures. Mono is catalog data, not decoration.", "section": "typography" },
+      { "name": "The Flat Paper Rule", "body": "No box-shadows, glass panels or blurred card backdrops. Separate surfaces with a hairline or a tonal paper step; reserve blur for the single static atmosphere layer.", "section": "elevation" },
+      { "name": "The Nearly-Square Rule", "body": "Controls get 2px, media and panels get 0, pills get 999px. There are no rounded cards in the archive.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do keep the shell at 1360px with clamp(20px, 5vw, 64px) gutters and a single centered column.",
+      "Do set the owner's name in Noto Serif SC 600 at clamp(52px, 8vw, 116px) with 0.98 line-height.",
+      "Do build structure from 1px rules and the Archive Paper to Raised Paper tonal step.",
+      "Do render uploaded images at saturate(0.86) contrast(1.03) and release to full saturation on hover or focus.",
+      "Do set measurements, dates, counts, units and IDs in JetBrains Mono with tabular numerals.",
+      "Do keep both themes on one layout and swap only the page-local color variables.",
+      "Do use 2px radius on controls, 0 on media, and 999px only for chips and the switch.",
+      "Do show a 2px Archive Violet focus-visible outline at 3px offset on every interactive element.",
+      "Do keep primary controls at 42px desktop and 44px at 860px and below."
+    ],
+    "donts": [
+      "Don't add box-shadows, glass panels, backdrop blur or neon glows to the archive; the atmosphere layer is the only blur.",
+      "Don't use gradient text or a second accent hue.",
+      "Don't fill empty plates or empty states with stock imagery; use the hatch, the serif mark and one action.",
+      "Don't use icons in place of photographs.",
+      "Don't round media frames, cards or the member pass.",
+      "Don't set names, record titles or measurements in the sans or the mono.",
+      "Don't use the mono for prose or standalone decoration; it carries catalog metadata only.",
+      "Don't introduce a third theme or per-section palettes."
+    ]
+  }
+}
