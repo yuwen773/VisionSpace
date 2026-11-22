@@ -8,6 +8,42 @@
         "value": "kaushanscript",
         "createdAt": "2026-11-21T15:46:02.757Z",
         "reason": "Pre-existing brand wordmark font for the global header logo (GlobalHeader); outside the user-center surface type system and DESIGN.md scope, not introduced by this change."
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "frontend/src/styles/global.css"
+        ],
+        "createdAt": "2026-11-22T09:09:02.625Z",
+        "reason": "Intentional brand wordmark: GlobalFooter.vue:10 uses .text-gradient on the VisionSpace logo text; DESIGN.md L137 declares the global design-tokens/glass surfaces outside the user-center design system"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "frontend/src/styles/global-ziyan.css"
+        ],
+        "createdAt": "2026-11-22T09:09:04.723Z",
+        "reason": "Intentional pop-theme utility API: .text-gradient/.text-gradient-violet/.text-gradient-pink belong to the 紫漾 theme surface, which DESIGN.md L137 explicitly places outside the user-center design system"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "frontend/src/pages/user/AddSpacePage.vue"
+        ],
+        "createdAt": "2026-11-22T09:09:05.773Z",
+        "reason": "Intentional art direction: the 创建你的空间 page is a starfield/planet themed surface with its own gradient title words; outside the user-center archive system defined in DESIGN.md"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/styles/global.css"
+        ],
+        "createdAt": "2026-11-22T09:09:11.805Z",
+        "reason": "False positive: .wave-decoration::after is a full-width 8px bottom wave texture (left:0;right:0;bottom:0), not a side accent bar; used by MySpacePage.vue:34 as a bottom edge decoration"
       }
     ]
   }
