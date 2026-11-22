@@ -54,7 +54,7 @@
                 <img
                   v-if="row.contentRef && !failedPreviews.has(row.id)"
                   class="proposal-preview"
-                  :src="apiUrl(`/api${row.contentRef}`)"
+                  :src="contentSrc(row.contentRef)"
                   :alt="row.label"
                   @error="previewFailed(row.id)"
                 />{{ row.label }}
@@ -120,7 +120,7 @@ import {
   type BoardTask,
 } from '@/api-custom/boardProposal'
 import type { AssetBoard, BoardItem } from '@/api-custom/assetBoard'
-import { apiUrl } from '@/apiOrigin'
+import { contentSrc } from '@/utils'
 const props = defineProps<{
   boardId?: string
   revision?: number

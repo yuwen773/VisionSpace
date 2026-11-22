@@ -9,6 +9,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.mapper.AssetSearchSnapshotMapper;
@@ -51,7 +52,8 @@ import java.util.UUID;
 public class AssetSearchService {
     @Resource private PictureService pictures;
     @Resource private SpaceService spaces;
-    @Resource private SpaceUserAuthManager spaceAuth;
+    @Resource private SpaceAuthority spaceAuthority;
+    @Resource private SpaceUserAuthManager spaceUserAuthManager;
     @Resource private PictureContentAuthManager contentAuth;
     @Resource private AgentSessionGuard sessions;
     @Resource private AssetSearchSnapshotMapper snapshots;
@@ -384,7 +386,7 @@ public class AssetSearchService {
     private void lockBoardSpace(Long spaceId, User viewer) {
         ThrowUtils.throwIf(boards.lockSpace(spaceId) == null, ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
         String role = boards.lockMembership(spaceId, viewer.getId());
-        ThrowUtils.throwIf(role == null || !spaceAuth.hasPermission(role, SpaceUserPermissionConstant.PICTURE_VIEW),
+        ThrowUtils.throwIf(role == null || !spaceUserAuthManager.hasPermission(role, SpaceUserPermissionConstant.PICTURE_VIEW),
                 ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
     }
 
@@ -563,7 +565,7 @@ public class AssetSearchService {
         ThrowUtils.throwIf(viewer == null || viewer.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         Space space = spaces.getById(spaceId);
         ThrowUtils.throwIf(space == null || !Integer.valueOf(1).equals(space.getSpaceType())
-                        || !spaceAuth.getPermissionList(space, viewer).contains(SpaceUserPermissionConstant.PICTURE_VIEW),
+                        || !spaceAuthority.canOperateSpace(space, viewer, SpaceUserPermissionConstant.PICTURE_VIEW),
                 ErrorCode.NO_AUTH_ERROR, "RESOURCE_UNAVAILABLE");
     }
 

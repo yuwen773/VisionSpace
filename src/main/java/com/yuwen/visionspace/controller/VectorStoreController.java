@@ -5,6 +5,7 @@ import com.yuwen.visionspace.common.BaseResponse;
 import com.yuwen.visionspace.common.ResultUtils;
 import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
+import com.yuwen.visionspace.rag.RagVectorStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RestController
 @RequestMapping("/vector-store")
-@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
+@ConditionalOnProperty(name = RagVectorStore.PROPERTY, havingValue = RagVectorStore.CHROMA)
 public class VectorStoreController {
 
     @Resource

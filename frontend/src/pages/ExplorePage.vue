@@ -1,14 +1,7 @@
 <template>
   <div id="homePage" :class="{ 'is-light': isLight }">
     <!-- 氛围层：网格、极光、颗粒与暗角，全部由 CSS 承担 -->
-    <div class="ambient-bg" aria-hidden="true">
-      <div class="ex-grid"></div>
-      <div class="ex-orb ex-orb-1"></div>
-      <div class="ex-orb ex-orb-2"></div>
-      <div class="ex-orb ex-orb-3"></div>
-      <div class="ex-grain"></div>
-      <div class="ex-vignette"></div>
-    </div>
+    <EditorialAtmosphere variant="explore" :light="isLight" />
 
     <div class="main-content">
       <!-- 01 探索 -->
@@ -179,10 +172,10 @@
               @click="handlePictureClick(picture)"
               @keydown="onCardKeydown($event, picture)"
             >
-              <div class="item-image-wrap" :style="{ paddingBottom: getAspectRatio(picture) }">
+              <div class="item-image-wrap" :style="{ paddingBottom: pictureAspectRatio(picture) }">
                 <div v-if="!isLoaded(picture)" class="item-skeleton"></div>
                 <img
-                  :src="contentSrc(picture.thumbnailUrl || picture.url)"
+                  :src="pictureImageSrc(picture)"
                   :alt="picture.name"
                   class="item-image"
                   :class="{ loaded: isLoaded(picture), 'is-error': isFailed(picture) }"
@@ -404,6 +397,7 @@
 </template>
 
 <script setup lang="ts">
+import EditorialAtmosphere from '@/components/EditorialAtmosphere.vue'
 import { computed, onMounted, onUnmounted, ref, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -418,7 +412,8 @@ import {
   listPictureTagCategoryUsingGet,
   listPictureVoByPageUsingPost,
 } from '@/api/pictureController'
-import { contentSrc, toId } from '@/utils'
+import { toId } from '@/utils'
+import { pictureAspectRatio, pictureImageSrc } from '@/utils/pictureCard'
 
 /** 推荐接口返回的图片字段（Long 可能以字符串序列化） */
 interface ExplorePicture {
@@ -564,14 +559,6 @@ const onImageLoad = (pictureId: number | string) => {
 const onImageError = (pictureId: number | string) => {
   failedImages.value.add(String(pictureId))
   loadedImages.value.add(String(pictureId))
-}
-
-/**
- * 计算图片宽高比
- */
-const getAspectRatio = (picture: ExplorePicture) => {
-  if (!picture.picWidth || !picture.picHeight) return '75%'
-  return `${(picture.picHeight / picture.picWidth) * 100}%`
 }
 
 /**
@@ -1112,104 +1099,6 @@ onUnmounted(() => {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* ========== 氛围背景 ========== */
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-  background: radial-gradient(120% 80% at 60% -10%, #0b0d1c 0%, var(--ex-bg) 55%, #03040a 100%);
-}
-
-.ex-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(244, 241, 234, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(244, 241, 234, 0.03) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: radial-gradient(ellipse 75% 60% at 55% 18%, #000 0%, transparent 76%);
-  -webkit-mask-image: radial-gradient(ellipse 75% 60% at 55% 18%, #000 0%, transparent 76%);
-}
-
-.ex-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: ex-drift 26s ease-in-out infinite alternate;
-}
-
-.ex-orb-1 {
-  width: 60vw;
-  height: 44vw;
-  top: -20vw;
-  right: -12vw;
-  background: radial-gradient(circle, rgba(111, 75, 216, 0.34) 0%, transparent 68%);
-}
-
-.ex-orb-2 {
-  width: 46vw;
-  height: 40vw;
-  top: 30%;
-  left: -18vw;
-  background: radial-gradient(circle, rgba(134, 227, 200, 0.1) 0%, transparent 70%);
-  animation-delay: -9s;
-}
-
-.ex-orb-3 {
-  width: 34vw;
-  height: 34vw;
-  bottom: -10vw;
-  right: 8%;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.12) 0%, transparent 70%);
-  animation-delay: -16s;
-}
-
-@keyframes ex-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(-3%, 4%, 0) scale(1.08);
-  }
-}
-
-.ex-grain {
-  position: absolute;
-  inset: -40%;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: ex-grain-shift 8s steps(6) infinite;
-}
-
-@keyframes ex-grain-shift {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-2%, 3%);
-  }
-  50% {
-    transform: translate(3%, -2%);
-  }
-  75% {
-    transform: translate(-3%, -3%);
-  }
-}
-
-.ex-vignette {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 90% 70% at 50% 40%,
-    transparent 55%,
-    rgba(3, 4, 10, 0.7) 100%
-  );
 }
 
 /* ========== 版式工具 ========== */
@@ -2155,44 +2044,6 @@ onUnmounted(() => {
   --ex-surface-2: #f5f3ff;
 }
 
-#homePage.is-light .ambient-bg {
-  background: radial-gradient(120% 80% at 50% -10%, #ffffff 0%, var(--ex-bg) 55%, #efe9ff 100%);
-}
-
-#homePage.is-light .ex-orb {
-  opacity: 0.3;
-}
-
-#homePage.is-light .ex-orb-1 {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 68%);
-}
-
-#homePage.is-light .ex-orb-2 {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.16) 0%, transparent 70%);
-}
-
-#homePage.is-light .ex-orb-3 {
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.14) 0%, transparent 70%);
-}
-
-#homePage.is-light .ex-grid {
-  background-image:
-    linear-gradient(to right, rgba(124, 58, 237, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(124, 58, 237, 0.07) 1px, transparent 1px);
-}
-
-#homePage.is-light .ex-grain {
-  opacity: 0.028;
-}
-
-#homePage.is-light .ex-vignette {
-  background: radial-gradient(
-    ellipse 90% 70% at 50% 40%,
-    transparent 55%,
-    rgba(237, 233, 254, 0.55) 100%
-  );
-}
-
 #homePage.is-light .search-bar.is-focused {
   box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.12);
 }
@@ -2339,8 +2190,6 @@ onUnmounted(() => {
 
 /* ========== 降低动态效果 ========== */
 @media (prefers-reduced-motion: reduce) {
-  .ex-orb,
-  .ex-grain,
   .loader-ring,
   .empty-illustration,
   .scroll-line::after {

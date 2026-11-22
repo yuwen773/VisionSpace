@@ -153,17 +153,21 @@ public class AgentActionLedger {
     /**
      * 结果未知：调用可能已经发生，本地没能提交结果。
      *
-     * <p>只有可证明幂等的动作才允许退回 {@code FAILED} 走安全重试；
-     * 否则进入待核对，暂停自动执行。这是本工单对「恰好一次」的替代方案：
-     * 不做通用承诺，只保证不会盲目重放。
+     * <p>去向由 {@link ExternalActionPolicy} 给出的分类决定：可证明幂等的动作退回
+     * {@code FAILED} 走安全重试，其余进入待核对，暂停自动执行。台账只负责按分类
+     * 落状态，不再自己判断工具是否幂等——那会让两处规则各自漂移。
      */
-    public boolean markUnknown(AgentActionClaim claim, boolean idempotencyProven,
+    public boolean markUnknown(AgentActionClaim claim, ExternalActionPolicy.Outcome outcome,
                                String resultSummary) {
-        String status = idempotencyProven
-                ? AgentActionRecord.STATUS_FAILED
-                : AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW;
+        String status = switch (outcome == null
+                ? ExternalActionPolicy.Outcome.NEEDS_REVIEW : outcome) {
+            case SAFE_TO_RETRY -> AgentActionRecord.STATUS_FAILED;
+            case NEEDS_REVIEW -> AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW;
+            // 已确认完成不会走「结果未知」这条路；出现说明调用方分类错误，按待核对处理
+            case CONFIRMED -> AgentActionRecord.STATUS_UNKNOWN_NEEDS_REVIEW;
+        };
         boolean settled = settle(claim, status, resultSummary);
-        if (!idempotencyProven) {
+        if (!AgentActionRecord.STATUS_FAILED.equals(status)) {
             log.warn("外部动作结果未知且不能安全重试，进入待核对, actionId={}",
                     claim == null ? null : claim.actionId());
         }

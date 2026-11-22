@@ -2,7 +2,7 @@ package com.yuwen.visionspace.manager.websocket;
 
 import cn.hutool.core.util.ObjUtil;
 import com.yuwen.visionspace.constant.UserConstant;
-import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.Space;
@@ -53,7 +53,7 @@ public class WsEditAccessChecker {
     private SpaceService spaceService;
 
     @Resource
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     /**
      * 复核一条连接当前是否仍有编辑权限。
@@ -103,8 +103,12 @@ public class WsEditAccessChecker {
                 return AccessCheckResult.denied("图片所在空间不存在");
             }
         }
-        var permissionList = spaceUserAuthManager.getPermissionList(space, user);
-        if (!permissionList.contains(permission)) {
+        // 图片权限与 REST 入口共用同一个判定：团队成员按角色，平台管理员不因平台角色获得私人图片权限。
+        // 空间已在上方加载，直接复用，避免每条协作消息重复查询空间。
+        boolean allowed = space == null
+                ? spaceAuthority.canOperatePicture(picture, user, permission)
+                : spaceAuthority.canOperateSpace(space, user, permission);
+        if (!allowed) {
             return AccessCheckResult.denied("没有图片访问权限");
         }
         return AccessCheckResult.ok(user);

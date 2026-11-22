@@ -3,15 +3,12 @@ package com.yuwen.visionspace.manager.auth;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.Space;
-import com.yuwen.visionspace.model.entity.SpaceUser;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.enums.PictureReviewStatusEnum;
 import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
-import com.yuwen.visionspace.model.enums.SpaceTypeEnum;
 import com.yuwen.visionspace.service.ResourceAccessGrantService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.SpaceService;
-import com.yuwen.visionspace.service.SpaceUserService;
 import com.yuwen.visionspace.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -44,10 +41,7 @@ public class PictureContentAuthManager {
     private SpaceService spaceService;
 
     @Resource
-    private SpaceUserService spaceUserService;
-
-    @Resource
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     @Resource
     private ResourceIsolationService resourceIsolationService;
@@ -97,7 +91,7 @@ public class PictureContentAuthManager {
         if (spaceId == null) {
             return canReadPublicPicture(picture, viewer);
         }
-        return canReadSpacePicture(picture, spaceId, viewer);
+        return canReadSpacePicture(spaceId, viewer);
     }
 
     private boolean canReadPublicPicture(Picture picture, User viewer) {
@@ -115,7 +109,7 @@ public class PictureContentAuthManager {
         return userService.isAdmin(viewer);
     }
 
-    private boolean canReadSpacePicture(Picture picture, Long spaceId, User viewer) {
+    private boolean canReadSpacePicture(Long spaceId, User viewer) {
         if (viewer == null) {
             return false;
         }
@@ -123,24 +117,9 @@ public class PictureContentAuthManager {
         if (space == null) {
             return false;
         }
-        if (space.getUserId() != null && space.getUserId().equals(viewer.getId())) {
-            return true;
-        }
-        if (space.getSpaceType() == null || space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间仅所有者；平台管理员不因平台角色读取私人内容
-            return false;
-        }
-        // 团队空间按成员关系判定：平台管理员不因平台角色自动获得成员权限，
-        // 与 StpInterfaceImpl 的团队空间分支保持一致
-        SpaceUser spaceUser = spaceUserService.lambdaQuery()
-                .eq(SpaceUser::getSpaceId, spaceId)
-                .eq(SpaceUser::getUserId, viewer.getId())
-                .one();
-        if (spaceUser == null) {
-            return false;
-        }
-        return spaceUserAuthManager.hasPermission(spaceUser.getSpaceRole(),
-                SpaceUserPermissionConstant.PICTURE_VIEW);
+        // 空间图片的可见范围与空间图片操作共用同一个判定：
+        // 所有者、团队成员（viewer 及以上）；平台管理员不因平台角色读取私人内容。
+        return spaceAuthority.canOperateSpace(space, viewer, SpaceUserPermissionConstant.PICTURE_VIEW);
     }
 
     private boolean isApproved(Picture picture) {

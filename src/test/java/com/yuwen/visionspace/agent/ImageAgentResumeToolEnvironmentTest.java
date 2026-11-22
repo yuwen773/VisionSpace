@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunLifecycle;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
 import com.yuwen.visionspace.agent.recovery.ResumeToolUnavailableException;
@@ -68,6 +69,7 @@ class ImageAgentResumeToolEnvironmentTest {
         ReflectionTestUtils.setField(imageAgent, "sessionGuard", sessionGuard);
         ReflectionTestUtils.setField(imageAgent, "recoveryService", recoveryService);
         ReflectionTestUtils.setField(imageAgent, "runStateStore", runStateStore);
+        ReflectionTestUtils.setField(imageAgent, "runLifecycle", new AgentRunLifecycle(runStateStore));
         ReflectionTestUtils.setField(imageAgent, "resumeToolEnvironment", resumeToolEnvironment);
         ReflectionTestUtils.setField(imageAgent, "checkpointSaver", checkpointSaver);
 

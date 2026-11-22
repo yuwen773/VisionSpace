@@ -21,7 +21,7 @@ import java.time.Duration;
  * 这里改为返回 {@link ResilientVectorStore}，把连接推迟到第一次真正使用时。</p>
  */
 @Configuration
-@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
+@ConditionalOnProperty(name = RagVectorStore.PROPERTY, havingValue = RagVectorStore.CHROMA)
 @EnableConfigurationProperties({ChromaApiProperties.class, ChromaVectorStoreProperties.class})
 public class RagVectorStoreConfiguration {
 

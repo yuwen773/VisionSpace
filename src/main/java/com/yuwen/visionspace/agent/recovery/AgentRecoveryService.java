@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * 受限恢复流程。
@@ -129,7 +130,7 @@ public class AgentRecoveryService {
      * <p>不在这里直接执行，是因为执行要交给 {@code ImageAgent}；
      * 这里只做「能不能恢复」的判定，避免恢复入口和模型入口各自判断。
      */
-    public ResumeClaim requireResumable(String threadId, Long userId, Long expectedVersion) {
+    private ResumeClaim requireResumable(String threadId, Long userId, Long expectedVersion) {
         sessionGuard.requireOwned(threadId, userId);
 
         AgentRunState state = runStateStore.loadResumable(threadId, userId)
@@ -157,7 +158,7 @@ public class AgentRecoveryService {
      *
      * <p>租约必须在执行结束后释放，否则用户要等到租约到期才能再次续跑。
      */
-    public record ResumeClaim(AgentRunState state, String leaseToken) {
+    private record ResumeClaim(AgentRunState state, String leaseToken) {
     }
 
     /**
@@ -175,8 +176,28 @@ public class AgentRecoveryService {
                 "存在结果未知的外部动作，请先核对后再继续");
     }
 
+    /**
+     * 认领并执行一次续跑，租约由本模块负责释放。
+     *
+     * <p>收敛遗留动作、校验可续跑、认领版本与租约都在这里完成；执行结束后
+     * 无论成功失败都释放租约，调用方不再需要记得这件事。
+     *
+     * @param execution 实际的续跑执行（由 {@code ImageAgent} 提供）
+     * @return 续跑输出
+     */
+    public String executeResume(String threadId, Long userId, Long expectedVersion,
+                                Supplier<String> execution) {
+        reconcileBeforeRun(threadId, userId);
+        ResumeClaim claim = requireResumable(threadId, userId, expectedVersion);
+        try {
+            return execution.get();
+        } finally {
+            releaseResumeLease(threadId, userId, claim.leaseToken());
+        }
+    }
+
     /** 释放续跑租约：执行结束后调用，失败也不影响本次结果 */
-    public void releaseResumeLease(String threadId, Long userId, String leaseToken) {
+    private void releaseResumeLease(String threadId, Long userId, String leaseToken) {
         runStateStore.releaseResumeLease(threadId, userId, leaseToken);
     }
 

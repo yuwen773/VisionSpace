@@ -27,18 +27,6 @@ public interface PictureService extends IService<Picture> {
     void validPicture(Picture picture);
 
     /**
-     * 上传图片
-     *
-     * @param inputSource          文件输入源
-     * @param pictureUploadRequest
-     * @param loginUser
-     * @return
-     */
-    PictureVO uploadPicture(Object inputSource,
-                            PictureUploadRequest pictureUploadRequest,
-                            User loginUser);
-
-    /**
      * 获取图片包装类（单条）
      *
      * @param picture
@@ -82,45 +70,12 @@ public interface PictureService extends IService<Picture> {
     void fillReviewParams(Picture picture, User loginUser);
 
     /**
-     * 批量抓取和创建图片
-     *
-     * @param pictureUploadByBatchRequest
-     * @param loginUser
-     * @return 成功创建的图片数
-     */
-    Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest,
-                                 User loginUser);
-
-    /**
-     * 清理图片文件
-     *
-     * @param oldPicture
-     */
-    void clearPictureFile(Picture oldPicture);
-
-    /**
-     * 删除图片
-     *
-     * @param pictureId
-     * @param loginUser
-     */
-    void deletePicture(long pictureId, User loginUser);
-
-    /**
      * 编辑图片
      *
      * @param pictureEditRequest
      * @param loginUser
      */
     void editPicture(PictureEditRequest pictureEditRequest, User loginUser);
-
-    /**
-     * 校验空间图片的权限
-     *
-     * @param loginUser
-     * @param picture
-     */
-    void checkPictureAuth(User loginUser, Picture picture);
 
     /**
      * 平台管理用的图片视图：保留审核与排查所需元数据，但不含内容地址。

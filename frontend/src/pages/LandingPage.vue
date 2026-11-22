@@ -1,14 +1,7 @@
 <template>
   <div id="landingPage" ref="root" :class="{ 'is-light': isLight }">
     <!-- ============ Atmosphere ============ -->
-    <div class="atmosphere" aria-hidden="true">
-      <div class="aurora aurora-a"></div>
-      <div class="aurora aurora-b"></div>
-      <div class="aurora aurora-c"></div>
-      <div class="aurora-grid"></div>
-      <div class="grain"></div>
-      <div class="vignette"></div>
-    </div>
+    <EditorialAtmosphere variant="landing" :light="isLight" />
 
     <div class="progress-rail" aria-hidden="true">
       <span :style="{ transform: `scaleX(${progress})` }"></span>
@@ -444,6 +437,7 @@
 </template>
 
 <script setup lang="ts">
+import EditorialAtmosphere from '@/components/EditorialAtmosphere.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -618,107 +612,6 @@ onBeforeUnmount(() => {
 ::selection {
   background: rgba(183, 162, 255, 0.28);
   color: #fff;
-}
-
-/* ============ Atmosphere ============ */
-.atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-  background: radial-gradient(120% 80% at 50% -10%, #0b0d1c 0%, var(--lp-bg) 55%, #03040a 100%);
-}
-
-.aurora {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: aurora-drift 26s ease-in-out infinite alternate;
-}
-
-.aurora-a {
-  width: 62vw;
-  height: 46vw;
-  top: -18vw;
-  right: -12vw;
-  background: radial-gradient(circle, rgba(111, 75, 216, 0.34) 0%, transparent 68%);
-}
-
-.aurora-b {
-  width: 46vw;
-  height: 42vw;
-  bottom: 6vh;
-  left: -16vw;
-  background: radial-gradient(circle, rgba(74, 122, 168, 0.2) 0%, transparent 70%);
-  animation-delay: -9s;
-}
-
-.aurora-c {
-  width: 30vw;
-  height: 30vw;
-  top: 48%;
-  right: 6%;
-  background: radial-gradient(circle, rgba(134, 227, 200, 0.1) 0%, transparent 70%);
-  animation-delay: -17s;
-}
-
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(-3vw, 3vh, 0) scale(1.08);
-  }
-}
-
-.aurora-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(244, 241, 234, 0.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(244, 241, 234, 0.028) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 0%, transparent 78%);
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 0%, transparent 78%);
-}
-
-.grain {
-  position: absolute;
-  inset: -40%;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: grain-shift 8s steps(6) infinite;
-}
-
-@keyframes grain-shift {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  20% {
-    transform: translate(-3%, 2%);
-  }
-  40% {
-    transform: translate(2%, -3%);
-  }
-  60% {
-    transform: translate(-2%, -2%);
-  }
-  80% {
-    transform: translate(3%, 1%);
-  }
-}
-
-.vignette {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 90% 70% at 50% 40%,
-    transparent 55%,
-    rgba(3, 4, 10, 0.7) 100%
-  );
 }
 
 /* ============ Progress ============ */
@@ -2064,44 +1957,6 @@ onBeforeUnmount(() => {
   --lp-violet-deep: #7c3aed;
   /* 亮纸上的薄荷需压深，浅绿（#0f9d6e）仅 3.3:1 */
   --lp-mint: #047857;
-}
-
-#landingPage.is-light .atmosphere {
-  background: radial-gradient(120% 80% at 50% -10%, #ffffff 0%, var(--lp-bg) 55%, #efe9ff 100%);
-}
-
-#landingPage.is-light .aurora {
-  opacity: 0.3;
-}
-
-#landingPage.is-light .aurora-a {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 68%);
-}
-
-#landingPage.is-light .aurora-b {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.18) 0%, transparent 70%);
-}
-
-#landingPage.is-light .aurora-c {
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.14) 0%, transparent 70%);
-}
-
-#landingPage.is-light .aurora-grid {
-  background-image:
-    linear-gradient(to right, rgba(124, 58, 237, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(124, 58, 237, 0.07) 1px, transparent 1px);
-}
-
-#landingPage.is-light .grain {
-  opacity: 0.028;
-}
-
-#landingPage.is-light .vignette {
-  background: radial-gradient(
-    ellipse 90% 70% at 50% 40%,
-    transparent 55%,
-    rgba(237, 233, 254, 0.55) 100%
-  );
 }
 
 /* 照片在亮底上不再压暗，只保留一层轻冷调 */

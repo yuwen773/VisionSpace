@@ -1,25 +1,15 @@
 <template>
   <div id="pictureManagePage">
     <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg
-            class="title-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
-          <span>图片管理</span>
-        </h1>
-        <p class="page-subtitle">管理平台所有图片和审核状态</p>
-      </div>
-    </div>
+    <AdminPageHeader title="图片管理" subtitle="管理平台所有图片和审核状态" size="md">
+      <template #icon>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+      </template>
+    </AdminPageHeader>
 
     <!-- 筛选工具栏 -->
     <div class="table-toolbar">
@@ -340,6 +330,7 @@
 </template>
 
 <script lang="ts" setup>
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { ref, reactive, onMounted } from 'vue'
 import {
   deletePictureUsingPost,
@@ -547,39 +538,6 @@ const goToEdit = (id: number) => {
   max-width: var(--container-2xl);
   margin: 0 auto;
   padding: var(--admin-space-6);
-}
-
-/* ========== 页面头部 ========== */
-.page-header {
-  margin-bottom: var(--admin-space-6);
-  animation: fadeIn 0.5s ease-out;
-}
-
-.header-content {
-  text-align: left;
-}
-
-.page-title {
-  font-family: var(--admin-font);
-  font-size: var(--admin-text-xl);
-  font-weight: 700;
-  margin: 0 0 var(--admin-space-2) 0;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-3);
-  color: var(--admin-text-primary);
-
-  .title-icon {
-    width: 28px;
-    height: 28px;
-    color: var(--admin-primary);
-  }
-}
-
-.page-subtitle {
-  font-size: var(--admin-text-sm);
-  color: var(--admin-text-secondary);
-  margin: 0;
 }
 
 /* ========== 工具栏 ========== */

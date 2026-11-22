@@ -118,7 +118,8 @@ import { useMarkdown } from '@/composables/useMarkdown'
 import { useDiagramRenderer } from '@/composables/useDiagramRenderer'
 import { handleContentClick } from '@/utils/diagramEvents'
 import { isLoadableImage } from '@/utils/imagePolicy'
-import type { ImageResource, LinkResource, ResourceData } from '../types'
+import { extractImages, extractLinks } from '@/utils/markdownResources'
+import type { ImageResource, ResourceData } from '../types'
 
 interface Props {
   content: string
@@ -188,31 +189,7 @@ onUnmounted(() => {
   renderGeneration++
 })
 
-const isImageUrl = (url: string): boolean => {
-  const imageExts = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
-  const imageHosts = ['images.pexels.com', 'images.unsplash.com', 'imgur.com']
-  if (imageExts.test(url)) return true
-  try {
-    const hostname = new URL(url).hostname
-    if (imageHosts.some((h) => hostname.includes(h))) return true
-  } catch {
-    /* invalid url */
-  }
-  return false
-}
-
-const extractedImages = computed(() => {
-  const images: ImageResource[] = []
-  for (const match of props.content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
-    images.push({ url: match[2], title: match[1] || undefined })
-  }
-  for (const match of props.content.matchAll(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
-    if (isImageUrl(match[2])) {
-      images.push({ url: match[2], title: match[1] })
-    }
-  }
-  return images
-})
+const extractedImages = computed(() => extractImages(props.content))
 
 const allImages = computed(() => {
   const seen = new Set<string>()
@@ -243,19 +220,7 @@ const imageSourceCount = computed(() => {
 })
 
 function getExtractedLinks() {
-  const seen = new Set<string>()
-  const links: LinkResource[] = []
-  for (const match of props.content.matchAll(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
-    const url = match[2]
-    if (seen.has(url)) continue
-    seen.add(url)
-    try {
-      links.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
-    } catch {
-      /* invalid url */
-    }
-  }
-  return links
+  return extractLinks(props.content)
 }
 
 // 图表框内的"代码/预览"切换与"复制"（按钮由 v-html 插入，需要事件委托）

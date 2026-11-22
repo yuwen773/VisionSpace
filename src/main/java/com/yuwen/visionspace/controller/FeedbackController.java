@@ -9,7 +9,7 @@ import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.exception.ThrowUtils;
 import com.yuwen.visionspace.manager.auth.FeedbackAccessPolicy;
-import com.yuwen.visionspace.manager.storage.PictureStorageService;
+import com.yuwen.visionspace.manager.storage.FileUploadService;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackAddRequest;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackQueryRequest;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackUpdateStatusRequest;
@@ -57,7 +57,7 @@ public class FeedbackController {
     private UserService userService;
 
     @Resource
-    private PictureStorageService pictureStorageService;
+    private FileUploadService fileUploadService;
 
     @Resource
     private FeedbackAccessPolicy feedbackAccessPolicy;
@@ -121,7 +121,7 @@ public class FeedbackController {
                                                                       HttpServletRequest request) {
         ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");
         User loginUser = userService.getLoginUser(request);
-        UploadPictureResult upload = pictureStorageService.uploadFeedbackAttachment(file, loginUser.getId());
+        UploadPictureResult upload = fileUploadService.uploadFeedbackAttachment(file, loginUser.getId());
         FeedbackAttachment attachment = feedbackAttachmentService.registerUpload(loginUser,
                 upload.getPlatform(), upload.getStoragePath(), upload.getUrl(), upload.getPicSize());
         log.info("反馈附件上传成功: userId={}, attachmentId={}", loginUser.getId(), attachment.getId());

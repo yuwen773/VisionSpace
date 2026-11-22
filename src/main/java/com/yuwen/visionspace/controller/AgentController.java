@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.agent.config.AgentConstants;
 import com.yuwen.visionspace.agent.ImageAgent;
 import com.yuwen.visionspace.agent.AssetSearchAgent;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -121,9 +121,9 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         String threadId = resolveThreadId(request.getThreadId());
 
-        log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}, phase={}",
+        log.info("收到反馈, threadId={}, userId={}, satisfied={}, reason={}",
                 threadId, loginUser.getId(), request.getSatisfied(),
-                request.getReason(), request.getCurrentPhase());
+                request.getReason());
 
         // 归属在 handleFeedback 进入模型前核对；不属于当前用户时不写偏好、不执行
         String result = imageAgent.handleFeedback(
@@ -131,8 +131,7 @@ public class AgentController {
                 loginUser.getId(),
                 request.getSatisfied(),
                 request.getReason(),
-                request.getAction(),
-                request.getCurrentPhase() != null ? request.getCurrentPhase() : AgentPhase.EXPLORATION
+                request.getAction()
         );
 
         return ResultUtils.success(result);
@@ -243,16 +242,10 @@ public class AgentController {
     }
 
     private String buildInterruptionResponse(InterruptionMetadata interruption) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("【需要确认】\n\n");
-
-        for (InterruptionMetadata.ToolFeedback feedback : interruption.toolFeedbacks()) {
-            sb.append("工具: ").append(feedback.getName()).append("\n");
-            sb.append("评估结果: ").append(feedback.getDescription()).append("\n");
-        }
-
-        sb.append("\n请选择是否满意上述结果，或提供改进建议。");
-        return sb.toString();
+        // 确认措辞由外部动作政策统一给出：流式入口的确认消息用的是同一份文本
+        return "【需要确认】\n\n"
+                + ExternalActionPolicy.confirmationText(interruption.toolFeedbacks())
+                + "\n请选择是否满意上述结果，或提供改进建议。";
     }
 
     /**
@@ -300,17 +293,9 @@ public class AgentController {
         User loginUser = userService.getLoginUser(httpRequest);
         Long userId = loginUser.getId();
 
-        // 上次执行遗留的「执行中」动作先收敛，再判断能不能续跑
-        agentRecoveryService.reconcileBeforeRun(threadId, userId);
-        AgentRecoveryService.ResumeClaim claim =
-                agentRecoveryService.requireResumable(threadId, userId, expectedVersion);
-
-        // 认领到的租约必须释放：否则用户要等到租约到期才能再次续跑
-        try {
-            return ResultUtils.success(imageAgent.resume(threadId, userId));
-        } finally {
-            agentRecoveryService.releaseResumeLease(threadId, userId, claim.leaseToken());
-        }
+        // 收敛遗留动作、校验、认领与租约释放都由恢复模块负责
+        return ResultUtils.success(agentRecoveryService.executeResume(threadId, userId, expectedVersion,
+                () -> imageAgent.resume(threadId, userId)));
     }
 
     /**

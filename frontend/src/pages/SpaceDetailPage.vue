@@ -1,10 +1,7 @@
 <template>
   <div id="spaceDetailPage" class="aw-page" :class="{ 'is-light': isLight }">
     <!-- 氛围层 -->
-    <div class="aw-atmosphere" aria-hidden="true">
-      <div class="aw-aurora aw-aurora-a"></div>
-      <div class="aw-aurora aw-aurora-b"></div>
-    </div>
+    <EditorialAtmosphere variant="award" :light="isLight" />
 
     <div class="aw-shell sd-shell">
       <!-- 顶部操作条 -->
@@ -87,12 +84,7 @@
             class="sd-plate"
             :class="`sd-plate-${i + 1}`"
           >
-            <img
-              v-if="pic"
-              :src="contentSrc(pic.thumbnailUrl || pic.url)"
-              alt=""
-              decoding="async"
-            />
+            <img v-if="pic" :src="pictureImageSrc(pic)" alt="" decoding="async" />
             <span v-else class="sd-plate-empty aw-mono">EMPTY</span>
             <figcaption class="aw-mono">
               {{ String(i + 1).padStart(2, '0') }} — {{ pic?.name?.slice(0, 14) || '待收录' }}
@@ -254,10 +246,10 @@
             @keydown.enter="handlePictureClick(picture)"
             @keydown.space.prevent="handlePictureClick(picture)"
           >
-            <div class="sd-card-media" :style="{ paddingBottom: getAspectRatio(picture) }">
+            <div class="sd-card-media" :style="{ paddingBottom: pictureAspectRatio(picture) }">
               <div class="sd-card-skeleton" :class="{ loaded: isLoadedImage(picture) }"></div>
               <img
-                :src="contentSrc(picture.thumbnailUrl || picture.url)"
+                :src="pictureImageSrc(picture)"
                 :alt="picture.name || '作品'"
                 class="sd-card-img"
                 :class="{ loaded: isLoadedImage(picture) }"
@@ -404,6 +396,7 @@
 </template>
 
 <script setup lang="ts">
+import EditorialAtmosphere from '@/components/EditorialAtmosphere.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
@@ -428,7 +421,8 @@ import {
   listPictureVoByPageUsingPost,
 } from '@/api/pictureController.ts'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { contentSrc, formatSize, toId } from '@/utils'
+import { formatSize, toId } from '@/utils'
+import { pictureAspectRatio, pictureImageSrc } from '@/utils/pictureCard'
 import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
 import { useTheme } from '@/composables/useTheme'
 import BatchEditPicture from '@/components/BatchEditPicture.vue'
@@ -528,12 +522,6 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
-}
-
-// Aspect ratio placeholder
-const getAspectRatio = (picture: any) => {
-  if (!picture.picWidth || !picture.picHeight) return '75%'
-  return `${(picture.picHeight / picture.picWidth) * 100}%`
 }
 
 // Image load

@@ -1,22 +1,18 @@
 package com.yuwen.visionspace.manager.storage;
 
-import cn.hutool.core.io.FileUtil;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
-import com.yuwen.visionspace.model.dto.file.UploadPictureResult;
+import com.yuwen.visionspace.manager.outbound.OutboundDownloader;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.dromara.x.file.storage.core.FileStorageService;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.Resource;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.net.URI;
-import java.util.Set;
-import java.util.UUID;
 
 /**
  * 统一存储服务，底层使用 x-file-storage
@@ -31,14 +27,11 @@ public class PictureStorageService {
      */
     static final long MAX_CONTENT_BYTES = 20L * 1024 * 1024;
 
-    /** 反馈附件单文件上限（与前端提示一致） */
-    static final long MAX_FEEDBACK_ATTACHMENT_BYTES = 5L * 1024 * 1024;
-
-    /** 反馈附件允许的图片格式 */
-    static final Set<String> FEEDBACK_ATTACHMENT_FORMATS = Set.of("jpeg", "png", "jpg", "webp");
-
     @Resource
     private FileStorageService fileStorageService;
+
+    @Resource
+    private OutboundDownloader outboundDownloader;
 
     /**
      * 上传图片（支持 WebP 压缩 + 缩略图）
@@ -106,62 +99,34 @@ public class PictureStorageService {
     }
 
     /**
-     * 上传反馈附件。
-     *
-     * <p>与图库和 Agent 上传共用同一存储边界，但返回的服务端定位信息单独登记，
-     * 浏览器只拿到附件标识，不接触源站地址。大小与格式沿用图片上传的限制。
+     * 存量记录的存储平台标记：这些记录没有可用的存储平台，对象键存的是原地址。
      */
-    public UploadPictureResult uploadFeedbackAttachment(MultipartFile file, Long ownerUserId) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件不能为空");
+    public static final String LEGACY_PLATFORM = "legacy";
+
+    /**
+     * 按资源身份读取内容。
+     *
+     * <p>登记过存储平台的记录按平台与对象键读取；平台为 {@link #LEGACY_PLATFORM}
+     * 的存量记录按原地址读取。调用方不需要知道这条兼容规则。
+     */
+    public byte[] readRecordedObject(String platform, String objectKey) {
+        if (LEGACY_PLATFORM.equals(platform)) {
+            return readLegacyObject(objectKey);
         }
-        if (file.getSize() > MAX_FEEDBACK_ATTACHMENT_BYTES) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "附件不能超过 5MB");
-        }
-        String originalName = file.getOriginalFilename();
-        String suffix = FileUtil.getSuffix(originalName);
-        if (suffix == null || !FEEDBACK_ATTACHMENT_FORMATS.contains(suffix.toLowerCase())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "仅支持 jpeg/png/jpg/webp 图片");
-        }
-        String filename = UUID.randomUUID() + "." + suffix.toLowerCase();
-        String pathPrefix = "temp/feedback/" + ownerUserId + "/";
-        File tempFile = null;
-        try {
-            tempFile = File.createTempFile("feedback-", "." + suffix.toLowerCase());
-            file.transferTo(tempFile);
-            FileInfo info = putObject(tempFile, pathPrefix, filename);
-            UploadPictureResult result = new UploadPictureResult();
-            result.setPlatform(info.getPlatform());
-            result.setStoragePath(objectKey(info));
-            result.setUrl(info.getUrl());
-            result.setPicSize(info.getSize());
-            result.setPicName(filename);
-            return result;
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("反馈附件上传失败: userId={}", ownerUserId, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件上传失败");
-        } finally {
-            if (tempFile != null && !tempFile.delete()) {
-                log.warn("临时文件删除失败: {}", tempFile.getAbsolutePath());
-            }
-        }
+        return readObject(platform, objectKey);
     }
 
     /**
-     * 通过公网 URL 下载文件。
+     * 通过服务端记录的地址读取文件。
      *
      * <p>仅用于存量资源：新资源一律通过资源记录定位到平台与对象键，再由
      * {@link #readObject(String, String)} 读取。
+     *
+     * <p>地址同样经过出站策略：只允许 http/https，回环、私网、链路本地与元数据地址
+     * 一律拒绝，重定向逐跳重判并有总超时——存量记录不等于可信目标。
      */
     public InputStream getObjectByUrl(String fileUrl) {
-        try {
-            return new URI(fileUrl).toURL().openStream();
-        } catch (Exception e) {
-            log.error("文件读取失败: fileUrl={}", fileUrl, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件读取失败");
-        }
+        return new ByteArrayInputStream(readAddress(fileUrl));
     }
 
     /**
@@ -195,16 +160,22 @@ public class PictureStorageService {
         if (url == null || url.isBlank()) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "资源地址为空");
         }
-        try (InputStream inputStream = getObjectByUrl(url)) {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            inputStream.transferTo(new LimitedOutputStream(buffer, MAX_CONTENT_BYTES));
-            return buffer.toByteArray();
+        try {
+            return readAddress(url);
         } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("存量资源读取失败: url={}", url, e);
+            // 被策略拒绝与确实取不到对调用方是同一件事：这张存量资源不可读。
+            // 不回显具体原因，避免把「哪些地址被拒绝」变成探测手段。
+            log.warn("存量资源不可读: url={}, reason={}", url, e.getMessage());
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "资源内容不可用");
         }
+    }
+
+    /** 按地址读取内容，大小受内容读取上限约束。 */
+    private byte[] readAddress(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "资源地址为空");
+        }
+        return outboundDownloader.readToMemory(fileUrl, MAX_CONTENT_BYTES, null);
     }
 
     private byte[] limited(ByteArrayOutputStream buffer, String objectKey) {

@@ -1,36 +1,28 @@
 <template>
   <div id="storageConfigPage">
     <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <svg
-            class="title-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-            ></path>
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-            <line x1="12" y1="22.08" x2="12" y2="12"></line>
-          </svg>
-          <span>存储配置管理</span>
-        </h1>
-        <p class="page-subtitle">管理系统对象存储配置，支持多平台切换</p>
-      </div>
-      <div class="header-actions">
-        <button @click="openAddModal" class="toolbar-btn primary">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          添加配置
-        </button>
-      </div>
-    </div>
+    <AdminPageHeader title="存储配置管理" subtitle="管理系统对象存储配置，支持多平台切换">
+      <template #icon>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path
+            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+          ></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+      </template>
+      <template #extra>
+        <div class="header-actions">
+          <button @click="openAddModal" class="toolbar-btn primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            添加配置
+          </button>
+        </div>
+      </template>
+    </AdminPageHeader>
 
     <!-- 统计卡片 -->
     <div class="stats-row">
@@ -431,6 +423,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
@@ -734,42 +727,6 @@ onMounted(() => {
   max-width: var(--container-2xl);
   margin: 0 auto;
   padding: var(--admin-space-6);
-}
-
-/* ========== 页面头部 ========== */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--admin-space-6);
-  animation: fadeIn 0.5s ease-out;
-}
-
-.header-content {
-  text-align: left;
-}
-
-.page-title {
-  font-family: var(--admin-font);
-  font-size: var(--admin-text-3xl);
-  font-weight: 700;
-  margin: 0 0 var(--admin-space-2) 0;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-3);
-  color: var(--admin-text-primary);
-
-  .title-icon {
-    width: 32px;
-    height: 32px;
-    color: var(--admin-primary);
-  }
-}
-
-.page-subtitle {
-  font-size: var(--admin-text-sm);
-  color: var(--admin-text-secondary);
-  margin: 0;
 }
 
 .header-actions {
@@ -1348,15 +1305,6 @@ onMounted(() => {
 @media (max-width: 768px) {
   #storageConfigPage {
     padding: var(--admin-space-4);
-  }
-
-  .page-header {
-    flex-direction: column;
-    gap: var(--admin-space-4);
-  }
-
-  .page-title {
-    font-size: var(--admin-text-2xl);
   }
 
   .stat-card {

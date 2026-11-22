@@ -1,10 +1,7 @@
 <template>
   <div id="addPicturePage" class="aw-page" :class="{ 'is-light': isLight }">
     <!-- 氛围层 -->
-    <div class="aw-atmosphere" aria-hidden="true">
-      <div class="aw-aurora aw-aurora-a"></div>
-      <div class="aw-aurora aw-aurora-b"></div>
-    </div>
+    <EditorialAtmosphere variant="award" :light="isLight" />
 
     <div class="aw-shell ap-shell">
       <!-- 顶部信息条 -->
@@ -293,6 +290,7 @@
 </template>
 
 <script setup lang="ts">
+import EditorialAtmosphere from '@/components/EditorialAtmosphere.vue'
 import PictureUpload from '@/components/PictureUpload.vue'
 import UrlPictureUpload from '@/components/UrlPictureUpload.vue'
 import ImageCropper from '@/components/ImageCropper.vue'

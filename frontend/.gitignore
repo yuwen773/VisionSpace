@@ -47,3 +47,5 @@ seed/
 # 生成器会 rimraf 整个 src/api/，因此手写客户端放在 src/api-custom/（不在忽略范围内）。
 # 命名对齐（UsingPost 后缀、尾下划线别名）由 openapi.config.js 的 hook 与
 # scripts/postgen-typings.mjs 维持，重新生成后无需人工修补。
+# 主题基线截图（本地对照用，不进仓库）
+theme-baselines/

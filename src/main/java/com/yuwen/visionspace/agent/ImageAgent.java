@@ -14,11 +14,12 @@ import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.yuwen.visionspace.agent.config.AgentToolExceptionPolicy;
 import com.yuwen.visionspace.agent.config.DualCheckpointSaver;
 import com.yuwen.visionspace.agent.recovery.AgentRecoveryService;
+import com.yuwen.visionspace.agent.recovery.AgentRunLifecycle;
+import com.yuwen.visionspace.agent.recovery.ExternalActionPolicy;
 import com.yuwen.visionspace.agent.recovery.AgentRunStateStore;
 import com.yuwen.visionspace.agent.recovery.PendingReviewException;
 import com.yuwen.visionspace.agent.recovery.ResumeToolEnvironment;
 import com.yuwen.visionspace.agent.recovery.ResumeToolUnavailableException;
-import com.yuwen.visionspace.agent.recovery.RunStatus;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.model.entity.AgentRunState;
@@ -28,7 +29,6 @@ import com.yuwen.visionspace.agent.hook.MessageTrimmingHook;
 import com.yuwen.visionspace.agent.hook.SummarizationHook;
 import com.yuwen.visionspace.agent.interceptor.TextMcpModelInterceptor;
 import com.yuwen.visionspace.agent.model.ActionType;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import com.yuwen.visionspace.agent.service.AgentAttachmentService;
 import com.yuwen.visionspace.agent.service.AgentSessionGuard;
 import com.yuwen.visionspace.agent.service.ChatHistoryService;
@@ -136,6 +136,9 @@ public class ImageAgent {
     private AgentRecoveryService recoveryService;
 
     @Resource
+    private AgentRunLifecycle runLifecycle;
+
+    @Resource
     private ResumeToolEnvironment resumeToolEnvironment;
 
     private ReactAgent agent;
@@ -164,7 +167,6 @@ public class ImageAgent {
             #### 用户用文字描述需求
             1. 首先调用 searchInternalImages 在站内图片库中搜索匹配的图片
             2. 如果站内搜索结果不足，再调用 searchContentImages 从 Pexels 搜索补充
-            3. 可按需调用 searchIllustrations 搜索插画
 
             #### 通用后续步骤
             - 调用 evaluateImageQuality 评估搜索结果
@@ -256,20 +258,13 @@ public class ImageAgent {
 
     @PostConstruct
     public void init() {
-        // 创建人工介入 Hook - 仅拦截 generateImages（AIGC 生成前需用户确认）
-        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
-                .approvalOn("generateImages", ToolConfig.builder()
-                        .description("即将使用 AIGC 生成图片，需要用户确认")
-                        .build())
-                .build();
-
         agent = ReactAgent.builder()
                 .name("image_assistant")
                 .model(chatModel)
                 .instruction(AGENT_INSTRUCTION)
                 .methodTools(methodTools())
                 .hooks(List.of(
-                        hitlHook,
+                        humanApprovalHook(),
                         iterationControlHook,
                         messageTrimmingHook,
                         summarizationHook,
@@ -308,10 +303,9 @@ public class ImageAgent {
         } catch (PendingReviewException e) {
             // 结果未知不能被折成一句「稍后重试」：那会让用户以为可以直接再来一次，
             // 而实际必须先核对。暂停状态也要落库，界面才能给出核对入口。
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             // 异常原文可能带目标地址、请求头或服务端回显的凭据，只留在服务端日志
@@ -433,13 +427,10 @@ public class ImageAgent {
                         } else if (output instanceof InterruptionMetadata interruptionMetadata) {
                             MessageDTO messageDTO = new MessageDTO();
                             messageDTO.setMessageType(MessageType.TOOL_CONFIRM);
-                            StringBuilder sb = new StringBuilder();
-                            for (InterruptionMetadata.ToolFeedback feedback : interruptionMetadata.toolFeedbacks()) {
-                                sb.append("工具: ").append(feedback.getName()).append("\n");
-                                sb.append("评估: ").append(feedback.getDescription()).append("\n");
-                            }
-                            messageDTO.setContent(sb.toString());
-                            chatHistoryService.saveToolConfirmMessage(threadId, userId, sb.toString());
+                            String confirmText = ExternalActionPolicy
+                                    .confirmationText(interruptionMetadata.toolFeedbacks());
+                            messageDTO.setContent(confirmText);
+                            chatHistoryService.saveToolConfirmMessage(threadId, userId, confirmText);
                             // 人工确认信息随完整状态一起落库：重启后仍能区分
                             // 「停在待确认」与「已经确认过」
                             persistAwaitingConfirmation(threadId, userId, interruptionMetadata);
@@ -452,10 +443,8 @@ public class ImageAgent {
                         MessageDTO messageDTO = new MessageDTO();
                         messageDTO.setMessageType(MessageType.ACTION_UNKNOWN);
                         messageDTO.setToolName(error.getToolName());
-                        messageDTO.setContent("工具 " + error.getToolName()
-                                + " 的执行结果未知，已暂停自动执行。请核对后再继续。");
-                        runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                                pauseForReview(error.getToolName()));
+                        messageDTO.setContent(ExternalActionPolicy.pausedMessage(error.getToolName()));
+                        runLifecycle.pausedForUnknownAction(threadId, userId, error.getToolName());
                         return Flux.just(messageDTO);
                     })
                     .doOnComplete(() -> {
@@ -483,32 +472,28 @@ public class ImageAgent {
      */
     public String handleFeedback(String threadId, Long userId,
                                  Boolean satisfied, String reason,
-                                 ActionType action, AgentPhase currentPhase) {
+                                 ActionType action) {
 
         sessionGuard.requireOwned(threadId, userId);
         // 反馈会触发一次模型执行，同样不能绕过待核对暂停
         recoveryService.requireNoPendingReview(threadId, userId);
-        int exploreCount = getExploreCount(threadId);
 
         // 保存反馈到偏好系统
         if (userId != null && !Boolean.TRUE.equals(satisfied)) {
             userPreferenceService.saveFeedback(userId, action, reason);
         }
 
-        // 构造增强的反馈消息
+        // 构造增强的反馈消息。
+        // 阶段与探索次数不写进提示：阶段此前由客户端在请求体里声明、计数是硬编码 0，
+        // 两者都不是执行身份观察到的状态。
         String feedbackMessage;
         if (Boolean.TRUE.equals(satisfied)) {
-            feedbackMessage = String.format(
-                    "[用户反馈] 满意度: 满意 | 阶段: %s | 探索次数: %d",
-                    currentPhase, exploreCount
-            );
+            feedbackMessage = "[用户反馈] 满意度: 满意";
         } else {
             feedbackMessage = String.format(
-                    "[用户反馈] 满意度: 不满意 | 动作: %s | 原因: %s | 阶段: %s | 探索次数: %d",
+                    "[用户反馈] 满意度: 不满意 | 动作: %s | 原因: %s",
                     action,
-                    reason != null ? reason : "未说明",
-                    currentPhase,
-                    exploreCount
+                    reason != null ? reason : "未说明"
             );
         }
 
@@ -520,10 +505,9 @@ public class ImageAgent {
             return response.getText();
         } catch (PendingReviewException e) {
             // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("处理反馈失败, threadId={}", threadId, e);
             return "抱歉，处理反馈时出现问题，请稍后重试";
@@ -554,8 +538,7 @@ public class ImageAgent {
 
         Optional<Checkpoint> checkpoint = runStateStore.toCheckpoint(state);
         if (checkpoint.isEmpty()) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    state.getPendingConfirmation());
+            runLifecycle.paused(threadId, userId, state.getPendingConfirmation());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "执行状态无法还原，已暂停自动执行");
         }
@@ -583,19 +566,18 @@ public class ImageAgent {
         try {
             // 续跑不追加用户消息：继续的是同一次执行，不是新一轮对话
             AssistantMessage response = resumeAgent.call("", config);
-            runStateStore.updateStatus(threadId, userId, RunStatus.RUNNING, null);
+            runLifecycle.started(threadId, userId);
             return response.getText();
         } catch (PendingReviewException e) {
             // 结果未知：暂停并等待核对，与「明确失败」区分
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             // 明确失败：可安全重试。不能把失败包装成一条成功的助手回复，
             // 否则界面会把它显示成正常回答。
             log.error("Agent 续跑失败, threadId={}, userId={}", threadId, userId);
-            runStateStore.updateStatus(threadId, userId, RunStatus.FAILED, null);
+            runLifecycle.failed(threadId, userId);
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "继续执行失败，请稍后重试");
         }
@@ -617,8 +599,7 @@ public class ImageAgent {
         // 否则会在少了工具的情况下继续跑，模型改用别的方式完成同一件事
         Optional<List<String>> recorded = runStateStore.recordedMcpServerCodes(state);
         if (recorded.isEmpty()) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    "无法确认上次执行使用的工具环境，请重新发起请求");
+            runLifecycle.paused(threadId, userId, "无法确认上次执行使用的工具环境，请重新发起请求");
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "无法确认上次执行使用的工具环境，已暂停，请重新发起请求");
         }
@@ -627,37 +608,21 @@ public class ImageAgent {
                     resumeToolEnvironment.resolve(recorded.get(), userId);
             return environment.usesMcp() ? buildMcpAgent(environment.callbacks()) : agent;
         } catch (ResumeToolUnavailableException e) {
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    "MCP 服务已停用或撤销，需重新选择后再继续");
+            runLifecycle.paused(threadId, userId, "MCP 服务已停用或撤销，需重新选择后再继续");
             throw new BusinessException(ErrorCode.OPERATION_ERROR, e.getMessage());
         }
     }
 
     /**
-     * 结果未知时写进 {@code pendingConfirmation} 的固定文案。
-     *
-     * <p>流式、反馈、续跑三个入口都要把同一次暂停记成同一种状态；文案分散写三遍
-     * 迟早会漂移，界面就分不清「等待核对」和别的暂停原因了。
-     */
-    private String pauseForReview(String toolName) {
-        return "外部动作结果未知，等待核对：" + toolName;
-    }
-
-    /**
-     * 把「停在人工确认点」这件事持久化。
-     *
-     * <p>只保存工具名：确认信息要能被下一次执行读到，让界面区分「停在待确认」
-     * 与「已经确认过」；但描述里通常带着生成参数或提示词，属于私人正文，
-     * 不写进状态列。
+     * 把「停在人工确认点」这件事交给运行生命周期持久化。
      */
     private void persistAwaitingConfirmation(String threadId, Long userId,
                                              InterruptionMetadata interruption) {
-        String summary = interruption.toolFeedbacks().stream()
+        List<String> toolNames = interruption.toolFeedbacks().stream()
                 .map(InterruptionMetadata.ToolFeedback::getName)
                 .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.joining("\n"));
-        runStateStore.updateStatus(threadId, userId, RunStatus.AWAITING_CONFIRMATION, summary);
+                .toList();
+        runLifecycle.awaitingConfirmation(threadId, userId, toolNames);
     }
 
     /**
@@ -683,12 +648,17 @@ public class ImageAgent {
     }
 
     /**
-     * 获取当前探索次数（从 state 中读取）
-     * TODO: 需要通过 MemorySaver 获取会话状态，暂返回 0
+     * 人工确认点：AIGC 生成前必须由用户确认。
+     *
+     * <p>内置 agent 与 MCP agent 共用这一处构造：两个 builder 各写一份钩子，
+     * 迟早会出现「一个确认、另一个不确认」的漂移。
      */
-    private int getExploreCount(String threadId) {
-        // 后续可通过 MemorySaver 或 Redis 读取实际计数
-        return 0;
+    private HumanInTheLoopHook humanApprovalHook() {
+        return HumanInTheLoopHook.builder()
+                .approvalOn("generateImages", ToolConfig.builder()
+                        .description("即将使用 AIGC 生成图片，需要用户确认")
+                        .build())
+                .build();
     }
 
     /**
@@ -696,12 +666,6 @@ public class ImageAgent {
      * 合并内置工具和 MCP 回调
      */
     private ReactAgent buildMcpAgent(ToolCallback[] mcpCallbacks) {
-        HumanInTheLoopHook hitlHook = HumanInTheLoopHook.builder()
-                .approvalOn("generateImages", ToolConfig.builder()
-                        .description("即将使用 AIGC 生成图片，需要用户确认")
-                        .build())
-                .build();
-
         return ReactAgent.builder()
                 .name("image_assistant_mcp")
                 .model(chatModel)
@@ -709,7 +673,7 @@ public class ImageAgent {
                 .methodTools(methodTools())
                 .tools(mcpCallbacks)
                 .hooks(List.of(
-                        hitlHook,
+                        humanApprovalHook(),
                         iterationControlHook,
                         messageTrimmingHook,
                         summarizationHook,
@@ -785,10 +749,9 @@ public class ImageAgent {
         } catch (PendingReviewException e) {
             // 这是 controller 的 /image/chat 入口：返回空会被说成「处理完成」，
             // 与其它入口的暂停语义不一致
-            runStateStore.updateStatus(threadId, userId, RunStatus.PAUSED_UNRECOVERABLE,
-                    pauseForReview(e.getToolName()));
+            runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    "该步骤的外部执行结果未知，已暂停，请核对后再继续");
+                    ExternalActionPolicy.pausedMessage());
         } catch (Exception e) {
             log.error("Agent 执行失败, threadId={}, userId={}", threadId, userId, e);
             return Optional.empty();

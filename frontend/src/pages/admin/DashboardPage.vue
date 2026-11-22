@@ -1,32 +1,30 @@
 <template>
   <div class="dashboard-page">
     <!-- 页面标题 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <BarChart3 :size="28" />
-          <span>管理仪表盘</span>
-        </h1>
-        <p class="page-subtitle">系统运行状态总览</p>
-      </div>
-      <div class="header-actions">
-        <button class="action-btn" @click="refreshData">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M23 4v6h-6" />
-            <path d="M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-          <span>刷新数据</span>
-        </button>
-      </div>
-    </div>
+    <AdminPageHeader title="管理仪表盘" subtitle="系统运行状态总览">
+      <template #icon>
+        <BarChart3 />
+      </template>
+      <template #extra>
+        <div class="header-actions">
+          <button class="action-btn" @click="refreshData">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <span>刷新数据</span>
+          </button>
+        </div>
+      </template>
+    </AdminPageHeader>
 
     <!-- 统计卡片区域 -->
     <div class="stats-grid">
@@ -486,6 +484,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { BarChart3, Upload, Sparkles } from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
@@ -731,37 +730,6 @@ onMounted(() => {
 }
 
 /* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.header-content {
-  .page-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-family: var(--admin-font);
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--admin-text-primary);
-    margin: 0 0 8px 0;
-
-    span:first-child {
-      display: flex;
-      align-items: center;
-    }
-  }
-
-  .page-subtitle {
-    font-size: 14px;
-    color: var(--admin-text-secondary);
-    margin: 0;
-  }
-}
-
 .header-actions {
   .action-btn {
     display: flex;

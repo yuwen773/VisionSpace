@@ -3,7 +3,6 @@ package com.yuwen.visionspace.agent.hook;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.yuwen.visionspace.agent.config.AgentConstants;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -15,7 +14,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * IterationControlHook 单元测试。
- * Hook 通过 @Resource 注入 AgentConstants，纯 new 出来时该字段为 null，必须显式注入。
+ *
+ * <p>Hook 通过 @Resource 注入 AgentConstants，纯 new 出来时该字段为 null，必须显式注入。
+ *
+ * <p>只有模型调用计数有写入者；探索/生成计数器没有任何地方递增，对应的「到达上限」
+ * 判断此前永不触发，已随桩一起删除。这些测试锁定「上限只由调用计数决定」。
  */
 class IterationControlHookTest {
 
@@ -27,15 +30,10 @@ class IterationControlHookTest {
         return h;
     }
 
-    private static Map<String, Object> run(IterationControlHook hook,
-                                           int explore, int generate, int modelCalls, AgentPhase phase) {
-        OverAllState state = new OverAllState(Map.of(
-                "explore_count", explore,
-                "generate_count", generate,
-                "model_call_count", modelCalls,
-                "phase", phase
-        ));
-        CompletableFuture<Map<String, Object>> future = hook.beforeModel(state, RunnableConfig.builder().build());
+    private static Map<String, Object> run(IterationControlHook hook, int modelCalls) {
+        OverAllState state = new OverAllState(Map.of("model_call_count", modelCalls));
+        CompletableFuture<Map<String, Object>> future = hook.beforeModel(state,
+                RunnableConfig.builder().build());
         return future.join();
     }
 
@@ -46,39 +44,16 @@ class IterationControlHookTest {
 
     @Test
     void testNormalIncrement() {
-        Map<String, Object> result = run(hook, 0, 0, 0, AgentPhase.EXPLORATION);
+        Map<String, Object> result = run(hook, 0);
 
         assertEquals(1, result.get("model_call_count"));
         assertFalse(result.containsKey("messages"));
-    }
-
-    @Test
-    void testExploreLimitTriggersPhaseSwitch() {
-        Map<String, Object> result = run(hook, 3, 0, 5, AgentPhase.EXPLORATION);
-
-        assertEquals(AgentPhase.GENERATION, result.get("phase"));
-        assertTrue(result.containsKey("messages"));
-    }
-
-    @Test
-    void testExploreBelowLimitDoesNotSwitchPhase() {
-        Map<String, Object> result = run(hook, 2, 0, 5, AgentPhase.EXPLORATION);
-
-        assertFalse(result.containsKey("phase"));
-        assertEquals(6, result.get("model_call_count"));
+        assertFalse(result.containsKey("phase"), "阶段不再由这个钩子切换");
     }
 
     @Test
     void testModelCallLimitStopsAgent() {
-        Map<String, Object> result = run(hook, 0, 0, 15, AgentPhase.EXPLORATION);
-
-        assertTrue(result.containsKey("messages"));
-        assertFalse(result.containsKey("model_call_count"));
-    }
-
-    @Test
-    void testGenerateLimitStopsAgent() {
-        Map<String, Object> result = run(hook, 3, 2, 8, AgentPhase.GENERATION);
+        Map<String, Object> result = run(hook, 15);
 
         assertTrue(result.containsKey("messages"));
         assertFalse(result.containsKey("model_call_count"));
@@ -91,13 +66,13 @@ class IterationControlHookTest {
         IterationControlHook customHook = newHookWith(custom);
 
         // 上限 5：调用次数 5 时应停止，而默认配置 15 时不会
-        assertTrue(run(customHook, 0, 0, 5, AgentPhase.EXPLORATION).containsKey("messages"));
-        assertFalse(run(hook, 0, 0, 5, AgentPhase.EXPLORATION).containsKey("messages"));
+        assertTrue(run(customHook, 5).containsKey("messages"));
+        assertFalse(run(hook, 5).containsKey("messages"));
     }
 
     @Test
     void testStopMessageIsNonEmpty() {
-        Map<String, Object> result = run(hook, 0, 0, 15, AgentPhase.EXPLORATION);
+        Map<String, Object> result = run(hook, 15);
 
         @SuppressWarnings("unchecked")
         List<Object> messages = (List<Object>) result.get("messages");

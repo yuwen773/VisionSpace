@@ -6,7 +6,6 @@ import com.alibaba.cloud.ai.graph.agent.hook.HookPosition;
 import com.alibaba.cloud.ai.graph.agent.hook.HookPositions;
 import com.alibaba.cloud.ai.graph.agent.hook.ModelHook;
 import com.yuwen.visionspace.agent.config.AgentConstants;
-import com.yuwen.visionspace.agent.model.AgentPhase;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.stereotype.Component;
@@ -33,29 +32,14 @@ public class IterationControlHook extends ModelHook {
 
     @Override
     public CompletableFuture<Map<String, Object>> beforeModel(OverAllState state, RunnableConfig config) {
-        int exploreCount = state.value("explore_count", 0);
-        int generateCount = state.value("generate_count", 0);
+        // 只有调用计数是真的：它在下面递增。探索/生成计数器从来没有任何写入者，
+        // 两个「到达上限」分支因此永不触发——不保留读不到写入方的判断，
+        // 需要阶段上限时应当先有真正的阶段所有者。
         int modelCalls = state.value("model_call_count", 0);
-        AgentPhase phase = state.value("phase", AgentPhase.EXPLORATION);
 
         // 硬上限：总模型调用次数
         if (modelCalls >= agentConstants.getMaxIterationCount()) {
             return stopWithMessage("已达最大迭代次数，为您展示当前最佳结果。");
-        }
-
-        // 生成阶段上限
-        if (phase == AgentPhase.GENERATION && generateCount >= agentConstants.getMaxConfirmCount()) {
-            return stopWithMessage("已尝试多次生成，为您展示当前最佳结果。");
-        }
-
-        // 探索阶段上限：自动切换到生成阶段
-        if (phase == AgentPhase.EXPLORATION && exploreCount >= agentConstants.getMaxExploreCount()) {
-            return CompletableFuture.completedFuture(Map.of(
-                    "phase", AgentPhase.GENERATION,
-                    "messages", List.of(new AssistantMessage(
-                            "已尝试多次搜索，未找到完全匹配的图片，建议为您生成一张。是否继续？"
-                    ))
-            ));
         }
 
         // 正常递增调用计数

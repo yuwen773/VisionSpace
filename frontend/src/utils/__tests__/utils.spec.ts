@@ -56,6 +56,16 @@ describe('contentSrc', () => {
   it('反馈附件入口同样走 API 源站，不直连存储', () => {
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
     expect(contentSrc('/feedback/attachment/12')).toBe(`${base}/api/feedback/attachment/12`)
+    // 方案板预览同样是服务端签发的受控入口，不能在页面里各自拼前缀
+    expect(contentSrc('/agent/boards/b1/items/i1/content')).toBe(
+      `${base}/api/agent/boards/b1/items/i1/content`,
+    )
+    // 站内找图结果的素材地址同样是受控入口
+    expect(contentSrc('/agent/asset-results/r1/items/i1')).toBe(
+      `${base}/api/agent/asset-results/r1/items/i1`,
+    )
+    // 已经带前缀的地址原样返回：同一条 ref 不会被拼成 /api/api/...
+    expect(contentSrc('/api/picture/content/1/original')).toBe('/api/picture/content/1/original')
   })
 
   it('源站地址与空值不被改写', () => {

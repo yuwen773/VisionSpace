@@ -2,7 +2,7 @@ package com.yuwen.visionspace.manager.websocket;
 
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
-import com.yuwen.visionspace.manager.auth.SpaceUserAuthManager;
+import com.yuwen.visionspace.manager.auth.SpaceAuthority;
 import com.yuwen.visionspace.manager.auth.model.SpaceUserPermissionConstant;
 import com.yuwen.visionspace.model.entity.Picture;
 import com.yuwen.visionspace.model.entity.Space;
@@ -41,7 +41,7 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
     private SpaceService spaceService;
 
     @Resource
-    private SpaceUserAuthManager spaceUserAuthManager;
+    private SpaceAuthority spaceAuthority;
 
     /**
      * 建立连接前要先校验
@@ -88,8 +88,13 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
                     return false;
                 }
             }
-            List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
-            if (!permissionList.contains(SpaceUserPermissionConstant.PICTURE_EDIT)) {
+            // 空间已在上方加载：团队空间按成员角色判定；无空间的公开图片只有作者可编辑
+            boolean canEdit = space == null
+                    ? spaceAuthority.canOperatePicture(picture, loginUser,
+                            SpaceUserPermissionConstant.PICTURE_EDIT)
+                    : spaceAuthority.canOperateSpace(space, loginUser,
+                            SpaceUserPermissionConstant.PICTURE_EDIT);
+            if (!canEdit) {
                 log.error("用户没有编辑图片的权限，拒绝握手");
                 return false;
             }

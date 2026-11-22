@@ -31,7 +31,7 @@ class ImageFeatureAnalyzerToolTest {
 
     @BeforeEach
     void setUp() {
-        tool = new ImageFeatureAnalyzerTool();
+        tool = new ImageFeatureAnalyzerTool(mock(com.yuwen.visionspace.manager.vision.VisionClient.class));
         // ChatClient.builder(...).defaultSystem(...).build() 是链式 mock
         chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
         ReflectionTestUtils.setField(tool, "visionChatClient", chatClient);

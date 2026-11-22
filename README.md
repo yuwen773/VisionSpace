@@ -88,7 +88,7 @@ Docker Compose（MySQL 8.0 + Redis 7 + Spring Boot）
 
 ```
 src/main/java/com/yuwen/visionspace/
-├── annotation/             # 自定义注解（@AuthCheck, @SaSpaceCheckPermission）
+├── annotation/             # 自定义注解（@AuthCheck）
 ├── aop/                    # AOP 切面（AuthInterceptor 权限拦截）
 ├── config/                 # 配置类（Knife4j, MyBatis Plus, Sa-Token 等）
 ├── constant/               # 常量定义
@@ -108,8 +108,8 @@ src/main/java/com/yuwen/visionspace/
 ├── manager/                 # 跨切面管理器
 │   ├── auth/               # 权限管理
 │   │   ├── StpKit.java              # Sa-Token 门面（双 StpLogic）
-│   │   ├── SpaceUserAuthManager.java # 空间权限管理
-│   │   └── StpInterfaceImpl.java     # 权限接口实现
+│   │   ├── SpaceAuthority.java      # 空间/图片授权判定（ADR-0001）
+│   │   └── SpaceUserAuthManager.java # 角色 → 权限码配置
 │   ├── upload/             # 图片上传（模板方法模式）
 │   │   ├── PictureUploadTemplate.java # 上传流程模板
 │   │   ├── FilePictureUpload.java     # 本地文件上传
@@ -128,9 +128,7 @@ src/main/java/com/yuwen/visionspace/
 │   │   ├── ImageGeneratorTool.java    # 图片生成
 │   │   ├── ImageFeatureAnalyzerTool.java # 特征分析
 │   │   ├── QualityEvaluatorTool.java  # 质量评估
-│   │   ├── SimilarImageSearchTool.java # 相似图搜索
-│   │   ├── MermaidDiagramTool.java    # Mermaid 图表
-│   │   └── UndrawIllustrationTool.java # 插画生成
+│   │   └── SimilarImageSearchTool.java # 相似图搜索
 │   ├── hooks/             # Agent 钩子
 │   │   ├── IterationControlHook.java  # 迭代控制
 │   │   ├── MessageTrimmingHook.java    # 消息裁剪
@@ -284,8 +282,6 @@ double similarity = ColorSimilarUtils.calculateSimilarity("#FF5733", "#FF0000");
 | ImageFeatureAnalyzerTool | 特征分析 |
 | QualityEvaluatorTool | 质量评估 |
 | SimilarImageSearchTool | 相似图搜索 |
-| MermaidDiagramTool | Mermaid 图表生成 |
-| UndrawIllustrationTool | 插画生成 |
 
 **Agent Hooks：**
 
@@ -306,12 +302,14 @@ public static final StpLogic DEFAULT = new StpLogic();      // 默认会话
 public static final StpLogic SPACE = new StpLogic("space"); // 空间会话
 ```
 
-**权限注解：**
+**权限校验：**
 
-| 注解 | 作用 |
+| 入口 | 作用 |
 |------|------|
 | `@AuthCheck(mustRole = "admin")` | 全局角色校验 |
-| `@SaSpaceCheckPermission("picture:upload")` | 空间级权限校验 |
+| `SpaceAuthority`（服务层） | 空间与图片级授权：团队角色、平台管理员、私人归属分别判定 |
+
+空间/图片级判定在服务层完成，控制器只负责取得当前用户与资源。
 
 **空间成员角色：**
 

@@ -1,9 +1,11 @@
 package com.yuwen.visionspace.service.impl;
 
 import com.yuwen.visionspace.model.entity.Picture;
+import com.yuwen.visionspace.rag.PictureIndex;
 import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.VlCaptionService;
+import com.yuwen.visionspace.rag.RagVectorStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -13,9 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 站内图片向量索引。
@@ -27,10 +27,8 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "chroma")
+@ConditionalOnProperty(name = RagVectorStore.PROPERTY, havingValue = RagVectorStore.CHROMA)
 public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
-
-    private static final String DOC_ID_PREFIX = "picture_";
 
     private static final int BATCH_SIZE = 50;
 
@@ -58,7 +56,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     @Async("embeddingExecutor")
     public void updateEmbedding(Picture picture) {
         try {
-            String docId = DOC_ID_PREFIX + picture.getId();
+            String docId = PictureIndex.docId(picture.getId());
             try {
                 vectorStore.delete(List.of(docId));
             } catch (Exception deleteEx) {
@@ -75,7 +73,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
     @Async("embeddingExecutor")
     public void deleteEmbedding(Long pictureId) {
         try {
-            vectorStore.delete(List.of(DOC_ID_PREFIX + pictureId));
+            vectorStore.delete(List.of(PictureIndex.docId(pictureId)));
             log.info("图片嵌入删除成功, pictureId={}", pictureId);
         } catch (Exception e) {
             log.error("图片嵌入删除失败, pictureId={}", pictureId, e);
@@ -120,8 +118,7 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
 
     private Document buildDocument(Picture picture) {
         String richCaption = vlCaptionService.generateRichCaption(picture.getUrl());
-        return new Document(DOC_ID_PREFIX + picture.getId(), buildIndexText(picture, richCaption),
-                buildMetadata(picture));
+        return PictureIndex.document(picture, buildIndexText(picture, richCaption));
     }
 
     /**
@@ -152,18 +149,4 @@ public class PictureEmbeddingServiceImpl implements PictureEmbeddingService {
         text.append(value);
     }
 
-    private Map<String, Object> buildMetadata(Picture picture) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("pictureId", picture.getId());
-        metadata.put("imageUrl", picture.getUrl() != null ? picture.getUrl() : "");
-        metadata.put("thumbnailUrl", picture.getThumbnailUrl() != null ? picture.getThumbnailUrl() : "");
-        metadata.put("title", picture.getName() != null ? picture.getName() : "");
-        metadata.put("tags", picture.getTags() != null ? picture.getTags() : "[]");
-        metadata.put("category", picture.getCategory() != null ? picture.getCategory() : "");
-        metadata.put("picColor", picture.getPicColor() != null ? picture.getPicColor() : "");
-        metadata.put("spaceId", picture.getSpaceId() != null ? picture.getSpaceId() : 0L);
-        metadata.put("userId", picture.getUserId() != null ? picture.getUserId() : 0L);
-        metadata.put("indexedAt", System.currentTimeMillis());
-        return metadata;
-    }
 }
