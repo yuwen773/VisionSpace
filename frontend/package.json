@@ -16,6 +16,7 @@
     "openapi2ts": "node openapi.config.js && node scripts/postgen-typings.mjs",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
+    "shots:theme": "node e2e/theme-baseline.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
