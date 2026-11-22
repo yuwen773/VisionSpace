@@ -7,7 +7,7 @@
       </template>
       <template #extra>
         <div class="header-actions">
-          <button @click="goToCreateSpace" class="toolbar-btn primary">
+          <button @click="openCreateDrawer" class="toolbar-btn primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -33,6 +33,7 @@
         </svg>
         <a-input
           v-model:value="searchParams.spaceName"
+          aria-label="按空间名称搜索"
           placeholder="搜索空间名称..."
           class="search-input"
           @pressEnter="doSearch"
@@ -42,6 +43,7 @@
       <div class="filter-selects">
         <a-select
           v-model:value="searchParams.spaceType"
+          aria-label="按空间类型筛选"
           placeholder="空间类型"
           class="filter-select"
           allow-clear
@@ -52,6 +54,7 @@
         </a-select>
         <a-select
           v-model:value="searchParams.spaceLevel"
+          aria-label="按空间级别筛选"
           placeholder="空间级别"
           class="filter-select"
           allow-clear
@@ -61,13 +64,33 @@
           <a-select-option :value="1">专业版</a-select-option>
           <a-select-option :value="2">旗舰版</a-select-option>
         </a-select>
-        <a-input
-          v-model:value="searchParams.userId"
-          placeholder="用户ID..."
-          class="search-input id-input"
-          @pressEnter="doSearch"
+        <a-select
+          v-model:value="searchParams.status"
+          aria-label="按空间状态筛选"
+          placeholder="状态"
+          class="filter-select status-filter"
           allow-clear
-        />
+          @change="doSearch"
+        >
+          <a-select-option :value="1">已启用</a-select-option>
+          <a-select-option :value="0">已禁用</a-select-option>
+        </a-select>
+        <a-select
+          v-model:value="searchParams.userKeyword"
+          aria-label="按所有者姓名或账号筛选"
+          placeholder="所有者姓名 / 账号"
+          class="filter-select owner-filter"
+          show-search
+          allow-clear
+          :filter-option="false"
+          :not-found-content="ownerSearching ? '搜索中…' : '输入姓名或账号'"
+          @search="searchOwners"
+          @change="doSearch"
+        >
+          <a-select-option v-for="owner in ownerOptions" :key="owner.id" :value="owner.userAccount">
+            {{ owner.userName }} · {{ owner.userAccount }}
+          </a-select-option>
+        </a-select>
       </div>
       <div class="filter-buttons">
         <button class="toolbar-btn primary" @click="doSearch">
@@ -101,21 +124,26 @@
         >
       </div>
       <div class="batch-actions">
-        <button class="batch-btn" @click="batchEdit">
+        <button
+          class="batch-btn"
+          :disabled="selectedRowKeys.length !== 1"
+          :title="selectedRowKeys.length === 1 ? '编辑所选空间' : '请只选择一个空间'"
+          @click="batchEdit"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
-          批量编辑
+          编辑所选
         </button>
-        <button class="batch-btn" @click="batchDisable" :disabled="batchLoading">
+        <button class="batch-btn" @click="batchDisable">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
           </svg>
           批量禁用
         </button>
-        <button class="batch-btn" @click="batchEnable" :disabled="batchLoading">
+        <button class="batch-btn" @click="batchEnable">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="16 12 12 8 8 12"></polyline>
@@ -124,13 +152,13 @@
           批量启用
         </button>
         <a-popconfirm
-          title="确定要删除选中的空间吗？此操作不可恢复。"
+          :title="`确定删除选中的 ${selectedRowKeys.length} 个空间吗？删除后 5 秒内可撤销。`"
           ok-text="删除"
           cancel-text="取消"
           @confirm="batchDelete"
           placement="topRight"
         >
-          <button class="batch-btn danger" :disabled="batchLoading">
+          <button class="batch-btn danger">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path
@@ -145,12 +173,19 @@
 
     <!-- 数据表格 -->
     <div class="table-card">
+      <div v-if="loadError" class="load-error" role="alert">
+        <div class="load-error-text">
+          <strong>空间列表没能加载</strong>
+          <span>网络或服务暂时不可用，下方不是最新数据。</span>
+        </div>
+        <button class="toolbar-btn" @click="fetchData">重试</button>
+      </div>
       <a-table
         :columns="columns"
         :data-source="dataList"
         :pagination="pagination"
         :loading="loading"
-        :rowKey="(record: API.Space) => record.id"
+        :rowKey="(record: AdminSpaceVO) => record.id"
         :row-selection="rowSelection"
         @change="doTableChange"
         :scroll="tableScroll"
@@ -252,86 +287,136 @@
           </template>
           <template v-else-if="column.dataIndex === 'userId'">
             <div class="user-cell">
-              <a-tooltip :title="record.userId" placement="topLeft">
-                <span class="user-id">{{ shortUserId(record.userId) }}</span>
-              </a-tooltip>
+              <button
+                v-if="record.user"
+                class="owner-link"
+                :title="`在用户管理中查看 ${record.user.userName ?? record.userId}`"
+                @click="goToOwner(record.userId)"
+              >
+                <span class="owner-name">{{ record.user.userName || '未命名用户' }}</span>
+                <span class="owner-id">{{ shortUserId(record.userId) }}</span>
+              </button>
+              <span v-else class="owner-unknown"
+                >{{ shortUserId(record.userId) }} · 用户已不存在</span
+              >
+            </div>
+          </template>
+          <template v-else-if="column.dataIndex === 'status'">
+            <div class="center-cell">
+              <span class="status-tag" :class="record.status === 1 ? 'enabled' : 'disabled'">
+                <span class="status-dot"></span>
+                {{ record.status === 1 ? '已启用' : '已禁用' }}
+              </span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'createTime'">
             <span class="time-text">{{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm') }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
-            <div class="action-buttons">
-              <a-tooltip title="分析空间">
-                <button class="action-btn" aria-label="分析空间" @click="goToAnalyze(record.id)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-tooltip title="编辑空间">
-                <button class="action-btn" aria-label="编辑空间" @click="goToEdit(record.id)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-tooltip :title="record.status === 1 ? '禁用空间' : '启用空间'">
-                <button
-                  class="action-btn"
-                  :aria-label="record.status === 1 ? '禁用空间' : '启用空间'"
-                  :class="record.status === 1 ? 'warning' : 'success'"
-                  @click="toggleStatus(record)"
-                >
-                  <svg
-                    v-if="record.status === 1"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                  </svg>
-                  <svg
-                    v-else
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="16 12 12 8 8 12"></polyline>
-                    <line x1="12" y1="16" x2="12" y2="8"></line>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-popconfirm
-                title="确定要删除此空间吗？此操作不可恢复。"
-                ok-text="删除"
-                cancel-text="取消"
-                @confirm="doDelete(record.id)"
-                placement="topRight"
+            <a-dropdown trigger="click" placement="bottomRight">
+              <button
+                class="action-btn labeled"
+                :aria-label="`打开「${record.spaceName}」的操作菜单`"
               >
-                <a-tooltip title="删除空间">
-                  <button class="action-btn danger" aria-label="删除空间">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path
-                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                      ></path>
-                    </svg>
-                  </button>
-                </a-tooltip>
-              </a-popconfirm>
-            </div>
+                操作
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <template #overlay>
+                <a-menu @click="(info: any) => onRowAction(String(info.key), record)">
+                  <a-menu-item key="analyze">分析空间</a-menu-item>
+                  <a-menu-item key="edit">编辑空间</a-menu-item>
+                  <a-menu-item key="toggle">
+                    {{ record.status === 1 ? '禁用空间' : '启用空间' }}
+                  </a-menu-item>
+                  <a-menu-divider />
+                  <a-menu-item key="delete" danger>删除空间</a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </template>
         </template>
       </a-table>
     </div>
+
+    <!-- 创建 / 编辑抽屉：管理端不再把操作员丢进用户侧的表单 -->
+    <a-drawer
+      v-model:open="drawerVisible"
+      :title="drawerMode === 'create' ? '创建空间' : '编辑空间'"
+      width="480"
+      class="space-drawer"
+      :destroy-on-close="true"
+    >
+      <a-form layout="vertical" :model="drawerForm" @finish="submitDrawer">
+        <a-form-item label="空间名称" required>
+          <a-input
+            v-model:value="drawerForm.spaceName"
+            :maxlength="30"
+            show-count
+            placeholder="例如：产品设计资料"
+          />
+        </a-form-item>
+
+        <a-form-item v-if="drawerMode === 'create'" label="所有者" required>
+          <a-select
+            v-model:value="drawerForm.ownerAccount"
+            show-search
+            :filter-option="false"
+            placeholder="输入姓名或账号搜索用户"
+            :not-found-content="ownerSearching ? '搜索中…' : '输入姓名或账号'"
+            @search="searchOwners"
+            @change="onOwnerChange"
+          >
+            <a-select-option
+              v-for="owner in ownerOptions"
+              :key="owner.id"
+              :value="owner.userAccount"
+            >
+              {{ owner.userName }} · {{ owner.userAccount }}
+            </a-select-option>
+          </a-select>
+          <p class="form-hint">空间记在该用户名下，操作记录里保留你的管理员身份。</p>
+        </a-form-item>
+
+        <a-form-item v-if="drawerMode === 'create'" label="空间类型">
+          <a-radio-group v-model:value="drawerForm.spaceType">
+            <a-radio :value="0">私人空间</a-radio>
+            <a-radio :value="1">团队空间</a-radio>
+          </a-radio-group>
+        </a-form-item>
+
+        <a-form-item label="空间级别">
+          <a-select v-model:value="drawerForm.spaceLevel">
+            <a-select-option :value="0">普通版 · 100 张 / 100 MB</a-select-option>
+            <a-select-option :value="1">专业版 · 1000 张 / 1 GB</a-select-option>
+            <a-select-option :value="2">旗舰版 · 10000 张 / 10 GB</a-select-option>
+          </a-select>
+        </a-form-item>
+
+        <div v-if="drawerMode === 'edit'" class="form-grid">
+          <a-form-item label="最大图片数">
+            <a-input-number v-model:value="drawerForm.maxCount" :min="1" :precision="0" />
+          </a-form-item>
+          <a-form-item label="最大容量（MB）">
+            <a-input-number v-model:value="drawerForm.maxSizeMB" :min="1" :precision="0" />
+          </a-form-item>
+        </div>
+
+        <p v-if="drawerMode === 'edit'" class="form-hint">
+          容量会按级别给出默认值，这里可以覆盖；已用容量不受影响。
+        </p>
+      </a-form>
+
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button @click="drawerVisible = false">取消</a-button>
+          <a-button type="primary" :loading="drawerSubmitting" @click="submitDrawer">
+            {{ drawerMode === 'create' ? '创建空间' : '保存修改' }}
+          </a-button>
+        </div>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
@@ -339,19 +424,25 @@
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { Cloud } from 'lucide-vue-next'
 import { ref, reactive, onMounted, computed } from 'vue'
-import {
-  deleteSpaceUsingPost,
-  listSpaceByPageUsingPost,
-  updateSpaceUsingPost,
-} from '@/api/spaceController.ts'
-import { message } from 'ant-design-vue'
+import { deleteSpaceUsingPost } from '@/api/spaceController.ts'
+import { message, Modal } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { SPACE_LEVEL_MAP, SPACE_LEVEL_ENUM } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
 import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
+import { useUndoable } from '@/composables/useUndoable'
+import {
+  adminAddSpace,
+  listAdminSpaces,
+  searchAdminUsers,
+  updateAdminSpace,
+  type AdminSpaceOwnerVO,
+  type AdminSpaceVO,
+} from '@/api-custom/adminConsole'
 
 const router = useRouter()
+const undo = useUndoable()
 
 // 雪花 ID 过长，列表里只保留尾号，完整值交给 tooltip
 const shortUserId = (userId?: string | number) => {
@@ -370,31 +461,44 @@ const columns = computed(() => {
   const type = { title: '类型', dataIndex: 'spaceType', width: 86, align: 'center' as const }
   const level = { title: '级别', dataIndex: 'spaceLevel', width: 86, align: 'center' as const }
   const capacity = { title: '容量使用', dataIndex: 'capacity', width: 296 }
-  const owner = { title: '所有者', dataIndex: 'userId', width: 114 }
+  const owner = { title: '所有者', dataIndex: 'userId', width: 150 }
+  const status = { title: '状态', dataIndex: 'status', width: 96, align: 'center' as const }
   const createTime = { title: '创建时间', dataIndex: 'createTime', width: 148, sorter: true }
-  const action = { title: '操作', key: 'action', width: 180 }
+  const action = { title: '操作', key: 'action', width: 96 }
   const pinnedAction = { ...action, fixed: 'right' as const }
 
   if (density.value === 'phone') return [name, capacity, action]
-  if (density.value === 'narrow') return [name, capacity, pinnedAction]
-  if (density.value === 'medium') return [name, capacity, createTime, pinnedAction]
-  return [name, type, level, capacity, owner, createTime, pinnedAction]
+  if (density.value === 'narrow') return [name, capacity, status, pinnedAction]
+  if (density.value === 'medium') return [name, capacity, owner, status, pinnedAction]
+  return [name, type, level, capacity, owner, status, createTime, pinnedAction]
 })
 
 const tableScroll = computed(() => {
-  if (density.value === 'wide') return { x: 1090 }
-  if (density.value === 'medium') return { x: 806 }
-  if (density.value === 'narrow') return { x: 658 }
-  return { x: 626 }
+  if (density.value === 'wide') return { x: 1108 }
+  if (density.value === 'medium') return { x: 788 }
+  if (density.value === 'narrow') return { x: 638 }
+  return { x: 542 }
 })
 
-const dataList = ref<API.Space[]>([])
+interface SpaceFilters {
+  current: number
+  pageSize: number
+  sortOrder: 'ascend' | 'descend'
+  sortField: string
+  spaceName?: string
+  spaceType?: number
+  spaceLevel?: number
+  status?: number
+  userKeyword?: string
+}
+
+const dataList = ref<AdminSpaceVO[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
-const batchLoading = ref(false)
+const loadError = ref(false)
 const selectedRowKeys = ref<(string | number)[]>([])
 
-const searchParams = reactive<API.SpaceQueryRequest>({
+const searchParams = reactive<SpaceFilters>({
   current: 1,
   pageSize: 10,
   sortOrder: 'descend',
@@ -415,6 +519,7 @@ const rowSelection = computed(() => {
   if (density.value === 'phone') return undefined
   return {
     selectedRowKeys: selectedRowKeys.value,
+    columnTitle: '选择',
     onChange: (keys: (string | number)[]) => {
       selectedRowKeys.value = keys
     },
@@ -424,13 +529,29 @@ const rowSelection = computed(() => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await listSpaceByPageUsingPost(searchParams)
+    const res = await listAdminSpaces({
+      current: searchParams.current,
+      pageSize: searchParams.pageSize,
+      sortField: searchParams.sortField,
+      sortOrder: searchParams.sortOrder,
+      spaceName: searchParams.spaceName || undefined,
+      spaceType: searchParams.spaceType,
+      spaceLevel: searchParams.spaceLevel,
+      status: searchParams.status,
+      userKeyword: searchParams.userKeyword || undefined,
+    })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data.records ?? []
       total.value = res.data.data.total ?? 0
+      loadError.value = false
     } else {
+      loadError.value = true
       message.error('获取数据失败：' + res.data.message)
     }
+  } catch {
+    // 保留上一次成功的数据，同时明确标出「不是最新」
+    loadError.value = true
+    message.error('获取数据失败')
   } finally {
     loading.value = false
   }
@@ -445,8 +566,8 @@ const doTableChange = (
   filters: Record<string, unknown>,
   sorter: { field?: string; order?: 'ascend' | 'descend' },
 ) => {
-  searchParams.current = pag.current
-  searchParams.pageSize = pag.pageSize
+  searchParams.current = pag.current ?? 1
+  searchParams.pageSize = pag.pageSize ?? 10
   if (sorter.field) {
     searchParams.sortField = sorter.field
     searchParams.sortOrder = sorter.order === 'ascend' ? 'ascend' : 'descend'
@@ -464,123 +585,183 @@ const resetSearch = () => {
   searchParams.spaceName = undefined
   searchParams.spaceType = undefined
   searchParams.spaceLevel = undefined
-  searchParams.userId = undefined
+  searchParams.status = undefined
+  searchParams.userKeyword = undefined
   searchParams.current = 1
   selectedRowKeys.value = []
   fetchData()
 }
 
-const doDelete = async (id: number | undefined) => {
-  if (!id) return
-  try {
-    const res = await deleteSpaceUsingPost({ id })
-    if (res.data.code === 0) {
-      message.success('空间已删除')
-      selectedRowKeys.value = selectedRowKeys.value.filter((k) => k !== id)
-      await fetchData()
-    } else {
-      message.error('删除失败：' + res.data.message)
-    }
-  } catch (error) {
-    message.error('删除失败')
+/* ---------- 所有者搜索：筛选器与创建抽屉共用同一份候选 ---------- */
+const ownerOptions = ref<AdminSpaceOwnerVO[]>([])
+const ownerSearching = ref(false)
+let ownerSearchTimer: number | undefined
+
+const searchOwners = (keyword: string) => {
+  window.clearTimeout(ownerSearchTimer)
+  const kw = keyword.trim()
+  if (!kw) {
+    ownerOptions.value = []
+    return
   }
+  ownerSearchTimer = window.setTimeout(async () => {
+    ownerSearching.value = true
+    try {
+      const res = await searchAdminUsers(kw)
+      if (res.data.code === 0 && res.data.data) {
+        ownerOptions.value = res.data.data
+      } else {
+        ownerOptions.value = []
+      }
+    } catch {
+      ownerOptions.value = []
+      message.error('用户搜索失败')
+    } finally {
+      ownerSearching.value = false
+    }
+  }, 280)
 }
 
-type AdminSpaceRow = API.Space & { status?: number }
+const confirmDelete = (record: AdminSpaceVO) => {
+  Modal.confirm({
+    title: `删除空间「${record.spaceName ?? record.id}」？`,
+    content: '空间与其成员关系会被移除。5 秒内可撤销。',
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: () => applyDelete(record),
+  })
+}
 
-const toggleStatus = async (record: AdminSpaceRow) => {
-  if (!record.id) return
-  const newStatus = record.status === 1 ? 0 : 1
-  try {
-    const res = await updateSpaceUsingPost({
-      id: record.id,
-      status: newStatus,
-    } as API.SpaceUpdateRequest)
-    if (res.data.code === 0) {
-      message.success(newStatus === 1 ? '空间已启用' : '空间已禁用')
-      await fetchData()
-    } else {
-      message.error('操作失败：' + res.data.message)
-    }
-  } catch (error) {
-    message.error('操作失败')
-  }
+const applyDelete = (record: AdminSpaceVO) => {
+  const index = dataList.value.findIndex((row) => row.id === record.id)
+  if (index < 0) return
+  dataList.value.splice(index, 1)
+  total.value = Math.max(0, total.value - 1)
+  selectedRowKeys.value = selectedRowKeys.value.filter((k) => k !== record.id)
+
+  undo.schedule({
+    key: `space-delete-${record.id}`,
+    message: `「${record.spaceName ?? record.id}」已删除`,
+    commit: async () => {
+      try {
+        const res = await deleteSpaceUsingPost({ id: record.id })
+        if (res.data.code !== 0) {
+          message.error(res.data.message || '删除失败，已恢复')
+        }
+      } catch {
+        message.error('删除失败，已恢复')
+      } finally {
+        await fetchData()
+      }
+    },
+    undo: () => {
+      dataList.value.splice(Math.min(index, dataList.value.length), 0, record)
+      total.value += 1
+    },
+  })
+}
+
+const toggleStatus = (record: AdminSpaceVO) => {
+  const previous = record.status ?? 1
+  const next = previous === 1 ? 0 : 1
+  record.status = next
+
+  undo.schedule({
+    key: `space-status-${record.id}`,
+    message: `「${record.spaceName ?? record.id}」已${next === 1 ? '启用' : '禁用'}`,
+    commit: async () => {
+      try {
+        const res = await updateAdminSpace({ id: record.id, status: next })
+        if (res.data.code !== 0) {
+          record.status = previous
+          message.error(res.data.message || '操作失败，已恢复原状态')
+        }
+      } catch {
+        record.status = previous
+        message.error('操作失败，已恢复原状态')
+      }
+    },
+    undo: () => {
+      record.status = previous
+    },
+  })
 }
 
 const batchEdit = () => {
-  if (selectedRowKeys.value.length === 1) {
-    goToEdit(selectedRowKeys.value[0] as number)
+  const target = dataList.value.find((row) => row.id === selectedRowKeys.value[0])
+  if (selectedRowKeys.value.length === 1 && target) {
+    openEditDrawer(target)
   } else {
-    message.warning('请选择一个空间进行编辑')
+    message.warning('请只选择一个空间进行编辑')
   }
 }
 
-const batchDisable = async () => {
-  await batchOperation({
-    action: 'disable',
-    successMessage: `已禁用 ${selectedRowKeys.value.length} 个空间`,
-    errorMessage: '批量禁用失败',
-    operation: (id) =>
-      updateSpaceUsingPost({
-        id,
-        status: 0,
-      } as API.SpaceUpdateRequest),
-  })
-}
+const batchSetStatus = (status: number) => {
+  const ids = [...selectedRowKeys.value] as number[]
+  if (!ids.length) return
+  const rows = dataList.value.filter((row) => ids.includes(row.id))
+  const previous = new Map(rows.map((row) => [row.id, row.status ?? 1]))
+  rows.forEach((row) => (row.status = status))
+  selectedRowKeys.value = []
 
-const batchEnable = async () => {
-  await batchOperation({
-    action: 'enable',
-    successMessage: `已启用 ${selectedRowKeys.value.length} 个空间`,
-    errorMessage: '批量启用失败',
-    operation: (id) =>
-      updateSpaceUsingPost({
-        id,
-        status: 1,
-      } as API.SpaceUpdateRequest),
-  })
-}
-
-const batchDelete = async () => {
-  await batchOperation({
-    action: 'delete',
-    successMessage: `已删除 ${selectedRowKeys.value.length} 个空间`,
-    errorMessage: '批量删除失败',
-    operation: (id) => deleteSpaceUsingPost({ id: id as number }),
-  })
-}
-
-interface BatchOperationOptions {
-  action: string
-  successMessage: string
-  errorMessage: string
-  operation: (id: number | string) => Promise<unknown>
-}
-
-const batchOperation = async (options: BatchOperationOptions) => {
-  const { action, successMessage, errorMessage, operation } = options
-  if (!selectedRowKeys.value.length) return
-  batchLoading.value = true
-  try {
-    const promises = selectedRowKeys.value.map((id) => operation(id))
-    const results = await Promise.allSettled(promises)
-    const failed = results.filter((r) => {
-      if (r.status === 'rejected') return true
-      const value = r.value as { data?: { code?: number } } | undefined
-      return value?.data?.code !== 0
-    })
-    if (failed.length === 0) {
-      message.success(successMessage)
-      selectedRowKeys.value = []
+  undo.schedule({
+    key: `space-batch-status-${ids.join('-')}`,
+    message: `已${status === 1 ? '启用' : '禁用'} ${ids.length} 个空间`,
+    commit: async () => {
+      const results = await Promise.allSettled(ids.map((id) => updateAdminSpace({ id, status })))
+      const failed = results.filter((r) => {
+        if (r.status === 'rejected') return true
+        return r.value?.data?.code !== 0
+      })
+      if (failed.length) {
+        message.error(`${failed.length} 个空间更新失败`)
+      }
       await fetchData()
-    } else {
-      message.error(`${failed.length} 个空间${action}失败`)
-    }
-  } catch (error) {
-    message.error(errorMessage)
-  } finally {
-    batchLoading.value = false
-  }
+    },
+    undo: () => {
+      rows.forEach((row) => (row.status = previous.get(row.id)))
+    },
+  })
+}
+
+const batchDisable = () => batchSetStatus(0)
+const batchEnable = () => batchSetStatus(1)
+
+const batchDelete = () => {
+  const ids = [...selectedRowKeys.value] as number[]
+  if (!ids.length) return
+  const removed = dataList.value
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => ids.includes(row.id))
+  dataList.value = dataList.value.filter((row) => !ids.includes(row.id))
+  total.value = Math.max(0, total.value - removed.length)
+  selectedRowKeys.value = []
+
+  undo.schedule({
+    key: `space-batch-delete-${ids.join('-')}`,
+    message: `已删除 ${removed.length} 个空间`,
+    commit: async () => {
+      const results = await Promise.allSettled(ids.map((id) => deleteSpaceUsingPost({ id })))
+      const failed = results.filter((r) => {
+        if (r.status === 'rejected') return true
+        return r.value?.data?.code !== 0
+      })
+      if (failed.length) {
+        message.error(`${failed.length} 个空间删除失败`)
+      }
+      await fetchData()
+    },
+    undo: () => {
+      removed
+        .slice()
+        .sort((a, b) => a.index - b.index)
+        .forEach(({ row, index }) => {
+          dataList.value.splice(Math.min(index, dataList.value.length), 0, row)
+        })
+      total.value += removed.length
+    },
+  })
 }
 
 const getLevelClass = (level: number) => {
@@ -592,28 +773,129 @@ const getLevelClass = (level: number) => {
   return classMap[level] || 'basic'
 }
 
-const getCapacityPercent = (record: AdminSpaceRow) => {
+const getCapacityPercent = (record: AdminSpaceVO) => {
   if (!record.maxSize || record.maxSize === 0) return 0
   return Math.min(100, Math.round(((record.totalSize ?? 0) / record.maxSize) * 100))
 }
 
-const getCapacityClass = (record: AdminSpaceRow) => {
+const getCapacityClass = (record: AdminSpaceVO) => {
   const percent = getCapacityPercent(record)
   if (percent >= 90) return 'danger'
   if (percent >= 70) return 'warning'
   return 'normal'
 }
 
-const goToCreateSpace = () => {
-  router.push('/add_space')
-}
-
 const goToAnalyze = (id: number) => {
   router.push(`/space_analyze?spaceId=${id}`)
 }
 
-const goToEdit = (id: number) => {
-  router.push(`/add_space?id=${id}`)
+const goToOwner = (userId?: number) => {
+  if (!userId) return
+  router.push({ path: '/admin/user_manage', query: { userId: String(userId) } })
+}
+
+/* ---------- 管理端创建 / 编辑抽屉 ---------- */
+type DrawerMode = 'create' | 'edit'
+
+const drawerVisible = ref(false)
+const drawerMode = ref<DrawerMode>('create')
+const drawerSubmitting = ref(false)
+const editingId = ref<number | null>(null)
+const drawerForm = reactive({
+  spaceName: '',
+  ownerAccount: '',
+  ownerId: null as number | null,
+  spaceType: 0,
+  spaceLevel: 0,
+  maxCount: 100,
+  maxSizeMB: 100,
+})
+
+const openCreateDrawer = () => {
+  drawerMode.value = 'create'
+  editingId.value = null
+  drawerForm.spaceName = ''
+  drawerForm.ownerAccount = ''
+  drawerForm.ownerId = null
+  drawerForm.spaceType = 0
+  drawerForm.spaceLevel = SPACE_LEVEL_ENUM.COMMON
+  drawerForm.maxCount = 100
+  drawerForm.maxSizeMB = 100
+  ownerOptions.value = []
+  drawerVisible.value = true
+}
+
+const openEditDrawer = (record: AdminSpaceVO) => {
+  drawerMode.value = 'edit'
+  editingId.value = record.id
+  drawerForm.spaceName = record.spaceName ?? ''
+  drawerForm.spaceLevel = record.spaceLevel ?? SPACE_LEVEL_ENUM.COMMON
+  drawerForm.maxCount = record.maxCount ?? 100
+  drawerForm.maxSizeMB = Math.max(1, Math.round((record.maxSize ?? 0) / 1024 / 1024))
+  drawerVisible.value = true
+}
+
+const onOwnerChange = (account: string) => {
+  const owner = ownerOptions.value.find((item) => item.userAccount === account)
+  drawerForm.ownerId = owner?.id ?? null
+}
+
+const submitDrawer = async () => {
+  if (drawerSubmitting.value) return
+  const spaceName = drawerForm.spaceName.trim()
+  if (!spaceName) {
+    message.warning('请填写空间名称')
+    return
+  }
+
+  drawerSubmitting.value = true
+  try {
+    if (drawerMode.value === 'create') {
+      if (!drawerForm.ownerId) {
+        message.warning('请先搜索并选择所有者')
+        return
+      }
+      const res = await adminAddSpace({
+        spaceName,
+        userId: drawerForm.ownerId,
+        spaceType: drawerForm.spaceType,
+        spaceLevel: drawerForm.spaceLevel,
+      })
+      if (res.data.code === 0) {
+        message.success('空间已创建')
+        drawerVisible.value = false
+        await fetchData()
+      } else {
+        message.error(res.data.message || '创建失败')
+      }
+    } else if (editingId.value) {
+      const res = await updateAdminSpace({
+        id: editingId.value,
+        spaceName,
+        spaceLevel: drawerForm.spaceLevel,
+        maxCount: drawerForm.maxCount,
+        maxSize: drawerForm.maxSizeMB * 1024 * 1024,
+      })
+      if (res.data.code === 0) {
+        message.success('空间已更新')
+        drawerVisible.value = false
+        await fetchData()
+      } else {
+        message.error(res.data.message || '保存失败')
+      }
+    }
+  } catch {
+    message.error(drawerMode.value === 'create' ? '创建失败' : '保存失败')
+  } finally {
+    drawerSubmitting.value = false
+  }
+}
+
+const onRowAction = (key: string, record: AdminSpaceVO) => {
+  if (key === 'analyze') goToAnalyze(record.id)
+  else if (key === 'edit') openEditDrawer(record)
+  else if (key === 'toggle') toggleStatus(record)
+  else if (key === 'delete') confirmDelete(record)
 }
 </script>
 
@@ -674,10 +956,6 @@ const goToEdit = (id: number) => {
   }
 }
 
-.id-input {
-  width: 120px;
-}
-
 .filter-selects {
   display: flex;
   align-items: center;
@@ -686,6 +964,14 @@ const goToEdit = (id: number) => {
 
 .filter-select {
   width: 130px;
+
+  &.status-filter {
+    width: 104px;
+  }
+
+  &.owner-filter {
+    width: 190px;
+  }
 
   :deep(.ant-select-selector) {
     background: transparent !important;
@@ -1111,17 +1397,72 @@ const goToEdit = (id: number) => {
 }
 
 .user-cell {
-  .user-id {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--admin-text-secondary);
-    font-size: var(--admin-text-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  .owner-link {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 0;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover .owner-name {
+      color: var(--admin-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+  }
+
+  .owner-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--admin-text-sm);
+    color: var(--admin-text-primary);
+  }
+
+  .owner-id {
     font-family: var(--admin-font-mono);
-    background: var(--admin-bg-hover);
-    padding: 2px 8px;
-    border-radius: var(--admin-radius-sm);
-    cursor: default;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--admin-text-tertiary);
+  }
+
+  .owner-unknown {
+    font-size: var(--admin-text-xs);
+    color: var(--admin-text-tertiary);
+  }
+}
+
+/* 状态列：与反馈管理的状态标签同一套圆点 + 文字 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--admin-text-xs);
+  color: var(--admin-text-secondary);
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  &.enabled {
+    color: var(--admin-success);
+  }
+
+  &.disabled {
+    color: var(--admin-text-tertiary);
   }
 }
 
@@ -1180,6 +1521,68 @@ const goToEdit = (id: number) => {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
     border-color: color-mix(in srgb, var(--admin-danger) 26%, transparent);
+  }
+
+  /* 四个图标动作收进带文字的菜单触发器，操作不再靠猜图标 */
+  &.labeled {
+    width: auto;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: var(--admin-text-xs);
+    font-weight: 600;
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+}
+
+/* 列表加载失败：保留旧数据，同时明确说明它不是最新的 */
+.load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  padding: var(--admin-space-3) var(--admin-space-4);
+  background: var(--admin-danger-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--admin-danger) 24%, transparent);
+
+  .load-error-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+      font-size: var(--admin-text-sm);
+      color: var(--admin-text-primary);
+    }
+
+    span {
+      font-size: var(--admin-text-xs);
+      color: var(--admin-text-secondary);
+    }
+  }
+}
+
+/* ========== 创建 / 编辑抽屉 ========== */
+.space-drawer {
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--admin-space-4);
+  }
+
+  .form-hint {
+    margin: -6px 0 var(--admin-space-4);
+    font-size: var(--admin-text-xs);
+    color: var(--admin-text-tertiary);
+  }
+
+  .drawer-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--admin-space-3);
   }
 }
 
@@ -1255,7 +1658,7 @@ const goToEdit = (id: number) => {
     flex: 1 1 calc(50% - var(--admin-space-3) / 2);
   }
 
-  .id-input {
+  .owner-filter {
     flex: 1 1 100%;
     width: auto;
   }

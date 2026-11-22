@@ -1,7 +1,7 @@
 <template>
   <div id="userManagePage">
     <!-- 页面头部 -->
-    <AdminPageHeader title="用户管理" subtitle="管理系统用户和权限" size="md">
+    <AdminPageHeader title="用户管理" subtitle="管理系统用户和权限" size="lg">
       <template #icon>
         <Users :size="19" :stroke-width="1.6" />
       </template>
@@ -22,6 +22,7 @@
         </svg>
         <a-input
           v-model:value="searchParams.userAccount"
+          aria-label="按用户账号搜索"
           placeholder="搜索用户账号..."
           class="search-input"
           @pressEnter="doSearch"
@@ -41,6 +42,7 @@
         </svg>
         <a-input
           v-model:value="searchParams.userName"
+          aria-label="按用户名搜索"
           placeholder="搜索用户名..."
           class="search-input"
           @pressEnter="doSearch"
@@ -48,11 +50,17 @@
         />
       </div>
       <div class="filter-buttons">
+        <div v-if="searchParams.id" class="active-filter">
+          <span>仅看用户 ID {{ searchParams.id }}</span>
+          <button type="button" aria-label="清除用户 ID 筛选" @click="clearUserIdFilter">×</button>
+        </div>
         <a-select
           v-model:value="searchParams.userRole"
+          aria-label="按用户角色筛选"
           placeholder="角色筛选"
           class="role-filter"
           allow-clear
+          @change="doSearch"
         >
           <a-select-option value="admin">管理员</a-select-option>
           <a-select-option value="moderator">内容处置员</a-select-option>
@@ -79,6 +87,13 @@
 
     <!-- 数据表格 -->
     <div class="table-card">
+      <div v-if="loadError" class="load-error" role="alert">
+        <div class="load-error-text">
+          <strong>用户列表没能加载</strong>
+          <span>网络或服务暂时不可用，下方不是最新数据。</span>
+        </div>
+        <button class="toolbar-btn" @click="fetchData">重试</button>
+      </div>
       <a-table
         :columns="columns"
         :data-source="dataList"
@@ -102,9 +117,9 @@
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'userRole'">
-            <a-tag :color="roleTagColor(record.userRole)" class="role-tag">
+            <span class="role-tag" :class="roleTagClass(record.userRole)">
               {{ roleText(record.userRole) }}
-            </a-tag>
+            </span>
           </template>
           <template v-else-if="column.dataIndex === 'vipNumber'">
             <span class="vip-info" v-if="record.vipNumber">
@@ -133,24 +148,18 @@
                   </svg>
                 </button>
               </a-tooltip>
-              <a-popconfirm
-                title="删除该用户？"
-                ok-text="删除"
-                cancel-text="取消"
-                @confirm="doDelete(record.id)"
-                placement="topRight"
+              <button
+                class="action-btn danger"
+                aria-label="删除用户"
+                @click="confirmDelete(record)"
               >
-                <a-tooltip title="删除">
-                  <button class="action-btn danger" aria-label="删除用户">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path
-                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                      ></path>
-                    </svg>
-                  </button>
-                </a-tooltip>
-              </a-popconfirm>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path
+                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                  ></path>
+                </svg>
+              </button>
             </div>
           </template>
         </template>
@@ -173,20 +182,27 @@
           </a-avatar>
         </div>
         <div class="form-item">
-          <label>用户账号</label>
-          <a-input :value="currentUser.userAccount" disabled class="form-input" />
+          <label for="edit-user-account">用户账号</label>
+          <a-input
+            id="edit-user-account"
+            :value="currentUser.userAccount"
+            disabled
+            class="form-input"
+          />
         </div>
         <div class="form-item">
-          <label>用户名</label>
+          <label for="edit-user-name">用户名</label>
           <a-input
+            id="edit-user-name"
             v-model:value="editForm.userName"
             placeholder="请输入用户名"
             class="form-input"
           />
         </div>
         <div class="form-item">
-          <label>用户简介</label>
+          <label for="edit-user-profile">用户简介</label>
           <a-textarea
+            id="edit-user-profile"
             v-model:value="editForm.userProfile"
             placeholder="请输入用户简介"
             :rows="3"
@@ -194,8 +210,8 @@
           />
         </div>
         <div class="form-item">
-          <label>用户角色</label>
-          <a-select v-model:value="editForm.userRole" class="form-input">
+          <label for="edit-user-role">用户角色</label>
+          <a-select id="edit-user-role" v-model:value="editForm.userRole" class="form-input">
             <a-select-option value="admin">管理员</a-select-option>
             <a-select-option value="moderator">内容处置员</a-select-option>
             <a-select-option value="user">普通用户</a-select-option>
@@ -226,12 +242,17 @@ import {
   listUserVoByPageUsingPost,
   updateUserUsingPost,
 } from '@/api/userController.ts'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { UserOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+import { useRoute, useRouter } from 'vue-router'
 import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
+import { useUndoable } from '@/composables/useUndoable'
 
 const density = useAdminTableDensity()
+const route = useRoute()
+const router = useRouter()
+const undo = useUndoable()
 
 // 手机上收掉 VIP 与注册时间：这两个字段只在处置账号时才查，平时看「谁、什么角色」就够
 const columns = computed(() => {
@@ -259,14 +280,16 @@ const roleText = (role?: string) => {
   return map[role ?? ''] || '普通用户'
 }
 
-const roleTagColor = (role?: string) => {
-  const map: Record<string, string> = { admin: 'blue', moderator: 'purple' }
-  return map[role ?? ''] || 'default'
+/** 角色标签用 token 紫 / 墨，不再借用 Ant 预设的 blue / purple */
+const roleTagClass = (role?: string) => {
+  const map: Record<string, string> = { admin: 'admin', moderator: 'moderator' }
+  return map[role ?? ''] || 'user'
 }
 
 const dataList = ref<API.UserVO[]>([])
 const total = ref<number>(0)
 const loading = ref(false)
+const loadError = ref(false)
 const editModalVisible = ref(false)
 const updateLoading = ref(false)
 const currentUser = ref<API.UserVO | null>(null)
@@ -301,15 +324,25 @@ const fetchData = async () => {
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data.records ?? []
       total.value = res.data.data.total ?? 0
+      loadError.value = false
     } else {
+      loadError.value = true
       message.error('获取数据失败：' + res.data.message)
     }
+  } catch {
+    loadError.value = true
+    message.error('获取数据失败')
   } finally {
     loading.value = false
   }
 }
 
 onMounted(() => {
+  // 空间管理的所有者列会带着 userId 跳过来，落地即按该用户过滤
+  const userId = Number(route.query.userId)
+  if (Number.isFinite(userId) && userId > 0) {
+    searchParams.id = userId
+  }
   fetchData()
 })
 
@@ -332,7 +365,16 @@ const resetSearch = () => {
   searchParams.userAccount = undefined
   searchParams.userName = undefined
   searchParams.userRole = undefined
+  searchParams.id = undefined
   searchParams.current = 1
+  router.replace({ query: {} })
+  fetchData()
+}
+
+const clearUserIdFilter = () => {
+  searchParams.id = undefined
+  searchParams.current = 1
+  router.replace({ query: {} })
   fetchData()
 }
 
@@ -373,19 +415,45 @@ const doUpdate = async () => {
   }
 }
 
-const doDelete = async (id: number | undefined) => {
+const confirmDelete = (record: API.UserVO) => {
+  Modal.confirm({
+    title: `删除用户「${record.userName || record.userAccount}」？`,
+    content: '该用户的登录与个人资料会被移除。5 秒内可撤销。',
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: () => applyDelete(record),
+  })
+}
+
+const applyDelete = (record: API.UserVO) => {
+  const id = record.id
   if (!id) return
-  try {
-    const res = await deleteUserUsingPost({ id })
-    if (res.data.code === 0) {
-      message.success('用户已删除')
-      await fetchData()
-    } else {
-      message.error('删除失败：' + res.data.message)
-    }
-  } catch (error) {
-    message.error('删除失败')
-  }
+  const index = dataList.value.findIndex((row) => row.id === id)
+  if (index < 0) return
+  dataList.value.splice(index, 1)
+  total.value = Math.max(0, total.value - 1)
+
+  undo.schedule({
+    key: `user-delete-${id}`,
+    message: `「${record.userName || record.userAccount}」已删除`,
+    commit: async () => {
+      try {
+        const res = await deleteUserUsingPost({ id })
+        if (res.data.code !== 0) {
+          message.error(res.data.message || '删除失败，已恢复')
+        }
+      } catch {
+        message.error('删除失败，已恢复')
+      } finally {
+        await fetchData()
+      }
+    },
+    undo: () => {
+      dataList.value.splice(Math.min(index, dataList.value.length), 0, record)
+      total.value += 1
+    },
+  })
 }
 </script>
 
@@ -447,6 +515,44 @@ const doDelete = async (id: number | undefined) => {
   align-items: center;
   gap: var(--admin-space-3);
   margin-left: auto;
+}
+
+/* 从空间管理所有者列跳过来时的可见筛选条件 */
+.active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  font-size: var(--admin-text-xs);
+  color: var(--admin-primary);
+  background: var(--admin-primary-bg);
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 26%, transparent);
+  border-radius: var(--admin-radius-sm);
+  white-space: nowrap;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-radius: var(--admin-radius-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--admin-bg-hover);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--admin-primary);
+      outline-offset: 1px;
+    }
+  }
 }
 
 .role-filter {
@@ -635,8 +741,34 @@ const doDelete = async (id: number | undefined) => {
 }
 
 /* ========== 角色标签 ========== */
+/* 只使用 token 里的紫与墨：管理员=主色，内容处置员=次级墨色，普通用户=弱化 */
 .role-tag {
-  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  font-size: var(--admin-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-sm);
+  color: var(--admin-text-secondary);
+
+  &.admin {
+    color: var(--admin-primary);
+    border-color: color-mix(in srgb, var(--admin-primary) 38%, transparent);
+    background: var(--admin-primary-bg);
+  }
+
+  &.moderator {
+    color: var(--admin-text-primary);
+    border-color: var(--admin-border-strong);
+    background: var(--admin-bg-hover);
+  }
+
+  &.user {
+    color: var(--admin-text-tertiary);
+  }
 }
 
 /* ========== VIP 信息 ========== */
@@ -665,8 +797,37 @@ const doDelete = async (id: number | undefined) => {
 
 /* ========== 时间文本 ========== */
 .time-text {
-  font-size: var(--admin-text-sm);
+  font-family: var(--admin-font-mono);
+  font-size: var(--admin-text-xs);
   color: var(--admin-text-secondary);
+  white-space: nowrap;
+}
+
+/* 列表加载失败：保留旧数据，同时明确说明它不是最新的 */
+.load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  padding: var(--admin-space-3) var(--admin-space-4);
+  background: var(--admin-danger-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--admin-danger) 24%, transparent);
+
+  .load-error-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+      font-size: var(--admin-text-sm);
+      color: var(--admin-text-primary);
+    }
+
+    span {
+      font-size: var(--admin-text-xs);
+      color: var(--admin-text-secondary);
+    }
+  }
 }
 
 /* ========== 操作按钮 ========== */
