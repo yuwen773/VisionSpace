@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { deleteAgentImage, type AgentImage } from '@/api-custom/agent'
 import { API_ROOT, CSRF_HEADER, readCsrfToken } from '@/apiOrigin'
+import { extractImages, extractLinks } from '@/utils/markdownResources'
 
 export interface MessageDTO {
   schemaVersion?: number
@@ -80,30 +81,17 @@ export function useAgentStream() {
     if (!content) return
 
     const seenImageUrls = new Set(images.value.map((img) => img.url))
-    for (const match of content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
-      const url = match[2]
-      if (!seenImageUrls.has(url)) {
-        images.value.push({ url, title: match[1] || '图片' })
-        seenImageUrls.add(url)
-      }
+    for (const image of extractImages(content)) {
+      if (seenImageUrls.has(image.url)) continue
+      images.value.push({ url: image.url, title: image.title || '图片' })
+      seenImageUrls.add(image.url)
     }
 
-    const seenLinkUrls = new Set(links.value.map((l) => l.url))
-    // Negative lookahead (?!!) excludes image syntax ![alt](url)
-    for (const match of content.matchAll(/(?!!)\[([^\]]+)\]\(([^)]+)\)/g)) {
-      const url = match[2]
-      if (!seenLinkUrls.has(url)) {
-        try {
-          links.value.push({
-            url,
-            title: match[1],
-            snippet: match[1],
-            domain: new URL(url).hostname,
-          })
-        } catch {
-          // invalid URL
-        }
-      }
+    const seenLinkUrls = new Set(links.value.map((link) => link.url))
+    for (const link of extractLinks(content)) {
+      if (seenLinkUrls.has(link.url)) continue
+      links.value.push(link)
+      seenLinkUrls.add(link.url)
     }
   }
 
