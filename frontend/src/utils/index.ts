@@ -8,12 +8,13 @@ export const formatSize = (size: number) => {
   return (size / (1024 * 1024)).toFixed(2) + ' MB'
 }
 
-/** 服务端签发的受控内容入口（图片内容、反馈附件、方案板预览）。只有这些前缀才需要补 API 源站。 */
+/** 服务端签发的受控内容入口（图片内容、反馈附件、方案板预览、站内找图结果）。只有这些前缀才需要补 API 源站。 */
 const CONTROLLED_CONTENT_PREFIXES = [
   '/picture/content/',
   '/feedback/attachment/',
   '/agent/boards/',
   '/agent/tasks/',
+  '/agent/asset-results/',
 ]
 
 export function isControlledContentUrl(url?: string | null): boolean {
