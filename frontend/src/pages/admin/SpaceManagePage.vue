@@ -263,7 +263,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="分析空间">
-                <button class="action-btn" @click="goToAnalyze(record.id)">
+                <button class="action-btn" aria-label="分析空间" @click="goToAnalyze(record.id)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -272,7 +272,7 @@
                 </button>
               </a-tooltip>
               <a-tooltip title="编辑空间">
-                <button class="action-btn" @click="goToEdit(record.id)">
+                <button class="action-btn" aria-label="编辑空间" @click="goToEdit(record.id)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -282,6 +282,7 @@
               <a-tooltip :title="record.status === 1 ? '禁用空间' : '启用空间'">
                 <button
                   class="action-btn"
+                  :aria-label="record.status === 1 ? '禁用空间' : '启用空间'"
                   :class="record.status === 1 ? 'warning' : 'success'"
                   @click="toggleStatus(record)"
                 >
@@ -316,7 +317,7 @@
                 placement="topRight"
               >
                 <a-tooltip title="删除空间">
-                  <button class="action-btn danger">
+                  <button class="action-btn danger" aria-label="删除空间">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path

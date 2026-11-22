@@ -126,7 +126,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="编辑">
-                <button class="action-btn" @click="openEditModal(record)">
+                <button class="action-btn" aria-label="编辑用户" @click="openEditModal(record)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -141,7 +141,7 @@
                 placement="topRight"
               >
                 <a-tooltip title="删除">
-                  <button class="action-btn danger">
+                  <button class="action-btn danger" aria-label="删除用户">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path
@@ -688,7 +688,7 @@ const doDelete = async (id: number | undefined) => {
   border: 1px solid transparent;
   border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 15px;

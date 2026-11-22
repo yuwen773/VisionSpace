@@ -185,7 +185,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="查看详情">
-                <button class="action-btn" @click="showDetail(record)">
+                <button class="action-btn" aria-label="查看详情" @click="showDetail(record)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -193,7 +193,11 @@
                 </button>
               </a-tooltip>
               <a-tooltip v-if="record.status !== 2" title="标记已解决">
-                <button class="action-btn success" @click="quickResolve(record)">
+                <button
+                  class="action-btn success"
+                  aria-label="标记已解决"
+                  @click="quickResolve(record)"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
@@ -746,7 +750,7 @@ onMounted(() => {
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
   height: 36px;
   padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
@@ -889,7 +893,7 @@ onMounted(() => {
 .user-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 
   .user-info {
     display: flex;
@@ -1001,7 +1005,7 @@ onMounted(() => {
 .title-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 
   .title-text {
     font-weight: 500;
@@ -1091,7 +1095,7 @@ onMounted(() => {
   .detail-user {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--admin-space-3);
   }
 
   .detail-user-info {
@@ -1117,12 +1121,12 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--space-2);
+    gap: var(--admin-space-2);
   }
 
   .detail-tags {
     display: inline-flex;
-    gap: var(--space-2);
+    gap: var(--admin-space-2);
     flex-wrap: nowrap;
   }
 
@@ -1133,14 +1137,14 @@ onMounted(() => {
   .section-title {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--admin-space-2);
     font-family: var(--admin-font-mono);
     font-size: 9px;
     font-weight: 500;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--admin-text-tertiary);
-    margin-bottom: var(--space-3);
+    margin-bottom: var(--admin-space-3);
 
     svg {
       width: 14px;
@@ -1160,7 +1164,7 @@ onMounted(() => {
     font-size: var(--admin-text-base);
     font-weight: 600;
     color: var(--admin-text-primary);
-    margin-bottom: var(--space-3);
+    margin-bottom: var(--admin-space-3);
   }
 
   .content-body {
@@ -1173,7 +1177,7 @@ onMounted(() => {
   .picture-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--admin-space-3);
   }
 
   .detail-picture {

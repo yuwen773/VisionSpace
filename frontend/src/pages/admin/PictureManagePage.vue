@@ -140,6 +140,7 @@
             class="picture-img"
             :preview="true"
             :fallback="FALLBACK_IMAGE"
+            decoding="async"
           />
           <div class="format-badge">{{ record.picFormat?.toUpperCase() }}</div>
           <div class="status-badge" :class="getStatusClass(record.reviewStatus ?? 0)">
@@ -229,6 +230,7 @@
               >
                 <button
                   class="action-btn"
+                  aria-label="编辑图片"
                   :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
                   :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
                   @click="record.id !== undefined && goToEdit(record.id)"
@@ -244,6 +246,7 @@
               >
                 <button
                   class="action-btn success"
+                  aria-label="通过审核"
                   :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
                   :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
                   @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.PASS)"
@@ -258,6 +261,7 @@
               >
                 <button
                   class="action-btn danger"
+                  aria-label="拒绝审核"
                   :class="{
                     disabled:
                       record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
@@ -283,7 +287,7 @@
                 placement="topRight"
               >
                 <a-tooltip title="删除">
-                  <button class="action-btn danger">
+                  <button class="action-btn danger" aria-label="删除图片">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path
@@ -381,15 +385,26 @@ const searchParams = reactive<API.PictureQueryRequest>({
   sortField: 'createTime',
 })
 
+// 空间下拉要取全量：只取第一页 100 条时，空间一多就有选项静默消失，筛选永远找不到。
+// 逐页取到 total 为止，并留一个上限避免异常数据把请求打爆。
+const SPACE_OPTION_PAGE_SIZE = 100
+const SPACE_OPTION_MAX_PAGES = 20
+
 const fetchSpaceList = async () => {
   try {
-    const res = await listSpaceByPageUsingPost({
-      current: 1,
-      pageSize: 100,
-    })
-    if (res.data.code === 0 && res.data.data) {
-      spaceList.value = res.data.data.records ?? []
+    const all: API.Space[] = []
+    for (let page = 1; page <= SPACE_OPTION_MAX_PAGES; page += 1) {
+      const res = await listSpaceByPageUsingPost({
+        current: page,
+        pageSize: SPACE_OPTION_PAGE_SIZE,
+      })
+      if (res.data.code !== 0 || !res.data.data) break
+      const records = res.data.data.records ?? []
+      all.push(...records)
+      const total = Number(res.data.data.total ?? 0)
+      if (records.length === 0 || all.length >= total) break
     }
+    spaceList.value = all
   } catch (error) {
     console.error('获取空间列表失败', error)
   }
@@ -1024,7 +1039,7 @@ const goToEdit = (id: number) => {
   border: 1px solid transparent;
   border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 14px;
