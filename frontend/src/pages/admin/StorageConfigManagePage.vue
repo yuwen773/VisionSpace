@@ -3,13 +3,7 @@
     <!-- 页面头部 -->
     <AdminPageHeader title="存储配置管理" subtitle="管理系统对象存储配置，支持多平台切换">
       <template #icon>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path
-            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-          ></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
+        <HardDrive :size="19" :stroke-width="1.6" />
       </template>
       <template #extra>
         <div class="header-actions">
@@ -424,6 +418,7 @@
 
 <script setup lang="ts">
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import { HardDrive } from 'lucide-vue-next'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
@@ -724,9 +719,9 @@ onMounted(() => {
 
 <style scoped lang="less">
 #storageConfigPage {
-  max-width: var(--container-2xl);
+  max-width: 1440px;
   margin: 0 auto;
-  padding: var(--admin-space-6);
+  padding: 0;
 }
 
 .header-actions {
@@ -735,51 +730,63 @@ onMounted(() => {
 
 /* ========== 统计卡片 ========== */
 .stats-row {
-  display: flex;
-  gap: var(--admin-space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0;
   margin-bottom: var(--admin-space-6);
-  animation: slideUp 0.5s ease-out 0.1s backwards;
+  border-top: 1px solid var(--admin-border-default);
+  border-left: 1px solid var(--admin-border-default);
+  animation: slideUp 0.45s var(--admin-ease) 0.05s backwards;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
   gap: var(--admin-space-4);
+  min-width: 0;
   padding: var(--admin-space-4) var(--admin-space-5);
-  background: var(--admin-bg-secondary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  flex: 1;
+  background: color-mix(in srgb, var(--admin-bg-primary) 72%, transparent);
+  border-right: 1px solid var(--admin-border-default);
+  border-bottom: 1px solid var(--admin-border-default);
+  transition: background var(--admin-transition-base);
+
+  &:hover {
+    background: var(--admin-bg-primary);
+  }
 }
 
 .stat-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--admin-radius-md);
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-primary-bg);
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 22%, transparent);
+  color: var(--admin-primary);
 
   svg {
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
   }
 
   &.total {
-    background: rgba(9, 105, 218, 0.15);
-    border: 1px solid rgba(9, 105, 218, 0.3);
+    background: var(--admin-primary-bg);
+    border-color: color-mix(in srgb, var(--admin-primary) 22%, transparent);
     color: var(--admin-primary);
   }
 
   &.active {
-    background: rgba(26, 127, 55, 0.15);
-    border: 1px solid rgba(26, 127, 55, 0.3);
+    background: var(--admin-success-bg);
+    border-color: color-mix(in srgb, var(--admin-success) 22%, transparent);
     color: var(--admin-success);
   }
 
   &.warning {
-    background: rgba(154, 103, 0, 0.15);
-    border: 1px solid rgba(154, 103, 0, 0.3);
+    background: var(--admin-warning-bg);
+    border-color: color-mix(in srgb, var(--admin-warning) 22%, transparent);
     color: var(--admin-warning);
   }
 }
@@ -787,19 +794,24 @@ onMounted(() => {
 .stat-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .stat-value {
+  font-family: var(--admin-serif);
   font-size: var(--admin-text-2xl);
-  font-weight: 700;
-  color: var(--admin-text-primary);
+  font-weight: 600;
   line-height: 1;
+  color: var(--admin-text-primary);
 }
 
 .stat-label {
-  font-size: var(--admin-text-sm);
-  color: var(--admin-text-secondary);
+  font-family: var(--admin-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--admin-text-tertiary);
 }
 
 .pending-actions {
@@ -817,20 +829,27 @@ onMounted(() => {
 }
 
 .config-card {
-  background: var(--admin-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
+  border-radius: var(--admin-radius-sm);
   overflow: hidden;
-  transition: all var(--admin-transition-fast);
-  animation: slideUp 0.5s ease-out backwards;
+  transition:
+    border-color var(--admin-transition-fast),
+    transform var(--admin-transition-base),
+    box-shadow var(--admin-transition-base);
+  animation: slideUp 0.45s var(--admin-ease) backwards;
 
   &:hover {
-    border-color: var(--admin-text-secondary);
+    border-color: var(--admin-border-strong);
+    transform: translateY(-2px);
+    box-shadow: var(--admin-shadow-md);
   }
 
   &.active-card {
-    border-color: rgba(26, 127, 55, 0.5);
-    box-shadow: 0 0 0 1px rgba(26, 127, 55, 0.3);
+    border-color: var(--admin-success);
+    box-shadow: inset 3px 0 0 var(--admin-success);
   }
 }
 
@@ -839,7 +858,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: var(--admin-space-4);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border-bottom: 1px solid var(--admin-border-default);
 }
 
@@ -853,42 +872,43 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--admin-radius-md);
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-bg-tertiary);
+  border: 1px solid var(--admin-border-default);
+  color: var(--admin-text-secondary);
 
   svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 
   &.minio {
-    background: rgba(9, 105, 218, 0.15);
-    border: 1px solid rgba(9, 105, 218, 0.3);
     color: var(--admin-primary);
+    border-color: color-mix(in srgb, var(--admin-primary) 26%, transparent);
+    background: var(--admin-primary-bg);
   }
 
   &.cos {
-    background: rgba(168, 85, 247, 0.15);
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    color: #a855f7;
+    color: var(--admin-text-primary);
+    border-color: var(--admin-border-strong);
   }
 
   &.oss {
-    background: rgba(154, 103, 0, 0.15);
-    border: 1px solid rgba(154, 103, 0, 0.3);
     color: var(--admin-warning);
+    border-color: color-mix(in srgb, var(--admin-warning) 26%, transparent);
+    background: var(--admin-warning-bg);
   }
 
   &.obs {
-    background: rgba(207, 34, 46, 0.15);
-    border: 1px solid rgba(207, 34, 46, 0.3);
     color: var(--admin-danger);
+    border-color: color-mix(in srgb, var(--admin-danger) 26%, transparent);
+    background: var(--admin-danger-bg);
   }
 
   &.default {
-    background: rgba(139, 148, 158, 0.15);
-    border: 1px solid rgba(139, 148, 158, 0.3);
     color: var(--admin-text-secondary);
   }
 }
@@ -896,17 +916,24 @@ onMounted(() => {
 .platform-name {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  min-width: 0;
 
   .name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     font-weight: 600;
     color: var(--admin-text-primary);
     font-size: var(--admin-text-sm);
   }
 
   .platform-type {
-    font-size: var(--admin-text-xs);
-    color: var(--admin-text-secondary);
+    font-family: var(--admin-font-mono);
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--admin-text-tertiary);
   }
 }
 
@@ -914,21 +941,24 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-  border-radius: var(--admin-radius-full);
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-family: var(--admin-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: var(--admin-radius-sm);
 
   .status-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
   }
 
   &.enabled {
     color: var(--admin-success);
-    background: rgba(26, 127, 55, 0.15);
-    border: 1px solid rgba(26, 127, 55, 0.3);
+    background: var(--admin-success-bg);
+    border: 1px solid color-mix(in srgb, var(--admin-success) 26%, transparent);
 
     .status-dot {
       background: var(--admin-success);
@@ -936,26 +966,28 @@ onMounted(() => {
   }
 
   &.disabled {
-    color: var(--admin-text-secondary);
-    background: rgba(139, 148, 158, 0.15);
-    border: 1px solid rgba(139, 148, 158, 0.3);
+    color: var(--admin-text-tertiary);
+    background: transparent;
+    border: 1px solid var(--admin-border-default);
 
     .status-dot {
-      background: var(--admin-text-secondary);
+      background: var(--admin-text-tertiary);
     }
   }
 }
 
 .card-body {
+  /* 同一行卡片等高，正文撑开剩余空间，操作栏才会齐底对齐 */
+  flex: 1;
   padding: var(--admin-space-4);
 }
 
 .config-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--admin-space-2) 0;
-  border-bottom: 1px solid var(--admin-bg-hover);
+  gap: 3px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--admin-border-subtle);
 
   &:last-child {
     border-bottom: none;
@@ -963,7 +995,10 @@ onMounted(() => {
 }
 
 .config-label {
-  font-size: var(--admin-text-xs);
+  font-family: var(--admin-font-mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--admin-text-tertiary);
   flex-shrink: 0;
 }
@@ -988,7 +1023,7 @@ onMounted(() => {
   display: flex;
   gap: var(--admin-space-2);
   padding: var(--admin-space-3) var(--admin-space-4);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border-top: 1px solid var(--admin-border-subtle);
 }
 
@@ -996,15 +1031,18 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  color: var(--admin-text-secondary);
+  color: var(--admin-text-tertiary);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 15px;
@@ -1013,7 +1051,8 @@ onMounted(() => {
 
   &:hover:not(:disabled) {
     color: var(--admin-primary);
-    background: rgba(9, 105, 218, 0.08);
+    background: var(--admin-primary-bg);
+    border-color: color-mix(in srgb, var(--admin-primary) 22%, transparent);
   }
 
   &:disabled {
@@ -1023,12 +1062,14 @@ onMounted(() => {
 
   &.success:hover:not(:disabled) {
     color: var(--admin-success);
-    background: rgba(26, 127, 55, 0.08);
+    background: var(--admin-success-bg);
+    border-color: color-mix(in srgb, var(--admin-success) 22%, transparent);
   }
 
   &.danger:hover:not(:disabled) {
     color: var(--admin-danger);
-    background: rgba(207, 34, 46, 0.08);
+    background: var(--admin-danger-bg);
+    border-color: color-mix(in srgb, var(--admin-danger) 22%, transparent);
   }
 }
 
@@ -1039,19 +1080,20 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: var(--admin-space-12) var(--admin-space-6);
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px dashed var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  animation: fadeIn 0.5s ease-out;
+  border-radius: var(--admin-radius-sm);
+  animation: fadeIn 0.45s var(--admin-ease);
 
   svg {
-    width: 64px;
-    height: 64px;
-    color: var(--admin-border-default);
+    width: 54px;
+    height: 54px;
+    color: var(--admin-border-strong);
     margin-bottom: var(--admin-space-4);
   }
 
   .empty-text {
+    font-family: var(--admin-serif);
     font-size: var(--admin-text-lg);
     font-weight: 600;
     color: var(--admin-text-primary);
@@ -1060,7 +1102,7 @@ onMounted(() => {
 
   .empty-hint {
     font-size: var(--admin-text-sm);
-    color: var(--admin-text-secondary);
+    color: var(--admin-text-tertiary);
     margin: 0;
   }
 }
@@ -1069,7 +1111,7 @@ onMounted(() => {
 .refresh-section {
   display: flex;
   justify-content: flex-start;
-  animation: slideUp 0.5s ease-out 0.3s backwards;
+  animation: slideUp 0.45s var(--admin-ease) 0.15s backwards;
 }
 
 /* ========== 工具栏按钮 ========== */
@@ -1077,15 +1119,19 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-4);
+  height: 36px;
+  padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -1093,18 +1139,18 @@ onMounted(() => {
   }
 
   &:hover {
-    background: var(--admin-border-default);
-    border-color: var(--admin-text-secondary);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 
   &.primary {
-    color: #ffffff;
-    background: var(--admin-success);
-    border-color: var(--admin-success);
+    color: var(--admin-accent-ink);
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: var(--admin-primary-hover);
+      border-color: var(--admin-primary-hover);
     }
   }
 }
@@ -1112,26 +1158,27 @@ onMounted(() => {
 /* ========== 弹窗表单 ========== */
 .storage-modal {
   :deep(.ant-modal-content) {
-    background: var(--admin-bg-secondary);
+    background: var(--admin-bg-primary);
     border: 1px solid var(--admin-border-default);
   }
 
   :deep(.ant-modal-header) {
-    background: var(--admin-bg-secondary);
-    border-bottom: 1px solid var(--admin-border-default);
+    background: transparent;
+    border-bottom: 1px solid var(--admin-border-subtle);
 
     .ant-modal-title {
       color: var(--admin-text-primary);
+      font-family: var(--admin-serif);
       font-weight: 600;
     }
   }
 
   :deep(.ant-modal-footer) {
-    border-top: 1px solid var(--admin-border-default);
+    border-top: 1px solid var(--admin-border-subtle);
   }
 
   :deep(.ant-modal-close) {
-    color: var(--admin-text-secondary);
+    color: var(--admin-text-tertiary);
   }
 }
 
@@ -1149,7 +1196,7 @@ onMounted(() => {
 .form-section {
   margin-bottom: var(--admin-space-5);
   padding-bottom: var(--admin-space-5);
-  border-bottom: 1px solid var(--admin-bg-hover);
+  border-bottom: 1px solid var(--admin-border-subtle);
 
   &:last-child {
     margin-bottom: 0;
@@ -1162,14 +1209,17 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
-  font-size: var(--admin-text-sm);
-  font-weight: 600;
-  color: var(--admin-text-primary);
+  font-family: var(--admin-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--admin-text-tertiary);
   margin: 0 0 var(--admin-space-4) 0;
 
   svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     color: var(--admin-primary);
   }
 }
@@ -1203,7 +1253,7 @@ onMounted(() => {
 
 .form-input {
   :deep(.ant-input) {
-    background: var(--admin-bg-primary);
+    background: transparent;
     border-color: var(--admin-border-default);
     color: var(--admin-text-primary);
 
@@ -1213,22 +1263,22 @@ onMounted(() => {
 
     &:focus {
       border-color: var(--admin-primary);
-      box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
+      box-shadow: 0 0 0 2px var(--admin-primary-bg);
     }
   }
 
   :deep(.ant-input-password-icon) {
-    color: var(--admin-text-secondary);
+    color: var(--admin-text-tertiary);
   }
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-primary) !important;
+    background: transparent !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
 
   :deep(.ant-select-arrow) {
-    color: var(--admin-text-secondary);
+    color: var(--admin-text-tertiary);
   }
 }
 
@@ -1237,9 +1287,9 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: var(--admin-space-3) var(--admin-space-4);
-  background: var(--admin-bg-primary);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
 
   &--spaced {
     margin-top: var(--admin-space-4);
@@ -1266,7 +1316,7 @@ onMounted(() => {
   background: var(--admin-border-default);
 
   &.ant-switch-checked {
-    background: var(--admin-success);
+    background: var(--admin-primary);
   }
 }
 
@@ -1292,23 +1342,9 @@ onMounted(() => {
 }
 
 /* ========== 响应式 ========== */
-@media (max-width: 1024px) {
-  .stats-row {
-    flex-wrap: wrap;
-  }
-
-  .stat-card {
-    flex: 1 1 calc(50% - var(--admin-space-2));
-  }
-}
-
 @media (max-width: 768px) {
   #storageConfigPage {
-    padding: var(--admin-space-4);
-  }
-
-  .stat-card {
-    flex: 1 1 100%;
+    padding: 0;
   }
 
   .config-grid {

@@ -1,78 +1,58 @@
 <template>
   <header class="admin-header">
-    <!-- 面包屑导航 -->
+    <!-- 面包屑 -->
     <div class="header-left">
-      <nav class="breadcrumb">
-        <router-link to="/admin/dashboard" class="breadcrumb-item">
-          <Home :size="14" class="breadcrumb-icon" />
-          <span class="breadcrumb-text">首页</span>
-        </router-link>
-        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
-          <span class="breadcrumb-separator">/</span>
-          <router-link
-            :to="crumb.path"
-            class="breadcrumb-item"
-            :class="{ active: index === breadcrumbs.length - 1 }"
-          >
-            <span class="breadcrumb-text">{{ crumb.label }}</span>
-          </router-link>
+      <nav class="breadcrumb" aria-label="面包屑">
+        <router-link to="/admin/dashboard" class="crumb-root">Admin</router-link>
+        <template v-if="currentLabel">
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          <span class="crumb-current">{{ currentLabel }}</span>
         </template>
       </nav>
     </div>
 
-    <!-- 右侧用户信息 -->
+    <!-- 右侧 -->
     <div class="header-right">
-      <!-- 搜索框 -->
-      <div class="search-box">
-        <svg
-          class="search-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="M21 21l-4.35-4.35" />
-        </svg>
-        <input type="text" placeholder="搜索..." class="search-input" />
-        <span class="search-shortcut">⌘K</span>
-      </div>
-
-      <!-- 通知图标 -->
-      <button class="header-icon-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-        <span class="notification-badge">3</span>
+      <button
+        type="button"
+        class="theme-btn"
+        :aria-label="isLight ? '切换到极光深空主题' : '切换到紫漾浅色主题'"
+        :title="isLight ? '切换到极光深空主题' : '切换到紫漾浅色主题'"
+        @click="toggleTheme"
+      >
+        <Moon v-if="isLight" :size="15" :stroke-width="1.7" aria-hidden="true" />
+        <Sun v-else :size="15" :stroke-width="1.7" aria-hidden="true" />
       </button>
 
-      <!-- 用户下拉菜单 -->
-      <a-dropdown :placement="'bottomRight'">
-        <div class="user-trigger">
-          <a-avatar :src="loginUserStore.loginUser?.userAvatar" :size="32" />
-          <div class="user-info">
-            <span class="user-name">{{ loginUserStore.loginUser?.userAccount || 'Admin' }}</span>
-            <span class="user-role">管理员</span>
-          </div>
+      <span class="header-rule" aria-hidden="true"></span>
+
+      <a-dropdown :placement="'bottomRight'" :trigger="['click']">
+        <button type="button" class="user-trigger" aria-label="账号菜单">
+          <a-avatar :src="loginUserStore.loginUser?.userAvatar" :size="30" />
+          <span class="user-info">
+            <span class="user-name">{{
+              loginUserStore.loginUser?.userName || loginUserStore.loginUser?.userAccount || 'Admin'
+            }}</span>
+            <span class="user-role">Administrator</span>
+          </span>
           <svg
             class="dropdown-arrow"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="1.6"
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
-        </div>
+        </button>
         <template #overlay>
           <div class="user-dropdown-menu">
             <div class="dropdown-header">
-              <div class="dropdown-avatar-wrapper">
-                <a-avatar :src="loginUserStore.loginUser?.userAvatar" :size="48" />
-              </div>
+              <a-avatar :src="loginUserStore.loginUser?.userAvatar" :size="40" />
               <div class="dropdown-user-info">
-                <div class="dropdown-user-name">{{ loginUserStore.loginUser?.userAccount }}</div>
+                <div class="dropdown-user-name">
+                  {{ loginUserStore.loginUser?.userName || loginUserStore.loginUser?.userAccount }}
+                </div>
                 <div class="dropdown-user-role">
                   <span class="role-badge">管理员</span>
                 </div>
@@ -80,14 +60,14 @@
             </div>
             <a-menu @click="handleMenuClick" class="user-menu">
               <a-menu-item key="my_space">
-                <Home :size="16" style="margin-right: 8px" /> 我的空间
+                <Home :size="15" :stroke-width="1.7" /> 我的空间
               </a-menu-item>
               <a-menu-item key="home">
-                <Sparkles :size="16" style="margin-right: 8px" /> 返回首页
+                <Sparkles :size="15" :stroke-width="1.7" /> 返回首页
               </a-menu-item>
               <a-menu-divider />
               <a-menu-item key="logout" class="logout-item">
-                <LogOut :size="16" style="margin-right: 8px" /> 退出登录
+                <LogOut :size="15" :stroke-width="1.7" /> 退出登录
               </a-menu-item>
             </a-menu>
           </div>
@@ -103,32 +83,28 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/userLogin'
 import { userLogoutUsingPost } from '@/api/userController'
-import { Home, Sparkles, LogOut } from 'lucide-vue-next'
+import { useTheme } from '@/composables/useTheme'
+import { Home, Sparkles, LogOut, Moon, Sun } from 'lucide-vue-next'
 
 const loginUserStore = useLoginUserStore()
 const route = useRoute()
 const router = useRouter()
+const { currentTheme, toggleTheme } = useTheme()
 
-const menuLabels: Record<string, string> = {
+const isLight = computed(() => currentTheme.value === 'pop')
+
+const pageLabels: Record<string, string> = {
   '/admin/dashboard': '仪表盘',
   '/admin/user_manage': '用户管理',
   '/admin/picture_manage': '图片管理',
   '/admin/space_manage': '空间管理',
   '/admin/storage_config_manage': '存储配置',
+  '/admin/feedback_manage': '反馈管理',
 }
 
-const breadcrumbs = computed(() => {
-  const path = route.path
-  const crumbs = []
-
-  for (const [menuPath, label] of Object.entries(menuLabels)) {
-    if (path.startsWith(menuPath) && menuPath !== '/admin/dashboard') {
-      crumbs.push({ path: menuPath, label })
-      break
-    }
-  }
-
-  return crumbs
+const currentLabel = computed(() => {
+  const match = Object.entries(pageLabels).find(([path]) => route.path.startsWith(path))
+  return match && match[0] !== '/admin/dashboard' ? match[1] : ''
 })
 
 const handleMenuClick = async ({ key }: { key: string }) => {
@@ -155,199 +131,168 @@ const doLogout = async () => {
 
 <style lang="less" scoped>
 .admin-header {
-  height: 64px;
-  background: var(--admin-bg-primary);
-  border-bottom: 1px solid var(--admin-border-default);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
   position: sticky;
   top: 0;
   z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 clamp(16px, 2.6vw, 34px);
+  background: color-mix(in srgb, var(--admin-bg-secondary) 82%, transparent);
+  border-bottom: 1px solid var(--admin-border-default);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+  font-family: var(--admin-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.breadcrumb-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--admin-text-secondary);
+.crumb-root {
+  color: var(--admin-text-tertiary);
   text-decoration: none;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+  transition: color var(--admin-transition-fast);
 
   &:hover {
-    background: var(--admin-bg-hover);
-    color: var(--admin-text-primary);
-  }
-
-  &.active {
-    color: var(--admin-text-primary);
-    background: transparent;
-  }
-
-  .breadcrumb-icon {
-    display: flex;
-    align-items: center;
+    color: var(--admin-primary);
   }
 }
 
-.breadcrumb-separator {
+.crumb-sep {
   color: var(--admin-text-disabled);
-  font-size: 14px;
+}
+
+.crumb-current {
+  color: var(--admin-text-primary);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--admin-bg-tertiary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: 6px;
-  padding: 8px 12px;
-  transition: all 0.15s ease;
-
-  &:focus-within {
-    border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
-  }
-
-  .search-icon {
-    width: 16px;
-    height: 16px;
-    color: var(--admin-text-tertiary);
-    flex-shrink: 0;
-  }
-
-  .search-input {
-    background: transparent;
-    border: none;
-    outline: none;
-    color: var(--admin-text-primary);
-    font-size: 14px;
-    width: 180px;
-
-    &::placeholder {
-      color: var(--admin-text-disabled);
-    }
-  }
-
-  .search-shortcut {
-    font-size: 11px;
-    color: var(--admin-text-disabled);
-    background: var(--admin-bg-hover);
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--admin-border-default);
-  }
-}
-
-.header-icon-btn {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  display: flex;
+.theme-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--admin-text-secondary);
+  border-radius: 50%;
+  color: var(--admin-text-tertiary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color var(--admin-transition-fast),
+    border-color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    transform var(--admin-transition-fast);
 
   &:hover {
-    background: var(--admin-bg-hover);
     color: var(--admin-text-primary);
     border-color: var(--admin-border-default);
+    background: var(--admin-bg-hover);
+    transform: rotate(-12deg);
   }
+}
 
-  svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .notification-badge {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    min-width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--admin-danger);
-    color: white;
-    font-size: 10px;
-    font-weight: 600;
-    border-radius: 8px;
-    padding: 0 4px;
-  }
+.header-rule {
+  width: 1px;
+  height: 20px;
+  background: var(--admin-border-default);
 }
 
 .user-trigger {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 5px 8px 5px 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius-sm);
+  color: var(--admin-text-primary);
+  font-family: var(--admin-font);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   &:hover {
     background: var(--admin-bg-hover);
+    border-color: var(--admin-border-default);
   }
 
-  .user-info {
-    display: flex;
-    flex-direction: column;
-
-    .user-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--admin-text-primary);
-      line-height: 1.2;
-    }
-
-    .user-role {
-      font-size: 12px;
-      color: var(--admin-text-secondary);
-    }
-  }
-
-  .dropdown-arrow {
-    width: 16px;
-    height: 16px;
-    color: var(--admin-text-secondary);
+  :deep(.ant-avatar) {
+    background: var(--admin-bg-active);
   }
 }
 
-.user-dropdown-menu {
-  min-width: 240px;
-  background: var(--admin-bg-primary) !important;
-  border: 1px solid var(--admin-border-default) !important;
-  border-radius: 8px;
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.user-name {
+  max-width: 150px;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--admin-text-primary);
+}
+
+.user-role {
+  font-family: var(--admin-font-mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--admin-text-tertiary);
+}
+
+.dropdown-arrow {
+  width: 14px;
+  height: 14px;
+  color: var(--admin-text-tertiary);
+  transition: transform var(--admin-transition-fast);
+}
+
+.user-trigger:hover .dropdown-arrow {
+  transform: translateY(1px);
+}
+
+/* ============ 下拉 ============ */
+.user-dropdown-menu {
+  min-width: 250px;
+  overflow: hidden;
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-sm);
+  box-shadow: var(--admin-shadow-md);
 }
 
 .dropdown-header {
@@ -355,65 +300,59 @@ const doLogout = async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: var(--admin-bg-secondary);
   border-bottom: 1px solid var(--admin-border-subtle);
+}
 
-  .dropdown-avatar-wrapper {
-    flex-shrink: 0;
-  }
+.dropdown-user-info {
+  min-width: 0;
+}
 
-  .dropdown-user-info {
-    min-width: 0;
-  }
+.dropdown-user-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--admin-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--admin-text-primary);
+}
 
-  .dropdown-user-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--admin-text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+.dropdown-user-role {
+  margin-top: 5px;
+}
 
-  .dropdown-user-role {
-    margin-top: 4px;
-  }
-
-  .role-badge {
-    display: inline-flex;
-    align-items: center;
-    font-size: 12px;
-    font-weight: 500;
-    padding: 2px 8px;
-    background: var(--admin-success-bg);
-    color: var(--admin-success);
-    border-radius: 12px;
-    border: 1px solid rgba(26, 127, 55, 0.2);
-  }
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 30%, transparent);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-primary-bg);
+  color: var(--admin-primary);
+  font-family: var(--admin-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .user-menu {
+  padding: 6px;
   background: transparent !important;
-  padding: 8px !important;
 
   :deep(.ant-dropdown-menu-item) {
+    gap: 10px;
     color: var(--admin-text-primary) !important;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: var(--admin-radius-sm);
+    font-size: 13px;
 
     &:hover {
       background: var(--admin-bg-hover) !important;
     }
-
-    span {
-      margin-right: 8px;
-    }
   }
 
   :deep(.ant-dropdown-menu-item-divider) {
+    margin: 6px 0;
     background: var(--admin-border-subtle) !important;
-    margin: 8px 0;
   }
 
   .logout-item {
@@ -424,19 +363,15 @@ const doLogout = async () => {
     }
   }
 }
+
 /* ============ 响应式 ============ */
 @media (max-width: 900px) {
   .admin-header {
-    padding: 0 12px;
+    padding: 0 14px;
   }
 
-  /* 搜索只是占位交互，窄屏优先给面包屑与账号留位置 */
-  .search-box {
-    display: none;
-  }
-
-  .user-trigger {
-    padding: 6px;
+  .user-name {
+    max-width: 100px;
   }
 }
 
@@ -445,7 +380,11 @@ const doLogout = async () => {
     display: none;
   }
 
-  .breadcrumb-item:not(.active) .breadcrumb-text {
+  .user-trigger {
+    padding: 4px;
+  }
+
+  .header-rule {
     display: none;
   }
 }

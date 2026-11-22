@@ -3,11 +3,7 @@
     <!-- 页面头部 -->
     <AdminPageHeader title="图片管理" subtitle="管理平台所有图片和审核状态" size="md">
       <template #icon>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <circle cx="8.5" cy="8.5" r="1.5"></circle>
-          <polyline points="21 15 16 10 5 21"></polyline>
-        </svg>
+        <Image :size="19" :stroke-width="1.6" />
       </template>
     </AdminPageHeader>
 
@@ -141,8 +137,6 @@
           <a-image
             v-else
             :src="contentSrc(`/picture/content/${record.id}/thumbnail`)"
-            :width="200"
-            :height="160"
             class="picture-img"
             :preview="true"
             :fallback="FALLBACK_IMAGE"
@@ -162,15 +156,15 @@
 
           <p class="picture-intro" v-if="record.introduction">{{ record.introduction }}</p>
 
-          <div class="info-tags" v-if="record.category || (record.tags?.length ?? 0)">
+          <div class="info-tags" v-if="record.category || parseTags(record.tags).length">
             <a-tag v-if="record.category" color="blue" class="category-tag">{{
               record.category
             }}</a-tag>
-            <a-tag v-for="tag in (record.tags ?? []).slice(0, 2)" :key="tag" class="tag-item">{{
+            <a-tag v-for="tag in parseTags(record.tags).slice(0, 2)" :key="tag" class="tag-item">{{
               tag
             }}</a-tag>
-            <span v-if="(record.tags?.length ?? 0) > 2" class="tag-more"
-              >+{{ (record.tags?.length ?? 0) - 2 }}</span
+            <span v-if="parseTags(record.tags).length > 2" class="tag-more"
+              >+{{ parseTags(record.tags).length - 2 }}</span
             >
           </div>
 
@@ -331,6 +325,7 @@
 
 <script lang="ts" setup>
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import { Image } from 'lucide-vue-next'
 import { ref, reactive, onMounted } from 'vue'
 import {
   deletePictureUsingPost,
@@ -344,11 +339,22 @@ import dayjs from 'dayjs'
 import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture.ts'
 import { contentSrc, formatSize } from '@/utils'
 
-// 内容入口可能对无资源记录的存量图片返回 404，用占位图兜底
+// 内容入口可能对无权限或无资源记录的图片返回 403/404，用中性的纸面占位兜底。
+// 占位本身也做客制化：一个细描边的空画框 + 双语小字，深浅主题下都不突兀。
 const FALLBACK_IMAGE =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160"><rect width="200" height="160" fill="%23f0f0f0"/><text x="100" y="84" font-size="12" text-anchor="middle" fill="%23999">无可用内容</text></svg>',
+    [
+      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="320" viewBox="0 0 400 320">',
+      '<g fill="none" stroke="#9b93b8" stroke-opacity="0.45" stroke-width="1.2">',
+      '<rect x="164" y="118" width="72" height="56" rx="2"/>',
+      '<path d="M164 158l18-16 14 12 10-8 30 26"/>',
+      '<circle cx="216" cy="134" r="4"/>',
+      '</g>',
+      '<text x="200" y="200" text-anchor="middle" fill="#9b93b8" font-family="sans-serif" font-size="12">无可用预览</text>',
+      '<text x="200" y="218" text-anchor="middle" fill="#9b93b8" fill-opacity="0.55" font-family="monospace" font-size="8" letter-spacing="2">NO PREVIEW</text>',
+      '</svg>',
+    ].join(''),
   )
 
 const router = useRouter()
@@ -511,12 +517,20 @@ const batchReview = async (reviewStatus: number, reviewMessage: string) => {
 const batchApprove = () => batchReview(PIC_REVIEW_STATUS_ENUM.PASS, '管理员批量通过')
 const batchReject = () => batchReview(PIC_REVIEW_STATUS_ENUM.REJECT, '管理员批量拒绝')
 
-const parseTags = (tags: string) => {
+// 标签可能是数组，也可能是 JSON / 逗号分隔的字符串，统一归一化后再渲染
+const parseTags = (tags: unknown): string[] => {
+  if (Array.isArray(tags)) return tags.map(String).filter(Boolean)
+  if (typeof tags !== 'string' || !tags.trim()) return []
   try {
-    return JSON.parse(tags || '[]')
+    const parsed = JSON.parse(tags)
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
   } catch {
-    return []
+    // 非 JSON，按逗号分隔处理
   }
+  return tags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
 }
 
 const getStatusClass = (status: number) => {
@@ -535,9 +549,9 @@ const goToEdit = (id: number) => {
 
 <style scoped lang="less">
 #pictureManagePage {
-  max-width: var(--container-2xl);
+  max-width: 1440px;
   margin: 0 auto;
-  padding: var(--admin-space-6);
+  padding: 0;
 }
 
 /* ========== 工具栏 ========== */
@@ -549,8 +563,8 @@ const goToEdit = (id: number) => {
   padding: var(--admin-space-4);
   background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.5s ease-out 0.1s backwards;
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.45s var(--admin-ease) 0.05s backwards;
 }
 
 .search-box {
@@ -571,7 +585,7 @@ const goToEdit = (id: number) => {
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: var(--admin-bg-tertiary);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
     color: var(--admin-text-primary);
 
@@ -581,7 +595,7 @@ const goToEdit = (id: number) => {
 
     &:focus {
       border-color: var(--admin-primary);
-      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+      box-shadow: 0 0 0 2px var(--admin-primary-bg);
     }
   }
 }
@@ -596,7 +610,7 @@ const goToEdit = (id: number) => {
   width: 130px;
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-tertiary) !important;
+    background: transparent !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
@@ -617,15 +631,19 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-4);
+  height: 36px;
+  padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-tertiary);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -638,7 +656,7 @@ const goToEdit = (id: number) => {
   }
 
   &.primary {
-    color: #ffffff;
+    color: var(--admin-accent-ink);
     background: var(--admin-primary);
     border-color: var(--admin-primary);
 
@@ -658,9 +676,9 @@ const goToEdit = (id: number) => {
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-3) var(--admin-space-4);
   background: var(--admin-primary-bg);
-  border: 1px solid rgba(9, 105, 218, 0.2);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.3s ease-out;
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 28%, transparent);
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.3s var(--admin-ease);
 }
 
 .batch-info {
@@ -691,12 +709,16 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-3);
+  height: 32px;
+  padding: 0 var(--admin-space-3);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
-  border-radius: var(--admin-radius-md);
+  font-weight: 600;
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast),
+    opacity var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -704,24 +726,24 @@ const goToEdit = (id: number) => {
   }
 
   &.success {
-    color: #ffffff;
-    background: var(--admin-success);
-    border: 1px solid var(--admin-success);
+    color: var(--admin-success);
+    background: var(--admin-success-bg);
+    border: 1px solid color-mix(in srgb, var(--admin-success) 45%, transparent);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: color-mix(in srgb, var(--admin-success) 18%, transparent);
+      border-color: var(--admin-success);
     }
   }
 
   &.danger {
-    color: #ffffff;
-    background: var(--admin-danger);
-    border: 1px solid var(--admin-danger);
+    color: var(--admin-danger);
+    background: var(--admin-danger-bg);
+    border: 1px solid color-mix(in srgb, var(--admin-danger) 45%, transparent);
 
     &:hover {
-      background: #b91c1c;
-      border-color: #b91c1c;
+      background: color-mix(in srgb, var(--admin-danger) 18%, transparent);
+      border-color: var(--admin-danger);
     }
   }
 }
@@ -732,24 +754,30 @@ const goToEdit = (id: number) => {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-6);
+  counter-reset: plate;
 }
 
 .picture-card {
   position: relative;
+  counter-increment: plate;
   background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
+  border-radius: var(--admin-radius-sm);
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--admin-transition-fast),
+    transform var(--admin-transition-base),
+    box-shadow var(--admin-transition-base);
 
   &:hover {
     border-color: var(--admin-border-strong);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: var(--admin-shadow-md);
   }
 
   &.selected {
     border-color: var(--admin-primary);
-    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
+    box-shadow: 0 0 0 1px var(--admin-primary);
   }
 }
 
@@ -758,9 +786,10 @@ const goToEdit = (id: number) => {
   top: 8px;
   left: 8px;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: var(--admin-radius-sm);
   padding: 2px;
+  background: color-mix(in srgb, var(--admin-bg-primary) 88%, transparent);
+  border-radius: var(--admin-radius-sm);
+  backdrop-filter: blur(4px);
 }
 
 .card-image {
@@ -782,16 +811,39 @@ const goToEdit = (id: number) => {
   }
 
   width: 100%;
-  height: 160px;
+  height: 176px;
   background: var(--admin-bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 
+  &::before {
+    /* 底部压一层淡影，保证 PLATE 与格式徽标在浅色照片上仍可读 */
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 64px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.42), transparent);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: 'PLATE ' counter(plate, decimal-leading-zero);
+    position: absolute;
+    left: 9px;
+    bottom: 8px;
+    font-family: var(--admin-font-mono);
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    color: rgba(255, 255, 255, 0.8);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+
   :deep(.ant-image) {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
   }
 
   :deep(.ant-image-img) {
@@ -805,37 +857,39 @@ const goToEdit = (id: number) => {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 6px;
+  font-family: var(--admin-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--admin-radius-sm);
+  backdrop-filter: blur(4px);
 }
 
 .status-badge {
   position: absolute;
   top: 8px;
   right: 8px;
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 1px 8px;
+  font-size: 10px;
   font-weight: 600;
   border-radius: var(--admin-radius-sm);
 
   &.reviewing {
-    color: #d29922;
-    background: rgba(210, 153, 34, 0.9);
-    color: #ffffff;
+    color: var(--admin-accent-ink);
+    background: var(--admin-warning);
   }
 
   &.approved {
-    background: rgba(26, 127, 55, 0.9);
-    color: #ffffff;
+    color: var(--admin-accent-ink);
+    background: var(--admin-success);
   }
 
   &.rejected {
-    background: rgba(207, 34, 46, 0.9);
-    color: #ffffff;
+    color: var(--admin-accent-ink);
+    background: var(--admin-danger);
   }
 }
 
@@ -876,20 +930,21 @@ const goToEdit = (id: number) => {
   :deep(.ant-tag) {
     margin: 0;
     font-size: 10px;
-    padding: 0 4px;
+    padding: 0 5px;
     line-height: 18px;
+    border-radius: var(--admin-radius-sm);
   }
 
   .category-tag {
     background: var(--admin-primary-bg);
     color: var(--admin-primary);
-    border-color: rgba(9, 105, 218, 0.2);
+    border-color: color-mix(in srgb, var(--admin-primary) 24%, transparent);
   }
 
   .tag-item {
-    background: rgba(210, 153, 34, 0.15);
-    color: #d29922;
-    border-color: rgba(210, 153, 34, 0.3);
+    background: var(--admin-warning-bg);
+    color: var(--admin-warning);
+    border-color: color-mix(in srgb, var(--admin-warning) 28%, transparent);
   }
 
   .tag-more {
@@ -985,13 +1040,13 @@ const goToEdit = (id: number) => {
   &.success:hover:not(.disabled) {
     color: var(--admin-success);
     background: var(--admin-success-bg);
-    border-color: rgba(26, 127, 55, 0.3);
+    border-color: color-mix(in srgb, var(--admin-success) 30%, transparent);
   }
 
   &.danger:hover:not(.disabled) {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
-    border-color: rgba(207, 34, 46, 0.3);
+    border-color: color-mix(in srgb, var(--admin-danger) 30%, transparent);
   }
 
   &.disabled {
@@ -1067,12 +1122,51 @@ const goToEdit = (id: number) => {
 
 @media (max-width: 768px) {
   #pictureManagePage {
-    padding: var(--admin-space-4);
+    padding: 0;
   }
 
   .picture-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: var(--admin-space-3);
+  }
+
+  .card-image {
+    height: 140px;
+  }
+}
+
+/* 手机上筛选区按整行铺开：两个下拉各占一半，分类输入独占一行，按钮等宽铺满 */
+@media (max-width: 640px) {
+  .table-toolbar {
+    gap: var(--admin-space-3);
+  }
+
+  .filter-selects {
+    width: 100%;
+    gap: var(--admin-space-2);
+  }
+
+  .filter-select {
+    flex: 1 1 calc(50% - var(--admin-space-2) / 2);
+    width: auto;
+  }
+
+  .category-input {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .filter-buttons {
+    width: 100%;
+
+    .toolbar-btn {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+
+  .picture-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

@@ -8,6 +8,12 @@
         "value": "kaushanscript",
         "createdAt": "2026-11-21T15:46:02.757Z",
         "reason": "Pre-existing brand wordmark font for the global header logo (GlobalHeader); outside the user-center surface type system and DESIGN.md scope, not introduced by this change."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "nunito",
+        "createdAt": "2026-11-22T09:22:27.706Z",
+        "reason": "项目 design-tokens.css 的 --font-body 就是 Nunito，后台沿用同一套正文字体"
       }
     ]
   }
