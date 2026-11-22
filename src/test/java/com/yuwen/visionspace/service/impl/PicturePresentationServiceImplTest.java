@@ -82,6 +82,7 @@ class PicturePresentationServiceImplTest {
         assertNull(vo.getUrl(), "隔离中的图片不得给出内容地址");
         assertNull(vo.getThumbnailUrl());
         assertNull(vo.getPreviewUrl());
+        assertTrue(vo.getQuarantined(), "隔离状态要显式告知，不能只留空地址");
     }
 
     @Test
@@ -103,6 +104,8 @@ class PicturePresentationServiceImplTest {
         assertEquals(3L, result.get(0).getLikeCount());
         assertEquals(2L, result.get(1).getId());
         assertNull(result.get(1).getUrl(), "只有被隔离的那一行失去内容地址");
+        assertTrue(result.get(1).getQuarantined());
+        assertNull(result.get(0).getQuarantined(), "未隔离的行不打隔离标记");
     }
 
     @Test

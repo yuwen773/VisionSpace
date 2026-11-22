@@ -115,6 +115,8 @@ public class PicturePresentationServiceImpl implements PicturePresentationServic
         pictureVO.setUrl(null);
         pictureVO.setThumbnailUrl(null);
         pictureVO.setPreviewUrl(null);
+        // 状态本身是元数据：告知已隔离，而不是让客户端以为内容丢失
+        pictureVO.setQuarantined(true);
     }
 
     private void fillStats(PictureVO pictureVO, PictureStats stats) {
