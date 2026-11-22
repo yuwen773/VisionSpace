@@ -57,7 +57,8 @@ const section = computed(() => {
       </p>
     </div>
 
-    <!-- 不包额外容器：页面自己的 .header-actions / .header-stats 直接作为 flex 子项 -->
+    <!-- 操作区统一收在 .header-extra 里：这一块自己管排版（不换行、靠右），
+         页面自己的 .header-actions / .header-stats 仍是这一块里的内容 -->
     <div v-if="$slots.extra" class="header-extra">
       <slot name="extra" />
     </div>

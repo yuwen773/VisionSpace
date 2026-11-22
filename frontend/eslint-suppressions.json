@@ -177,11 +177,6 @@
       "count": 2
     }
   },
-  "src/pages/admin/DashboardPage.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 3
-    }
-  },
   "src/pages/admin/FeedbackManagePage.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 8
@@ -192,7 +187,7 @@
   },
   "src/pages/admin/PictureManagePage.vue": {
     "@typescript-eslint/no-unused-vars": {
-      "count": 4
+      "count": 3
     }
   },
   "src/pages/admin/SpaceManagePage.vue": {
