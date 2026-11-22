@@ -3,12 +3,7 @@
     <!-- 页面头部 -->
     <AdminPageHeader title="用户管理" subtitle="管理系统用户和权限" size="md">
       <template #icon>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
+        <Users :size="19" :stroke-width="1.6" />
       </template>
     </AdminPageHeader>
 
@@ -91,6 +86,7 @@
         @change="doTableChange"
         :loading="loading"
         :rowKey="(record: API.UserVO) => record.id"
+        :scroll="tableScroll"
         class="data-table"
       >
         <template #bodyCell="{ column, record }">
@@ -130,7 +126,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="编辑">
-                <button class="action-btn" @click="openEditModal(record)">
+                <button class="action-btn" aria-label="编辑用户" @click="openEditModal(record)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -145,7 +141,7 @@
                 placement="topRight"
               >
                 <a-tooltip title="删除">
-                  <button class="action-btn danger">
+                  <button class="action-btn danger" aria-label="删除用户">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path
@@ -223,6 +219,7 @@
 
 <script lang="ts" setup>
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import { Users } from 'lucide-vue-next'
 import { ref, reactive, onMounted, computed } from 'vue'
 import {
   deleteUserUsingPost,
@@ -232,14 +229,25 @@ import {
 import { message } from 'ant-design-vue'
 import { UserOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
 
-const columns = [
-  { title: '用户', dataIndex: 'userName', width: 200 },
-  { title: '角色', dataIndex: 'userRole', width: 120 },
-  { title: 'VIP', dataIndex: 'vipNumber', width: 120 },
-  { title: '注册时间', dataIndex: 'createTime', width: 140, sorter: true },
-  { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
-]
+const density = useAdminTableDensity()
+
+// 手机上收掉 VIP 与注册时间：这两个字段只在处置账号时才查，平时看「谁、什么角色」就够
+const columns = computed(() => {
+  const user = { title: '用户', dataIndex: 'userName', width: 200 }
+  const role = { title: '角色', dataIndex: 'userRole', width: 120 }
+  const vip = { title: 'VIP', dataIndex: 'vipNumber', width: 120 }
+  const createTime = { title: '注册时间', dataIndex: 'createTime', width: 140, sorter: true }
+  const action = { title: '操作', key: 'action', width: 100 }
+
+  if (density.value === 'phone') {
+    return [{ ...user, width: 170 }, { ...role, width: 90 }, action]
+  }
+  return [user, role, vip, createTime, action]
+})
+
+const tableScroll = computed(() => ({ x: density.value === 'phone' ? 360 : 680 }))
 
 /** 角色文案。处置角色独立于平台管理员，两者互不继承 */
 const roleText = (role?: string) => {
@@ -383,9 +391,9 @@ const doDelete = async (id: number | undefined) => {
 
 <style scoped lang="less">
 #userManagePage {
-  max-width: var(--container-2xl);
+  max-width: 1440px;
   margin: 0 auto;
-  padding: var(--admin-space-6);
+  padding: 0;
 }
 
 /* ========== 工具栏 ========== */
@@ -397,8 +405,8 @@ const doDelete = async (id: number | undefined) => {
   padding: var(--admin-space-4);
   background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.5s ease-out 0.1s backwards;
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.45s var(--admin-ease) 0.05s backwards;
 }
 
 .search-box {
@@ -419,7 +427,7 @@ const doDelete = async (id: number | undefined) => {
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: var(--admin-bg-tertiary);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
     color: var(--admin-text-primary);
 
@@ -429,7 +437,7 @@ const doDelete = async (id: number | undefined) => {
 
     &:focus {
       border-color: var(--admin-primary);
-      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+      box-shadow: 0 0 0 2px var(--admin-primary-bg);
     }
   }
 }
@@ -445,7 +453,7 @@ const doDelete = async (id: number | undefined) => {
   width: 140px;
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-tertiary) !important;
+    background: transparent !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
@@ -455,15 +463,19 @@ const doDelete = async (id: number | undefined) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-4);
+  height: 36px;
+  padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-tertiary);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -476,7 +488,7 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &.primary {
-    color: #ffffff;
+    color: var(--admin-accent-ink);
     background: var(--admin-primary);
     border-color: var(--admin-primary);
 
@@ -491,9 +503,9 @@ const doDelete = async (id: number | undefined) => {
 .table-card {
   background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
+  border-radius: var(--admin-radius-sm);
   overflow: hidden;
-  animation: slideUp 0.5s ease-out 0.2s backwards;
+  animation: slideUp 0.45s var(--admin-ease) 0.1s backwards;
 }
 
 /* ========== 表格样式 ========== */
@@ -510,14 +522,15 @@ const doDelete = async (id: number | undefined) => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: var(--admin-bg-secondary);
-    border-bottom: 1px solid var(--admin-border-default);
-    color: var(--admin-text-secondary);
-    font-weight: 600;
-    font-size: var(--admin-text-xs);
+    background: transparent;
+    border-bottom: 1px solid var(--admin-border-strong);
+    color: var(--admin-text-tertiary);
+    font-family: var(--admin-font-mono);
+    font-weight: 500;
+    font-size: 11px;
     padding: var(--admin-space-3) var(--admin-space-4);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.08em;
   }
 
   :deep(.ant-table-tbody > tr > td) {
@@ -527,10 +540,10 @@ const doDelete = async (id: number | undefined) => {
   }
 
   :deep(.ant-table-tbody > tr) {
-    transition: background 0.15s ease;
+    transition: background var(--admin-transition-fast);
 
     &:hover > td {
-      background: var(--admin-bg-hover);
+      background: var(--admin-bg-tertiary);
     }
   }
 
@@ -544,7 +557,7 @@ const doDelete = async (id: number | undefined) => {
     margin: 0;
 
     .ant-pagination-item {
-      background: var(--admin-bg-tertiary);
+      background: transparent;
       border-color: var(--admin-border-default);
 
       a {
@@ -552,8 +565,8 @@ const doDelete = async (id: number | undefined) => {
       }
 
       &:hover {
-        background: var(--admin-bg-hover);
-        border-color: var(--admin-border-strong);
+        background: var(--admin-primary-bg);
+        border-color: var(--admin-primary);
       }
 
       &.ant-pagination-item-active {
@@ -561,7 +574,7 @@ const doDelete = async (id: number | undefined) => {
         border-color: var(--admin-primary);
 
         a {
-          color: #ffffff;
+          color: var(--admin-accent-ink);
         }
       }
     }
@@ -630,14 +643,14 @@ const doDelete = async (id: number | undefined) => {
 .vip-info {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: #9a6700;
+  gap: 5px;
+  color: var(--admin-warning);
   font-size: var(--admin-text-sm);
 
   .vip-icon {
-    width: 14px;
-    height: 14px;
-    color: #ffc107;
+    width: 13px;
+    height: 13px;
+    color: var(--admin-warning);
   }
 }
 
@@ -675,7 +688,7 @@ const doDelete = async (id: number | undefined) => {
   border: 1px solid transparent;
   border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--admin-transition-fast);
 
   svg {
     width: 15px;
@@ -691,7 +704,7 @@ const doDelete = async (id: number | undefined) => {
   &.danger:hover {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
-    border-color: rgba(207, 34, 46, 0.3);
+    border-color: color-mix(in srgb, var(--admin-danger) 30%, transparent);
   }
 }
 
@@ -746,13 +759,13 @@ const doDelete = async (id: number | undefined) => {
     }
 
     .form-input {
-      background: var(--admin-bg-tertiary);
+      background: transparent;
       border: 1px solid var(--admin-border-default);
       color: var(--admin-text-primary);
 
       &:focus {
         border-color: var(--admin-primary);
-        box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+        box-shadow: 0 0 0 2px var(--admin-primary-bg);
       }
 
       &::placeholder {
@@ -775,12 +788,16 @@ const doDelete = async (id: number | undefined) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-5);
+  height: 36px;
+  padding: 0 var(--admin-space-5);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
-  border-radius: var(--admin-radius-md);
+  font-weight: 600;
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -789,7 +806,7 @@ const doDelete = async (id: number | undefined) => {
 
   &.cancel {
     color: var(--admin-text-primary);
-    background: var(--admin-bg-tertiary);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
 
     &:hover {
@@ -798,7 +815,7 @@ const doDelete = async (id: number | undefined) => {
   }
 
   &.primary {
-    color: #ffffff;
+    color: var(--admin-accent-ink);
     background: var(--admin-primary);
     border: 1px solid var(--admin-primary);
 
@@ -831,6 +848,16 @@ const doDelete = async (id: number | undefined) => {
 }
 
 /* ========== 响应式 ========== */
+@media (max-width: 1024px) {
+  .table-toolbar {
+    flex-wrap: wrap;
+
+    .search-box {
+      flex: 1 1 240px;
+    }
+  }
+}
+
 @media (max-width: 768px) {
   #userManagePage {
     padding: var(--admin-space-4);

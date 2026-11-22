@@ -1,492 +1,204 @@
 <template>
   <div class="dashboard-page">
-    <!-- 页面标题 -->
-    <AdminPageHeader title="管理仪表盘" subtitle="系统运行状态总览">
+    <AdminPageHeader title="管理仪表盘" subtitle="系统运行状态、内容存量与推荐链路的当日脉搏。">
       <template #icon>
-        <BarChart3 />
+        <BarChart3 :size="19" :stroke-width="1.6" />
       </template>
       <template #extra>
         <div class="header-actions">
-          <button class="action-btn" @click="refreshData">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M23 4v6h-6" />
-              <path d="M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
+          <span class="sync-state admin-mono">{{ syncedLabel }}</span>
+          <button class="action-btn" type="button" :disabled="statsLoading" @click="refreshData">
+            <RefreshCw :size="14" :stroke-width="1.8" aria-hidden="true" />
             <span>刷新数据</span>
           </button>
         </div>
       </template>
     </AdminPageHeader>
 
-    <!-- 统计卡片区域 -->
-    <div class="stats-grid">
-      <div class="stat-card" :style="{ animationDelay: '0.1s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon users">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">用户总数</span>
-            <span class="stat-value">{{ dashboardStats.userCount || 0 }}</span>
-            <span class="stat-desc">注册用户</span>
-          </div>
-        </template>
+    <!-- ============ 核心账目 ============ -->
+    <section class="ledger" aria-labelledby="core-ledger-title">
+      <div class="ledger-head">
+        <h2 id="core-ledger-title" class="ledger-title">
+          <span class="ledger-no admin-mono" aria-hidden="true">01</span>
+          核心账目
+        </h2>
+        <span class="admin-mono">Core ledger</span>
       </div>
 
-      <div class="stat-card" :style="{ animationDelay: '0.2s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon pictures">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">图片总数</span>
-            <span class="stat-value">{{ dashboardStats.pictureCount || 0 }}</span>
-            <span class="stat-desc">已上传图片</span>
-          </div>
-        </template>
+      <div class="ledger-grid">
+        <article v-for="(metric, index) in coreMetrics" :key="metric.label" class="ledger-cell">
+          <span class="cell-no admin-mono" aria-hidden="true">{{
+            String(index + 1).padStart(2, '0')
+          }}</span>
+          <span class="cell-label">
+            {{ metric.label }}
+            <em>{{ metric.en }}</em>
+          </span>
+          <strong class="cell-value" :class="{ 'is-loading': statsLoading }">
+            {{ statsLoading ? '—' : metric.value }}
+          </strong>
+          <span class="cell-desc">{{ metric.desc }}</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ 推荐脉搏 ============ -->
+    <section class="ledger ledger--pulse" aria-labelledby="pulse-ledger-title">
+      <div class="ledger-head">
+        <h2 id="pulse-ledger-title" class="ledger-title">
+          <span class="ledger-no admin-mono" aria-hidden="true">02</span>
+          今日推荐脉搏
+        </h2>
+        <span class="admin-mono">Live pulse · {{ todayLabel }}</span>
       </div>
 
-      <div class="stat-card" :style="{ animationDelay: '0.3s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon spaces">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-              />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">空间总数</span>
-            <span class="stat-value">{{ dashboardStats.spaceCount || 0 }}</span>
-            <span class="stat-desc">创建的空间</span>
-          </div>
-        </template>
+      <div class="ledger-grid">
+        <article v-for="(metric, index) in pulseMetrics" :key="metric.label" class="ledger-cell">
+          <span class="cell-no admin-mono" aria-hidden="true">{{
+            String(index + 1).padStart(2, '0')
+          }}</span>
+          <span class="cell-label">
+            {{ metric.label }}
+            <em>{{ metric.en }}</em>
+          </span>
+          <strong class="cell-value" :class="{ 'is-loading': statsLoading }">
+            {{ statsLoading ? '—' : metric.value }}
+          </strong>
+          <span class="cell-desc">{{ metric.desc }}</span>
+        </article>
       </div>
+    </section>
 
-      <div class="stat-card" :style="{ animationDelay: '0.4s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon storage">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">存储使用</span>
-            <span class="stat-value">{{ formatSize(dashboardStats?.usedSize || 0) }}</span>
-          </div>
-        </template>
-      </div>
-
-      <!-- 推荐统计卡片 -->
-      <div class="stat-card" :style="{ animationDelay: '0.5s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon recommend">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <polygon
-                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-              />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">今日曝光</span>
-            <span class="stat-value">{{ dashboardStats.todayImpressionCount || 0 }}</span>
-            <span class="stat-desc">推荐曝光</span>
-          </div>
-        </template>
-      </div>
-
-      <div class="stat-card" :style="{ animationDelay: '0.6s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon click">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">今日点击</span>
-            <span class="stat-value">{{ dashboardStats.todayClickCount || 0 }}</span>
-            <span class="stat-desc">推荐点击量</span>
-          </div>
-        </template>
-      </div>
-
-      <div class="stat-card" :style="{ animationDelay: '0.65s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon ctr">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">点击率 CTR</span>
-            <span class="stat-value">{{ dashboardStats.todayCtr || 0 }}%</span>
-            <span class="stat-desc">点击/曝光</span>
-          </div>
-        </template>
-      </div>
-
-      <div class="stat-card" :style="{ animationDelay: '0.7s' }">
-        <div v-if="statsLoading" class="stat-loading">
-          <div class="stat-loader"></div>
-        </div>
-        <template v-else>
-          <div class="stat-icon collect">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-label">今日收藏</span>
-            <span class="stat-value">{{ dashboardStats.todayCollectCount || 0 }}</span>
-            <span class="stat-desc">推荐收藏</span>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- 图表区域 -->
+    <!-- ============ 图表 ============ -->
     <div class="charts-grid">
-      <!-- 用户上传趋势 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
+      <section class="panel chart-panel" aria-labelledby="trend-title">
+        <header class="panel-head">
+          <div class="panel-heading">
+            <span class="panel-no admin-mono" aria-hidden="true">03</span>
+            <h2 id="trend-title" class="panel-title">用户上传趋势</h2>
           </div>
-          <h3 class="chart-title">用户上传趋势</h3>
-          <div class="time-selector">
+          <div class="time-selector" role="group" aria-label="时间粒度">
             <button
               v-for="item in timeOptions"
               :key="item.value"
+              type="button"
               class="time-btn"
               :class="{ active: timeDimension === item.value }"
+              :aria-pressed="timeDimension === item.value"
               @click="timeDimension = item.value"
             >
               {{ item.label }}
             </button>
           </div>
-        </div>
-        <div class="chart-content">
-          <div v-if="userTrendLoading" class="loading-state">
-            <div class="loader-spinner"></div>
+        </header>
+        <div class="panel-body">
+          <div v-if="userTrendLoading" class="chart-loading">
+            <span class="loading-line" aria-hidden="true"></span>
+            <span class="admin-mono">Reading data…</span>
           </div>
-          <v-chart v-else :option="userTrendOptions" style="height: 280px; width: 100%" />
+          <p v-else-if="userTrendData.length === 0" class="chart-empty admin-mono">
+            No uploads in this period
+          </p>
+          <v-chart v-else :option="userTrendOptions" autoresize class="chart" />
         </div>
-      </div>
+      </section>
 
-      <!-- 分类分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-icon category">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-              />
-            </svg>
+      <section class="panel chart-panel" aria-labelledby="category-title">
+        <header class="panel-head">
+          <div class="panel-heading">
+            <span class="panel-no admin-mono" aria-hidden="true">04</span>
+            <h2 id="category-title" class="panel-title">空间分类分布</h2>
           </div>
-          <h3 class="chart-title">空间分类分布</h3>
-        </div>
-        <div class="chart-content">
-          <div v-if="categoryLoading" class="loading-state">
-            <div class="loader-spinner"></div>
+          <span class="panel-meta admin-mono">{{ categoryTotalLabel }}</span>
+        </header>
+        <div class="panel-body">
+          <div v-if="categoryLoading" class="chart-loading">
+            <span class="loading-line" aria-hidden="true"></span>
+            <span class="admin-mono">Reading data…</span>
           </div>
-          <v-chart v-else :option="categoryOptions" style="height: 280px; width: 100%" />
+          <p v-else-if="categoryData.length === 0" class="chart-empty admin-mono">
+            No spaces classified yet
+          </p>
+          <v-chart v-else :option="categoryOptions" autoresize class="chart" />
         </div>
-      </div>
+      </section>
     </div>
 
-    <!-- 下方区域：最近活动 + 快速操作 -->
+    <!-- ============ 最近活动 + 快捷入口 ============ -->
     <div class="bottom-grid">
-      <!-- 最近活动 -->
-      <div class="activity-card">
-        <div class="card-header">
-          <div class="header-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
+      <section class="panel" aria-labelledby="activity-title">
+        <header class="panel-head">
+          <div class="panel-heading">
+            <span class="panel-no admin-mono" aria-hidden="true">05</span>
+            <h2 id="activity-title" class="panel-title">最近上传</h2>
           </div>
-          <h3 class="card-title">上传趋势</h3>
-          <router-link to="/admin/picture_manage" class="view-more">查看全部</router-link>
-        </div>
+          <router-link to="/admin/picture_manage" class="panel-link">查看全部 →</router-link>
+        </header>
+
         <div class="activity-list">
-          <div v-if="recentActivities.length === 0" class="empty-state">
-            <span>暂无最近活动</span>
-          </div>
+          <p v-if="recentActivities.length === 0" class="panel-empty admin-mono">
+            No recent activity
+          </p>
           <div
             v-for="(activity, index) in recentActivities"
-            :key="index"
-            class="activity-item"
-            :style="{ animationDelay: `${index * 0.05}s` }"
+            :key="`${activity.period}-${index}`"
+            class="activity-row"
           >
-            <div class="activity-icon" :class="activity.type">
-              <Upload v-if="activity.type === 'upload'" :size="16" />
-              <Sparkles v-else-if="activity.type === 'create'" :size="16" />
-              <BarChart3 v-else :size="16" />
-            </div>
-            <div class="activity-content">
-              <span class="activity-text">{{ activity.text }}</span>
-              <span class="activity-time">{{ activity.time }}</span>
-            </div>
+            <span class="activity-no admin-mono" aria-hidden="true">{{
+              String(index + 1).padStart(2, '0')
+            }}</span>
+            <Upload :size="14" :stroke-width="1.7" class="activity-icon" aria-hidden="true" />
+            <span class="activity-text">
+              <b>{{ activity.count }}</b> 张图片
+            </span>
+            <span class="activity-period admin-mono">{{ activity.period }}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 快速操作 -->
-      <div class="quick-actions-card">
-        <div class="card-header">
-          <div class="header-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
+      <section class="panel" aria-labelledby="quick-title">
+        <header class="panel-head">
+          <div class="panel-heading">
+            <span class="panel-no admin-mono" aria-hidden="true">06</span>
+            <h2 id="quick-title" class="panel-title">快捷入口</h2>
           </div>
-          <h3 class="card-title">快速操作</h3>
-        </div>
-        <div class="quick-actions">
-          <router-link to="/admin/user_manage" class="quick-action-item">
-            <div class="action-icon users">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="8.5" cy="7" r="4" />
-                <line x1="20" y1="8" x2="20" y2="14" />
-                <line x1="23" y1="11" x2="17" y2="11" />
-              </svg>
-            </div>
-            <span class="action-label">用户管理</span>
-          </router-link>
+          <span class="panel-meta admin-mono">Shortcuts</span>
+        </header>
 
-          <router-link to="/admin/space_manage" class="quick-action-item">
-            <div class="action-icon spaces">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                />
-              </svg>
-            </div>
-            <span class="action-label">空间管理</span>
-          </router-link>
-
-          <router-link to="/admin/picture_manage" class="quick-action-item">
-            <div class="action-icon pictures">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-            </div>
-            <span class="action-label">图片管理</span>
-          </router-link>
-
-          <router-link to="/admin/storage_config_manage" class="quick-action-item">
-            <div class="action-icon storage">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <ellipse cx="12" cy="5" rx="9" ry="3" />
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-              </svg>
-            </div>
-            <span class="action-label">存储配置</span>
-          </router-link>
-
-          <router-link to="/add_space" class="quick-action-item">
-            <div class="action-icon create">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </div>
-            <span class="action-label">创建空间</span>
-          </router-link>
-
-          <router-link to="/add_picture" class="quick-action-item">
-            <div class="action-icon upload">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-            </div>
-            <span class="action-label">上传图片</span>
+        <div class="quick-grid">
+          <router-link
+            v-for="(action, index) in quickActions"
+            :key="action.path"
+            :to="action.path"
+            class="quick-row"
+          >
+            <span class="quick-no admin-mono" aria-hidden="true">{{
+              String(index + 1).padStart(2, '0')
+            }}</span>
+            <component :is="action.icon" :size="16" :stroke-width="1.6" class="quick-icon" />
+            <span class="quick-label">{{ action.label }}</span>
+            <ArrowUpRight :size="14" :stroke-width="1.7" class="quick-arrow" aria-hidden="true" />
           </router-link>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
-import { ref, computed, onMounted, watch } from 'vue'
-import { BarChart3, Upload, Sparkles } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import {
+  ArrowUpRight,
+  BarChart3,
+  Cloud,
+  HardDrive,
+  Image,
+  Plus,
+  RefreshCw,
+  Upload,
+  Users,
+} from 'lucide-vue-next'
 import { message } from 'ant-design-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
@@ -496,14 +208,14 @@ import {
 } from '@/api/spaceAnalyzeController'
 import { getDashboardStatsUsingPost } from '@/api/adminStatsController'
 import { formatSize } from '@/utils'
+import { useTheme } from '@/composables/useTheme'
 
-// 统计数据
+const { currentTheme } = useTheme()
+
 const dashboardStats = ref<API.AdminDashboardStatsVO>({})
-
-// 统计数据加载状态
 const statsLoading = ref(false)
+const syncedAt = ref<Date | null>(null)
 
-// 用户上传趋势数据
 const userTrendData = ref<API.SpaceUserAnalyzeResponse[]>([])
 const userTrendLoading = ref(false)
 const timeDimension = ref<'day' | 'week' | 'month'>('day')
@@ -513,35 +225,121 @@ const timeOptions = [
   { label: '月', value: 'month' as const },
 ]
 
-// 分类数据
 const categoryData = ref<API.SpaceCategoryAnalyzeResponse[]>([])
 const categoryLoading = ref(false)
 
-// 最近活动（从用户上传趋势中提取）
-const recentActivities = computed(() => {
-  return userTrendData.value.slice(0, 5).map((item: API.SpaceUserAnalyzeResponse) => ({
-    type: 'upload',
-    text: `${item.period} 上传 ${item.count} 张图片`,
-    time: '',
-  }))
+const todayLabel = computed(() => {
+  const now = new Date()
+  return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`
 })
 
-// 获取仪表盘聚合统计
+const syncedLabel = computed(() => {
+  if (!syncedAt.value) return '待同步'
+  const time = syncedAt.value
+  return `Synced ${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+})
+
+// 后端把 Long 序列化成字符串（避免 JS 精度丢失），展示前统一转成数字
+const toNumber = (value?: number | string | null) => {
+  const num = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(num) ? num : 0
+}
+
+const numberText = (value?: number | string | null) => toNumber(value).toLocaleString('zh-CN')
+
+const coreMetrics = computed(() => [
+  {
+    label: '用户总数',
+    en: 'Users',
+    value: numberText(dashboardStats.value.userCount),
+    desc: '注册用户',
+  },
+  {
+    label: '图片总数',
+    en: 'Images',
+    value: numberText(dashboardStats.value.pictureCount),
+    desc: '已上传图片',
+  },
+  {
+    label: '空间总数',
+    en: 'Spaces',
+    value: numberText(dashboardStats.value.spaceCount),
+    desc: '创建的空间',
+  },
+  {
+    label: '存储使用',
+    en: 'Storage',
+    value: formatSize(dashboardStats.value?.usedSize || 0),
+    desc: '对象存储占用',
+  },
+])
+
+const pulseMetrics = computed(() => [
+  {
+    label: '今日曝光',
+    en: 'Impressions',
+    value: numberText(dashboardStats.value.todayImpressionCount),
+    desc: '推荐曝光',
+  },
+  {
+    label: '今日点击',
+    en: 'Clicks',
+    value: numberText(dashboardStats.value.todayClickCount),
+    desc: '推荐点击',
+  },
+  {
+    label: '点击率',
+    en: 'CTR',
+    value: `${dashboardStats.value.todayCtr || 0}%`,
+    desc: '点击 / 曝光',
+  },
+  {
+    label: '今日收藏',
+    en: 'Collects',
+    value: numberText(dashboardStats.value.todayCollectCount),
+    desc: '推荐收藏',
+  },
+])
+
+const recentActivities = computed(() =>
+  (userTrendData.value ?? []).slice(0, 5).map((item: API.SpaceUserAnalyzeResponse) => ({
+    period: item.period ?? '',
+    count: item.count ?? 0,
+  })),
+)
+
+const categoryTotalLabel = computed(() => {
+  const total = (categoryData.value ?? []).reduce(
+    (sum: number, item: API.SpaceCategoryAnalyzeResponse) => sum + toNumber(item.count),
+    0,
+  )
+  return `${total.toLocaleString('zh-CN')} images`
+})
+
+const quickActions = [
+  { path: '/admin/user_manage', label: '用户管理', icon: Users },
+  { path: '/admin/picture_manage', label: '图片管理', icon: Image },
+  { path: '/admin/space_manage', label: '空间管理', icon: Cloud },
+  { path: '/admin/storage_config_manage', label: '存储配置', icon: HardDrive },
+  { path: '/add_space', label: '创建空间', icon: Plus },
+  { path: '/add_picture', label: '上传图片', icon: Upload },
+]
+
 const fetchDashboardStats = async () => {
   statsLoading.value = true
   try {
     const res = await getDashboardStatsUsingPost()
     if (res.data.code === 0 && res.data.data) {
       dashboardStats.value = res.data.data
+      syncedAt.value = new Date()
     }
-  } catch (error) {
+  } catch {
     message.error('获取仪表盘统计失败')
   } finally {
     statsLoading.value = false
   }
 }
 
-// 获取用户上传趋势
 const fetchUserTrendData = async () => {
   userTrendLoading.value = true
   try {
@@ -552,93 +350,122 @@ const fetchUserTrendData = async () => {
     if (res.data.code === 0 && res.data.data) {
       userTrendData.value = res.data.data ?? []
     }
-  } catch (error) {
+  } catch {
     message.error('获取用户上传趋势失败')
   } finally {
     userTrendLoading.value = false
   }
 }
 
-// 获取分类数据
 const fetchCategoryData = async () => {
   categoryLoading.value = true
   try {
-    const res = await getSpaceCategoryAnalyzeUsingPost({
-      queryAll: true,
-    })
+    const res = await getSpaceCategoryAnalyzeUsingPost({ queryAll: true })
     if (res.data.code === 0 && res.data.data) {
       categoryData.value = res.data.data ?? []
     }
-  } catch (error) {
+  } catch {
     message.error('获取分类数据失败')
   } finally {
     categoryLoading.value = false
   }
 }
 
-// 刷新所有数据
 const refreshData = () => {
   fetchDashboardStats()
   fetchUserTrendData()
   fetchCategoryData()
 }
 
-// 监听时间维度变化
 watch(timeDimension, () => {
   fetchUserTrendData()
 })
 
-// 用户上传趋势图表配置
+/** ECharts 不读 CSS 变量，主题色在这里按当前主题取一份。 */
+const chartPalette = computed(() =>
+  currentTheme.value === 'aurora'
+    ? {
+        ink: '#f2eee6',
+        inkSoft: 'rgba(242, 238, 230, 0.55)',
+        line: 'rgba(242, 238, 230, 0.14)',
+        split: 'rgba(242, 238, 230, 0.07)',
+        accent: '#b9a6ff',
+        accentDeep: '#6f4bd8',
+        accentArea: 'rgba(185, 166, 255, 0.18)',
+        tooltipBg: 'rgba(10, 8, 19, 0.94)',
+        tooltipBorder: 'rgba(242, 238, 230, 0.2)',
+      }
+    : {
+        ink: '#1e1b4b',
+        inkSoft: 'rgba(30, 27, 75, 0.56)',
+        line: 'rgba(76, 29, 149, 0.2)',
+        split: 'rgba(76, 29, 149, 0.09)',
+        accent: '#7c3aed',
+        accentDeep: '#5b21b6',
+        accentArea: 'rgba(124, 58, 237, 0.14)',
+        tooltipBg: 'rgba(251, 248, 255, 0.97)',
+        tooltipBorder: 'rgba(76, 29, 149, 0.24)',
+      },
+)
+
+const axisLabelStyle = computed(() => ({
+  color: chartPalette.value.inkSoft,
+  fontSize: 10,
+  fontFamily: 'JetBrains Mono, SFMono-Regular, Consolas, monospace',
+}))
+
+const tooltipStyle = computed(() => ({
+  trigger: 'axis' as const,
+  backgroundColor: chartPalette.value.tooltipBg,
+  borderColor: chartPalette.value.tooltipBorder,
+  borderWidth: 1,
+  padding: [8, 12],
+  textStyle: {
+    color: chartPalette.value.ink,
+    fontSize: 12,
+    fontFamily: 'Nunito, PingFang SC, Microsoft YaHei, sans-serif',
+  },
+  extraCssText: 'border-radius:2px;box-shadow:0 12px 32px -18px rgba(0,0,0,.4);',
+}))
+
 const userTrendOptions = computed(() => {
-  const periods =
-    userTrendData.value?.map((item: API.SpaceUserAnalyzeResponse) => item.period) || []
-  const counts = userTrendData.value?.map((item: API.SpaceUserAnalyzeResponse) => item.count) || []
+  const palette = chartPalette.value
+  const periods = userTrendData.value?.map((item) => item.period) || []
+  const counts = userTrendData.value?.map((item) => toNumber(item.count)) || []
 
   return {
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#d0d7de',
-      textStyle: { color: '#1f2328' },
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '10%',
-      top: '10%',
-      containLabel: true,
-    },
+    tooltip: tooltipStyle.value,
+    grid: { left: 8, right: 18, bottom: 8, top: 22, containLabel: true },
     xAxis: {
       type: 'category',
       data: periods,
       boundaryGap: false,
-      axisLine: { lineStyle: { color: '#d0d7de' } },
-      axisLabel: { color: '#656d76', fontSize: 11 },
+      axisLine: { lineStyle: { color: palette.line } },
+      axisTick: { show: false },
+      axisLabel: axisLabelStyle.value,
     },
     yAxis: {
       type: 'value',
-      name: '上传数量',
-      axisLine: { show: true, lineStyle: { color: '#0969da' } },
-      axisLabel: { color: '#656d76' },
-      splitLine: { lineStyle: { color: '#e8eaed' } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: axisLabelStyle.value,
+      splitLine: { lineStyle: { color: palette.split, type: 'dashed' } },
     },
     series: [
       {
         name: '上传数量',
         type: 'line',
         data: counts,
-        smooth: true,
+        smooth: 0.35,
         symbol: 'circle',
-        symbolSize: 8,
-        lineStyle: {
-          color: '#0969da',
-          width: 3,
-        },
+        symbolSize: 5,
+        lineStyle: { color: palette.accent, width: 1.6 },
         itemStyle: {
-          color: '#0969da',
-          borderColor: '#fff',
+          color: palette.accent,
+          borderColor: palette.tooltipBg,
           borderWidth: 2,
         },
+        emphasis: { focus: 'series' },
         areaStyle: {
           color: {
             type: 'linear',
@@ -647,8 +474,8 @@ const userTrendOptions = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(9, 105, 218, 0.15)' },
-              { offset: 1, color: 'rgba(9, 105, 218, 0)' },
+              { offset: 0, color: palette.accentArea },
+              { offset: 1, color: 'rgba(0,0,0,0)' },
             ],
           },
         },
@@ -657,48 +484,40 @@ const userTrendOptions = computed(() => {
   }
 })
 
-// 分类分布图表配置
 const categoryOptions = computed(() => {
-  const categories =
-    categoryData.value?.map((item: API.SpaceCategoryAnalyzeResponse) => item.category) || []
-  const countData =
-    categoryData.value?.map((item: API.SpaceCategoryAnalyzeResponse) => item.count) || []
+  const palette = chartPalette.value
+  const categories = categoryData.value?.map((item) => item.category) || []
+  const countData = categoryData.value?.map((item) => toNumber(item.count)) || []
 
   return {
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#d0d7de',
-      textStyle: { color: '#1f2328' },
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '10%',
-      top: '10%',
-      containLabel: true,
-    },
+    tooltip: tooltipStyle.value,
+    grid: { left: 8, right: 18, bottom: 8, top: 22, containLabel: true },
     xAxis: {
       type: 'category',
       data: categories,
-      axisLine: { lineStyle: { color: '#d0d7de' } },
-      axisLabel: { color: '#656d76', fontSize: 11 },
-    },
-    yAxis: [
-      {
-        type: 'value',
-        name: '图片数量',
-        axisLine: { show: true, lineStyle: { color: '#0969da' } },
-        axisLabel: { color: '#656d76' },
-        splitLine: { lineStyle: { color: '#e8eaed' } },
+      axisLine: { lineStyle: { color: palette.line } },
+      axisTick: { show: false },
+      axisLabel: {
+        ...axisLabelStyle.value,
+        fontFamily: 'Nunito, PingFang SC, Microsoft YaHei, sans-serif',
+        fontSize: 11,
       },
-    ],
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: axisLabelStyle.value,
+      splitLine: { lineStyle: { color: palette.split, type: 'dashed' } },
+    },
     series: [
       {
         name: '图片数量',
         type: 'bar',
         data: countData,
+        barWidth: '42%',
         itemStyle: {
+          borderRadius: [1, 1, 0, 0],
           color: {
             type: 'linear',
             x: 0,
@@ -706,13 +525,14 @@ const categoryOptions = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: '#0969da' },
-              { offset: 1, color: '#0550ae' },
+              { offset: 0, color: palette.accent },
+              { offset: 1, color: palette.accentDeep },
             ],
           },
-          borderRadius: [4, 4, 0, 0],
         },
-        barWidth: '50%',
+        emphasis: {
+          itemStyle: { color: palette.accent },
+        },
       },
     ],
   }
@@ -725,486 +545,552 @@ onMounted(() => {
 
 <style lang="less" scoped>
 .dashboard-page {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 
-/* 页面头部 */
+/* ============ 页头操作 ============ */
 .header-actions {
-  .action-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: var(--admin-bg-primary);
-    border: 1px solid var(--admin-border-default);
-    border-radius: 8px;
-    color: var(--admin-text-primary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: var(--admin-bg-hover);
-      border-color: var(--admin-primary);
-      color: var(--admin-primary);
-    }
-
-    svg {
-      flex-shrink: 0;
-    }
-  }
-}
-
-/* 统计卡片网格 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.stat-card {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 24px;
-  background: var(--admin-bg-primary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: 12px;
-  animation: card-reveal 0.5s ease-out forwards;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.2s ease;
+}
 
-  &:hover {
+.sync-state {
+  font-size: 9px;
+  color: var(--admin-text-tertiary);
+  white-space: nowrap;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-sm);
+  color: var(--admin-text-primary);
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--admin-transition-fast),
+    border-color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    opacity var(--admin-transition-fast);
+
+  &:hover:not(:disabled) {
+    color: var(--admin-primary);
     border-color: var(--admin-primary);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: var(--admin-primary-bg);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: wait;
   }
 }
 
-@keyframes card-reveal {
+/* ============ 账目 ============ */
+.ledger {
+  margin-bottom: clamp(20px, 2.6vw, 30px);
+  animation: admin-rise 0.55s var(--admin-ease) both;
+}
+
+.ledger--pulse {
+  animation-delay: 0.06s;
+}
+
+@keyframes admin-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
-.stat-icon {
-  width: 56px;
-  height: 56px;
+.ledger-head {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  flex-shrink: 0;
-
-  &.users {
-    background: var(--admin-success-bg);
-    color: var(--admin-success);
-  }
-
-  &.pictures {
-    background: var(--admin-primary-bg);
-    color: var(--admin-primary);
-  }
-
-  &.spaces {
-    background: #f3e8ff;
-    color: #9333ea;
-  }
-
-  &.storage {
-    background: var(--admin-danger-bg);
-    color: var(--admin-danger);
-  }
-
-  &.recommend {
-    background: #fef3c7;
-    color: #f59e0b;
-  }
-
-  &.click {
-    background: #dbeafe;
-    color: #3b82f6;
-  }
-
-  &.ctr {
-    background: #dcfce7;
-    color: #22c55e;
-  }
-
-  &.collect {
-    background: #fce7f3;
-    color: #ec4899;
-  }
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--admin-border-strong);
 }
 
-.stat-content {
+.ledger-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  font-family: var(--admin-serif);
+  font-size: clamp(19px, 1.8vw, 24px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--admin-text-primary);
+}
+
+.ledger-no {
+  font-size: 9px;
+  color: var(--admin-primary);
+}
+
+.ledger-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-left: 1px solid var(--admin-border-default);
+}
+
+.ledger-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
+  padding: clamp(18px, 2vw, 26px) clamp(16px, 1.8vw, 24px) clamp(20px, 2.2vw, 28px);
+  border-right: 1px solid var(--admin-border-default);
+  border-bottom: 1px solid var(--admin-border-default);
+  background: color-mix(in srgb, var(--admin-bg-primary) 72%, transparent);
+  transition:
+    background var(--admin-transition-base),
+    transform var(--admin-transition-base);
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 0;
+    height: 1px;
+    background: var(--admin-primary);
+    transition: width var(--admin-transition-slow);
+  }
+
+  &:hover {
+    background: var(--admin-bg-primary);
+
+    &::after {
+      width: 100%;
+    }
+
+    .cell-no {
+      color: var(--admin-primary);
+    }
+  }
 }
 
-.stat-label {
-  font-size: 13px;
-  color: var(--admin-text-secondary);
-}
-
-.stat-value {
-  font-family: var(--admin-font);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--admin-text-primary);
-  line-height: 1.2;
-}
-
-.stat-desc {
-  font-size: 12px;
+.cell-no {
+  font-size: 9px;
   color: var(--admin-text-disabled);
+  transition: color var(--admin-transition-fast);
 }
 
-.stat-loading {
+.cell-label {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--admin-text-secondary);
+
+  em {
+    font-family: var(--admin-font-mono);
+    font-size: 8px;
+    font-style: normal;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--admin-text-tertiary);
+  }
 }
 
-.stat-loader {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--admin-border-default);
-  border-top-color: var(--admin-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.cell-value {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--admin-serif);
+  font-size: clamp(30px, 3.2vw, 44px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--admin-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.is-loading {
+    color: var(--admin-text-disabled);
+  }
 }
 
-/* 图表网格 */
+.cell-desc {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--admin-text-tertiary);
+}
+
+/* ============ 面板 ============ */
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 2vw, 24px);
+  margin-bottom: clamp(16px, 2vw, 24px);
 }
 
-.chart-card {
-  background: var(--admin-bg-primary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: 12px;
-  padding: 20px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  }
-}
-
-.chart-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.chart-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--admin-success-bg);
-  border-radius: 10px;
-  color: var(--admin-success);
-
-  &.category {
-    background: var(--admin-primary-bg);
-    color: var(--admin-primary);
-  }
-}
-
-.chart-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--admin-text-primary);
-  margin: 0;
-  flex: 1;
-}
-
-.time-selector {
-  display: flex;
-  background: var(--admin-bg-tertiary);
-  border-radius: 8px;
-  padding: 4px;
-}
-
-.time-btn {
-  padding: 6px 14px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--admin-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: var(--admin-text-primary);
-  }
-
-  &.active {
-    background: var(--admin-primary);
-    color: white;
-  }
-}
-
-.chart-content {
-  min-height: 280px;
-}
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 280px;
-}
-
-.loader-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--admin-border-default);
-  border-top-color: var(--admin-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 下方区域 */
-.bottom-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.activity-card,
-.quick-actions-card {
-  background: var(--admin-bg-primary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.header-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--admin-danger-bg);
-  border-radius: 10px;
-  color: var(--admin-danger);
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--admin-text-primary);
-  margin: 0;
-  flex: 1;
-}
-
-.view-more {
-  font-size: 13px;
-  color: var(--admin-primary);
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-/* 活动列表 */
-.activity-list {
+.panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  min-width: 0;
+  background: var(--admin-bg-primary);
+  border: 1px solid var(--admin-border-default);
+  border-radius: var(--admin-radius-sm);
+  animation: admin-rise 0.6s var(--admin-ease) both;
 }
 
-.empty-state {
+.chart-panel:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.panel-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 120px;
-  color: var(--admin-text-disabled);
-  font-size: 14px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--admin-border-default);
 }
 
-.activity-item {
+.panel-heading {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--admin-bg-tertiary);
-  border-radius: 8px;
-  animation: item-reveal 0.4s ease-out forwards;
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-@keyframes item-reveal {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.activity-icon {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-
-  &.upload {
-    background: var(--admin-success-bg);
-  }
-
-  &.create {
-    background: var(--admin-primary-bg);
-  }
-}
-
-.activity-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 10px;
   min-width: 0;
 }
 
-.activity-text {
-  font-size: 14px;
+.panel-no {
+  font-size: 9px;
+  color: var(--admin-primary);
+}
+
+.panel-title {
+  margin: 0;
+  font-family: var(--admin-serif);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--admin-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.activity-time {
-  font-size: 12px;
-  color: var(--admin-text-disabled);
+.panel-meta {
+  font-size: 9px;
+  color: var(--admin-text-tertiary);
+  white-space: nowrap;
 }
 
-/* 快速操作 */
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+.panel-link {
+  font-family: var(--admin-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--admin-text-tertiary);
+  text-decoration: none;
+  transition: color var(--admin-transition-fast);
 
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
+  &:hover {
+    color: var(--admin-primary);
   }
 }
 
-.quick-action-item {
+.panel-body {
+  flex: 1;
+  padding: 14px 10px 8px;
+}
+
+.chart {
+  width: 100%;
+  height: 272px;
+}
+
+.chart-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 20px 12px;
-  background: var(--admin-bg-tertiary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: 10px;
-  text-decoration: none;
-  transition: all 0.2s ease;
+  justify-content: center;
+  gap: 14px;
+  height: 272px;
+  color: var(--admin-text-tertiary);
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 272px;
+  margin: 0;
+  font-size: 9px;
+  color: var(--admin-text-tertiary);
+}
+
+.loading-line {
+  position: relative;
+  width: 120px;
+  height: 1px;
+  overflow: hidden;
+  background: var(--admin-border-default);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--admin-primary);
+    transform-origin: left;
+    animation: admin-scan 1.4s var(--admin-ease) infinite;
+  }
+}
+
+@keyframes admin-scan {
+  0% {
+    transform: scaleX(0);
+    opacity: 0.9;
+  }
+  60%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+/* ============ 时间选择 ============ */
+.time-selector {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.time-btn {
+  min-width: 34px;
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--admin-text-tertiary);
+  font-family: var(--admin-font);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   &:hover {
-    background: var(--admin-primary-bg);
-    border-color: var(--admin-primary);
-    transform: translateY(-2px);
+    color: var(--admin-text-primary);
+  }
 
-    .action-icon {
-      transform: scale(1.1);
+  &.active {
+    color: var(--admin-primary);
+    border-bottom-color: var(--admin-primary);
+    font-weight: 600;
+  }
+}
+
+/* ============ 底部 ============ */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(16px, 2vw, 24px);
+}
+
+.bottom-grid .panel:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.activity-list {
+  padding: 4px 20px 12px;
+}
+
+.panel-empty {
+  margin: 0;
+  padding: 26px 0;
+  text-align: center;
+  font-size: 9px;
+  color: var(--admin-text-tertiary);
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 26px 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--admin-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    .activity-no {
+      color: var(--admin-primary);
+    }
+
+    .activity-icon {
+      transform: translateY(-1px);
+      color: var(--admin-primary);
     }
   }
 }
 
-.action-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  transition: transform 0.2s ease;
+.activity-no {
+  font-size: 9px;
+  color: var(--admin-text-disabled);
+  transition: color var(--admin-transition-fast);
+}
 
-  &.users {
-    background: var(--admin-success-bg);
-    color: var(--admin-success);
-  }
+.activity-icon {
+  color: var(--admin-text-tertiary);
+  transition:
+    color var(--admin-transition-fast),
+    transform var(--admin-transition-fast);
+}
 
-  &.spaces {
-    background: #f3e8ff;
-    color: #9333ea;
-  }
+.activity-text {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--admin-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
-  &.pictures {
-    background: var(--admin-primary-bg);
-    color: var(--admin-primary);
-  }
-
-  &.storage {
-    background: var(--admin-danger-bg);
-    color: var(--admin-danger);
-  }
-
-  &.create {
-    background: var(--admin-success-bg);
-    color: var(--admin-success);
-  }
-
-  &.upload {
-    background: var(--admin-primary-bg);
-    color: var(--admin-primary);
+  b {
+    font-weight: 600;
+    color: var(--admin-text-primary);
   }
 }
 
-.action-label {
+.activity-period {
+  font-size: 9px;
+  color: var(--admin-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ============ 快捷入口 ============ */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6px 12px 14px;
+}
+
+.quick-row {
+  display: grid;
+  grid-template-columns: 22px 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  color: var(--admin-text-secondary);
+  text-decoration: none;
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast);
+
+  &:hover {
+    color: var(--admin-text-primary);
+    background: var(--admin-bg-tertiary);
+
+    .quick-no,
+    .quick-icon {
+      color: var(--admin-primary);
+    }
+
+    .quick-arrow {
+      opacity: 1;
+      transform: translate(1px, -1px);
+    }
+  }
+}
+
+.quick-no {
+  font-size: 9px;
+  color: var(--admin-text-disabled);
+  transition: color var(--admin-transition-fast);
+}
+
+.quick-icon {
+  color: var(--admin-text-tertiary);
+  transition: color var(--admin-transition-fast);
+}
+
+.quick-label {
+  min-width: 0;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--admin-text-primary);
-  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-arrow {
+  color: var(--admin-text-tertiary);
+  opacity: 0;
+  transition:
+    opacity var(--admin-transition-fast),
+    transform var(--admin-transition-fast);
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1080px) {
+  .ledger-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .charts-grid,
+  .bottom-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ledger-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .ledger-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .quick-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel-heading {
+    min-width: 0;
+  }
+
+  .panel-title {
+    font-size: 17px;
+  }
+
+  .panel-head {
+    padding: 14px 16px 12px;
+  }
+
+  .activity-list {
+    padding: 4px 16px 10px;
+  }
 }
 </style>

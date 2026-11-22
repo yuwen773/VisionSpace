@@ -3,9 +3,7 @@
     <!-- 页面头部 -->
     <AdminPageHeader title="反馈管理" subtitle="处理用户提交的产品建议、内容举报和工单支持">
       <template #icon>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+        <MessageSquare :size="19" :stroke-width="1.6" />
       </template>
       <template #extra>
         <div class="header-stats">
@@ -99,7 +97,7 @@
         :pagination="pagination"
         :rowKey="(record: any) => record.id"
         @change="handleTableChange"
-        :scroll="{ x: 1100 }"
+        :scroll="tableScroll"
         class="data-table"
       >
         <template #bodyCell="{ column, record }">
@@ -114,7 +112,9 @@
               </a-avatar>
               <div class="user-info">
                 <span class="user-name">{{ record.userName || '未知用户' }}</span>
-                <span class="user-id">{{ record.userId }}</span>
+                <a-tooltip :title="record.userId" placement="right">
+                  <span class="user-id">{{ shortUserId(record.userId) }}</span>
+                </a-tooltip>
               </div>
             </div>
           </template>
@@ -185,7 +185,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="查看详情">
-                <button class="action-btn" @click="showDetail(record)">
+                <button class="action-btn" aria-label="查看详情" @click="showDetail(record)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -193,7 +193,11 @@
                 </button>
               </a-tooltip>
               <a-tooltip v-if="record.status !== 2" title="标记已解决">
-                <button class="action-btn success" @click="quickResolve(record)">
+                <button
+                  class="action-btn success"
+                  aria-label="标记已解决"
+                  @click="quickResolve(record)"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
@@ -392,8 +396,11 @@
 
 <script setup lang="ts">
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import { MessageSquare } from 'lucide-vue-next'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
+import dayjs from 'dayjs'
 import ImagePreview from '@/components/ImagePreview.vue'
 import {
   getFeedbackByIdUsingGet,
@@ -442,14 +449,33 @@ const pagination = computed(() => ({
   showTotal: (total: number) => `共 ${total} 条反馈`,
 }))
 
-const columns = [
-  { title: '用户', key: 'userVO', width: 180, fixed: 'left' },
-  { title: '类型', key: 'type', width: 110, align: 'center' as const },
-  { title: '标题', key: 'title', width: 220, ellipsis: true },
-  { title: '状态', key: 'status', width: 100, align: 'center' as const },
-  { title: '提交时间', key: 'createTime', width: 160 },
-  { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
-]
+const density = useAdminTableDensity()
+
+// 窄屏先收类型与提交时间，保留「谁提的、什么状态、怎么处理」三件关键信息。
+// 手机上不再固定操作列，正文只剩两百多像素，固定列会把用户与标题整段压住。
+const columns = computed(() => {
+  const user = { title: '用户', key: 'userVO', width: 180 }
+  const type = { title: '类型', key: 'type', width: 110, align: 'center' as const }
+  const title = { title: '标题', key: 'title', width: 220, ellipsis: true }
+  const status = { title: '状态', key: 'status', width: 100, align: 'center' as const }
+  const createTime = { title: '提交时间', key: 'createTime', width: 160 }
+  const action = { title: '操作', key: 'action', width: 100 }
+  const pinnedAction = { ...action, fixed: 'right' as const }
+
+  if (density.value === 'phone') {
+    return [{ ...user, width: 150 }, { ...title, width: 200 }, status, action]
+  }
+  if (density.value === 'narrow') return [user, title, status, pinnedAction]
+  if (density.value === 'medium') return [user, title, status, createTime, pinnedAction]
+  return [{ ...user, fixed: 'left' as const }, type, title, status, createTime, pinnedAction]
+})
+
+const tableScroll = computed(() => {
+  if (density.value === 'wide') return { x: 870 }
+  if (density.value === 'medium') return { x: 760 }
+  if (density.value === 'narrow') return { x: 600 }
+  return { x: 550 }
+})
 
 const statusTabs = [
   { label: '全部', value: null },
@@ -457,6 +483,13 @@ const statusTabs = [
   { label: '处理中', value: 1 },
   { label: '已解决', value: 2 },
 ]
+
+// 雪花 ID 过长会撑开用户列，列表里只留尾号，完整值交给 tooltip
+const shortUserId = (userId?: string | number) => {
+  const id = String(userId ?? '')
+  if (!id) return '—'
+  return id.length > 12 ? `ID ${id.slice(-6)}` : id
+}
 
 const getTypeClass = (type: number) => {
   const map: Record<number, string> = { 1: 'suggestion', 2: 'report', 3: 'ticket' }
@@ -478,15 +511,10 @@ const getStatusText = (status: number) => {
   return map[status] || '未知'
 }
 
+// 与其余后台表格统一成 YYYY-MM-DD HH:mm，别让同一屏出现两种日期写法
 const formatDate = (date: string) => {
-  if (!date) return '-'
-  return new Date(date).toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  if (!date) return '—'
+  return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
 const updateStats = (records: any[]) => {
@@ -610,37 +638,40 @@ onMounted(() => {
 
 <style scoped lang="less">
 #feedbackManagePage {
-  max-width: var(--container-2xl);
+  max-width: 1440px;
   margin: 0 auto;
-  padding: var(--admin-space-6);
+  padding: 0;
 }
 
 .header-stats {
   display: flex;
-  gap: var(--admin-space-4);
+  gap: 0;
+  border-left: 1px solid var(--admin-border-default);
 }
 
 .stat-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: var(--admin-space-3) var(--admin-space-5);
-  background: var(--admin-bg-secondary);
-  border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  min-width: 80px;
+  align-items: flex-start;
+  min-width: 84px;
+  padding: 2px 18px;
+  border-right: 1px solid var(--admin-border-default);
 
   .stat-value {
+    font-family: var(--admin-serif);
     font-size: var(--admin-text-2xl);
-    font-weight: 700;
+    font-weight: 600;
+    line-height: 1;
     color: var(--admin-text-primary);
-    font-family: var(--admin-font-mono);
   }
 
   .stat-label {
-    font-size: var(--admin-text-xs);
-    color: var(--admin-text-secondary);
-    margin-top: 2px;
+    margin-top: 5px;
+    font-family: var(--admin-font-mono);
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--admin-text-tertiary);
   }
 }
 
@@ -651,27 +682,35 @@ onMounted(() => {
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-4);
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.5s ease-out 0.1s backwards;
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.45s var(--admin-ease) 0.05s backwards;
 }
 
 .filter-tabs {
   display: flex;
-  gap: var(--space-2);
+  gap: 4px;
 }
 
 .filter-tab {
-  padding: var(--space-2) var(--admin-space-4);
+  height: 32px;
+  padding: 0 var(--admin-space-4);
   background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-full);
+  border-radius: var(--admin-radius-sm);
   color: var(--admin-text-secondary);
+  font-family: var(--admin-font);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
+  /* 标签是两字词，压缩时宁可溢出滚动也不要折成两行 */
+  white-space: nowrap;
+  flex-shrink: 0;
 
   &:hover {
     border-color: var(--admin-primary);
@@ -681,7 +720,7 @@ onMounted(() => {
   &.active {
     background: var(--admin-primary);
     border-color: var(--admin-primary);
-    color: white;
+    color: var(--admin-accent-ink);
   }
 }
 
@@ -695,7 +734,7 @@ onMounted(() => {
   width: 130px;
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-primary) !important;
+    background: transparent !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
@@ -711,16 +750,20 @@ onMounted(() => {
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--admin-space-4);
+  gap: var(--admin-space-2);
+  height: 36px;
+  padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -728,8 +771,8 @@ onMounted(() => {
   }
 
   &:hover {
-    background: var(--admin-border-default);
-    border-color: var(--admin-text-secondary);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 }
 
@@ -746,11 +789,11 @@ onMounted(() => {
 
 /* ========== 表格容器 ========== */
 .table-card {
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
+  border-radius: var(--admin-radius-sm);
   overflow: hidden;
-  animation: slideUp 0.5s ease-out 0.2s backwards;
+  animation: slideUp 0.45s var(--admin-ease) 0.1s backwards;
 }
 
 /* ========== 表格样式 ========== */
@@ -767,16 +810,19 @@ onMounted(() => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: var(--admin-bg-hover);
-    border-bottom: 1px solid var(--admin-border-default);
-    color: var(--admin-text-secondary);
-    font-weight: 600;
-    font-size: var(--admin-text-sm);
+    background: transparent;
+    border-bottom: 1px solid var(--admin-border-strong);
+    color: var(--admin-text-tertiary);
+    font-family: var(--admin-font-mono);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     padding: var(--admin-space-3) var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid var(--admin-bg-hover);
+    border-bottom: 1px solid var(--admin-border-subtle);
     color: var(--admin-text-primary);
     padding: var(--admin-space-3) var(--admin-space-4);
   }
@@ -785,26 +831,26 @@ onMounted(() => {
     transition: background var(--admin-transition-fast);
 
     &:hover > td {
-      background: var(--admin-bg-hover);
+      background: var(--admin-bg-tertiary);
     }
   }
 
   :deep(.ant-pagination) {
     padding: var(--admin-space-4);
-    background: var(--admin-bg-secondary);
+    background: transparent;
     margin: 0;
 
     .ant-pagination-item {
-      background: var(--admin-bg-hover);
+      background: transparent;
       border-color: var(--admin-border-default);
 
       a {
-        color: var(--admin-text-primary);
+        color: var(--admin-text-secondary);
       }
 
       &:hover {
-        background: var(--admin-border-default);
-        border-color: var(--admin-text-secondary);
+        background: var(--admin-primary-bg);
+        border-color: var(--admin-primary);
       }
 
       &.ant-pagination-item-active {
@@ -812,7 +858,7 @@ onMounted(() => {
         border-color: var(--admin-primary);
 
         a {
-          color: #ffffff;
+          color: var(--admin-accent-ink);
         }
       }
     }
@@ -820,13 +866,13 @@ onMounted(() => {
     .ant-pagination-prev,
     .ant-pagination-next {
       .ant-pagination-item-link {
-        background: var(--admin-bg-hover);
+        background: transparent;
         border-color: var(--admin-border-default);
-        color: var(--admin-text-primary);
+        color: var(--admin-text-secondary);
 
         &:hover {
-          background: var(--admin-border-default);
-          border-color: var(--admin-text-secondary);
+          background: var(--admin-primary-bg);
+          border-color: var(--admin-primary);
         }
       }
     }
@@ -834,7 +880,7 @@ onMounted(() => {
     .ant-pagination-options {
       .ant-select {
         .ant-select-selector {
-          background: var(--admin-bg-hover);
+          background: transparent;
           border-color: var(--admin-border-default);
           color: var(--admin-text-primary);
         }
@@ -847,7 +893,7 @@ onMounted(() => {
 .user-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--admin-space-3);
 
   .user-info {
     display: flex;
@@ -871,11 +917,11 @@ onMounted(() => {
 .type-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 5px;
+  padding: 2px 8px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--admin-radius-full);
+  border-radius: var(--admin-radius-sm);
   white-space: nowrap;
 
   .tag-icon {
@@ -886,24 +932,24 @@ onMounted(() => {
   &.suggestion {
     color: var(--admin-primary);
     background: var(--admin-primary-bg);
-    border: 1px solid rgba(9, 105, 218, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-primary) 24%, transparent);
   }
 
   &.report {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
-    border: 1px solid rgba(207, 34, 46, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-danger) 24%, transparent);
   }
 
   &.ticket {
-    color: #9a6700;
+    color: var(--admin-warning);
     background: var(--admin-warning-bg);
-    border: 1px solid rgba(154, 103, 0, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-warning) 24%, transparent);
   }
 
   &.default {
     color: var(--admin-text-secondary);
-    background: var(--admin-bg-hover);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
   }
 }
@@ -912,21 +958,21 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 2px 8px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--admin-radius-full);
+  border-radius: var(--admin-radius-sm);
   white-space: nowrap;
 
   .status-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
   }
 
   &.pending {
     color: var(--admin-text-secondary);
-    background: var(--admin-bg-hover);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
 
     .status-dot {
@@ -935,12 +981,12 @@ onMounted(() => {
   }
 
   &.processing {
-    color: #9a6700;
+    color: var(--admin-warning);
     background: var(--admin-warning-bg);
-    border: 1px solid rgba(154, 103, 0, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-warning) 24%, transparent);
 
     .status-dot {
-      background: #d29922;
+      background: var(--admin-warning);
       animation: pulse 1.5s infinite;
     }
   }
@@ -948,7 +994,7 @@ onMounted(() => {
   &.resolved {
     color: var(--admin-success);
     background: var(--admin-success-bg);
-    border: 1px solid rgba(26, 127, 55, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-success) 24%, transparent);
 
     .status-dot {
       background: var(--admin-success);
@@ -959,7 +1005,7 @@ onMounted(() => {
 .title-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--admin-space-2);
 
   .title-text {
     font-weight: 500;
@@ -987,7 +1033,7 @@ onMounted(() => {
     &.blocked {
       color: var(--admin-danger);
       background: var(--admin-danger-bg);
-      border: 1px solid rgba(207, 34, 46, 0.2);
+      border: 1px solid color-mix(in srgb, var(--admin-danger) 24%, transparent);
     }
   }
 }
@@ -1027,13 +1073,13 @@ onMounted(() => {
   &:hover {
     color: var(--admin-primary);
     background: var(--admin-primary-bg);
-    border-color: rgba(9, 105, 218, 0.15);
+    border-color: color-mix(in srgb, var(--admin-primary) 22%, transparent);
   }
 
   &.success:hover {
     color: var(--admin-success);
     background: var(--admin-success-bg);
-    border-color: rgba(26, 127, 55, 0.15);
+    border-color: color-mix(in srgb, var(--admin-success) 22%, transparent);
   }
 }
 
@@ -1049,7 +1095,7 @@ onMounted(() => {
   .detail-user {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--admin-space-3);
   }
 
   .detail-user-info {
@@ -1075,12 +1121,12 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--space-2);
+    gap: var(--admin-space-2);
   }
 
   .detail-tags {
     display: inline-flex;
-    gap: var(--space-2);
+    gap: var(--admin-space-2);
     flex-wrap: nowrap;
   }
 
@@ -1091,22 +1137,26 @@ onMounted(() => {
   .section-title {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    font-size: var(--admin-text-sm);
-    font-weight: 600;
-    color: var(--admin-text-secondary);
-    margin-bottom: var(--space-3);
+    gap: var(--admin-space-2);
+    font-family: var(--admin-font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--admin-text-tertiary);
+    margin-bottom: var(--admin-space-3);
 
     svg {
       width: 14px;
       height: 14px;
+      color: var(--admin-primary);
     }
   }
 
   .detail-content {
-    background: var(--admin-bg-secondary);
+    background: var(--admin-bg-tertiary);
     border: 1px solid var(--admin-border-subtle);
-    border-radius: var(--admin-radius-md);
+    border-radius: var(--admin-radius-sm);
     padding: var(--admin-space-4);
   }
 
@@ -1114,12 +1164,12 @@ onMounted(() => {
     font-size: var(--admin-text-base);
     font-weight: 600;
     color: var(--admin-text-primary);
-    margin-bottom: var(--space-3);
+    margin-bottom: var(--admin-space-3);
   }
 
   .content-body {
     color: var(--admin-text-secondary);
-    line-height: 1.7;
+    line-height: 1.75;
     white-space: pre-wrap;
     margin: 0;
   }
@@ -1127,20 +1177,23 @@ onMounted(() => {
   .picture-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--admin-space-3);
   }
 
   .detail-picture {
     width: 120px;
     height: 120px;
     object-fit: cover;
-    border-radius: var(--admin-radius-md);
+    border-radius: var(--admin-radius-sm);
     cursor: pointer;
-    transition: transform var(--admin-transition-fast);
+    transition:
+      transform var(--admin-transition-fast),
+      border-color var(--admin-transition-fast);
     border: 1px solid var(--admin-border-subtle);
 
     &:hover {
-      transform: scale(1.05);
+      transform: translateY(-2px);
+      border-color: var(--admin-border-strong);
     }
 
     // 无受控入口的附件：只显示状态，不给可直连地址
@@ -1183,9 +1236,9 @@ onMounted(() => {
   .handler-note {
     margin-top: var(--admin-space-4);
     padding: var(--admin-space-4);
-    background: var(--admin-bg-secondary);
+    background: var(--admin-bg-tertiary);
     border: 1px solid var(--admin-border-subtle);
-    border-radius: var(--admin-radius-md);
+    border-radius: var(--admin-radius-sm);
 
     .note-content {
       color: var(--admin-text-secondary);
@@ -1251,7 +1304,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   #feedbackManagePage {
-    padding: var(--admin-space-4);
+    padding: 0;
   }
 
   .stat-card {
@@ -1260,6 +1313,37 @@ onMounted(() => {
 
     .stat-value {
       font-size: var(--admin-text-xl);
+    }
+  }
+}
+
+/* 手机上筛选区整行铺开：状态标签可横向滑动，类型筛选与刷新按钮各占满一行 */
+@media (max-width: 640px) {
+  .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .filter-selects {
+    width: 100%;
+
+    .filter-select {
+      flex: 1;
+      width: auto;
+    }
+  }
+
+  .filter-buttons {
+    width: 100%;
+
+    .toolbar-btn {
+      flex: 1;
+      justify-content: center;
     }
   }
 }

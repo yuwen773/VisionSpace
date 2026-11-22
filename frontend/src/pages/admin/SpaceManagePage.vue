@@ -3,13 +3,7 @@
     <!-- 页面头部 -->
     <AdminPageHeader title="空间管理" subtitle="管理系统所有空间、配额和访问权限">
       <template #icon>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path
-            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-          ></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
+        <Cloud :size="19" :stroke-width="1.6" />
       </template>
       <template #extra>
         <div class="header-actions">
@@ -159,7 +153,7 @@
         :rowKey="(record: API.Space) => record.id"
         :row-selection="rowSelection"
         @change="doTableChange"
-        :scroll="{ x: 1200 }"
+        :scroll="tableScroll"
         class="data-table"
       >
         <template #bodyCell="{ column, record }">
@@ -259,9 +253,7 @@
           <template v-else-if="column.dataIndex === 'userId'">
             <div class="user-cell">
               <a-tooltip :title="record.userId" placement="topLeft">
-                <span class="user-id"
-                  >{{ record.userId.slice(0, 8) }}...{{ record.userId.slice(-4) }}</span
-                >
+                <span class="user-id">{{ shortUserId(record.userId) }}</span>
               </a-tooltip>
             </div>
           </template>
@@ -271,7 +263,7 @@
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
               <a-tooltip title="分析空间">
-                <button class="action-btn" @click="goToAnalyze(record.id)">
+                <button class="action-btn" aria-label="分析空间" @click="goToAnalyze(record.id)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -280,7 +272,7 @@
                 </button>
               </a-tooltip>
               <a-tooltip title="编辑空间">
-                <button class="action-btn" @click="goToEdit(record.id)">
+                <button class="action-btn" aria-label="编辑空间" @click="goToEdit(record.id)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -290,6 +282,7 @@
               <a-tooltip :title="record.status === 1 ? '禁用空间' : '启用空间'">
                 <button
                   class="action-btn"
+                  :aria-label="record.status === 1 ? '禁用空间' : '启用空间'"
                   :class="record.status === 1 ? 'warning' : 'success'"
                   @click="toggleStatus(record)"
                 >
@@ -324,7 +317,7 @@
                 placement="topRight"
               >
                 <a-tooltip title="删除空间">
-                  <button class="action-btn danger">
+                  <button class="action-btn danger" aria-label="删除空间">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path
@@ -344,6 +337,7 @@
 
 <script lang="ts" setup>
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import { Cloud } from 'lucide-vue-next'
 import { ref, reactive, onMounted, computed } from 'vue'
 import {
   deleteSpaceUsingPost,
@@ -355,18 +349,44 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { SPACE_LEVEL_MAP, SPACE_LEVEL_ENUM } from '@/constants/space.ts'
 import { formatSize } from '@/utils'
+import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
 
 const router = useRouter()
 
-const columns = [
-  { title: '空间名称', dataIndex: 'spaceName', width: 220, ellipsis: true },
-  { title: '类型', dataIndex: 'spaceType', width: 90, align: 'center' as const },
-  { title: '级别', dataIndex: 'spaceLevel', width: 90, align: 'center' as const },
-  { title: '容量使用', dataIndex: 'capacity', width: 240 },
-  { title: '所有者', dataIndex: 'userId', width: 130 },
-  { title: '创建时间', dataIndex: 'createTime', width: 150, sorter: true },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
-]
+// 雪花 ID 过长，列表里只保留尾号，完整值交给 tooltip
+const shortUserId = (userId?: string | number) => {
+  const id = String(userId ?? '')
+  if (!id) return '—'
+  return id.length > 12 ? `ID ${id.slice(-6)}` : id
+}
+
+const density = useAdminTableDensity()
+
+// 列集合按视口档位裁剪：宽屏全列；中屏收掉类型、级别与所有者；窄屏只留名称、容量与操作。
+// 手机上正文只剩两百多像素，固定操作列会把名称压在下面，因此改为不固定、整表横向滚动，
+// 同时收掉勾选列（批量操作在那块屏幕上本来也无从下手）。
+const columns = computed(() => {
+  const name = { title: '空间名称', dataIndex: 'spaceName', width: 150, ellipsis: true }
+  const type = { title: '类型', dataIndex: 'spaceType', width: 86, align: 'center' as const }
+  const level = { title: '级别', dataIndex: 'spaceLevel', width: 86, align: 'center' as const }
+  const capacity = { title: '容量使用', dataIndex: 'capacity', width: 296 }
+  const owner = { title: '所有者', dataIndex: 'userId', width: 114 }
+  const createTime = { title: '创建时间', dataIndex: 'createTime', width: 148, sorter: true }
+  const action = { title: '操作', key: 'action', width: 180 }
+  const pinnedAction = { ...action, fixed: 'right' as const }
+
+  if (density.value === 'phone') return [name, capacity, action]
+  if (density.value === 'narrow') return [name, capacity, pinnedAction]
+  if (density.value === 'medium') return [name, capacity, createTime, pinnedAction]
+  return [name, type, level, capacity, owner, createTime, pinnedAction]
+})
+
+const tableScroll = computed(() => {
+  if (density.value === 'wide') return { x: 1090 }
+  if (density.value === 'medium') return { x: 806 }
+  if (density.value === 'narrow') return { x: 658 }
+  return { x: 626 }
+})
 
 const dataList = ref<API.Space[]>([])
 const total = ref<number>(0)
@@ -391,12 +411,15 @@ const pagination = computed(() => ({
   showTotal: (total: number) => `共 ${total} 个空间`,
 }))
 
-const rowSelection = computed(() => ({
-  selectedRowKeys: selectedRowKeys.value,
-  onChange: (keys: (string | number)[]) => {
-    selectedRowKeys.value = keys
-  },
-}))
+const rowSelection = computed(() => {
+  if (density.value === 'phone') return undefined
+  return {
+    selectedRowKeys: selectedRowKeys.value,
+    onChange: (keys: (string | number)[]) => {
+      selectedRowKeys.value = keys
+    },
+  }
+})
 
 const fetchData = async () => {
   loading.value = true
@@ -596,9 +619,9 @@ const goToEdit = (id: number) => {
 
 <style scoped lang="less">
 #spaceManagePage {
-  max-width: var(--container-2xl);
+  max-width: 1440px;
   margin: 0 auto;
-  padding: var(--admin-space-6);
+  padding: 0;
 }
 
 .header-actions {
@@ -612,10 +635,10 @@ const goToEdit = (id: number) => {
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-4);
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.5s ease-out 0.1s backwards;
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.45s var(--admin-ease) 0.05s backwards;
 }
 
 .search-box {
@@ -636,7 +659,7 @@ const goToEdit = (id: number) => {
   .search-input {
     width: 100%;
     padding-left: 36px;
-    background: var(--admin-bg-primary);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
     color: var(--admin-text-primary);
 
@@ -646,7 +669,7 @@ const goToEdit = (id: number) => {
 
     &:focus {
       border-color: var(--admin-primary);
-      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+      box-shadow: 0 0 0 2px var(--admin-primary-bg);
     }
   }
 }
@@ -665,7 +688,7 @@ const goToEdit = (id: number) => {
   width: 130px;
 
   :deep(.ant-select-selector) {
-    background: var(--admin-bg-primary) !important;
+    background: transparent !important;
     border-color: var(--admin-border-default) !important;
     color: var(--admin-text-primary) !important;
   }
@@ -682,15 +705,19 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-4);
+  height: 36px;
+  padding: 0 var(--admin-space-4);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -698,18 +725,18 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    background: var(--admin-border-default);
-    border-color: var(--admin-text-secondary);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 
   &.primary {
-    color: #ffffff;
-    background: var(--admin-success);
-    border-color: var(--admin-success);
+    color: var(--admin-accent-ink);
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
 
     &:hover {
-      background: #2ea043;
-      border-color: #2ea043;
+      background: var(--admin-primary-hover);
+      border-color: var(--admin-primary-hover);
     }
   }
 }
@@ -722,10 +749,10 @@ const goToEdit = (id: number) => {
   gap: var(--admin-space-4);
   margin-bottom: var(--admin-space-4);
   padding: var(--admin-space-3) var(--admin-space-4);
-  background: rgba(88, 166, 255, 0.1);
-  border: 1px solid rgba(88, 166, 255, 0.3);
-  border-radius: var(--admin-radius-lg);
-  animation: slideUp 0.3s ease-out;
+  background: var(--admin-primary-bg);
+  border: 1px solid color-mix(in srgb, var(--admin-primary) 30%, transparent);
+  border-radius: var(--admin-radius-sm);
+  animation: slideUp 0.3s var(--admin-ease);
 }
 
 .batch-info {
@@ -756,15 +783,19 @@ const goToEdit = (id: number) => {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-3);
+  height: 32px;
+  padding: 0 var(--admin-space-3);
   font-size: var(--admin-text-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--admin-text-primary);
-  background: var(--admin-bg-hover);
+  background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-md);
+  border-radius: var(--admin-radius-sm);
   cursor: pointer;
-  transition: all var(--admin-transition-fast);
+  transition:
+    color var(--admin-transition-fast),
+    background var(--admin-transition-fast),
+    border-color var(--admin-transition-fast);
 
   svg {
     width: 14px;
@@ -772,28 +803,28 @@ const goToEdit = (id: number) => {
   }
 
   &:hover {
-    background: var(--admin-border-default);
-    border-color: var(--admin-text-secondary);
+    background: var(--admin-bg-hover);
+    border-color: var(--admin-border-strong);
   }
 
   &.success {
-    color: #3fb950;
-    border-color: rgba(63, 185, 80, 0.5);
-    background: rgba(63, 185, 80, 0.1);
+    color: var(--admin-success);
+    border-color: color-mix(in srgb, var(--admin-success) 45%, transparent);
+    background: var(--admin-success-bg);
 
     &:hover {
-      background: rgba(63, 185, 80, 0.2);
-      border-color: #3fb950;
+      background: color-mix(in srgb, var(--admin-success) 18%, transparent);
+      border-color: var(--admin-success);
     }
   }
 
   &.danger {
     color: var(--admin-danger);
-    background: rgba(248, 81, 73, 0.1);
-    border-color: rgba(248, 81, 73, 0.5);
+    background: var(--admin-danger-bg);
+    border-color: color-mix(in srgb, var(--admin-danger) 45%, transparent);
 
     &:hover {
-      background: rgba(248, 81, 73, 0.2);
+      background: color-mix(in srgb, var(--admin-danger) 18%, transparent);
       border-color: var(--admin-danger);
     }
   }
@@ -801,11 +832,11 @@ const goToEdit = (id: number) => {
 
 /* ========== 表格容器 ========== */
 .table-card {
-  background: var(--admin-bg-secondary);
+  background: var(--admin-bg-primary);
   border: 1px solid var(--admin-border-default);
-  border-radius: var(--admin-radius-lg);
+  border-radius: var(--admin-radius-sm);
   overflow: hidden;
-  animation: slideUp 0.5s ease-out 0.2s backwards;
+  animation: slideUp 0.45s var(--admin-ease) 0.1s backwards;
 }
 
 /* ========== 表格样式 ========== */
@@ -822,16 +853,19 @@ const goToEdit = (id: number) => {
   }
 
   :deep(.ant-table-thead > tr > th) {
-    background: var(--admin-bg-hover);
-    border-bottom: 1px solid var(--admin-border-default);
-    color: var(--admin-text-secondary);
-    font-weight: 600;
-    font-size: var(--admin-text-sm);
+    background: transparent;
+    border-bottom: 1px solid var(--admin-border-strong);
+    color: var(--admin-text-tertiary);
+    font-family: var(--admin-font-mono);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     padding: var(--admin-space-3) var(--admin-space-4);
   }
 
   :deep(.ant-table-tbody > tr > td) {
-    border-bottom: 1px solid var(--admin-bg-hover);
+    border-bottom: 1px solid var(--admin-border-subtle);
     color: var(--admin-text-primary);
     padding: var(--admin-space-3) var(--admin-space-4);
   }
@@ -840,34 +874,34 @@ const goToEdit = (id: number) => {
     transition: background var(--admin-transition-fast);
 
     &:hover > td {
-      background: var(--admin-bg-hover);
+      background: var(--admin-bg-tertiary);
     }
   }
 
   :deep(.ant-pagination) {
     padding: var(--admin-space-4);
-    background: var(--admin-bg-secondary);
+    background: transparent;
     margin: 0;
 
     .ant-pagination-item {
-      background: var(--admin-bg-hover);
+      background: transparent;
       border-color: var(--admin-border-default);
 
       a {
-        color: var(--admin-text-primary);
+        color: var(--admin-text-secondary);
       }
 
       &:hover {
-        background: var(--admin-border-default);
-        border-color: var(--admin-text-secondary);
+        background: var(--admin-primary-bg);
+        border-color: var(--admin-primary);
       }
 
       &.ant-pagination-item-active {
-        background: var(--admin-success);
-        border-color: var(--admin-success);
+        background: var(--admin-primary);
+        border-color: var(--admin-primary);
 
         a {
-          color: #ffffff;
+          color: var(--admin-accent-ink);
         }
       }
     }
@@ -875,13 +909,13 @@ const goToEdit = (id: number) => {
     .ant-pagination-prev,
     .ant-pagination-next {
       .ant-pagination-item-link {
-        background: var(--admin-bg-hover);
+        background: transparent;
         border-color: var(--admin-border-default);
-        color: var(--admin-text-primary);
+        color: var(--admin-text-secondary);
 
         &:hover {
-          background: var(--admin-border-default);
-          border-color: var(--admin-text-secondary);
+          background: var(--admin-primary-bg);
+          border-color: var(--admin-primary);
         }
       }
     }
@@ -889,7 +923,7 @@ const goToEdit = (id: number) => {
     .ant-pagination-options {
       .ant-select {
         .ant-select-selector {
-          background: var(--admin-bg-hover);
+          background: transparent;
           border-color: var(--admin-border-default);
           color: var(--admin-text-primary);
         }
@@ -920,7 +954,8 @@ const goToEdit = (id: number) => {
 
   .space-id {
     font-size: var(--admin-text-xs);
-    color: var(--admin-text-disabled);
+    /* 空间 ID 是对账时的引用键，不能淡到纸面里看不出来 */
+    color: var(--admin-text-tertiary);
     font-family: var(--admin-font-mono);
     white-space: nowrap;
     overflow: hidden;
@@ -932,11 +967,11 @@ const goToEdit = (id: number) => {
 .type-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 5px;
+  padding: 2px 9px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--admin-radius-full);
+  border-radius: var(--admin-radius-sm);
   white-space: nowrap;
 
   .tag-icon {
@@ -947,41 +982,41 @@ const goToEdit = (id: number) => {
   &.private {
     color: var(--admin-primary);
     background: var(--admin-primary-bg);
-    border: 1px solid rgba(9, 105, 218, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-primary) 26%, transparent);
   }
 
   &.team {
-    color: #8957e5;
-    background: rgba(137, 87, 229, 0.08);
-    border: 1px solid rgba(137, 87, 229, 0.2);
+    color: var(--admin-text-primary);
+    background: var(--admin-bg-tertiary);
+    border: 1px solid var(--admin-border-default);
   }
 }
 
 .level-tag {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  padding: 2px 9px;
   font-size: var(--admin-text-xs);
   font-weight: 600;
-  border-radius: var(--admin-radius-full);
+  border-radius: var(--admin-radius-sm);
   white-space: nowrap;
 
   &.basic {
     color: var(--admin-text-secondary);
-    background: var(--admin-bg-hover);
+    background: transparent;
     border: 1px solid var(--admin-border-default);
   }
 
   &.pro {
-    color: #9a6700;
+    color: var(--admin-warning);
     background: var(--admin-warning-bg);
-    border: 1px solid rgba(154, 103, 0, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-warning) 30%, transparent);
   }
 
   &.flagship {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
-    border: 1px solid rgba(207, 34, 46, 0.2);
+    border: 1px solid color-mix(in srgb, var(--admin-danger) 30%, transparent);
   }
 }
 
@@ -999,56 +1034,59 @@ const goToEdit = (id: number) => {
 
 .capacity-bar-track {
   flex: 1;
-  height: 8px;
-  background: var(--admin-bg-hover);
-  border-radius: var(--admin-radius-full);
+  height: 4px;
+  background: var(--admin-bg-tertiary);
+  border-radius: 0;
   overflow: hidden;
 }
 
 .capacity-bar-fill {
   height: 100%;
-  border-radius: var(--admin-radius-full);
-  transition: width 0.3s ease;
+  border-radius: 0;
+  transition: width var(--admin-transition-slow);
   min-width: 0;
 
   &.normal {
-    background: linear-gradient(90deg, #1a7f37, #3fb950);
+    background: var(--admin-success);
   }
 
   &.warning {
-    background: linear-gradient(90deg, #9a6700, #d29922);
+    background: var(--admin-warning);
   }
 
   &.danger {
-    background: linear-gradient(90deg, #cf222e, #f85149);
+    background: var(--admin-danger);
   }
 }
 
 .capacity-percent {
-  font-size: var(--admin-text-sm);
-  font-weight: 700;
+  font-family: var(--admin-font-mono);
+  font-size: var(--admin-text-xs);
+  font-weight: 500;
   color: var(--admin-text-secondary);
-  min-width: 40px;
+  min-width: 42px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 
   &.normal {
-    color: #1a7f37;
+    color: var(--admin-success);
   }
   &.warning {
-    color: #9a6700;
+    color: var(--admin-warning);
   }
   &.danger {
-    color: #cf222e;
+    color: var(--admin-danger);
   }
 }
 
 .capacity-stats {
   display: flex;
   align-items: center;
-  gap: var(--admin-space-2);
-  font-size: var(--admin-text-xs);
+  gap: 6px;
+  font-family: var(--admin-font-mono);
+  font-size: 10px;
   color: var(--admin-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-item {
@@ -1091,6 +1129,7 @@ const goToEdit = (id: number) => {
   font-family: var(--admin-font-mono);
   font-size: var(--admin-text-xs);
   color: var(--admin-text-secondary);
+  white-space: nowrap;
 }
 
 /* ========== 操作按钮 ========== */
@@ -1122,25 +1161,25 @@ const goToEdit = (id: number) => {
   &:hover {
     color: var(--admin-primary);
     background: var(--admin-primary-bg);
-    border-color: rgba(9, 105, 218, 0.15);
+    border-color: color-mix(in srgb, var(--admin-primary) 22%, transparent);
   }
 
   &.success:hover {
-    color: #1a7f37;
+    color: var(--admin-success);
     background: var(--admin-success-bg);
-    border-color: rgba(26, 127, 55, 0.15);
+    border-color: color-mix(in srgb, var(--admin-success) 26%, transparent);
   }
 
   &.warning:hover {
-    color: #9a6700;
+    color: var(--admin-warning);
     background: var(--admin-warning-bg);
-    border-color: rgba(154, 103, 0, 0.15);
+    border-color: color-mix(in srgb, var(--admin-warning) 26%, transparent);
   }
 
   &.danger:hover {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
-    border-color: rgba(207, 34, 46, 0.15);
+    border-color: color-mix(in srgb, var(--admin-danger) 26%, transparent);
   }
 }
 
@@ -1188,7 +1227,7 @@ const goToEdit = (id: number) => {
 
 @media (max-width: 768px) {
   #spaceManagePage {
-    padding: var(--admin-space-4);
+    padding: 0;
   }
 
   .batch-toolbar {
@@ -1198,6 +1237,35 @@ const goToEdit = (id: number) => {
     .batch-actions {
       width: 100%;
       justify-content: flex-end;
+    }
+  }
+}
+
+/* 手机上筛选区按整行铺开，按钮等宽铺满，避免右侧留出一大片空白 */
+@media (max-width: 640px) {
+  .table-toolbar {
+    gap: var(--admin-space-3);
+  }
+
+  .filter-selects {
+    width: 100%;
+  }
+
+  .filter-select {
+    flex: 1 1 calc(50% - var(--admin-space-3) / 2);
+  }
+
+  .id-input {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .filter-buttons {
+    width: 100%;
+
+    .toolbar-btn {
+      flex: 1;
+      justify-content: center;
     }
   }
 }
