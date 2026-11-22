@@ -95,6 +95,24 @@ public class PictureStorageService {
     }
 
     /**
+     * 存量记录的存储平台标记：这些记录没有可用的存储平台，对象键存的是原地址。
+     */
+    public static final String LEGACY_PLATFORM = "legacy";
+
+    /**
+     * 按资源身份读取内容。
+     *
+     * <p>登记过存储平台的记录按平台与对象键读取；平台为 {@link #LEGACY_PLATFORM}
+     * 的存量记录按原地址读取。调用方不需要知道这条兼容规则。
+     */
+    public byte[] readRecordedObject(String platform, String objectKey) {
+        if (LEGACY_PLATFORM.equals(platform)) {
+            return readLegacyObject(objectKey);
+        }
+        return readObject(platform, objectKey);
+    }
+
+    /**
      * 通过公网 URL 下载文件。
      *
      * <p>仅用于存量资源：新资源一律通过资源记录定位到平台与对象键，再由
