@@ -592,7 +592,6 @@ declare namespace API {
 
   type FeedbackRequest = {
     action?: 'RETURN' | 'REGENERATE' | 'RESEARCH'
-    currentPhase?: 'EXPLORATION' | 'GENERATION' | 'DONE'
     message?: string
     reason?: string
     satisfied?: boolean
