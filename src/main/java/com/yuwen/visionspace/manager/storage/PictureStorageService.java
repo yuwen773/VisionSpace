@@ -2,16 +2,17 @@ package com.yuwen.visionspace.manager.storage;
 
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
+import com.yuwen.visionspace.manager.outbound.OutboundDownloader;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.dromara.x.file.storage.core.FileStorageService;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Resource;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.net.URI;
 
 /**
  * 统一存储服务，底层使用 x-file-storage
@@ -28,6 +29,9 @@ public class PictureStorageService {
 
     @Resource
     private FileStorageService fileStorageService;
+
+    @Resource
+    private OutboundDownloader outboundDownloader;
 
     /**
      * 上传图片（支持 WebP 压缩 + 缩略图）
@@ -113,18 +117,16 @@ public class PictureStorageService {
     }
 
     /**
-     * 通过公网 URL 下载文件。
+     * 通过服务端记录的地址读取文件。
      *
      * <p>仅用于存量资源：新资源一律通过资源记录定位到平台与对象键，再由
      * {@link #readObject(String, String)} 读取。
+     *
+     * <p>地址同样经过出站策略：只允许 http/https，回环、私网、链路本地与元数据地址
+     * 一律拒绝，重定向逐跳重判并有总超时——存量记录不等于可信目标。
      */
     public InputStream getObjectByUrl(String fileUrl) {
-        try {
-            return new URI(fileUrl).toURL().openStream();
-        } catch (Exception e) {
-            log.error("文件读取失败: fileUrl={}", fileUrl, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件读取失败");
-        }
+        return new ByteArrayInputStream(readAddress(fileUrl));
     }
 
     /**
@@ -158,16 +160,22 @@ public class PictureStorageService {
         if (url == null || url.isBlank()) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "资源地址为空");
         }
-        try (InputStream inputStream = getObjectByUrl(url)) {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            inputStream.transferTo(new LimitedOutputStream(buffer, MAX_CONTENT_BYTES));
-            return buffer.toByteArray();
+        try {
+            return readAddress(url);
         } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("存量资源读取失败: url={}", url, e);
+            // 被策略拒绝与确实取不到对调用方是同一件事：这张存量资源不可读。
+            // 不回显具体原因，避免把「哪些地址被拒绝」变成探测手段。
+            log.warn("存量资源不可读: url={}, reason={}", url, e.getMessage());
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "资源内容不可用");
         }
+    }
+
+    /** 按地址读取内容，大小受内容读取上限约束。 */
+    private byte[] readAddress(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "资源地址为空");
+        }
+        return outboundDownloader.readToMemory(fileUrl, MAX_CONTENT_BYTES, null);
     }
 
     private byte[] limited(ByteArrayOutputStream buffer, String objectKey) {

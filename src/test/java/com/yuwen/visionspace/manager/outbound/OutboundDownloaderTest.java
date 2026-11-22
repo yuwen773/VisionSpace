@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -193,6 +194,56 @@ class OutboundDownloaderTest {
         assertThrows(BusinessException.class,
                 () -> downloader().download(baseUrl + "/empty.png",
                         newFile("empty.png"), IMAGE_TYPES));
+    }
+
+    @Test
+    void readsBodyIntoMemoryWithinBounds() {
+        byte[] content = "legacy-content".getBytes(StandardCharsets.UTF_8);
+        handle("/legacy.png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write(content);
+            exchange.close();
+        });
+
+        byte[] read = downloader().readToMemory(baseUrl + "/legacy.png", 1024 * 1024, IMAGE_TYPES);
+
+        assertArrayEquals(content, read);
+        // 内存读取不落盘
+        assertFalse(tempDir.resolve("legacy.png").toFile().exists());
+    }
+
+    @Test
+    void memoryReadUsesCallerLimitNotDownloadLimit() throws IOException {
+        // 存量资源的上限来自内容读取边界，不套用用户 URL 的 2MB 下载上限
+        OutboundPolicyProperties properties = properties();
+        properties.setMaxDownloadBytes(8);
+        byte[] content = new byte[64];
+        handle("/big-legacy.png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write(content);
+            exchange.close();
+        });
+
+        assertArrayEquals(content,
+                downloader(properties).readToMemory(baseUrl + "/big-legacy.png", 1024 * 1024, IMAGE_TYPES));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> downloader(properties).readToMemory(baseUrl + "/big-legacy.png", 16, IMAGE_TYPES));
+        assertEquals(40000, error.getCode());
+    }
+
+    @Test
+    void memoryReadRejectsBlockedTarget() {
+        // 存量记录里的地址同样要过策略：回环在未显式放行时一律拒绝
+        OutboundPolicyProperties properties = properties();
+        properties.setAllowLoopback(false);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> downloader(properties).readToMemory(baseUrl + "/legacy.png", 1024, IMAGE_TYPES));
+        assertEquals(40000, error.getCode());
+        assertEquals(0, requests.get(), "被拒绝的目标不应产生任何请求");
     }
 
     // ---- helpers ----

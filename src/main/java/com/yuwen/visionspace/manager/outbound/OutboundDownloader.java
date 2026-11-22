@@ -50,6 +50,34 @@ public class OutboundDownloader {
      *                           调用方负责清理已创建的临时文件
      */
     public Downloaded download(String rawUrl, File target, List<String> allowedContentTypes) {
+        long limit = policy.maxDownloadBytes();
+        Result<Long> result = fetch(rawUrl, allowedContentTypes,
+                (content, deadline) -> copyBounded(content, target, limit, deadline));
+        return new Downloaded(result.payload(), result.contentType(), result.finalUri());
+    }
+
+    /**
+     * 读到内存，用于服务端记录里保存的存量地址。
+     *
+     * <p>与 {@link #download} 共用同一套出站判定与逐跳重定向规则，差别只在落点：
+     * 这里不落盘。大小上限由调用方给出——存量资源的上限来自内容读取边界，
+     * 不是用户 URL 的下载上限，因此不套用 {@code max-download-bytes}。
+     *
+     * @param maxBytes 允许读入内存的最大字节数
+     * @return 实际内容
+     */
+    public byte[] readToMemory(String rawUrl, long maxBytes, List<String> allowedContentTypes) {
+        Result<byte[]> result = fetch(rawUrl, allowedContentTypes,
+                (content, deadline) -> readBounded(content, maxBytes, deadline));
+        return result.payload();
+    }
+
+    /**
+     * 逐跳执行请求；正文交给 {@code reader} 决定落在哪里。
+     *
+     * <p>重定向、状态码、内容类型与超时都在这里判定，两个公开入口只是换了正文处理方式。
+     */
+    private <T> Result<T> fetch(String rawUrl, List<String> allowedContentTypes, BodyReader<T> reader) {
         long deadline = System.nanoTime() + policy.totalTimeoutSeconds() * 1_000_000_000L;
         URI current = policy.requireAllowed(rawUrl).normalize();
         int redirects = 0;
@@ -86,8 +114,9 @@ public class OutboundDownloader {
                     }
                     String contentType = header(response, "Content-Type");
                     assertContentType(contentType, allowedContentTypes);
-                    long written = copyBounded(entity, target, deadline);
-                    return new Downloaded(written, contentType, current);
+                    try (InputStream content = entity.getContent()) {
+                        return new Result<>(reader.read(content, deadline), contentType, current);
+                    }
                 }
             }
         } catch (BusinessException e) {
@@ -101,6 +130,16 @@ public class OutboundDownloader {
             log.warn("用户 URL 下载失败: {}", e.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "文件下载失败");
         }
+    }
+
+    /** 正文处理：落到文件或读进内存，超时与大小上限由实现自己执行。 */
+    @FunctionalInterface
+    private interface BodyReader<T> {
+        T read(InputStream content, long deadline) throws IOException;
+    }
+
+    /** 一次请求的结果：正文处理产物加上响应的类型与最终地址。 */
+    private record Result<T>(T payload, String contentType, URI finalUri) {
     }
 
     private HttpGet request(URI target) {
@@ -170,18 +209,16 @@ public class OutboundDownloader {
         }
     }
 
-    private long copyBounded(HttpEntity entity, File target, long deadline) throws IOException {
-        long limit = policy.maxDownloadBytes();
+    private long copyBounded(InputStream in, File target, long limit, long deadline) throws IOException {
         long total = 0;
         byte[] buffer = new byte[8192];
-        try (InputStream in = entity.getContent();
-             OutputStream out = java.nio.file.Files.newOutputStream(target.toPath())) {
+        try (OutputStream out = java.nio.file.Files.newOutputStream(target.toPath())) {
             int read;
             while ((read = in.read(buffer)) != -1) {
                 total += read;
                 // 以实际读到的字节为准，Content-Length 只是提示，不能作为放行依据
                 if (total > limit) {
-                    throw policy.denied("文件大小不能超过 " + (limit / (1024 * 1024)) + "MB");
+                    throw policy.denied("文件大小不能超过 " + limitFor(limit));
                 }
                 if (System.nanoTime() > deadline) {
                     throw policy.denied("下载超时");
@@ -193,6 +230,35 @@ public class OutboundDownloader {
             throw policy.denied("文件内容为空");
         }
         return total;
+    }
+
+    /**
+     * 读进内存的正文处理：边界与落盘版一致，只是不产生临时文件。
+     */
+    private byte[] readBounded(InputStream in, long limit, long deadline) throws IOException {
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        long total = 0;
+        byte[] chunk = new byte[8192];
+        int read;
+        while ((read = in.read(chunk)) != -1) {
+            total += read;
+            if (total > limit) {
+                throw policy.denied("文件大小不能超过 " + limitFor(limit));
+            }
+            if (System.nanoTime() > deadline) {
+                throw policy.denied("下载超时");
+            }
+            buffer.write(chunk, 0, read);
+        }
+        if (total == 0) {
+            throw policy.denied("文件内容为空");
+        }
+        return buffer.toByteArray();
+    }
+
+    /** 上限的两种量级：按 MB 给出更直观，小于 1MB 时直接报字节数。 */
+    private static String limitFor(long limit) {
+        return limit >= 1024 * 1024 ? (limit / (1024 * 1024)) + "MB" : limit + " 字节";
     }
 
     private boolean isRedirect(int status) {
