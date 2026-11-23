@@ -42,6 +42,15 @@
   font-size: 22rpx;
 }
 
+.full-hint {
+  padding: 20rpx;
+  border-radius: var(--vs-radius-lg);
+  background: var(--vs-surface);
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  text-align: center;
+}
+
 .list {
   margin-top: 20rpx;
 }

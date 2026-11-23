@@ -31,7 +31,7 @@ export class ApiError extends Error {
   }
 }
 
-interface BaseResponse<T> {
+export interface BaseResponse<T> {
   code: number
   data: T
   message?: string
@@ -84,7 +84,8 @@ function buildHeader(auth: boolean): Record<string, string> {
   return header
 }
 
-function isBaseResponse<T>(body: unknown): body is BaseResponse<T> {
+/** `wx.uploadFile` 等其它通道解析响应时复用同一判定。 */
+export function isBaseResponse<T>(body: unknown): body is BaseResponse<T> {
   return (
     typeof body === 'object' &&
     body !== null &&

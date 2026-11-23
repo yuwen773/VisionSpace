@@ -3,10 +3,15 @@ import {
   COMPRESS_STEPS,
   compressStepAt,
   defaultUploadName,
+  fileExtension,
   hasAllowedExtension,
   isWithinUploadLimit,
   MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_NAME_LENGTH,
   normalizeUploadName,
+  pendingUploadIndices,
+  uploadQueueLabel,
+  type UploadStatus,
 } from '../src/logic/upload'
 
 describe('isWithinUploadLimit', () => {
@@ -31,7 +36,20 @@ describe('compressStepAt', () => {
   })
 
   it('only downscales in the last two steps', () => {
-    expect(COMPRESS_STEPS.filter((step) => step.compressedWidth !== undefined)).toHaveLength(2)
+    expect(compressStepAt(2)?.compressedWidth).toBeUndefined()
+    expect(compressStepAt(3)?.compressedWidth).toBe(1600)
+  })
+})
+
+describe('fileExtension', () => {
+  it('returns the lower-case extension with the dot', () => {
+    expect(fileExtension('wxfile://tmp/a.JPG')).toBe('.jpg')
+    expect(fileExtension('x.webp')).toBe('.webp')
+  })
+
+  it('returns an empty string when there is no extension', () => {
+    expect(fileExtension('noext')).toBe('')
+    expect(fileExtension('a/b/')).toBe('')
   })
 })
 
@@ -62,7 +80,7 @@ describe('defaultUploadName', () => {
   })
 
   it('truncates long names to the input limit', () => {
-    expect(defaultUploadName(0, `x/${'名'.repeat(60)}.jpg`).length).toBe(40)
+    expect(defaultUploadName(0, `x/${'名'.repeat(60)}.jpg`).length).toBe(MAX_UPLOAD_NAME_LENGTH)
   })
 })
 
@@ -76,6 +94,38 @@ describe('normalizeUploadName', () => {
   })
 
   it('caps the length', () => {
-    expect(normalizeUploadName('名'.repeat(60), 'x').length).toBe(40)
+    expect(normalizeUploadName('名'.repeat(60), 'x').length).toBe(MAX_UPLOAD_NAME_LENGTH)
+  })
+})
+
+describe('pendingUploadIndices', () => {
+  const items = (...statuses: UploadStatus[]) => statuses.map((status) => ({ status }))
+
+  it('collects ready and failed items in list order', () => {
+    expect(pendingUploadIndices(items('done', 'ready', 'uploading', 'failed'))).toEqual([1, 3])
+  })
+
+  it('returns nothing when everything is done', () => {
+    expect(pendingUploadIndices(items('done', 'done'))).toEqual([])
+  })
+})
+
+describe('uploadQueueLabel', () => {
+  const items = (...statuses: UploadStatus[]) => statuses.map((status) => ({ status }))
+
+  it('counts ready and failed as pending', () => {
+    expect(uploadQueueLabel(items('ready', 'failed', 'done'))).toEqual({ pending: 2, text: '上传 2 张' })
+  })
+
+  it('calls a pure failure queue a retry', () => {
+    expect(uploadQueueLabel(items('failed', 'failed', 'done'))).toEqual({
+      pending: 2,
+      text: '重试失败项（2）',
+    })
+  })
+
+  it('has nothing to do when the queue is finished', () => {
+    expect(uploadQueueLabel(items('done'))).toEqual({ pending: 0, text: '开始上传' })
+    expect(uploadQueueLabel([])).toEqual({ pending: 0, text: '开始上传' })
   })
 })

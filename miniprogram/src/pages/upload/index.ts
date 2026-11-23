@@ -1,10 +1,13 @@
-import { errorMessage } from '../../logic/errors'
+import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { formatFileSize } from '../../logic/gallery'
 import {
   defaultUploadName,
   MAX_UPLOAD_COUNT,
   MAX_UPLOAD_NAME_LENGTH,
   normalizeUploadName,
+  pendingUploadIndices,
+  uploadQueueLabel,
+  type UploadStatus,
 } from '../../logic/upload'
 import { ApiError } from '../../services/http'
 import { openLogin } from '../../services/navigation'
@@ -12,8 +15,6 @@ import { getToken } from '../../services/session'
 import { markSpaceUploaded } from '../../services/upload-signal'
 import { uploadPictureFile } from '../../services/upload'
 import { prepareUploadFile, releasePreparedFile } from '../../services/upload-image'
-
-type ItemStatus = 'ready' | 'preparing' | 'uploading' | 'done' | 'failed'
 
 interface UploadItem {
   key: string
@@ -24,7 +25,7 @@ interface UploadItem {
   sizeText: string
   /** 已压缩并落到用户目录；重试时跳过压缩 */
   prepared: boolean
-  status: ItemStatus
+  status: UploadStatus
   statusText: string
   progress: number
   message: string
@@ -35,9 +36,10 @@ interface PickedFile {
   size: number
 }
 
-const STATUS_TEXT: Record<'ready' | 'preparing' | 'done' | 'failed', string> = {
+const STATUS_TEXT: Record<UploadStatus, string> = {
   ready: '待上传',
   preparing: '压缩中…',
+  uploading: '上传中…',
   done: '已上传',
   failed: '上传失败',
 }
@@ -57,6 +59,8 @@ Page({
   /** 队列运行标志：setData 之外的第二道锁，避免连点重复入队。 */
   running: false,
   loginExpired: false,
+  /** 页面已销毁：停止队列，避免对死页面 setData 和漏删用户目录文件。 */
+  unloaded: false,
 
   onLoad(options: Record<string, string | undefined>) {
     const spaceId = Number(options.spaceId)
@@ -70,6 +74,14 @@ Page({
   },
 
   onUnload() {
+    this.unloaded = true
+    // 队列还在跑时由 runQueue 收尾，避免删掉正在上传的文件
+    if (!this.running) {
+      this.releaseAllFiles()
+    }
+  },
+
+  releaseAllFiles(): void {
     for (const item of this.data.items) {
       releasePreparedFile(item.path)
     }
@@ -81,7 +93,6 @@ Page({
     }
     const remaining = MAX_UPLOAD_COUNT - this.data.items.length
     if (remaining <= 0) {
-      wx.showToast({ title: `最多上传 ${MAX_UPLOAD_COUNT} 张`, icon: 'none' })
       return
     }
     wx.chooseMedia({
@@ -155,12 +166,7 @@ Page({
       openLogin()
       return
     }
-    const indices: number[] = []
-    this.data.items.forEach((item, index) => {
-      if (item.status === 'ready' || item.status === 'failed') {
-        indices.push(index)
-      }
-    })
+    const indices = pendingUploadIndices(this.data.items)
     if (indices.length === 0) {
       return
     }
@@ -175,19 +181,31 @@ Page({
     let succeeded = 0
     let failed = 0
     for (const index of indices) {
+      if (this.unloaded) {
+        break
+      }
       const ok = await this.uploadOne(index)
       if (ok) {
         succeeded += 1
       } else {
         failed += 1
       }
-      if (this.loginExpired) {
+      if (this.unloaded || this.loginExpired) {
         break
       }
     }
     this.running = false
+    if (this.unloaded) {
+      // 页面已销毁：不再提示，但已落盘的文件必须回收
+      this.releaseAllFiles()
+      return
+    }
     this.setData({ busy: false })
     this.refreshAction()
+    // 只要有一张成功，回到空间就要刷新，部分失败也不能让列表停在旧数据
+    if (succeeded > 0) {
+      markSpaceUploaded(this.data.spaceId)
+    }
     if (this.loginExpired) {
       wx.showToast({ title: '登录已失效，请重新登录', icon: 'none' })
       openLogin()
@@ -195,7 +213,6 @@ Page({
     }
     if (failed === 0) {
       wx.showToast({ title: `已上传 ${succeeded} 张，待审核`, icon: 'success' })
-      markSpaceUploaded(this.data.spaceId)
       setTimeout(() => {
         wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/space/index' }) })
       }, 600)
@@ -223,6 +240,10 @@ Page({
       })
       try {
         const prepared = await prepareUploadFile(item.path)
+        if (this.unloaded) {
+          releasePreparedFile(prepared.path)
+          return false
+        }
         path = prepared.path
         this.patchItem(index, {
           path,
@@ -249,7 +270,7 @@ Page({
     const picName = normalizeUploadName(current.name, current.fallbackName)
     this.patchItem(index, {
       status: 'uploading',
-      statusText: '上传中…',
+      statusText: STATUS_TEXT.uploading,
       progress: 0,
       message: '',
     })
@@ -271,7 +292,7 @@ Page({
       return true
     } catch (error) {
       console.warn('图片上传失败', error)
-      if (error instanceof ApiError && error.code === 40100) {
+      if (error instanceof ApiError && isLoginExpired(error.code)) {
         this.loginExpired = true
       }
       this.patchItem(index, {
@@ -285,6 +306,9 @@ Page({
   },
 
   patchItem(index: number, patch: Partial<UploadItem>): void {
+    if (this.unloaded) {
+      return
+    }
     const items = this.data.items.slice()
     const current = items[index]
     if (current === undefined) {
@@ -296,15 +320,7 @@ Page({
   },
 
   refreshAction(): void {
-    const items = this.data.items
-    const ready = items.filter((item) => item.status === 'ready').length
-    const failed = items.filter((item) => item.status === 'failed').length
-    const pending = ready + failed
-    let actionText = '开始上传'
-    if (pending > 0) {
-      // 还有没传过的新图时按总数说，纯失败队列才叫「重试」
-      actionText = ready === 0 ? `重试失败项（${failed}）` : `上传 ${pending} 张`
-    }
-    this.setData({ pendingCount: pending, actionText })
+    const { pending, text } = uploadQueueLabel(this.data.items)
+    this.setData({ pendingCount: pending, actionText: text })
   },
 })

@@ -38,11 +38,17 @@ export function isWithinUploadLimit(bytes: number): boolean {
   return Number.isFinite(bytes) && bytes > 0 && bytes <= MAX_UPLOAD_BYTES
 }
 
-const ALLOWED_EXTENSION = /\.(jpe?g|png|webp)$/i
+const ALLOWED_EXTENSIONS = new Set(['jpeg', 'png', 'jpg', 'webp'])
+
+/** 小写扩展名（带点）；没有扩展名返回空串。 */
+export function fileExtension(path: string): string {
+  const match = /\.[a-z0-9]+$/i.exec(path)
+  return match === null ? '' : match[0].toLowerCase()
+}
 
 /** 后端只接受 jpeg/png/jpg/webp，其它格式（如 HEIC）必须先转码。 */
 export function hasAllowedExtension(path: string): boolean {
-  return ALLOWED_EXTENSION.test(path)
+  return ALLOWED_EXTENSIONS.has(fileExtension(path).slice(1))
 }
 
 const MACHINE_NAME = /^(tmp|temp|wxfile|image|img)[_-]/i
@@ -54,7 +60,8 @@ const HEX_NAME = /^[0-9a-f]{8,}$/i
  */
 export function defaultUploadName(index: number, path: string): string {
   const base = path.split(/[\\/]/).pop() ?? ''
-  const candidate = base.replace(/\.[a-z0-9]+$/i, '').trim()
+  const extension = fileExtension(base)
+  const candidate = (extension === '' ? base : base.slice(0, -extension.length)).trim()
   if (candidate === '' || MACHINE_NAME.test(candidate) || HEX_NAME.test(candidate)) {
     return `作品 ${index + 1}`
   }
@@ -68,4 +75,47 @@ export function normalizeUploadName(raw: string, fallback: string): string {
     return fallback
   }
   return name.slice(0, MAX_UPLOAD_NAME_LENGTH)
+}
+
+export type UploadStatus = 'ready' | 'preparing' | 'uploading' | 'done' | 'failed'
+
+export interface UploadStatusLike {
+  status: UploadStatus
+}
+
+/** 还欠一次上传的条目下标：未传过的和失败待重试的，保持列表顺序。 */
+export function pendingUploadIndices(items: readonly UploadStatusLike[]): number[] {
+  const indices: number[] = []
+  items.forEach((item, index) => {
+    if (item.status === 'ready' || item.status === 'failed') {
+      indices.push(index)
+    }
+  })
+  return indices
+}
+
+/**
+ * 队列按钮文案。还有没传过的新图时按总数说，纯失败队列才叫「重试」。
+ * 返回的 pending 同时用于按钮禁用判断。
+ */
+export function uploadQueueLabel(items: readonly UploadStatusLike[]): {
+  pending: number
+  text: string
+} {
+  let ready = 0
+  let failed = 0
+  for (const item of items) {
+    if (item.status === 'ready') {
+      ready += 1
+    } else if (item.status === 'failed') {
+      failed += 1
+    }
+  }
+  if (ready + failed === 0) {
+    return { pending: 0, text: '开始上传' }
+  }
+  return {
+    pending: ready + failed,
+    text: ready === 0 ? `重试失败项（${failed}）` : `上传 ${ready + failed} 张`,
+  }
 }

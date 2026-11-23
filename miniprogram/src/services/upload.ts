@@ -6,10 +6,10 @@
  * `spaceId` / `picName` 作为普通表单字段。
  */
 import { API_BASE_URL, API_PREFIX } from '../config/env'
-import { NETWORK_ERROR_CODE } from '../logic/errors'
+import { isLoginExpired, NETWORK_ERROR_CODE } from '../logic/errors'
 import type { PictureVO } from './types'
 import { clearToken, getToken, getTokenName } from './session'
-import { ApiError, toApiError } from './http'
+import { ApiError, isBaseResponse, toApiError } from './http'
 
 const UPLOAD_TIMEOUT_MS = 60000
 
@@ -41,7 +41,7 @@ export function uploadPictureFile(params: UploadPictureParams): Promise<PictureV
       success(response) {
         const parsed = parseResponse(response.statusCode, response.data)
         if (parsed instanceof ApiError) {
-          if (parsed.code === 40100) {
+          if (isLoginExpired(parsed.code)) {
             clearToken()
           }
           reject(parsed)
@@ -60,12 +60,6 @@ export function uploadPictureFile(params: UploadPictureParams): Promise<PictureV
       })
     }
   })
-}
-
-interface BaseResponse<T> {
-  code: number
-  data: T
-  message?: string
 }
 
 /** 只把「确定的业务错误」当 ApiError 返回，成功时直接给 data。 */
@@ -87,12 +81,4 @@ function parseResponse(statusCode: number, raw: string): PictureVO | ApiError {
     return toApiError(body.code, body.message)
   }
   return body.data
-}
-
-function isBaseResponse<T>(body: unknown): body is BaseResponse<T> {
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    typeof (body as { code?: unknown }).code === 'number'
-  )
 }

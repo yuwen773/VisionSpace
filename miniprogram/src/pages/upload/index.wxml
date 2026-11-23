@@ -15,6 +15,9 @@
       <view class="picker-text">选择图片</view>
       <view class="picker-hint">还可选 {{maxCount - items.length}} 张</view>
     </view>
+    <view class="full-hint" wx:elif="{{items.length >= maxCount}}">
+      已选满 {{maxCount}} 张，上传后可继续添加
+    </view>
 
     <view class="list">
       <view class="item" wx:for="{{items}}" wx:key="key">

@@ -6,6 +6,7 @@
  */
 import {
   compressStepAt,
+  fileExtension,
   hasAllowedExtension,
   isWithinUploadLimit,
   type CompressStep,
@@ -20,7 +21,7 @@ export interface PreparedUpload {
 export async function prepareUploadFile(sourcePath: string): Promise<PreparedUpload> {
   const sourceBytes = await fileSize(sourcePath)
   if (hasAllowedExtension(sourcePath) && isWithinUploadLimit(sourceBytes)) {
-    return { path: await persistFile(sourcePath, extensionOf(sourcePath)), bytes: sourceBytes }
+    return { path: await persistFile(sourcePath, fileExtension(sourcePath)), bytes: sourceBytes }
   }
   return compressToLimit(sourcePath, 0)
 }
@@ -40,7 +41,7 @@ async function compressToLimit(sourcePath: string, stepIndex: number): Promise<P
   const bytes = await fileSize(compressed)
   if (isWithinUploadLimit(bytes)) {
     // compressImage 输出恒为 jpg（文档只保证对 jpg 生效），后缀以实际结果为准
-    return { path: await persistFile(compressed, extensionOf(compressed) || '.jpg'), bytes }
+    return { path: await persistFile(compressed, fileExtension(compressed) || '.jpg'), bytes }
   }
   // 每次都从原图重压：连续压缩会叠加画质损失，降档也降不干净
   return compressToLimit(sourcePath, stepIndex + 1)
@@ -78,11 +79,6 @@ function fileSize(path: string): Promise<number> {
       },
     })
   })
-}
-
-function extensionOf(path: string): string {
-  const match = /\.[a-z0-9]+$/i.exec(path)
-  return match === null ? '' : match[0].toLowerCase()
 }
 
 function persistFile(tempPath: string, extension: string): Promise<string> {
