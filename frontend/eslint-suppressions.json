@@ -179,20 +179,12 @@
   },
   "src/pages/admin/FeedbackManagePage.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
+      "count": 5
     }
   },
   "src/pages/admin/PictureManagePage.vue": {
     "@typescript-eslint/no-unused-vars": {
-      "count": 3
-    }
-  },
-  "src/pages/admin/SpaceManagePage.vue": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/admin/SpaceUserManagePage.vue": {
@@ -202,7 +194,7 @@
   },
   "src/pages/admin/StorageConfigManagePage.vue": {
     "@typescript-eslint/no-unused-vars": {
-      "count": 7
+      "count": 6
     }
   },
   "src/pages/admin/UserManagePage.vue": {
@@ -210,7 +202,7 @@
       "count": 3
     },
     "@typescript-eslint/no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/pages/user/AddSpacePage.vue": {

@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const notifications: any[] = []
+interface CapturedNotification {
+  key?: string
+  message?: string
+  description?: string
+  btn: () => { props: { onClick: () => void } }
+}
+
+const notifications: CapturedNotification[] = []
 
 vi.mock('ant-design-vue', () => ({
   notification: {
-    info: (options: any) => {
+    info: (options: CapturedNotification) => {
       notifications.push(options)
       return {}
     },
@@ -46,7 +53,7 @@ describe('useUndoable', () => {
 
     schedule({ key: 'space-2', message: '已禁用', commit, undo })
 
-    const options = notifications.at(-1)
+    const options = notifications.at(-1)!
     const button = options.btn()
     button.props.onClick()
 
