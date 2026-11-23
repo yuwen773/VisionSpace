@@ -74,11 +74,13 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
                 chain.doFilter(request, response);
                 return;
             }
+            // 一次请求只判定一次凭据类型：classify 会解析 Sa-Token，代价不高但没必要重复
+            TokenAuthenticationSupport.CredentialKind credentialKind =
+                    tokenAuthenticationSupport.classify(request);
             // 令牌客户端（小程序）先分流：令牌由客户端显式携带，浏览器不会自动附带，
             // 因此不构成 CSRF 载体，也不需要双提交令牌或 Origin 判定。
             // 放在签发令牌 Cookie 之前，避免给不认 Cookie 的客户端创建无用会话。
-            if (tokenAuthenticationSupport.classify(request)
-                    == TokenAuthenticationSupport.CredentialKind.TOKEN) {
+            if (credentialKind == TokenAuthenticationSupport.CredentialKind.TOKEN) {
                 chain.doFilter(request, response);
                 return;
             }
@@ -92,7 +94,8 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
             }
             // 令牌只对「已经带上本人登录态」的请求强制：匿名请求没有可被借用的授权，
             // 公开的 POST 查询也不该因为缺少令牌而不可用
-            if (isAuthenticated(request) && !tokenMatches(request)) {
+            if (credentialKind == TokenAuthenticationSupport.CredentialKind.SESSION
+                    && !tokenMatches(request)) {
                 reject(request, response, "缺少或无效的 CSRF 令牌");
                 return;
             }
@@ -109,18 +112,6 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
         // 安全方法：确保浏览器拿到当前会话的令牌，供后续状态修改使用
         issueTokenIfNeeded(request, response);
         chain.doFilter(request, response);
-    }
-
-    /**
-     * 请求是否带上了浏览器可自动附带的登录态（HTTP 会话或 Sa-Token Cookie）。
-     *
-     * <p>只有这类请求才可能被第三方站点借用身份，因此必须同时证明令牌一致。
-     * 匿名请求（含公开的 POST 查询）没有可被借用的授权，不强制令牌；
-     * 显式携带令牌的客户端已在入口处分流，不会走到这里。
-     */
-    private boolean isAuthenticated(HttpServletRequest request) {
-        return tokenAuthenticationSupport.classify(request)
-                == TokenAuthenticationSupport.CredentialKind.SESSION;
     }
 
     private boolean originAllowed(HttpServletRequest request) {

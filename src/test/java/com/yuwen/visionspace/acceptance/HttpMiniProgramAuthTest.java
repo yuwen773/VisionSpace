@@ -35,6 +35,7 @@ class HttpMiniProgramAuthTest {
 
     private static final String PASSWORD = "acceptance-password";
     private static final String TOKEN_HEADER = "satoken";
+    private static final String TOKEN_QUERY = "satoken";
 
     @LocalServerPort
     private int port;
@@ -70,6 +71,8 @@ class HttpMiniProgramAuthTest {
         String token = bind.path("data").path("token").asText();
         assertFalse(token.isBlank(), "绑定成功必须下发令牌");
         assertEquals(TOKEN_HEADER, bind.path("data").path("tokenName").asText());
+        assertEquals(TOKEN_QUERY, bind.path("data").path("tokenQueryName").asText(),
+                "<image> 用的查询参数名必须一并下发");
 
         assertEquals("openid-a", boundOpenId(account), "openid 必须写入该账号");
 

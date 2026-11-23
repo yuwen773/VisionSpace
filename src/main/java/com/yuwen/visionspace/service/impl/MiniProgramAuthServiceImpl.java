@@ -101,6 +101,7 @@ public class MiniProgramAuthServiceImpl implements MiniProgramAuthService {
         StpKit.SPACE.login(user.getId());
         WxLoginVO vo = new WxLoginVO();
         vo.setTokenName(authTokenProperties.getHeaderName());
+        vo.setTokenQueryName(authTokenProperties.getQueryName());
         vo.setToken(StpKit.SPACE.getTokenValue());
         vo.setUser(userService.getLoginUserVO(user));
         return vo;
