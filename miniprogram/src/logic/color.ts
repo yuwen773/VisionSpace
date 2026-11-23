@@ -22,18 +22,26 @@ export const COLOR_PALETTE = [
 const HEX_PATTERN = /^[0-9a-f]{6}$/
 
 /**
- * 归一化颜色输入：接受 `#abc` / `abc` / `#AABBCC`，返回小写 `#rrggbb`。
- * 非法值返回 null，调用方据此禁用检索按钮，而不是把脏参数发给后端。
+ * 归一化颜色输入：接受 `abc` / `#abc` / `#AABBCC`，返回小写 `#rrggbb`。
+ * 三位简写会展开（后端 `Color.decode` 只认六位）。非法值返回 null，
+ * 调用方据此禁用检索按钮，而不是把脏参数发给后端。
  */
 export function normalizeHex(input: string | null | undefined): string | null {
   if (typeof input !== 'string') {
     return null
   }
   const raw = input.trim().replace(/^#/, '').toLowerCase()
-  if (!HEX_PATTERN.test(raw)) {
+  const expanded =
+    raw.length === 3 && /^[0-9a-f]{3}$/.test(raw)
+      ? raw
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : raw
+  if (!HEX_PATTERN.test(expanded)) {
     return null
   }
-  return `#${raw}`
+  return `#${expanded}`
 }
 
 /**
@@ -70,7 +78,6 @@ export function averageColor(
   return toHex(red / counted, green / counted, blue / counted)
 }
 
-/** 色块上的文字/对勾颜色：亮底用深色，暗底用白色。 */
 function toHex(red: number, green: number, blue: number): string {
   return `#${channel(red)}${channel(green)}${channel(blue)}`
 }

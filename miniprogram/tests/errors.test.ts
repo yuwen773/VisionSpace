@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { describeError, NETWORK_ERROR_CODE } from '../src/logic/errors'
+import {
+  describeError,
+  isLoginExpired,
+  isPermissionDenied,
+  NETWORK_ERROR_CODE,
+} from '../src/logic/errors'
 
 describe('describeError', () => {
   it('maps auth failures and flags login', () => {
@@ -28,5 +33,21 @@ describe('describeError', () => {
     const error = describeError(49999)
     expect(error.retryable).toBe(true)
     expect(error.message).not.toContain('49999')
+  })
+
+  it('uses the server message for operation errors (50001 is shared by several failures)', () => {
+    expect(describeError(50001, '每个用户每类空间只能创建一个').message).toBe(
+      '每个用户每类空间只能创建一个',
+    )
+    expect(describeError(50001).message).toBe('操作失败，请稍后再试')
+  })
+})
+
+describe('code predicates', () => {
+  it('separates expired login from missing permission', () => {
+    expect(isLoginExpired(40100)).toBe(true)
+    expect(isLoginExpired(40101)).toBe(false)
+    expect(isPermissionDenied(40101)).toBe(true)
+    expect(isPermissionDenied(40300)).toBe(false)
   })
 })

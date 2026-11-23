@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultPersonalSpaceName,
-  hasPersonalSpace,
   mergeSpaceSummaries,
   pickDefaultSpace,
   roleLabel,
+  spaceTypeLabel,
   type SpaceLike,
 } from '../src/logic/spaces'
 
@@ -54,10 +54,16 @@ describe('pickDefaultSpace', () => {
   })
 })
 
-describe('hasPersonalSpace', () => {
-  it('detects a personal space in the raw list', () => {
-    expect(hasPersonalSpace([teamA, personal])).toBe(true)
-    expect(hasPersonalSpace([teamA, teamB])).toBe(false)
+describe('spaceTypeLabel', () => {
+  it('labels personal and team spaces, with a short form for badges', () => {
+    expect(spaceTypeLabel(0)).toBe('个人空间')
+    expect(spaceTypeLabel(1)).toBe('团队空间')
+    expect(spaceTypeLabel(1, true)).toBe('团队')
+    expect(spaceTypeLabel(null)).toBe('个人空间')
+  })
+
+  it('falls back to a neutral label for unknown types', () => {
+    expect(spaceTypeLabel(9)).toBe('空间')
   })
 })
 

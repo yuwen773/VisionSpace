@@ -5,16 +5,12 @@
  * 请求走 `satoken` 头；`<image>` 无法带自定义头，空间图片的 URL 需要在查询参数
  * 里携带同一个令牌（见 services/content.ts）。
  */
+import { toStoredProfile, type ProfileLike, type StoredProfile } from '../logic/auth'
+
 const TOKEN_STORAGE_KEY = 'vs_satoken'
 const TOKEN_NAME_KEY = 'vs_token_name'
 const USER_STORAGE_KEY = 'vs_user'
 const DEFAULT_TOKEN_NAME = 'satoken'
-
-export interface StoredUser {
-  id: number
-  userName: string
-  userAvatar: string
-}
 
 export function getToken(): string {
   try {
@@ -36,21 +32,14 @@ export function getTokenName(): string {
   }
 }
 
-export function getStoredUser(): StoredUser | null {
+export function getStoredUser(): StoredProfile | null {
   try {
-    const value = wx.getStorageSync(USER_STORAGE_KEY) as Partial<StoredUser> | ''
+    const value = wx.getStorageSync(USER_STORAGE_KEY) as ProfileLike | ''
     if (typeof value !== 'object' || value === null) {
       return null
     }
-    const id = Number(value.id)
-    if (!Number.isFinite(id) || id <= 0) {
-      return null
-    }
-    return {
-      id,
-      userName: typeof value.userName === 'string' ? value.userName : '',
-      userAvatar: typeof value.userAvatar === 'string' ? value.userAvatar : '',
-    }
+    // 缓存可能来自旧版本或被手动改过，统一走一遍校验
+    return toStoredProfile(value)
   } catch (error) {
     console.warn('读取本地用户失败', error)
     return null
@@ -58,7 +47,7 @@ export function getStoredUser(): StoredUser | null {
 }
 
 /** 登录/绑定成功后一次性写入令牌、令牌名与脱敏用户。 */
-export function saveSession(token: string, tokenName: string, user: StoredUser): void {
+export function saveSession(token: string, tokenName: string, user: StoredProfile): void {
   if (token === '') {
     return
   }
@@ -68,7 +57,7 @@ export function saveSession(token: string, tokenName: string, user: StoredUser):
 }
 
 /** 刷新本地用户信息（令牌不变）。 */
-export function saveUser(user: StoredUser): void {
+export function saveUser(user: StoredProfile): void {
   wx.setStorageSync(USER_STORAGE_KEY, user)
 }
 

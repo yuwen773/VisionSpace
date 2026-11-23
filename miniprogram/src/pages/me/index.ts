@@ -1,14 +1,11 @@
 import { APP_VERSION } from '../../config/env'
 import { toStoredProfile } from '../../logic/auth'
+import { isLoginExpired } from '../../logic/errors'
 import { fetchLoginUser, logout } from '../../services/auth'
 import { resolveContentUrl } from '../../services/content'
 import { ApiError } from '../../services/http'
-import {
-  clearSession,
-  getStoredUser,
-  getToken,
-  saveUser,
-} from '../../services/session'
+import { openLogin } from '../../services/navigation'
+import { clearSession, getStoredUser, getToken, saveUser } from '../../services/session'
 
 Page({
   data: {
@@ -37,11 +34,11 @@ Page({
       const fresh = await fetchLoginUser()
       const profile = toStoredProfile(fresh)
       if (profile !== null) {
-        saveUser({ id: profile.id, userName: profile.userName, userAvatar: profile.userAvatar })
+        saveUser(profile)
         this.applyUser(profile.id, profile.userName, profile.userAvatar)
       }
     } catch (error) {
-      if (error instanceof ApiError && error.code === 40100) {
+      if (error instanceof ApiError && isLoginExpired(error.code)) {
         clearSession()
         this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: 0 })
         return
@@ -63,7 +60,7 @@ Page({
   },
 
   onLoginTap() {
-    wx.navigateTo({ url: '/pages/login/index' })
+    openLogin()
   },
 
   async onLogout() {

@@ -44,6 +44,7 @@
         class="space-card"
         data-id="{{item.id}}"
         data-name="{{item.name}}"
+        data-type="{{item.spaceType}}"
         bindtap="onSpaceTap"
       >
         <view class="space-card-main">

@@ -7,8 +7,8 @@ import {
   heightForAspect,
   resolveAspect,
   toCard,
-  toNumberOrNull,
 } from '../src/logic/gallery'
+import { toNumberOrNull } from '../src/logic/long'
 
 const resolve = (path: string) => `https://example.test/api${path}`
 

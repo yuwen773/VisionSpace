@@ -1,9 +1,10 @@
-import { errorMessage } from '../../logic/errors'
+import { errorMessage, isLoginExpired, isPermissionDenied } from '../../logic/errors'
 import { formatCount, formatDate, formatFileSize } from '../../logic/gallery'
 import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import { fetchPicture } from '../../services/gallery'
 import { ApiError } from '../../services/http'
+import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { reportOnce } from '../../services/telemetry'
 import type { PictureVO } from '../../services/types'
@@ -63,7 +64,7 @@ Page({
         this.setData({ loading: false, error: '该作品已被隔离，暂时无法查看' })
         return
       }
-      const inSpace = picture.spaceId !== null && picture.spaceId !== undefined
+      const inSpace = belongsToSpace(picture)
       const imageUrl = resolveContentUrl(
         picture.previewUrl || picture.url || picture.thumbnailUrl,
         inSpace,
@@ -98,13 +99,19 @@ Page({
       }
     } catch (error) {
       console.warn('作品详情加载失败', error)
-      const needsLogin =
-        error instanceof ApiError && (error.code === 40100 || error.code === 40101)
-      this.setData({
-        loading: false,
-        needsLogin,
-        error: needsLogin ? '该作品仅对空间成员可见' : errorMessage(error),
-      })
+      // 40100 = 令牌过期（http 层已清理本地令牌），40101 = 已登录但无空间权限。
+      // 只有前者、或本就没登录时的 40101 才引导去登录；已登录成员拿到 40101
+      // 说明确实没权限，再登录一次也没用。
+      const expired = error instanceof ApiError && isLoginExpired(error.code)
+      const denied = error instanceof ApiError && isPermissionDenied(error.code)
+      const needsLogin = expired || (denied && getToken() === '')
+      let message = errorMessage(error)
+      if (expired) {
+        message = '登录已失效，请重新登录'
+      } else if (denied) {
+        message = needsLogin ? '该作品仅对空间成员可见，登录后查看' : '该作品仅对空间成员可见'
+      }
+      this.setData({ loading: false, needsLogin, error: message })
     }
   },
 
@@ -113,8 +120,7 @@ Page({
     if (!picture) {
       return
     }
-    const inSpace = picture.spaceId !== null && picture.spaceId !== undefined
-    const original = resolveContentUrl(picture.url || picture.previewUrl, inSpace)
+    const original = resolveContentUrl(picture.url || picture.previewUrl, belongsToSpace(picture))
     if (original === '') {
       return
     }
@@ -130,7 +136,7 @@ Page({
   },
 
   onLoginTap() {
-    wx.navigateTo({ url: '/pages/login/index' })
+    openLogin()
   },
 
   onBack() {
@@ -148,6 +154,11 @@ Page({
     }
   },
 })
+
+/** 空间作品的内容接口需要令牌；公开图库作品不带令牌，避免把令牌写进分享链接。 */
+function belongsToSpace(picture: PictureVO): boolean {
+  return picture.spaceId !== null && picture.spaceId !== undefined
+}
 
 function buildCounts(picture: PictureVO): CountItem[] {
   return [

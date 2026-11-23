@@ -4,7 +4,7 @@
  * 后端把空间列表与成员关系拆成两个接口，页面只能自己拼；拼法与排序放这里，
  * 便于单测，也避免两个页面各写一套。
  */
-import { toNumberOrNull } from './gallery'
+import { toNumberOrNull } from './long'
 
 export interface SpaceLike {
   id: number | string
@@ -29,6 +29,24 @@ export interface SpaceSummary {
 }
 
 export const PERSONAL_SPACE_TYPE = 0
+export const TEAM_SPACE_TYPE = 1
+
+const SPACE_TYPE_LABELS: Record<number, { full: string; short: string }> = {
+  [PERSONAL_SPACE_TYPE]: { full: '个人空间', short: '个人' },
+  [TEAM_SPACE_TYPE]: { full: '团队空间', short: '团队' },
+}
+
+/** 空间类型文案；未知类型（例如接口新增枚举）退回中性文案。 */
+export function spaceTypeLabel(
+  spaceType: number | null | undefined,
+  short = false,
+): string {
+  const label = SPACE_TYPE_LABELS[spaceType ?? PERSONAL_SPACE_TYPE]
+  if (label === undefined) {
+    return '空间'
+  }
+  return short ? label.short : label.full
+}
 
 /**
  * 合并并按「个人空间在前、团队在后，组内保持服务端顺序」排序。
@@ -68,10 +86,6 @@ export function mergeSpaceSummaries(
 /** 默认进入个人空间；没有个人空间时退回第一个。 */
 export function pickDefaultSpace(spaces: readonly SpaceSummary[]): SpaceSummary | null {
   return spaces.find((space) => space.isPersonal) ?? spaces[0] ?? null
-}
-
-export function hasPersonalSpace(spaces: readonly SpaceLike[]): boolean {
-  return spaces.some((space) => (space.spaceType ?? PERSONAL_SPACE_TYPE) === PERSONAL_SPACE_TYPE)
 }
 
 const ROLE_LABELS: Record<string, string> = {

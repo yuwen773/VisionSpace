@@ -1,5 +1,5 @@
 import { request } from './http'
-import type { SpacePage, SpaceVO, SpaceUserVO, WireLong } from './types'
+import type { SpacePage, SpaceUserVO, WireLong } from './types'
 
 /**
  * 空间相关接口。
@@ -7,13 +7,33 @@ import type { SpacePage, SpaceVO, SpaceUserVO, WireLong } from './types'
  * 没有 `/space/list/my`：可见空间走分页接口（非管理员 pageSize 上限 20），
  * 角色走 `/spaceUser/list/my`；个人空间没有 space_user 记录，角色为空。
  */
-export function fetchMySpaces(): Promise<SpacePage> {
-  return request<SpacePage>({
-    path: '/space/list/page/vo',
-    method: 'POST',
-    data: { current: 1, pageSize: 20, sortField: 'createTime', sortOrder: 'descend' },
-    auth: true,
-  })
+export interface MySpacesQuery {
+  /** 0 = 个人空间，1 = 团队空间；省略表示不筛选。 */
+  spaceType?: number
+  current?: number
+  pageSize?: number
+}
+
+export function fetchMySpaces(query: MySpacesQuery = {}): Promise<SpacePage> {
+  const data: Record<string, unknown> = {
+    current: query.current ?? 1,
+    pageSize: query.pageSize ?? 20,
+    sortField: 'createTime',
+    sortOrder: 'descend',
+  }
+  if (query.spaceType !== undefined) {
+    data.spaceType = query.spaceType
+  }
+  return request<SpacePage>({ path: '/space/list/page/vo', method: 'POST', data, auth: true })
+}
+
+/**
+ * 是否已有某一类型的空间。只取一行，不受「第一页只有 20 条」影响；
+ * 个人空间每类唯一，存在性判断只需要一条。
+ */
+export async function hasSpaceOfType(spaceType: number): Promise<boolean> {
+  const page = await fetchMySpaces({ spaceType, pageSize: 1 })
+  return (page.records ?? []).length > 0
 }
 
 export function fetchMyMemberships(): Promise<SpaceUserVO[]> {
@@ -31,9 +51,4 @@ export function createSpace(spaceName: string, spaceType: number): Promise<WireL
     data: { spaceName, spaceType, spaceLevel: 0 },
     auth: true,
   })
-}
-
-/** 单个空间详情：`permissionList` 在这里才会填充。 */
-export function fetchSpaceDetail(id: number): Promise<SpaceVO> {
-  return request<SpaceVO>({ path: '/space/get/vo', data: { id }, auth: true })
 }

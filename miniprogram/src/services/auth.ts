@@ -1,6 +1,6 @@
 import { toStoredProfile, type StoredProfile } from '../logic/auth'
 import { request } from './http'
-import { saveSession, type StoredUser } from './session'
+import { saveSession } from './session'
 import type { LoginUserVO, WxLoginVO } from './types'
 
 /**
@@ -51,15 +51,11 @@ export function logout(): Promise<boolean> {
 }
 
 /** 登录/绑定成功后落盘，返回展示用的本地用户。 */
-export function persistSession(result: WxLoginVO): StoredUser | null {
+export function persistSession(result: WxLoginVO): StoredProfile | null {
   const profile = toStoredProfile(result.user)
   if (profile === null) {
     return null
   }
-  saveSession(result.token, result.tokenName, toStoredUser(profile))
-  return toStoredUser(profile)
-}
-
-function toStoredUser(profile: StoredProfile): StoredUser {
-  return { id: profile.id, userName: profile.userName, userAvatar: profile.userAvatar }
+  saveSession(result.token, result.tokenName, profile)
+  return profile
 }

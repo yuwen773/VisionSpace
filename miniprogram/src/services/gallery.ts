@@ -1,4 +1,4 @@
-import { request, ApiError } from './http'
+import { request } from './http'
 import type {
   PicturePage,
   PictureTagCategory,
@@ -63,18 +63,11 @@ export function fetchTagCategory(): Promise<PictureTagCategory> {
 }
 
 /**
- * 作品详情。先带令牌请求（空间作品需要），令牌过期时后端返回 40100，
- * 此时退回匿名请求：公开作品照常可看，空间作品会得到 40101 由页面引导登录。
+ * 作品详情。带令牌请求：公开作品匿名也能看，空间作品需要成员身份。
+ * 未登录或令牌过期时后端返回 40101/40100，由页面决定引导登录还是提示无权限。
  */
-export async function fetchPicture(id: number): Promise<PictureVO> {
-  try {
-    return await request<PictureVO>({ path: '/picture/get/vo', data: { id }, auth: true })
-  } catch (error) {
-    if (error instanceof ApiError && error.code === 40100) {
-      return request<PictureVO>({ path: '/picture/get/vo', data: { id } })
-    }
-    throw error
-  }
+export function fetchPicture(id: number): Promise<PictureVO> {
+  return request<PictureVO>({ path: '/picture/get/vo', data: { id }, auth: true })
 }
 
 /**

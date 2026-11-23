@@ -2,6 +2,7 @@
  * 列表/详情展示的纯函数：条目归一化、计数与时间格式化。
  * 不依赖 wx API，可直接在 node 下单测。
  */
+import { toNumberOrNull } from './long'
 
 /** 推荐接口与检索接口字段的并集；两边都只保证 id。 */
 export interface GallerySource {
@@ -163,18 +164,6 @@ function parseDate(value: string | number): Date | null {
 
 function pad2(value: number): string {
   return value < 10 ? `0${value}` : String(value)
-}
-
-/** 后端 Long 字段统一序列化为十进制字符串，所有数值入口都走这里。 */
-export function toNumberOrNull(value: number | string | null | undefined): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
 }
 
 function nonEmpty(value: string | null | undefined): string {

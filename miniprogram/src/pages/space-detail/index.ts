@@ -1,12 +1,14 @@
 import { COLOR_PALETTE, normalizeHex } from '../../logic/color'
-import { errorMessage } from '../../logic/errors'
+import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { applyPage, createFeed } from '../../logic/feed'
 import { toCard, type GalleryCard } from '../../logic/gallery'
+import { spaceTypeLabel } from '../../logic/spaces'
 import { resolveContentUrl } from '../../services/content'
 import { searchByColor, searchPictures } from '../../services/gallery'
 import { pickImageColor } from '../../services/image-color'
+import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
-import { fetchSpaceDetail } from '../../services/space'
+import { ApiError } from '../../services/http'
 import type { PictureVO } from '../../services/types'
 
 const PAGE_SIZE = 12
@@ -46,7 +48,12 @@ Page({
       return
     }
     const name = options.name ? decodeURIComponent(options.name) : '空间'
-    this.setData({ id, name })
+    // 类型由列表页带过来；空间详情接口对普通成员不开放，没必要为一行文案多打一次请求
+    const spaceType = options.type === undefined ? undefined : Number(options.type)
+    const typeText = spaceType === undefined || !Number.isFinite(spaceType)
+      ? ''
+      : spaceTypeLabel(spaceType)
+    this.setData({ id, name, typeText })
     wx.setNavigationBarTitle({ title: name })
     this.load()
   },
@@ -71,11 +78,17 @@ Page({
 
   async load(): Promise<void> {
     if (getToken() === '') {
-      this.setData({ loading: false, needsLogin: true, error: '' })
+      this.setData({ loading: false, needsLogin: true, error: '', cards: [], ended: false })
       return
     }
     this.setData({ loading: true, needsLogin: false, error: '' })
     // 刷新空间时一并清掉颜色筛选，避免旧结果残留在新列表上
+    this.resetColorFilter()
+    await this.loadPage(true)
+  },
+
+  /** 清空颜色筛选状态；会作废正在进行中的颜色请求。 */
+  resetColorFilter(): void {
     this.colorSeq += 1
     this.setData({
       colorMode: false,
@@ -85,16 +98,6 @@ Page({
       colorCards: [],
       colorCount: 0,
     })
-    try {
-      const space = await fetchSpaceDetail(this.data.id)
-      const name = (space.spaceName ?? '').trim() || this.data.name
-      this.setData({ name, typeText: space.spaceType === 1 ? '团队空间' : '个人空间' })
-      wx.setNavigationBarTitle({ title: name })
-      await this.loadPage(true)
-    } catch (error) {
-      console.warn('空间详情加载失败', error)
-      this.setData({ loading: false, error: errorMessage(error) })
-    }
   },
 
   async loadPage(reset: boolean): Promise<void> {
@@ -137,6 +140,18 @@ Page({
         return
       }
       console.warn('空间图片加载失败', error)
+      // 令牌在加载过程中失效：http 层已清理本地令牌，这里退回登录引导
+      if (error instanceof ApiError && isLoginExpired(error.code)) {
+        this.setData({
+          needsLogin: true,
+          error: '',
+          cards: [],
+          ended: false,
+          loading: false,
+          loadingMore: false,
+        })
+        return
+      }
       this.setData({ error: errorMessage(error) })
     } finally {
       if (seq === this.loadSeq) {
@@ -211,7 +226,7 @@ Page({
   },
 
   onLoginTap() {
-    wx.navigateTo({ url: '/pages/login/index' })
+    openLogin()
   },
 
   onCardTap(event: WechatMiniprogram.CustomEvent<{ id: number }>) {

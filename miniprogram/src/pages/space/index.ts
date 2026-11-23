@@ -1,12 +1,14 @@
 import { ApiError } from '../../services/http'
-import { createSpace, fetchMyMemberships, fetchMySpaces } from '../../services/space'
+import { createSpace, fetchMyMemberships, fetchMySpaces, hasSpaceOfType } from '../../services/space'
 import { getStoredUser, getToken } from '../../services/session'
-import { errorMessage } from '../../logic/errors'
+import { openLogin } from '../../services/navigation'
+import { errorMessage, isLoginExpired } from '../../logic/errors'
 import {
   defaultPersonalSpaceName,
-  hasPersonalSpace,
   mergeSpaceSummaries,
+  PERSONAL_SPACE_TYPE,
   roleLabel,
+  spaceTypeLabel,
   type SpaceSummary,
 } from '../../logic/spaces'
 
@@ -54,22 +56,18 @@ Page({
     this.inFlight = true
     this.setData({ loading: this.data.spaces.length === 0, error: '' })
     try {
-      let page = await fetchMySpaces()
-      let records = page.records ?? []
-      if (!hasPersonalSpace(records)) {
-        await this.ensurePersonalSpace()
-        page = await fetchMySpaces()
-        records = page.records ?? []
-      }
-      const memberships = await fetchMyMemberships()
+      await this.ensurePersonalSpace()
+      const [page, memberships] = await Promise.all([fetchMySpaces(), fetchMyMemberships()])
       if (seq !== this.loadSeq) {
         return
       }
-      const spaces: SpaceCard[] = mergeSpaceSummaries(records, memberships).map((space) => ({
-        ...space,
-        roleText: roleLabel(space, currentUserId),
-        typeText: space.isPersonal ? '个人' : '团队',
-      }))
+      const spaces: SpaceCard[] = mergeSpaceSummaries(page.records ?? [], memberships).map(
+        (space) => ({
+          ...space,
+          roleText: roleLabel(space, currentUserId),
+          typeText: spaceTypeLabel(space.spaceType, true),
+        }),
+      )
       this.setData({ spaces, loading: false })
     } catch (error) {
       if (seq !== this.loadSeq) {
@@ -77,7 +75,7 @@ Page({
       }
       console.warn('空间列表加载失败', error)
       // 令牌被后端判定失效时 http 层已清理本地令牌，这里退回未登录态
-      if (error instanceof ApiError && error.code === 40100) {
+      if (error instanceof ApiError && isLoginExpired(error.code)) {
         this.setData({ loggedIn: false, loading: false, spaces: [], error: '' })
         return
       }
@@ -90,32 +88,42 @@ Page({
   },
 
   /**
-   * 注册不会创建空间：列表里没有个人空间时按计划自动建一个。
-   * 唯一索引保证每人每类一个，重复创建返回 50001，这里视为已存在。
+   * 注册不会创建空间：没有个人空间时按计划自动建一个。
+   *
+   * 存在性用服务端 spaceType 过滤判断，只取一行，不受「第一页最多 20 条」影响。
+   * 唯一索引保证每人每类一个，并发/重复创建返回 50001；建完复查一次，
+   * 复查仍不存在才算失败，避免把真实错误当成「已存在」吞掉。
    */
   async ensurePersonalSpace(): Promise<void> {
+    if (await hasSpaceOfType(PERSONAL_SPACE_TYPE)) {
+      return
+    }
     try {
-      await createSpace(defaultPersonalSpaceName(this.data.userName), 0)
+      await createSpace(defaultPersonalSpaceName(this.data.userName), PERSONAL_SPACE_TYPE)
     } catch (error) {
-      if (error instanceof ApiError && error.code === 50001) {
-        return
+      if (!(error instanceof ApiError && error.code === 50001)) {
+        throw error
       }
-      throw error
+    }
+    if (!(await hasSpaceOfType(PERSONAL_SPACE_TYPE))) {
+      throw new Error('个人空间创建失败，请稍后重试')
     }
   },
 
   onLoginTap() {
-    wx.navigateTo({ url: '/pages/login/index' })
+    openLogin()
   },
 
   onSpaceTap(event: WechatMiniprogram.TouchEvent) {
     const id = Number(event.currentTarget.dataset.id)
     const name = String(event.currentTarget.dataset.name ?? '')
+    const spaceType = Number(event.currentTarget.dataset.type)
     if (!Number.isFinite(id) || id <= 0) {
       return
     }
+    const typeQuery = Number.isFinite(spaceType) ? `&type=${spaceType}` : ''
     wx.navigateTo({
-      url: `/pages/space-detail/index?id=${id}&name=${encodeURIComponent(name)}`,
+      url: `/pages/space-detail/index?id=${id}${typeQuery}&name=${encodeURIComponent(name)}`,
     })
   },
 

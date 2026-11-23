@@ -8,8 +8,12 @@ describe('normalizeHex', () => {
     expect(normalizeHex('  #12Ef34 ')).toBe('#12ef34')
   })
 
+  it('expands three-digit shorthand', () => {
+    expect(normalizeHex('#abc')).toBe('#aabbcc')
+    expect(normalizeHex('f0a')).toBe('#ff00aa')
+  })
+
   it('rejects malformed values', () => {
-    expect(normalizeHex('#abc')).toBeNull()
     expect(normalizeHex('#12345')).toBeNull()
     expect(normalizeHex('zzzzzz')).toBeNull()
     expect(normalizeHex('')).toBeNull()

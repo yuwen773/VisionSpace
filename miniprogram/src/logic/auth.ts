@@ -2,7 +2,7 @@
  * 账号密码校验（纯逻辑），规则与后端 `UserServiceImpl.authenticateForPassword`
  * 保持一致：账号至少 4 位、密码至少 8 位。前端先拦一道，避免无意义的请求。
  */
-import { toNumberOrNull } from './gallery'
+import { toNumberOrNull } from './long'
 
 export interface CredentialCheck {
   valid: boolean
@@ -31,7 +31,7 @@ export function needsBind(code: number): boolean {
 }
 
 export interface ProfileLike {
-  id: number | string
+  id?: number | string | null
   userName?: string | null
   userAvatar?: string | null
 }

@@ -3,6 +3,18 @@
  * 只收录小程序会碰到的码；未知码优先用服务端 message，其次用兜底文案。
  */
 export const NETWORK_ERROR_CODE = -1
+export const CODE_NOT_LOGIN = 40100
+export const CODE_NO_AUTH = 40101
+
+/** 令牌缺失或过期；后端已据此清理本地令牌。 */
+export function isLoginExpired(code: number): boolean {
+  return code === CODE_NOT_LOGIN
+}
+
+/** 已登录但没有该资源权限。 */
+export function isPermissionDenied(code: number): boolean {
+  return code === CODE_NO_AUTH
+}
 
 export interface ClientError {
   code: number
@@ -13,7 +25,8 @@ export interface ClientError {
 
 const FALLBACK_MESSAGE = '网络开小差了，请稍后再试'
 
-export function describeError(code: number, message?: string | null): ClientError {  const serverMessage = typeof message === 'string' ? message.trim() : ''
+export function describeError(code: number, message?: string | null): ClientError {
+  const serverMessage = typeof message === 'string' ? message.trim() : ''
   switch (code) {
     case 0:
       return { code, message: '', retryable: false, loginRequired: false }
@@ -36,7 +49,9 @@ export function describeError(code: number, message?: string | null): ClientErro
     case 50000:
       return { code, message: '服务暂时不可用，请稍后再试', retryable: true, loginRequired: false }
     case 50001:
-      return { code, message: '今日上传额度已用完', retryable: false, loginRequired: false }
+      // OPERATION_ERROR 被多处以 50001 返回（建空间重复、上传超配额等），
+      // 具体原因以服务端文案为准，不能在这里写死成上传额度
+      return { code, message: serverMessage || '操作失败，请稍后再试', retryable: false, loginRequired: false }
     default:
       return { code, message: serverMessage || FALLBACK_MESSAGE, retryable: true, loginRequired: false }
   }
