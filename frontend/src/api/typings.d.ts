@@ -176,6 +176,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseFeedbackStatsVO = {
+    code?: number
+    data?: FeedbackStatsVO
+    message?: string
+  }
+
   type BaseResponseFeedbackVO = {
     code?: number
     data?: FeedbackVO
@@ -275,6 +281,12 @@ declare namespace API {
   type BaseResponseListStorageConfigVO = {
     code?: number
     data?: StorageConfigVO[]
+    message?: string
+  }
+
+  type BaseResponseListUserVO = {
+    code?: number
+    data?: UserVO[]
     message?: string
   }
 
@@ -596,6 +608,13 @@ declare namespace API {
     reason?: string
     satisfied?: boolean
     threadId?: string
+  }
+
+  type FeedbackStatsVO = {
+    pending?: number
+    processing?: number
+    resolved?: number
+    total?: number
   }
 
   type FeedbackUpdateStatusRequest = {
@@ -1252,6 +1271,10 @@ declare namespace API {
     pictureId?: number
   }
 
+  type searchUserUsingGetParams = {
+    keyword: string
+  }
+
   type ServerSentEventObject = Record<string, any>
 
   type SessionVO = {
@@ -1274,6 +1297,7 @@ declare namespace API {
     spaceLevel?: number
     spaceName?: string
     spaceType?: number
+    status?: number
     totalCount?: number
     totalSize?: number
     updateTime?: string
@@ -1284,6 +1308,13 @@ declare namespace API {
     spaceLevel?: number
     spaceName?: string
     spaceType?: number
+  }
+
+  type SpaceAdminAddRequest = {
+    spaceLevel?: number
+    spaceName?: string
+    spaceType?: number
+    userId?: number
   }
 
   type SpaceCategoryAnalyzeRequest = {
@@ -1319,7 +1350,9 @@ declare namespace API {
     spaceLevel?: number
     spaceName?: string
     spaceType?: number
+    status?: number
     userId?: number
+    userKeyword?: string
   }
 
   type SpaceRankAnalyzeRequest = {
@@ -1354,6 +1387,7 @@ declare namespace API {
     maxSize?: number
     spaceLevel?: number
     spaceName?: string
+    status?: number
   }
 
   type SpaceUsageAnalyzeRequest = {
@@ -1432,6 +1466,7 @@ declare namespace API {
     spaceLevel?: number
     spaceName?: string
     spaceType?: number
+    status?: number
     totalCount?: number
     totalSize?: number
     updateTime?: string
