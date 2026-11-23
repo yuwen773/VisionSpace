@@ -4,7 +4,13 @@
       <div class="message-header">
         <span class="agent-name">SpaceMind</span>
       </div>
-      <div class="message-body markdown-body" v-html="finalContent" @click="onBodyClick"></div>
+      <div
+        class="message-body markdown-body"
+        v-html="finalContent"
+        @click="onBodyClick"
+        @mouseover="onBodyMouseOver"
+        @mouseout="onBodyMouseOut"
+      ></div>
 
       <!-- 内联缩略图：只渲染受控来源，避免把消息里的任意地址发出去 -->
       <div v-if="loadableImages.length > 0" class="message-images">
@@ -33,7 +39,7 @@
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
         </svg>
-        {{ allImages.length }} 张图片 · {{ imageSourceCount }} 个来源
+        {{ resourceSummary }}
       </button>
 
       <!-- 操作按钮栏（类 Grok） -->
@@ -42,6 +48,7 @@
           class="action-icon-btn"
           title="重新生成"
           aria-label="重新生成"
+          :disabled="isLoading || busy"
           @click="emit('regenerate')"
         >
           <svg
@@ -109,6 +116,19 @@
 
       <div v-if="isLoading" class="typing-cursor" aria-hidden="true">|</div>
     </div>
+
+    <!-- 正文链接的来源预览：悬停出现，可移入卡片 -->
+    <Teleport to="body">
+      <div
+        v-if="hoveredLink"
+        class="source-preview"
+        :style="{ top: `${hoverPosition.top}px`, left: `${hoverPosition.left}px` }"
+        @mouseenter="onPreviewEnter"
+        @mouseleave="onPreviewLeave"
+      >
+        <SourceCard :link="hoveredLink" compact />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -116,20 +136,25 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
 import { useDiagramRenderer } from '@/composables/useDiagramRenderer'
+import { useProgressiveRender } from '@/composables/useProgressiveRender'
 import { handleContentClick } from '@/utils/diagramEvents'
 import { isLoadableImage } from '@/utils/imagePolicy'
-import { extractImages, extractLinks } from '@/utils/markdownResources'
+import { extractImages, extractLinks, type MarkdownLink } from '@/utils/markdownResources'
+import SourceCard from '../SourceCard.vue'
 import type { ImageResource, ResourceData } from '../types'
 
 interface Props {
   content: string
   isLoading?: boolean
+  /** 有重新生成正在跑：避免重复点击发出多次请求 */
+  busy?: boolean
   images?: ImageResource[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   isLoading: false,
+  busy: false,
   images: undefined,
 })
 
@@ -144,52 +169,26 @@ const { render } = useMarkdown()
 const { renderDiagrams } = useDiagramRenderer()
 const liked = ref(false)
 
-// 图表渲染后的最终内容
-const finalContent = ref('')
-
-// 渲染代次：内容在渲染期间再次变化时，丢弃过期结果，避免旧结果覆盖新内容
-let renderGeneration = 0
-
-// 渲染图表
-const renderWithDiagrams = async (markdownContent: string) => {
-  const generation = ++renderGeneration
-  if (!markdownContent) {
-    finalContent.value = ''
-    return
-  }
-  // 1. 先 Markdown 渲染
-  const htmlContent = render(markdownContent)
-  // 2. 后处理图表代码块（含清理与危险链接降级）
-  const rendered = await renderDiagrams(htmlContent)
-  if (generation !== renderGeneration) return
-  finalContent.value = rendered
-}
-
-// 监听 content 变化
-watch(
-  () => props.content,
-  async (newContent) => {
-    await renderWithDiagrams(newContent)
+// 流式渲染：token 到达时按渲染耗时自适应节流；
+// 图表只在终稿渲染一次，流式中保留源码块
+const { html: finalContent, update: updateContent } = useProgressiveRender({
+  render: (content, streaming) => {
+    if (!content) return ''
+    return renderDiagrams(render(content), { streaming })
   },
+})
+
+watch(
+  [() => props.content, () => props.isLoading],
+  ([content, loading]) => updateContent(content ?? '', Boolean(loading)),
   { immediate: true },
 )
 
-// 监听 isLoading 变化，loading 结束后重新渲染图表
-watch(
-  () => props.isLoading,
-  async (isLoading) => {
-    if (!isLoading && props.content) {
-      await renderWithDiagrams(props.content)
-    }
-  },
-)
-
-onUnmounted(() => {
-  // 让在途渲染失效，防止卸载后再写入状态
-  renderGeneration++
-})
-
 const extractedImages = computed(() => extractImages(props.content))
+const extractedLinks = computed(() => extractLinks(props.content))
+const linkByUrl = computed(
+  () => new Map(extractedLinks.value.map((link) => [link.url, link] as const)),
+)
 
 const allImages = computed(() => {
   const seen = new Set<string>()
@@ -207,21 +206,80 @@ const allImages = computed(() => {
 // 只有受控来源的图片才会真正渲染成 <img>；其余仅作为文本资源保留在面板里
 const loadableImages = computed(() => allImages.value.filter((img) => isLoadableImage(img.url)))
 
-const imageSourceCount = computed(() => {
-  const domains = new Set<string>()
-  for (const img of allImages.value) {
-    try {
-      domains.add(new URL(img.url).hostname)
-    } catch {
-      /* invalid url */
-    }
-  }
-  return domains.size
+const resourceSummary = computed(() => {
+  const parts: string[] = []
+  if (allImages.value.length > 0) parts.push(`${allImages.value.length} 张图片`)
+  if (extractedLinks.value.length > 0) parts.push(`${extractedLinks.value.length} 个链接`)
+  return parts.join(' · ')
 })
 
-function getExtractedLinks() {
-  return extractLinks(props.content)
+// ============ 正文链接的来源预览 ============
+const hoveredLink = ref<MarkdownLink | null>(null)
+const hoverPosition = ref({ top: 0, left: 0 })
+let hoverTimer: ReturnType<typeof setTimeout> | null = null
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+const canHover = () =>
+  typeof window !== 'undefined' && !window.matchMedia?.('(hover: none)').matches
+
+const clearHoverTimers = () => {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer)
+    hoverTimer = null
+  }
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
 }
+
+const showPreview = (link: MarkdownLink, anchor: HTMLAnchorElement) => {
+  const rect = anchor.getBoundingClientRect()
+  const cardWidth = 300
+  const left = Math.min(Math.max(12, rect.left), window.innerWidth - cardWidth - 12)
+  const below = rect.bottom + 8
+  // 下方空间不足时翻到链接上方
+  const top = below + 150 > window.innerHeight ? Math.max(12, rect.top - 158) : below
+  hoverPosition.value = { top, left }
+  hoveredLink.value = link
+}
+
+const onBodyMouseOver = (e: MouseEvent) => {
+  if (!canHover()) return
+  const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]')
+  if (!(anchor instanceof HTMLAnchorElement)) return
+  const link = linkByUrl.value.get(anchor.getAttribute('href') || '')
+  if (!link) return
+  clearHoverTimers()
+  hoverTimer = setTimeout(() => showPreview(link, anchor), 300)
+}
+
+const onBodyMouseOut = (e: MouseEvent) => {
+  if (!hoveredLink.value) return
+  // 移入预览卡本身时不关闭，让用户可以把卡片里的链接读完再点
+  const related = e.relatedTarget as HTMLElement | null
+  if (related?.closest?.('.source-preview')) return
+  if (hoverTimer) {
+    clearTimeout(hoverTimer)
+    hoverTimer = null
+  }
+  hideTimer = setTimeout(() => {
+    hoveredLink.value = null
+  }, 200)
+}
+
+const onPreviewEnter = () => {
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+}
+
+const onPreviewLeave = () => {
+  hoveredLink.value = null
+}
+
+onUnmounted(clearHoverTimers)
 
 // 图表框内的"代码/预览"切换与"复制"（按钮由 v-html 插入，需要事件委托）
 const onBodyClick = (e: MouseEvent) => {
@@ -231,11 +289,11 @@ const onBodyClick = (e: MouseEvent) => {
 const handleToggleResources = () => {
   emit('toggleResources', {
     images: allImages.value,
-    links: getExtractedLinks(),
+    links: extractedLinks.value,
   })
 }
 
-const hasResources = computed(() => allImages.value.length > 0 || imageSourceCount.value > 0)
+const hasResources = computed(() => allImages.value.length > 0 || extractedLinks.value.length > 0)
 
 const copyContent = async () => {
   try {
@@ -652,6 +710,38 @@ const copyContent = async () => {
   margin-left: 1px;
 }
 
+/* 正文链接的来源预览浮层（Teleport 到 body，使用 fixed 定位） */
+.source-preview {
+  position: fixed;
+  z-index: 1000;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  border-radius: 10px;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.18));
+  animation: source-preview-in 0.14s ease-out both;
+}
+
+.source-preview :deep(.source-card) {
+  background: var(--color-bg-elevated);
+}
+
+@keyframes source-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (hover: none) {
+  .source-preview {
+    display: none;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
@@ -751,6 +841,16 @@ const copyContent = async () => {
 .action-icon-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+.action-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--color-text-tertiary);
 }
 
 .action-icon-btn.liked {

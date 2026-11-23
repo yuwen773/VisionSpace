@@ -1,17 +1,35 @@
 <template>
   <div
     class="agent-chat-input"
-    :class="{ focused: isFocused, 'has-content': inputText.length > 0 || attachments.length > 0 }"
+    :class="{
+      focused: isFocused,
+      'has-content': inputText.length > 0 || attachments.length > 0,
+      'is-dragging': dragging,
+    }"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent="onDragOver"
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDrop"
   >
     <div class="input-container">
       <!-- Attachment preview strip -->
       <div v-if="attachments.length > 0" class="attachment-strip">
-        <div v-for="(att, i) in attachments" :key="i" class="attachment-card">
+        <div
+          v-for="att in attachments"
+          :key="att.id"
+          class="attachment-card"
+          :class="att.status"
+          :title="att.status === 'error' ? att.error : att.name"
+        >
           <!-- Image preview -->
           <template v-if="att.previewUrl">
             <div class="img-preview" @click="openPreview(att.previewUrl!)">
               <img :src="att.previewUrl" :alt="att.name" />
-              <div class="img-zoom-hint">
+              <div v-if="att.status === 'uploading'" class="upload-state">
+                <span class="upload-spinner" aria-hidden="true"></span>
+              </div>
+              <div v-else-if="att.status === 'error'" class="upload-state error">上传失败</div>
+              <div v-else class="img-zoom-hint">
                 <svg
                   width="12"
                   height="12"
@@ -27,7 +45,15 @@
                 </svg>
               </div>
             </div>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">
+            <button
+              v-if="att.status === 'error'"
+              class="retry-badge"
+              @click.stop="retryUpload(att)"
+              aria-label="重试上传"
+            >
+              重试
+            </button>
+            <button class="remove-badge" @click="removeAttachment(att)" aria-label="移除">
               &times;
             </button>
           </template>
@@ -48,8 +74,8 @@
                 <polyline points="13 2 13 9 20 9" />
               </svg>
             </div>
-            <span class="file-name" :title="att.name">{{ truncateName(att.name) }}</span>
-            <button class="remove-badge" @click="removeAttachment(i)" aria-label="移除">
+            <span class="file-name">{{ truncateName(att.name) }}</span>
+            <button class="remove-badge" @click="removeAttachment(att)" aria-label="移除">
               &times;
             </button>
           </template>
@@ -62,9 +88,12 @@
         <div class="toolbar-left">
           <button
             class="toolbar-btn attach-btn"
+            :disabled="!attachmentsEnabled"
             @click="triggerFilePicker"
             aria-label="添加附件"
-            title="上传图片或文件"
+            :title="
+              attachmentsEnabled ? '上传图片（JPG/PNG/WebP，最大 2MB）' : '当前模式下不能上传图片'
+            "
           >
             <svg
               width="20"
@@ -86,7 +115,7 @@
           ref="fileInputRef"
           type="file"
           multiple
-          accept="image/*,.pdf,.doc,.docx,.txt"
+          :accept="ATTACHMENT_ACCEPT_ATTR"
           class="hidden-input"
           @change="handleFileSelect"
         />
@@ -121,6 +150,7 @@
             key="send"
             class="action-btn send-btn"
             :disabled="!canSend"
+            :title="busy ? '正在重新生成，请稍候' : '发送'"
             @click="handleSend"
             aria-label="发送"
           >
@@ -159,31 +189,70 @@
       <span class="disclaimer">内容由AI生成，仅供参考</span>
     </div>
 
+    <!-- 拖拽遮罩：用计数器判断何时真正离开，避免子元素反复触发 dragleave -->
+    <transition name="drag-mask">
+      <div v-if="dragging" class="drag-mask" aria-hidden="true">
+        <div class="drag-mask-inner">松开即可上传图片</div>
+      </div>
+    </transition>
+
     <!-- Full-size image preview lightbox -->
     <ImagePreview v-model:open="previewOpen" :url="lightboxUrl" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { message } from 'ant-design-vue'
 import ImagePreview from '@/components/ImagePreview.vue'
+import { deleteAgentImage, uploadAgentImage, type AgentImage } from '@/api-custom/agent'
+import { ATTACHMENT_ACCEPT_ATTR, validateAttachment } from '@/utils/attachmentPolicy'
+
+type AttachmentStatus = 'uploading' | 'done' | 'error'
 
 interface Attachment {
+  id: string
   file: File
   name: string
   previewUrl: string | null
+  status: AttachmentStatus
+  resource?: AgentImage
+  error?: string
+  /**
+   * 已从草稿移除。上传是跨会话异步的，不能靠"是否还在当前数组里"判断，
+   * 否则切到别的会话再回来时状态会被误判。
+   */
+  removed?: boolean
+}
+
+interface Draft {
+  text: string
+  attachments: Attachment[]
 }
 
 interface Props {
   loading?: boolean
+  /**
+   * 有不能被打断的后台请求（如重新生成）在跑。
+   * 此时发不出去：页面会拒绝，但输入框若已清空草稿就会丢字丢图，
+   * 所以在这里就禁掉发送。
+   */
+  busy?: boolean
+  /** 当前会话标识：草稿按会话隔离，切换会话不丢输入 */
+  sessionId?: string
+  /** 站内找图模式不允许上传附件 */
+  attachmentsEnabled?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   loading: false,
+  busy: false,
+  sessionId: '',
+  attachmentsEnabled: true,
 })
 
 const emit = defineEmits<{
-  (e: 'send', text: string, files: File[]): void
+  (e: 'send', text: string, uploaded: AgentImage[]): void
   (e: 'stop'): void
 }>()
 
@@ -195,12 +264,22 @@ const attachments = ref<Attachment[]>([])
 const previewOpen = ref(false)
 const lightboxUrl = ref('')
 
+// 草稿按会话隔离：只放内存，与 chat-demo 的做法一致，离开页面即丢弃
+const drafts = new Map<string, Draft>()
+let activeSession = props.sessionId || ''
+
 const openPreview = (url: string) => {
   lightboxUrl.value = url
   previewOpen.value = true
 }
 
-const canSend = computed(() => inputText.value.trim() || attachments.value.length > 0)
+const canSend = computed(() => {
+  // 后台请求未结束时页面会拒绝发送，提前禁掉，避免草稿被清空却发不出去
+  if (props.busy) return false
+  // 只要还有上传中或失败的附件，就不允许发送：发出去会缺图
+  if (attachments.value.some((att) => att.status !== 'done')) return false
+  return Boolean(inputText.value.trim()) || attachments.value.length > 0
+})
 
 // Truncate filename: keep extension, middle-truncate the name part
 const truncateName = (name: string, maxLen = 16): string => {
@@ -228,68 +307,191 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 const handlePaste = (e: ClipboardEvent) => {
+  if (!props.attachmentsEnabled) return
   const items = e.clipboardData?.items
   if (!items) return
 
-  let hasFile = false
+  const files: File[] = []
   for (const item of items) {
     if (item.kind === 'file') {
-      hasFile = true
       const file = item.getAsFile()
-      if (file) addFile(file)
+      if (file) files.push(file)
     }
   }
-  if (hasFile) e.preventDefault()
+  if (files.length > 0) {
+    e.preventDefault()
+    addFiles(files)
+  }
 }
 
-const addFile = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  const previewUrl = isImage ? URL.createObjectURL(file) : null
-  attachments.value.push({ file, name: file.name, previewUrl })
+const validate = (file: File): string | null => validateAttachment(file)
+
+const upload = async (att: Attachment) => {
+  att.removed = false
+  att.status = 'uploading'
+  att.error = undefined
+  try {
+    const resource = await uploadAgentImage(att.file)
+    // 上传期间被移除：这张图不会随消息发送，直接回收
+    if (att.removed) {
+      void deleteAgentImage(resource.resourceId).catch(() => {})
+      return
+    }
+    att.resource = resource
+    att.status = 'done'
+  } catch (error) {
+    if (att.removed) return
+    att.status = 'error'
+    att.error = error instanceof Error ? error.message : '上传失败'
+  }
 }
 
-const removeAttachment = (index: number) => {
-  const att = attachments.value[index]
-  if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+const addFiles = (files: File[]) => {
+  if (!props.attachmentsEnabled) {
+    message.warning('当前模式下不能上传图片')
+    return
+  }
+  const accepted: Attachment[] = []
+  for (const file of files) {
+    const error = validate(file)
+    if (error) {
+      message.error(`${file.name}：${error}`)
+      continue
+    }
+    accepted.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      status: 'uploading',
+    })
+  }
+  attachments.value.push(...accepted)
+  // 上传必须操作数组里的响应式代理：直接改原始对象不会驱动视图
+  const added = attachments.value.slice(attachments.value.length - accepted.length)
+  // 每个附件独立上传：一个失败不影响其他文件
+  for (const att of added) void upload(att)
+}
+
+const retryUpload = (att: Attachment) => {
+  if (att.status !== 'error') return
+  void upload(att)
+}
+
+const removeAttachment = (att: Attachment) => {
+  const index = attachments.value.indexOf(att)
+  if (index === -1) return
   attachments.value.splice(index, 1)
+  att.removed = true
+  if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+  // 已上传但未发送的图片要回收，避免留下孤儿资源
+  if (att.status === 'done' && att.resource) {
+    void deleteAgentImage(att.resource.resourceId).catch(() => {})
+  }
 }
 
 const triggerFilePicker = () => {
+  if (!props.attachmentsEnabled) return
   fileInputRef.value?.click()
 }
 
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement
   if (!input.files) return
-  for (const file of input.files) {
-    addFile(file)
-  }
+  addFiles(Array.from(input.files))
   input.value = ''
+}
+
+const clearDraft = () => {
+  inputText.value = ''
+  attachments.value.forEach((a) => {
+    a.removed = true
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
+  })
+  attachments.value = []
+  drafts.set(activeSession, { text: '', attachments: [] })
+  nextTick(() => {
+    if (textareaRef.value) textareaRef.value.style.height = 'auto'
+  })
 }
 
 const handleSend = () => {
   if (!canSend.value) return
-  const files = attachments.value.map((a) => a.file)
-  emit('send', inputText.value.trim(), files)
-  inputText.value = ''
-  // Revoke preview URLs
-  attachments.value.forEach((a) => {
-    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
-  })
-  attachments.value = []
-  nextTick(() => {
-    if (textareaRef.value) textareaRef.value.style.height = 'auto'
-  })
+  const uploaded = attachments.value
+    .map((att) => att.resource)
+    .filter((resource): resource is AgentImage => Boolean(resource))
+  emit('send', inputText.value.trim(), uploaded)
+  clearDraft()
 }
 
 const handleStop = () => {
   emit('stop')
 }
 
+// ============ 拖拽上传 ============
+const dragDepth = ref(0)
+const dragging = computed(() => dragDepth.value > 0)
+
+const carriesFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+
+const onDragEnter = (e: DragEvent) => {
+  if (!props.attachmentsEnabled || !carriesFiles(e)) return
+  dragDepth.value++
+}
+
+const onDragOver = (e: DragEvent) => {
+  if (props.attachmentsEnabled && carriesFiles(e)) e.preventDefault()
+}
+
+const onDragLeave = () => {
+  dragDepth.value = Math.max(0, dragDepth.value - 1)
+}
+
+const onDrop = (e: DragEvent) => {
+  dragDepth.value = 0
+  if (!props.attachmentsEnabled) return
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length > 0) addFiles(files)
+}
+
+// ============ 草稿隔离 ============
+const saveDraft = () => {
+  drafts.set(activeSession, { text: inputText.value, attachments: attachments.value })
+}
+
+watch(
+  () => props.sessionId,
+  (next) => {
+    const key = next || ''
+    if (key === activeSession) return
+    saveDraft()
+    activeSession = key
+    const draft = drafts.get(key)
+    inputText.value = draft?.text ?? ''
+    attachments.value = draft?.attachments ?? []
+    nextTick(autoResize)
+  },
+)
+
 onUnmounted(() => {
-  attachments.value.forEach((a) => {
-    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
-  })
+  // 离开页面时未发送的附件全部回收：预览地址与已上传资源都不能留下。
+  // 草稿可能和当前附件是同一批对象，按资源标识去重。
+  const seenResources = new Set<string>()
+  const pending: Attachment[] = [
+    ...attachments.value,
+    ...[...drafts.values()].flatMap((draft) => draft.attachments),
+  ]
+  for (const att of pending) {
+    // 标记为已移除：仍在途的上传完成后会自行删除刚创建的资源
+    att.removed = true
+    if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+    const resourceId = att.resource?.resourceId
+    if (resourceId === undefined) continue
+    const key = String(resourceId)
+    if (seenResources.has(key)) continue
+    seenResources.add(key)
+    void deleteAgentImage(resourceId).catch(() => {})
+  }
 })
 </script>
 
@@ -459,8 +661,96 @@ onUnmounted(() => {
 }
 
 .attachment-card:has(.file-icon) .remove-badge:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
+}
+
+/* ============ 上传状态 ============ */
+.attachment-card.error .img-preview {
+  border-color: var(--color-error);
+}
+
+.upload-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.attachment-card.error .upload-state {
+  background: color-mix(in srgb, var(--color-error) 78%, transparent);
+}
+
+.upload-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: upload-spin 0.8s linear infinite;
+}
+
+@keyframes upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.retry-badge {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-error) 35%, transparent);
+}
+
+.retry-badge:hover {
+  filter: brightness(1.08);
+}
+
+/* ============ 拖拽遮罩 ============ */
+.drag-mask {
+  position: absolute;
+  inset: 6px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 2px dashed var(--color-primary);
+  background: color-mix(in srgb, var(--color-bg-elevated) 86%, transparent);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.drag-mask-inner {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.drag-mask-enter-active,
+.drag-mask-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.drag-mask-enter-from,
+.drag-mask-leave-to {
+  opacity: 0;
 }
 
 .hidden-input {
@@ -500,6 +790,16 @@ onUnmounted(() => {
 .toolbar-btn:hover {
   background: var(--color-bg-hover, var(--color-bg-tertiary));
   color: var(--color-text-secondary);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-btn:disabled:hover {
+  background: transparent;
+  color: var(--color-text-tertiary);
 }
 
 .attach-btn:hover {

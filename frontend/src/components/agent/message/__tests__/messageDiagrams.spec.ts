@@ -10,6 +10,18 @@ import ReasoningMessage from '@/components/agent/message/ReasoningMessage.vue'
 const settle = () => new Promise((r) => setTimeout(r, 50))
 
 /**
+ * Mermaid 在 jsdom 里走完整布局，并行跑多个测试文件时可能被 CPU 争用推迟。
+ * 图表断言等目标出现，而不是固定等待 50ms，避免整套测试时的假失败。
+ */
+const waitFor = async (predicate: () => boolean, timeout = 60000) => {
+  const start = Date.now()
+  while (!predicate()) {
+    if (Date.now() - start > timeout) throw new Error('waitFor timeout')
+    await new Promise((r) => setTimeout(r, 20))
+  }
+}
+
+/**
  * Mermaid 在 jsdom 里走完整的 dagre 布局，单次渲染就要数秒；
  * 并行跑多个测试文件时会被 CPU 争用推到默认 5s 上限之上。
  * 这里断言的是面板结构（不依赖渲染完成），超时放宽不会掩盖真实失败。
@@ -62,9 +74,7 @@ describe('AssistantMessage 图表展示', () => {
       const wrapper = mount(AssistantMessage, {
         props: { content: '```mermaid\ngraph TD\n A-->B\n```' },
       })
-      await settle()
-
-      expect(wrapper.find('.diagram-wrapper').exists()).toBe(true)
+      await waitFor(() => wrapper.find('.diagram-wrapper').exists())
       expect(wrapper.findAll('.diagram-tab')).toHaveLength(2)
       expect(wrapper.find('.diagram-code').text()).toContain('A-->B')
     },
@@ -77,9 +87,9 @@ describe('AssistantMessage 图表展示', () => {
       const wrapper = mount(AssistantMessage, {
         props: { content: '```mermaid\ngraph TD\n A-->B\n```' },
       })
-      await settle()
+      await waitFor(() => wrapper.find('.diagram-wrapper').exists())
       await wrapper.setProps({ content: '```mermaid\ngraph TD\n C-->D\n```' })
-      await settle()
+      await waitFor(() => wrapper.find('.diagram-code').text().includes('C-->D'))
 
       const wrappers = wrapper.findAll('.diagram-wrapper')
       expect(wrappers).toHaveLength(1)

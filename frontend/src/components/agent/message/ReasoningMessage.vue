@@ -23,19 +23,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
+import { useProgressiveRender } from '@/composables/useProgressiveRender'
 import { handleContentClick } from '@/utils/diagramEvents'
 
 interface Props {
   content: string
+  /** 思考内容仍在流式输出：按节流渲染，结束后立即出终稿 */
+  streaming?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  content: '',
+  streaming: false,
+})
 
 const { render } = useMarkdown()
 const collapsed = ref(false)
-const renderedContent = computed(() => render(props.content))
+
+const { html: renderedContent, update } = useProgressiveRender({
+  render: (content) => render(content),
+})
+
+watch(
+  [() => props.content, () => props.streaming],
+  ([content, streaming]) => update(content ?? '', Boolean(streaming)),
+  { immediate: true },
+)
 
 // 思考过程里也会出现代码块，复制按钮按同一套事件委托处理
 const onContentClick = (e: MouseEvent) => {

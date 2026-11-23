@@ -447,14 +447,21 @@ public class ImageAgent {
                         runLifecycle.pausedForUnknownAction(threadId, userId, error.getToolName());
                         return Flux.just(messageDTO);
                     })
-                    .doOnComplete(() -> {
-                        String fullReasoning = reasoningContent.toString();
-                        if (!fullReasoning.isEmpty()) {
-                            chatHistoryService.saveReasoningMessage(threadId, userId, fullReasoning);
-                        }
-                        String fullResponse = assistantContent.toString();
-                        if (!fullResponse.isEmpty()) {
-                            chatHistoryService.saveAssistantMessage(threadId, userId, fullResponse, "text");
+                    // 成功、异常、取消都会走到这里。用户点「停止」时已经生成的部分
+                    // 同样要落库，否则刷新后只剩用户消息。doFinally 每次订阅只执行一次，
+                    // 不会与正常完成重复保存。
+                    .doFinally(signalType -> {
+                        try {
+                            String fullReasoning = reasoningContent.toString();
+                            if (!fullReasoning.isEmpty()) {
+                                chatHistoryService.saveReasoningMessage(threadId, userId, fullReasoning);
+                            }
+                            String fullResponse = assistantContent.toString();
+                            if (!fullResponse.isEmpty()) {
+                                chatHistoryService.saveAssistantMessage(threadId, userId, fullResponse, "text");
+                            }
+                        } catch (Exception e) {
+                            log.error("保存流式输出失败, threadId={}, signal={}", threadId, signalType, e);
                         }
                     });
 
@@ -502,7 +509,12 @@ public class ImageAgent {
 
         try {
             AssistantMessage response = agent.call(feedbackMessage, config);
-            return response.getText();
+            String text = response.getText();
+            // 「重新生成」的产物也要进历史，否则刷新后这条回复会消失
+            if (text != null && !text.isEmpty()) {
+                chatHistoryService.saveAssistantMessage(threadId, userId, text, "text");
+            }
+            return text;
         } catch (PendingReviewException e) {
             // 结果未知：与普通失败分开，避免界面显示成「稍后重试」而实际不能重试
             runLifecycle.pausedForUnknownAction(threadId, userId, e.getToolName());
