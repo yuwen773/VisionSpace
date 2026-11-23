@@ -2,6 +2,7 @@ import { COLOR_PALETTE, normalizeHex } from '../../logic/color'
 import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { applyPage, createFeed } from '../../logic/feed'
 import { toCard, type GalleryCard } from '../../logic/gallery'
+import { isValidId } from '../../logic/long'
 import { spaceTypeLabel } from '../../logic/spaces'
 import { resolveContentUrl } from '../../services/content'
 import { searchByColor, searchPictures } from '../../services/gallery'
@@ -18,7 +19,8 @@ type SpaceRecord = PictureVO
 
 Page({
   data: {
-    id: 0,
+    /** 雪花 id 字符串：转 number 会丢精度，导致查不到空间。 */
+    id: '',
     name: '',
     typeText: '',
     canUpload: false,
@@ -44,8 +46,8 @@ Page({
   colorSeq: 0,
 
   onLoad(options: Record<string, string | undefined>) {
-    const id = Number(options.id)
-    if (!Number.isFinite(id) || id <= 0) {
+    const id = String(options.id ?? '')
+    if (!isValidId(id)) {
       this.setData({ loading: false, error: '空间不存在' })
       return
     }
@@ -248,9 +250,9 @@ Page({
     })
   },
 
-  onCardTap(event: WechatMiniprogram.CustomEvent<{ id: number }>) {
-    const id = Number(event.detail.id)
-    if (!Number.isFinite(id) || id <= 0) {
+  onCardTap(event: WechatMiniprogram.CustomEvent<{ id: string }>) {
+    const id = String(event.detail.id ?? '')
+    if (!isValidId(id)) {
       return
     }
     wx.navigateTo({ url: `/pages/picture/index?id=${id}` })

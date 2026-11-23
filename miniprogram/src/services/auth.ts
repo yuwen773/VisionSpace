@@ -56,6 +56,6 @@ export function persistSession(result: WxLoginVO): StoredProfile | null {
   if (profile === null) {
     return null
   }
-  saveSession(result.token, result.tokenName, profile)
+  saveSession(result.token, result.tokenName, profile, result.tokenQueryName ?? '')
   return profile
 }

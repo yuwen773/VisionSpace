@@ -1,6 +1,7 @@
 import { applyPage, createFeed } from '../../logic/feed'
 import { errorMessage } from '../../logic/errors'
 import { toCard, type GalleryCard } from '../../logic/gallery'
+import { isValidId } from '../../logic/long'
 import { ACTION_CLICK, ACTION_IMPRESSION, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import {
@@ -178,8 +179,8 @@ Page({
       if (result.intersectionRatio < 0.5) {
         return
       }
-      const id = Number(result.dataset.pictureId)
-      if (Number.isFinite(id) && id > 0) {
+      const id = String(result.dataset.pictureId ?? '')
+      if (isValidId(id)) {
         reportOnce(this.gate, id, ACTION_IMPRESSION)
       }
     })
@@ -254,9 +255,9 @@ Page({
     this.restart({})
   },
 
-  onCardTap(event: WechatMiniprogram.CustomEvent<{ id: number }>) {
-    const id = Number(event.detail.id)
-    if (!Number.isFinite(id) || id <= 0) {
+  onCardTap(event: WechatMiniprogram.CustomEvent<{ id: string }>) {
+    const id = String(event.detail.id ?? '')
+    if (!isValidId(id)) {
       return
     }
     reportOnce(this.gate, id, ACTION_CLICK)

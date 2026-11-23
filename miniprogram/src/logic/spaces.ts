@@ -4,7 +4,7 @@
  * 后端把空间列表与成员关系拆成两个接口，页面只能自己拼；拼法与排序放这里，
  * 便于单测，也避免两个页面各写一套。
  */
-import { toNumberOrNull } from './long'
+import { toIdString } from './long'
 
 export interface SpaceLike {
   id: number | string
@@ -19,13 +19,14 @@ export interface MembershipLike {
 }
 
 export interface SpaceSummary {
-  id: number
+  /** 雪花 id 保持十进制字符串，避免超过 JS 安全整数后跳转到错误空间。 */
+  id: string
   name: string
   /** 0 = 个人空间，1 = 团队空间 */
   spaceType: number
   role: string
   isPersonal: boolean
-  ownerId: number | null
+  ownerId: string | null
 }
 
 export const PERSONAL_SPACE_TYPE = 0
@@ -56,16 +57,16 @@ export function mergeSpaceSummaries(
   spaces: readonly SpaceLike[],
   memberships: readonly MembershipLike[],
 ): SpaceSummary[] {
-  const roleBySpaceId = new Map<number, string>()
+  const roleBySpaceId = new Map<string, string>()
   for (const membership of memberships) {
-    const id = toNumberOrNull(membership.spaceId)
+    const id = toIdString(membership.spaceId)
     if (id !== null && typeof membership.spaceRole === 'string') {
       roleBySpaceId.set(id, membership.spaceRole)
     }
   }
   const summaries: SpaceSummary[] = []
   for (const space of spaces) {
-    const id = toNumberOrNull(space.id)
+    const id = toIdString(space.id)
     if (id === null) {
       continue
     }
@@ -76,16 +77,11 @@ export function mergeSpaceSummaries(
       spaceType,
       role: roleBySpaceId.get(id) ?? '',
       isPersonal: spaceType === PERSONAL_SPACE_TYPE,
-      ownerId: toNumberOrNull(space.userId ?? null),
+      ownerId: toIdString(space.userId ?? null),
     })
   }
   // Array.prototype.sort 是稳定的，组内顺序保持接口返回顺序
   return summaries.sort((left, right) => Number(right.isPersonal) - Number(left.isPersonal))
-}
-
-/** 默认进入个人空间；没有个人空间时退回第一个。 */
-export function pickDefaultSpace(spaces: readonly SpaceSummary[]): SpaceSummary | null {
-  return spaces.find((space) => space.isPersonal) ?? spaces[0] ?? null
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -95,7 +91,7 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 /** 角色展示文案：所有者优先于 space_user 里的角色。 */
-export function roleLabel(space: SpaceSummary, currentUserId: number | null): string {
+export function roleLabel(space: SpaceSummary, currentUserId: string | null): string {
   if (currentUserId !== null && space.ownerId === currentUserId) {
     return '创建者'
   }
@@ -106,7 +102,7 @@ export function roleLabel(space: SpaceSummary, currentUserId: number | null): st
  * 能否向该空间上传：所有者，或具备 PICTURE_UPLOAD 权限的 admin/editor 成员。
  * 只用于决定按钮是否出现，真正的权限判定仍由后端 `SpaceAuthority` 复核。
  */
-export function canUploadToSpace(space: SpaceSummary, currentUserId: number | null): boolean {
+export function canUploadToSpace(space: SpaceSummary, currentUserId: string | null): boolean {
   if (currentUserId !== null && space.ownerId === currentUserId) {
     return true
   }

@@ -16,7 +16,7 @@ export interface SearchParams {
   searchText?: string
   category?: string
   /** 带 spaceId 时后端按空间鉴权，并且不过滤审核状态（隔离行 URL 会被置空）。 */
-  spaceId?: number
+  spaceId?: string
 }
 
 /** 榜单：hot / latest / quality / random，用 context 令牌保证翻页不重复。 */
@@ -47,14 +47,14 @@ export function searchPictures(params: SearchParams): Promise<PicturePage> {
   if (params.category) {
     data.category = params.category
   }
-  if (typeof params.spaceId === 'number') {
+  if (typeof params.spaceId === 'string' && params.spaceId !== '') {
     data.spaceId = params.spaceId
   }
   return request<PicturePage>({
     path: '/picture/list/page/vo',
     method: 'POST',
     data,
-    auth: typeof params.spaceId === 'number',
+    auth: typeof params.spaceId === 'string' && params.spaceId !== '',
   })
 }
 
@@ -66,7 +66,7 @@ export function fetchTagCategory(): Promise<PictureTagCategory> {
  * 作品详情。带令牌请求：公开作品匿名也能看，空间作品需要成员身份。
  * 未登录或令牌过期时后端返回 40101/40100，由页面决定引导登录还是提示无权限。
  */
-export function fetchPicture(id: number): Promise<PictureVO> {
+export function fetchPicture(id: string): Promise<PictureVO> {
   return request<PictureVO>({ path: '/picture/get/vo', data: { id }, auth: true })
 }
 
@@ -74,7 +74,7 @@ export function fetchPicture(id: number): Promise<PictureVO> {
  * 按颜色检索空间内最相近的 12 张图片。仅空间内成员可用；公开图库不支持。
  * 返回值没有分页信息，页面按一次性结果展示。
  */
-export function searchByColor(spaceId: number, picColor: string): Promise<PictureVO[]> {
+export function searchByColor(spaceId: string, picColor: string): Promise<PictureVO[]> {
   return request<PictureVO[]>({
     path: '/picture/search/color',
     method: 'POST',

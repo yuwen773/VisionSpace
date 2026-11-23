@@ -1,5 +1,6 @@
 import { errorMessage, isLoginExpired, isPermissionDenied } from '../../logic/errors'
 import { formatCount, formatDate, formatFileSize } from '../../logic/gallery'
+import { isValidId } from '../../logic/long'
 import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import { fetchPicture } from '../../services/gallery'
@@ -17,7 +18,8 @@ interface CountItem {
 
 Page({
   data: {
-    id: 0,
+    /** 雪花 id 字符串，直接用于详情/分享路径，不转 number。 */
+    id: '',
     loading: true,
     error: '',
     needsLogin: false,
@@ -38,8 +40,8 @@ Page({
   gate: createReportGate(),
 
   onLoad(options: Record<string, string | undefined>) {
-    const id = Number(options.id)
-    if (!Number.isFinite(id) || id <= 0) {
+    const id = String(options.id ?? '')
+    if (!isValidId(id)) {
       this.setData({ loading: false, error: '作品不存在或已下线' })
       return
     }

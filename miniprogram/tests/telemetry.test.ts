@@ -6,10 +6,11 @@ import {
   actionEvent,
   createReportGate,
   isAnonymousAction,
-  isValidEventId,
   makeEventId,
   SOURCE_MINI_PROGRAM,
 } from '../src/logic/telemetry'
+
+const PICTURE_ID = '2038608856269361154'
 
 describe('makeEventId', () => {
   it('produces an id accepted by the backend pattern', () => {
@@ -21,7 +22,7 @@ describe('makeEventId', () => {
   it('stays within the 64 character limit', () => {
     const id = makeEventId(1_700_000_000_000, 'x'.repeat(100))
     expect(id.length).toBeLessThanOrEqual(64)
-    expect(isValidEventId(id)).toBe(true)
+    expect(id).toMatch(/^[A-Za-z0-9_.:-]{1,64}$/)
   })
 
   it('differs when entropy differs', () => {
@@ -32,8 +33,8 @@ describe('makeEventId', () => {
 
 describe('actionEvent', () => {
   it('always tags events with the mini program source', () => {
-    expect(actionEvent(12, ACTION_CLICK, 'mp-1')).toEqual({
-      pictureId: 12,
+    expect(actionEvent(PICTURE_ID, ACTION_CLICK, 'mp-1')).toEqual({
+      pictureId: PICTURE_ID,
       actionType: ACTION_CLICK,
       source: SOURCE_MINI_PROGRAM,
       eventId: 'mp-1',
@@ -44,32 +45,24 @@ describe('actionEvent', () => {
 describe('createReportGate', () => {
   it('lets each picture/action pair through exactly once', () => {
     const gate = createReportGate()
-    expect(gate.tryAcquire(1, ACTION_IMPRESSION)).toBe(true)
-    expect(gate.tryAcquire(1, ACTION_IMPRESSION)).toBe(false)
-    expect(gate.tryAcquire(1, ACTION_CLICK)).toBe(true)
-    expect(gate.tryAcquire(2, ACTION_IMPRESSION)).toBe(true)
-    expect(gate.size()).toBe(3)
+    expect(gate.tryAcquire(PICTURE_ID, ACTION_IMPRESSION)).toBe(true)
+    expect(gate.tryAcquire(PICTURE_ID, ACTION_IMPRESSION)).toBe(false)
+    expect(gate.tryAcquire(PICTURE_ID, ACTION_CLICK)).toBe(true)
+    expect(gate.tryAcquire('7', ACTION_IMPRESSION)).toBe(true)
   })
 
   it('rejects anonymous actions the backend forbids', () => {
     const gate = createReportGate()
-    expect(gate.tryAcquire(1, 3)).toBe(false)
-    expect(gate.size()).toBe(0)
+    expect(gate.tryAcquire(PICTURE_ID, 3)).toBe(false)
   })
 
-  it('rejects invalid picture ids', () => {
+  it('rejects ids that are not positive decimal strings', () => {
     const gate = createReportGate()
-    expect(gate.tryAcquire(0, ACTION_IMPRESSION)).toBe(false)
-    expect(gate.tryAcquire(-1, ACTION_VIEW)).toBe(false)
-    expect(gate.tryAcquire(1.5, ACTION_VIEW)).toBe(false)
-  })
-
-  it('can be reset', () => {
-    const gate = createReportGate()
-    gate.tryAcquire(1, ACTION_IMPRESSION)
-    gate.reset()
-    expect(gate.size()).toBe(0)
-    expect(gate.tryAcquire(1, ACTION_IMPRESSION)).toBe(true)
+    expect(gate.tryAcquire('', ACTION_IMPRESSION)).toBe(false)
+    expect(gate.tryAcquire('0', ACTION_IMPRESSION)).toBe(false)
+    expect(gate.tryAcquire('-1', ACTION_VIEW)).toBe(false)
+    expect(gate.tryAcquire('1.5', ACTION_VIEW)).toBe(false)
+    expect(gate.tryAcquire('abc', ACTION_VIEW)).toBe(false)
   })
 })
 

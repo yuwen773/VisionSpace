@@ -122,3 +122,11 @@ tests/                     Vitest
 ```
 
 `logic/` 与 `services/` 不依赖页面生命周期，纯逻辑改动应同时补 `tests/`。
+
+## 约定
+
+- **id 一律用字符串**：后端 `JsonConfig` 把 Long 序列化成十进制字符串，图片/空间/用户
+  id 是 19 位雪花值，转成 number 会被舍入成另一个 id（点击卡片后 404）。number 只用于
+  计数、体积、页码。
+- **令牌名由登录响应下发**：`tokenName` 用于请求头，`tokenQueryName` 用于 `<image>`
+  的查询参数；两者可能不同，不要写死 `satoken`。

@@ -2,7 +2,7 @@
  * 账号密码校验（纯逻辑），规则与后端 `UserServiceImpl.authenticateForPassword`
  * 保持一致：账号至少 4 位、密码至少 8 位。前端先拦一道，避免无意义的请求。
  */
-import { toNumberOrNull } from './long'
+import { toIdString } from './long'
 
 export interface CredentialCheck {
   valid: boolean
@@ -37,15 +37,16 @@ export interface ProfileLike {
 }
 
 export interface StoredProfile {
-  id: number
+  /** 19 位雪花 id，必须以字符串保存，转 number 会丢精度。 */
+  id: string
   userName: string
   userAvatar: string
 }
 
 /** 只把展示需要的三项落到本地，避免把账号/角色等写进缓存。 */
 export function toStoredProfile(profile: ProfileLike): StoredProfile | null {
-  const id = toNumberOrNull(profile.id)
-  if (id === null || id <= 0) {
+  const id = toIdString(profile.id)
+  if (id === null) {
     return null
   }
   return {

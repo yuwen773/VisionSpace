@@ -16,7 +16,8 @@ const UPLOAD_TIMEOUT_MS = 60000
 /** 队列串行上传，单张的整体超时；压缩耗时不计入。 */
 export interface UploadPictureParams {
   filePath: string
-  spaceId: number
+  /** 19 位雪花空间 id，按字符串传给后端，避免精度丢失。 */
+  spaceId: string
   picName: string
   onProgress?: (percent: number) => void
 }
@@ -33,7 +34,7 @@ export function uploadPictureFile(params: UploadPictureParams): Promise<PictureV
       filePath: params.filePath,
       name: 'file',
       formData: {
-        spaceId: String(params.spaceId),
+        spaceId: params.spaceId,
         picName: params.picName,
       },
       header,

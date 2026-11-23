@@ -86,7 +86,10 @@ export interface LoginUserVO {
 /** `/user/wx/login` 与 `/user/wx/bind` 的成功响应。 */
 export interface WxLoginVO {
   token: string
+  /** 请求头名 */
   tokenName: string
+  /** 查询参数名（`<image>` 用），可能缺省，旧响应按 tokenName 处理 */
+  tokenQueryName?: string | null
   user: LoginUserVO
 }
 

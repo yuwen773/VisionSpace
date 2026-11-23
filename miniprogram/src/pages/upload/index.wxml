@@ -1,5 +1,5 @@
 <view class="page upload">
-  <view class="state" wx:if="{{spaceId === 0}}">
+  <view class="state" wx:if="{{spaceId === ''}}">
     <view class="state-title">空间信息缺失</view>
     <view class="state-desc">请返回空间重新进入</view>
   </view>

@@ -2,7 +2,7 @@
  * 列表/详情展示的纯函数：条目归一化、计数与时间格式化。
  * 不依赖 wx API，可直接在 node 下单测。
  */
-import { toNumberOrNull } from './long'
+import { toIdString, toNumberOrNull } from './long'
 
 /** 推荐接口与检索接口字段的并集；两边都只保证 id。 */
 export interface GallerySource {
@@ -21,7 +21,8 @@ export interface GallerySource {
 }
 
 export interface GalleryCard {
-  id: number
+  /** 19 位雪花 id 超过 JS 安全整数，必须以字符串一路带到详情页。 */
+  id: string
   title: string
   imageUrl: string
   /** 宽高比（宽 / 高），用于排版；始终落在合理区间。 */
@@ -56,11 +57,11 @@ export function toCard(
   const aspect = resolveAspect(source)
   const thumbnail = source.thumbnailUrl
   const imageUrl = typeof thumbnail === 'string' && thumbnail !== '' ? resolveUrl(thumbnail) : ''
-  const id = toNumberOrNull(source.id) ?? 0
+  const id = toIdString(source.id) ?? ''
   const quarantined = source.quarantined === true
   return {
     id,
-    title: nonEmpty(source.name) || `作品 ${id}`,
+    title: nonEmpty(source.name) || (id === '' ? '作品' : `作品 ${id}`),
     imageUrl,
     aspect,
     heightRpx: heightForAspect(aspect, columnWidthRpx),

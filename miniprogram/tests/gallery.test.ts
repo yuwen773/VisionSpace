@@ -57,8 +57,13 @@ describe('toCard', () => {
 
   it('accepts the string id produced by the Long serializer', () => {
     const card = toCard({ id: '42', thumbnailUrl: '/picture/content/42/thumbnail' }, resolve)
-    expect(card.id).toBe(42)
+    expect(card.id).toBe('42')
     expect(card.title).toBe('作品 42')
+  })
+
+  it('keeps 19-digit snowflake ids exact instead of rounding them', () => {
+    const card = toCard({ id: '2038608856269361154', thumbnailUrl: '/x' }, resolve)
+    expect(card.id).toBe('2038608856269361154')
   })
 
   it('derives a square-ish aspect when dimensions are missing', () => {

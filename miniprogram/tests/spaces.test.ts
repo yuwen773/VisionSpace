@@ -3,7 +3,6 @@ import {
   canUploadToSpace,
   defaultPersonalSpaceName,
   mergeSpaceSummaries,
-  pickDefaultSpace,
   roleLabel,
   spaceTypeLabel,
   type SpaceLike,
@@ -19,7 +18,7 @@ describe('mergeSpaceSummaries', () => {
       [teamA, personal],
       [{ spaceId: '2', spaceRole: 'admin' }, { spaceId: '1', spaceRole: 'creator' }],
     )
-    expect(result.map((space) => space.id)).toEqual([1, 2])
+    expect(result.map((space) => space.id)).toEqual(['1', '2'])
     expect(result[0]).toMatchObject({ name: '我的空间', role: 'creator', isPersonal: true })
     expect(result[1]).toMatchObject({ name: '设计组', role: 'admin', isPersonal: false })
   })
@@ -43,18 +42,6 @@ describe('mergeSpaceSummaries', () => {
   })
 })
 
-describe('pickDefaultSpace', () => {
-  it('prefers the personal space', () => {
-    const spaces = mergeSpaceSummaries([teamA, personal], [])
-    expect(pickDefaultSpace(spaces)?.name).toBe('我的空间')
-  })
-
-  it('falls back to the first space, or null when empty', () => {
-    expect(pickDefaultSpace(mergeSpaceSummaries([teamA], []))?.name).toBe('设计组')
-    expect(pickDefaultSpace([])).toBeNull()
-  })
-})
-
 describe('spaceTypeLabel', () => {
   it('labels personal and team spaces, with a short form for badges', () => {
     expect(spaceTypeLabel(0)).toBe('个人空间')
@@ -71,14 +58,14 @@ describe('spaceTypeLabel', () => {
 describe('roleLabel', () => {
   it('marks the owner as creator even without a membership row', () => {
     const space = mergeSpaceSummaries([personal], [])[0]
-    expect(roleLabel(space, 9)).toBe('创建者')
+    expect(roleLabel(space, '9')).toBe('创建者')
   })
 
   it('maps membership roles', () => {
     const [space] = mergeSpaceSummaries([teamA], [{ spaceId: '2', spaceRole: 'editor' }])
-    expect(roleLabel(space, 9)).toBe('可编辑')
-    expect(roleLabel(mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'admin' }])[0], 9)).toBe('管理员')
-    expect(roleLabel(mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'viewer' }])[0], 9)).toBe('只读')
+    expect(roleLabel(space, '9')).toBe('可编辑')
+    expect(roleLabel(mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'admin' }])[0], '9')).toBe('管理员')
+    expect(roleLabel(mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'viewer' }])[0], '9')).toBe('只读')
   })
 
   it('falls back to a neutral label when nothing matches', () => {
@@ -90,16 +77,16 @@ describe('roleLabel', () => {
 describe('canUploadToSpace', () => {
   it('lets the owner upload without a membership row', () => {
     const [space] = mergeSpaceSummaries([personal], [])
-    expect(canUploadToSpace(space, 9)).toBe(true)
+    expect(canUploadToSpace(space, '9')).toBe(true)
   })
 
   it('lets admin/editor members upload but not viewers', () => {
     const admin = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'admin' }])[0]
     const editor = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'editor' }])[0]
     const viewer = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'viewer' }])[0]
-    expect(canUploadToSpace(admin, 9)).toBe(true)
-    expect(canUploadToSpace(editor, 9)).toBe(true)
-    expect(canUploadToSpace(viewer, 9)).toBe(false)
+    expect(canUploadToSpace(admin, '9')).toBe(true)
+    expect(canUploadToSpace(editor, '9')).toBe(true)
+    expect(canUploadToSpace(viewer, '9')).toBe(false)
   })
 
   it('does not treat an unknown viewer as the owner', () => {

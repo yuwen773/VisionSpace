@@ -5,16 +5,16 @@
  * 用模块级标记让空间详情在自己 `onShow` 时按 spaceId 消费一次，
  * 消费即清零，避免每次切回都重新拉取。
  */
-let uploadedSpaceId = 0
+let uploadedSpaceId = ''
 
-export function markSpaceUploaded(spaceId: number): void {
+export function markSpaceUploaded(spaceId: string): void {
   uploadedSpaceId = spaceId
 }
 
-export function consumeSpaceUploaded(spaceId: number): boolean {
+export function consumeSpaceUploaded(spaceId: string): boolean {
   if (uploadedSpaceId !== spaceId) {
     return false
   }
-  uploadedSpaceId = 0
+  uploadedSpaceId = ''
   return true
 }

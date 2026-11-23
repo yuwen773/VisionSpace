@@ -9,7 +9,7 @@ import { reportAction } from './gallery'
  */
 export function reportOnce(
   gate: ReportGate,
-  pictureId: number,
+  pictureId: string,
   actionType: AnonymousActionType,
 ): void {
   if (!gate.tryAcquire(pictureId, actionType)) {

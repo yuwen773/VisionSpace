@@ -3,6 +3,7 @@ import { createSpace, fetchMyMemberships, fetchMySpaces, hasSpaceOfType } from '
 import { getStoredUser, getToken } from '../../services/session'
 import { openLogin } from '../../services/navigation'
 import { errorMessage, isLoginExpired } from '../../logic/errors'
+import { isValidId } from '../../logic/long'
 import {
   canUploadToSpace,
   defaultPersonalSpaceName,
@@ -50,7 +51,7 @@ Page({
     await this.loadSpaces(user?.id ?? null)
   },
 
-  async loadSpaces(currentUserId: number | null): Promise<void> {
+  async loadSpaces(currentUserId: string | null): Promise<void> {
     if (this.inFlight) {
       return
     }
@@ -118,12 +119,12 @@ Page({
   },
 
   onSpaceTap(event: WechatMiniprogram.TouchEvent) {
-    const id = Number(event.currentTarget.dataset.id)
+    const id = String(event.currentTarget.dataset.id ?? '')
     const name = String(event.currentTarget.dataset.name ?? '')
     const spaceType = Number(event.currentTarget.dataset.type)
     const upload = event.currentTarget.dataset.upload
     const canUpload = upload === true || upload === 'true'
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!isValidId(id)) {
       return
     }
     const typeQuery = Number.isFinite(spaceType) ? `&type=${spaceType}` : ''

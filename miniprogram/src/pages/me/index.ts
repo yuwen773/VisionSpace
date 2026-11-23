@@ -13,7 +13,7 @@ Page({
     displayName: '',
     avatarUrl: '',
     initial: '',
-    userId: 0,
+    userId: '',
     version: APP_VERSION,
     busy: false,
   },
@@ -26,7 +26,7 @@ Page({
     const token = getToken()
     const user = getStoredUser()
     if (token === '' || user === null) {
-      this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: 0 })
+      this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: '' })
       return
     }
     this.applyUser(user.id, user.userName, user.userAvatar)
@@ -40,7 +40,7 @@ Page({
     } catch (error) {
       if (error instanceof ApiError && isLoginExpired(error.code)) {
         clearSession()
-        this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: 0 })
+        this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: '' })
         return
       }
       // 网络类错误保留本地缓存展示
@@ -48,7 +48,7 @@ Page({
     }
   },
 
-  applyUser(id: number, userName: string, userAvatar: string): void {
+  applyUser(id: string, userName: string, userAvatar: string): void {
     const name = userName || `用户 ${id}`
     this.setData({
       loggedIn: true,
@@ -91,7 +91,7 @@ Page({
       console.warn('退出登录请求失败，继续清理本地状态', error)
     } finally {
       clearSession()
-      this.setData({ busy: false, loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: 0 })
+      this.setData({ busy: false, loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: '' })
       wx.showToast({ title: '已退出登录', icon: 'none' })
     }
   },

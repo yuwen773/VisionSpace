@@ -1,5 +1,6 @@
 import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { formatFileSize } from '../../logic/gallery'
+import { isValidId } from '../../logic/long'
 import {
   defaultUploadName,
   MAX_UPLOAD_COUNT,
@@ -46,7 +47,8 @@ const STATUS_TEXT: Record<UploadStatus, string> = {
 
 Page({
   data: {
-    spaceId: 0,
+    /** 雪花空间 id 字符串；为空表示路由缺参数。 */
+    spaceId: '',
     spaceName: '空间',
     maxCount: MAX_UPLOAD_COUNT,
     maxNameLength: MAX_UPLOAD_NAME_LENGTH,
@@ -63,9 +65,9 @@ Page({
   unloaded: false,
 
   onLoad(options: Record<string, string | undefined>) {
-    const spaceId = Number(options.spaceId)
-    if (!Number.isFinite(spaceId) || spaceId <= 0) {
-      this.setData({ spaceId: 0 })
+    const spaceId = String(options.spaceId ?? '')
+    if (!isValidId(spaceId)) {
+      this.setData({ spaceId: '' })
       return
     }
     const spaceName = options.spaceName ? decodeURIComponent(options.spaceName) : '空间'
@@ -159,7 +161,7 @@ Page({
   },
 
   onStart() {
-    if (this.running || this.data.spaceId <= 0) {
+    if (this.running || this.data.spaceId === '') {
       return
     }
     if (getToken() === '') {

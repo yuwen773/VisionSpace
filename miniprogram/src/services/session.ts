@@ -9,6 +9,7 @@ import { toStoredProfile, type ProfileLike, type StoredProfile } from '../logic/
 
 const TOKEN_STORAGE_KEY = 'vs_satoken'
 const TOKEN_NAME_KEY = 'vs_token_name'
+const TOKEN_QUERY_NAME_KEY = 'vs_token_query_name'
 const USER_STORAGE_KEY = 'vs_user'
 const DEFAULT_TOKEN_NAME = 'satoken'
 
@@ -32,6 +33,19 @@ export function getTokenName(): string {
   }
 }
 
+/** `<image>` 用的查询参数名；服务端未下发时与请求头名保持一致。 */
+export function getTokenQueryName(): string {
+  try {
+    const name = wx.getStorageSync(TOKEN_QUERY_NAME_KEY)
+    if (typeof name === 'string' && name !== '') {
+      return name
+    }
+  } catch (error) {
+    console.warn('读取令牌查询参数名失败', error)
+  }
+  return getTokenName()
+}
+
 export function getStoredUser(): StoredProfile | null {
   try {
     const value = wx.getStorageSync(USER_STORAGE_KEY) as ProfileLike | ''
@@ -47,12 +61,18 @@ export function getStoredUser(): StoredProfile | null {
 }
 
 /** 登录/绑定成功后一次性写入令牌、令牌名与脱敏用户。 */
-export function saveSession(token: string, tokenName: string, user: StoredProfile): void {
+export function saveSession(
+  token: string,
+  tokenName: string,
+  user: StoredProfile,
+  tokenQueryName = '',
+): void {
   if (token === '') {
     return
   }
   wx.setStorageSync(TOKEN_STORAGE_KEY, token)
   wx.setStorageSync(TOKEN_NAME_KEY, tokenName || DEFAULT_TOKEN_NAME)
+  wx.setStorageSync(TOKEN_QUERY_NAME_KEY, tokenQueryName || tokenName || DEFAULT_TOKEN_NAME)
   wx.setStorageSync(USER_STORAGE_KEY, user)
 }
 
@@ -74,6 +94,7 @@ export function clearSession(): void {
   try {
     wx.removeStorageSync(USER_STORAGE_KEY)
     wx.removeStorageSync(TOKEN_NAME_KEY)
+    wx.removeStorageSync(TOKEN_QUERY_NAME_KEY)
   } catch (error) {
     console.warn('清除本地登录信息失败', error)
   }

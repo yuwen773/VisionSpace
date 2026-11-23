@@ -72,8 +72,8 @@
 
 ### 4.3 令牌解析
 
-- `UserServiceImpl.getLoginUser` 增加回退：会话无用户时，读取请求头或查询参数 `satoken`，
-  经 `StpKit.SPACE.getLoginIdByToken` 解析 userId 并加载用户。
+- `UserServiceImpl.getLoginUser` 增加回退：**显式令牌优先**（请求头或查询参数带有效
+  `satoken` 时按该令牌解析 userId），否则用浏览器会话；两者共用 `StpKit.SPACE` 存储。
 - 内容接口 `/picture/content/**` 因此可直接用 `?satoken=` 被 `<image>` 加载。
 - **风险**：令牌进入 nginx access_log。M1 同步给出 nginx 脱敏方案（对 `satoken` 参数打码），
   并保留后续改为短时 ticket 的接口位置。
@@ -212,8 +212,8 @@ miniprogram/
 两轴审查（Standards / Spec）后修正：
 
 - **Long 类型**：`JsonConfig` 把所有 Long 序列化成十进制字符串，客户端此前把 id/计数
-  写成 `number`。改为 `WireLong = number | string`，卡片 id 在 `toCard` 统一转数字，
-  计数/体积经 `toNumberOrNull` 处理。
+  写成 `number`。改为 `WireLong = number | string`，计数/体积经 `toNumberOrNull` 处理；
+  id 后来发现不能转数字（19 位雪花 id 超出安全整数，见 §13），改为全程字符串。
 - **分页到底判定**：不再用「本页未拿满」判断结束（后端会在页内过滤隔离/删除记录），
   改为「本页为空或累计达到 total」才停；无效 total 不再被当成 0。
 - **分享入口**：详情页加载一开始就 `hideShareMenu`，失败/非公开作品不会留下可转发入口。
@@ -317,3 +317,27 @@ miniprogram/
 - `npm run type-check`（src + tests）通过。
 - `npm test`：9 个测试文件 104 项全通过（新增上传队列规则、权限判定）。
 - 真机清单（M2–M4）尚未执行，需开发者工具 + 体验版手动过；上传相关项见 README。
+
+## 13. 全面审查修正（M1–M4 合并后）
+
+两轴（Standards / Spec）对 `origin/main...HEAD` 整体复审后修正：
+
+- **阻塞级：雪花 id 被 Number 舍入**。`Picture`/`Space`/`User` 用 `IdType.ASSIGN_ID`，
+  实际 id 是 19 位（如 `2038608856269361154`），`JsonConfig` 以字符串下发；M2 的
+  `toNumberOrNull` 又把它转回 number，`Number()` 会把末几位舍入。列表里的缩略图
+  是服务端拼的完整 URL，所以看起来正常，一点卡片就跳到不存在的 id（40400），
+  颜色检索/上传也会打到错误空间。改为 id 全程十进制字符串：
+  `logic/long.toIdString` / `isValidId`，`GalleryCard.id`、`SpaceSummary.id`、
+  `StoredProfile.id`、`ActionEvent.pictureId` 与所有页面路由/接口参数统一用 string；
+  number 只留给计数、体积、页码。补 19 位 id 的去重/路由/埋点单测。
+- **令牌名契约**：`AuthTokenProperties` 的头名与查询参数名可分别配置，但
+  `WxLoginVO` 只下发头名，客户端把同一个名字拼进图片 URL；一旦两处配置不同，
+  `<image>` 鉴权失败且 nginx 的 `satoken=` 脱敏规则失效。`WxLoginVO` 增加
+  `tokenQueryName`，小程序单独保存并用于内容 URL。
+- **CSRF 过滤**：`classify()` 每个状态修改请求最多解析两次 Sa-Token，改为一次判定、
+  复用结果；删除随之不再使用的 `isAuthenticated` 辅助方法。
+- **死代码**：删除无调用方的 `pickDefaultSpace`、`isValidEventId`、
+  `ReportGate.reset/size`，对应测试改为可证伪的行为断言。
+- **数据契约**：`WxLoginVO` 的接受度测试补 `tokenQueryName` 断言。
+- 验证：`mvn -q -DskipTests compile` 通过；小程序 `npm run type-check` 通过，
+  `npm test` 10 个文件 109 项全通过。真机清单仍未执行。

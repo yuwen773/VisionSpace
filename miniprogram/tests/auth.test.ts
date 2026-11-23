@@ -38,15 +38,19 @@ describe('needsBind', () => {
 describe('toStoredProfile', () => {
   it('keeps only id, name and avatar, normalising a string id', () => {
     expect(toStoredProfile({ id: '7', userName: '小鱼', userAvatar: '/a.png' })).toEqual({
-      id: 7,
+      id: '7',
       userName: '小鱼',
       userAvatar: '/a.png',
     })
   })
 
+  it('keeps 19-digit snowflake ids as strings instead of rounding them', () => {
+    expect(toStoredProfile({ id: '2038608856269361154' })?.id).toBe('2038608856269361154')
+  })
+
   it('fills missing fields with empty strings', () => {
     expect(toStoredProfile({ id: 8, userName: null })).toEqual({
-      id: 8,
+      id: '8',
       userName: '',
       userAvatar: '',
     })
@@ -55,5 +59,6 @@ describe('toStoredProfile', () => {
   it('rejects ids that cannot be parsed', () => {
     expect(toStoredProfile({ id: '' })).toBeNull()
     expect(toStoredProfile({ id: 0 })).toBeNull()
+    expect(toStoredProfile({ id: 1.5 })).toBeNull()
   })
 })

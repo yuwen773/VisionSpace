@@ -60,17 +60,20 @@ export function applyPage<T extends FeedRecord>(
 
 /** 按 id 去重后追加，保持已有顺序，再按返回顺序追加新条目。 */
 export function mergeUnique<T extends FeedRecord>(existing: readonly T[], incoming: readonly T[]): T[] {
-  const seen = new Set<number | string>()
+  // 服务端把 Long 序列化成字符串；两边统一按字符串比较，避免 number/string 混用漏判
+  const seen = new Set<string>()
   const merged: T[] = []
   for (const record of existing) {
-    if (!seen.has(record.id)) {
-      seen.add(record.id)
+    const key = String(record.id)
+    if (!seen.has(key)) {
+      seen.add(key)
       merged.push(record)
     }
   }
   for (const record of incoming) {
-    if (!seen.has(record.id)) {
-      seen.add(record.id)
+    const key = String(record.id)
+    if (!seen.has(key)) {
+      seen.add(key)
       merged.push(record)
     }
   }
