@@ -172,3 +172,36 @@ miniprogram/
 `SET` 语法（`ERR syntax error`），会导致**任何**登录类验收失败。以上测试改用 Docker
 `redis:7.2.4` 跑隔离环境；原生 Redis 5 不可用于本套件的 HTTP 验收。
 
+
+## 10. M2 实施记录（2026-11-24）
+
+已落地（`miniprogram/`，原生 TS）：
+
+- 工程：`project.config.json`（`useCompilerPlugins: ["typescript"]`，appid 为占位
+  `touristappid`，导入后需替换）、两套 tsconfig（小程序 CommonJS / 测试 ESM）、
+  Vitest、`theme.json`（深色极光 / 浅色紫漾，导航栏与 tabBar 均用 @变量）。
+- 发现 tab：榜单 hot/latest/quality/random + `POST /picture/list/page/vo`
+  关键词/分类检索；`contextValid=false` 时整体重置；id 去重；上拉分页、
+  下拉刷新、错误重试、空态。
+- 详情页：`GET /picture/get/vo`，公开作品（`spaceId=null`）才出现分享入口；
+  展示浏览/点赞/收藏/分享计数但不可点；隔离/无内容显示占位。
+- 匿名埋点：曝光（相交 50% 触发，`observeAll` + 闸门去重）、点击、浏览，
+  `source=4`（M1 新增的 `MINI_PROGRAM`），`eventId` 按后端正则生成。
+- 主题：WXSS 变量对齐 Web 端色值，`prefers-color-scheme` 跟随系统。
+- CI：`.github/workflows/miniprogram.yml` 只跑 `type-check` + `vitest`，
+  paths 过滤 `miniprogram/**`。
+
+关键取舍：
+
+- M2 的 tabBar 只有 发现 / 我的（原计划三 tab）；空间与"我的"资料在 M3 补齐。
+  微信要求 tabBar 至少两项，因此先放一个只读的「关于」页。
+- 推荐接口返回 `RecommendPictureVO`（无作者/计数），详情统一再取一次
+  `PictureVO`，避免为列表补字段改后端。
+- 列表页 size=12（检索接口上限 30，推荐接口上限 100）。
+
+验证证据：
+
+- `npm run type-check`（src + tests）通过。
+- `npm test`：4 个测试文件 43 项全通过（分页状态机、展示格式化、
+  埋点去重与 eventId、错误码文案）。
+- 真机清单（见 `miniprogram/README.md`）尚未在真机执行，需开发者工具 + 体验版手动过。
