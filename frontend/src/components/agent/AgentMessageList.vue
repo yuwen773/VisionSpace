@@ -66,13 +66,20 @@
             :to="{ query: { board: msg.boardId } }"
             >读取候选板 · 版本 {{ msg.revision }}</RouterLink
           >
-          <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
+          <ReasoningMessage
+            v-else-if="msg.type === 'reasoning'"
+            :content="msg.content"
+            :streaming="Boolean(msg.isLoading)"
+          />
           <AssistantMessage
             v-else-if="msg.type === 'assistant'"
             :content="msg.content"
             :isLoading="msg.isLoading"
+            :busy="busy"
             @toggle-resources="(data: ResourceData) => emit('toggleResources', data)"
+            @regenerate="emit('regenerate')"
           />
+          <ErrorMessage v-else-if="msg.type === 'error'" :content="msg.content" />
           <ToolRequestMessage
             v-else-if="msg.type === 'tool-request'"
             :toolName="msg.toolName || '工具'"
@@ -148,6 +155,7 @@ import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 import ActionUnknownMessage from './message/ActionUnknownMessage.vue'
+import ErrorMessage from './message/ErrorMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 import AssetResultCard from './AssetResultCard.vue'
@@ -172,6 +180,8 @@ interface Message {
 interface Props {
   messages: Message[]
   loading?: boolean
+  /** 重新生成等后台动作在跑：禁用会重复发请求的按钮 */
+  busy?: boolean
   /** 当前会话标识：附件按会话与资源双重授权后读取 */
   sessionId?: string
   assetResults?: Record<string, AssetResult>
@@ -180,6 +190,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
+  busy: false,
   sessionId: '',
   assetResults: () => ({}),
 })
@@ -190,6 +201,7 @@ const emit = defineEmits<{
   (e: 'refreshAsset', resultId: string): void
   (e: 'previewAsset', url: string): void
   (e: 'assetUnavailable', resultId: string): void
+  (e: 'regenerate'): void
 }>()
 
 const quickHints = ['一张赛博朋克风格的城市夜景', '用水彩风格画一只猫', '复古海报风格的旅行插画']
@@ -642,10 +654,10 @@ watch(
   text-align: center;
   color: #fff;
   pointer-events: none;
-  background: #ef4444;
+  background: var(--color-error);
   box-shadow:
     0 0 0 2px var(--color-bg-primary, #fff),
-    0 2px 8px rgba(239, 68, 68, 0.4);
+    0 2px 8px color-mix(in srgb, var(--color-error) 40%, transparent);
   animation: badgePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 

@@ -1,58 +1,56 @@
 import { describe, expect, it } from 'vitest'
-import { extractImages, extractLinks, extractResources, isImageUrl } from '../markdownResources'
+import { extractLinks, extractResources } from '@/utils/markdownResources'
 
-describe('消息正文的资源解析', () => {
-  it('显式图片语法进图片清单，不进链接清单', () => {
-    const content = '看这张 ![山间晨雾](https://cdn.example.com/a.jpg) 的照片'
-    expect(extractImages(content)).toEqual([
-      { url: 'https://cdn.example.com/a.jpg', title: '山间晨雾' },
-    ])
-    // 负向后行断言必须排除图片语法，否则同一条回复会同时进两个面板
-    expect(extractLinks(content)).toEqual([])
+describe('extractLinks 的来源信息', () => {
+  it('补充摘要、域名、站点图标与序号', () => {
+    const content =
+      '这一篇讲的是检索增强。详见 [chat-demo](https://github.com/deepseek-ai/chat-demo) 与 [Vue 文档](https://cn.vuejs.org/guide/)。'
+
+    const links = extractLinks(content)
+
+    expect(links).toHaveLength(2)
+    expect(links[0]).toMatchObject({
+      title: 'chat-demo',
+      domain: 'github.com',
+      faviconUrl: 'https://github.com/favicon.ico',
+      index: 1,
+    })
+    expect(links[0].snippet).toContain('详见')
+    expect(links[0].snippet).not.toContain('chat-demo')
+    expect(links[0].snippet).not.toContain('检索增强')
+    expect(links[1].index).toBe(2)
   })
 
-  it('没有替代文字的图片仍然被识别', () => {
-    expect(extractImages('![](https://cdn.example.com/b.png)')).toEqual([
-      { url: 'https://cdn.example.com/b.png', title: undefined },
-    ])
+  it('摘要只取链接所在句，不把整段列表带进来', () => {
+    const content =
+      '检索结果如下：\n\n- 第一篇讲检索增强，值得一读。\n- 第二篇见 [Vue 文档](https://cn.vuejs.org/guide/)，讲组合式 API。\n- 第三篇是别的主题。'
+
+    const [link] = extractLinks(content)
+    expect(link.snippet).toContain('组合式 API')
+    expect(link.snippet).not.toContain('检索增强')
+    expect(link.snippet).not.toContain('别的主题')
   })
 
-  it('指向图片的普通链接也算图片资源', () => {
-    const content = '[原图](https://cdn.example.com/c.webp) 与 [参考](https://example.com/page)'
-    expect(extractImages(content)).toEqual([
-      { url: 'https://cdn.example.com/c.webp', title: '原图' },
-    ])
-    expect(extractLinks(content)).toEqual([
-      {
-        url: 'https://cdn.example.com/c.webp',
-        title: '原图',
-        snippet: '原图',
-        domain: 'cdn.example.com',
-      },
-      {
-        url: 'https://example.com/page',
-        title: '参考',
-        snippet: '参考',
-        domain: 'example.com',
-      },
-    ])
+  it('段落里只有链接本身时摘要留空，避免与标题重复', () => {
+    const links = extractLinks('[示例](https://example.com)')
+    expect(links[0].snippet).toBe('')
   })
 
-  it('同一地址只保留一次，解析不出域名的不算链接', () => {
-    const content = '[一](https://example.com/x) [二](https://example.com/x) [坏](/relative)'
-    expect(extractLinks(content)).toHaveLength(1)
+  it('同一地址只算一个来源', () => {
+    const links = extractLinks('[一](https://example.com) [二](https://example.com)')
+    expect(links).toHaveLength(1)
   })
 
-  it('空正文不产生任何资源', () => {
-    expect(extractResources('')).toEqual({ images: [], links: [] })
+  it('解析不出域名的地址不计为来源', () => {
+    const links = extractLinks('[相对](not-a-url)')
+    expect(links).toEqual([])
   })
-})
 
-describe('图片地址判定', () => {
-  it('按扩展名与已知图床域名判断', () => {
-    expect(isImageUrl('https://cdn.example.com/a.JPG?w=800')).toBe(true)
-    expect(isImageUrl('https://images.pexels.com/photos/1')).toBe(true)
-    expect(isImageUrl('https://example.com/article')).toBe(false)
-    expect(isImageUrl('')).toBe(false)
+  it('资源解析同时返回图片与链接', () => {
+    const result = extractResources(
+      '![图](https://cdn.example.com/a.png) [页](https://example.com)',
+    )
+    expect(result.images).toHaveLength(1)
+    expect(result.links).toHaveLength(1)
   })
 })

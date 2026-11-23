@@ -31,7 +31,7 @@ public class FeedbackRequest implements Serializable {
     private String reason;
 
     /**
-     * 建议动作: regenerate, research, return (可选)
+     * 建议动作: REGENERATE / RESEARCH / RETURN（也接受小写 regenerate 等）
      */
     private ActionType action;
 

@@ -128,7 +128,8 @@
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="messages"
-          :loading="streaming || historyLoading"
+          :loading="streaming || historyLoading || regenerating"
+          :busy="regenerating"
           :session-id="currentThreadId || threadId"
           :asset-results="assetResults"
           @refresh-asset="refreshAsset"
@@ -136,6 +137,7 @@
           @asset-unavailable="handleAssetUnavailable"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
+          @regenerate="handleRegenerate"
         />
 
         <!-- 底部区域：TodoList + 输入框 -->
@@ -146,7 +148,14 @@
             :current-step="currentTodoStep"
             @toggle="toggleTodoListExpanded"
           />
-          <AgentChatInput :loading="streaming" @send="handleSend" @stop="abort" />
+          <AgentChatInput
+            :loading="streaming"
+            :busy="regenerating"
+            :session-id="currentThreadId || threadId"
+            :attachments-enabled="!assetMode"
+            @send="handleSend"
+            @stop="abort"
+          />
         </div>
       </template>
 
@@ -193,18 +202,19 @@ import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import RecoveryBanner from '@/components/agent/RecoveryBanner.vue'
 import { searchAssets, readAssetResult, type AssetResult } from '@/api-custom/assetSearch'
 import { listMyTeamSpaceUsingPost } from '@/api/spaceUserController'
+import { feedbackUsingPost } from '@/api/agentController'
 import { useLoginUserStore } from '@/stores/userLogin'
 import { useRoute, useRouter } from 'vue-router'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
 import { AgentStreamError, useAgentStream } from '@/composables/useAgentStream'
 import {
   confirmAction,
+  deleteAgentImage,
   dismissAction,
   getHistory,
   getRecoveryState,
   getSessions,
   resumeSession,
-  uploadAgentImage,
   type AgentImage,
   type HistoryMessage,
   type RecoveryState,
@@ -652,24 +662,26 @@ watch(streaming, (isStreaming) => {
 })
 
 // Handlers
-const handleSend = async (text: string, files: File[] = []) => {
-  if ((!text.trim() && files.length === 0) || streaming.value) return
-  if (assetMode.value && (!assetSpaceId.value || files.length)) {
+const handleSend = async (text: string, uploaded: AgentImage[] = []) => {
+  if ((!text.trim() && uploaded.length === 0) || streaming.value) return
+  if (regenerating.value) {
+    message.info('正在重新生成，请稍候')
+    return
+  }
+  if (assetMode.value && uploaded.length) {
+    // 站内找图不用上传；若仍有残留资源，回收后拒绝发送，避免孤儿图片
+    for (const item of uploaded) void deleteAgentImage(item.resourceId).catch(() => {})
+    assetError.value = '请先选择团队空间；站内找图使用空间内已有素材'
+    return
+  }
+  if (assetMode.value && !assetSpaceId.value) {
     assetError.value = '请先选择团队空间；站内找图使用空间内已有素材'
     return
   }
 
-  // 先上传再发消息：上传拿到的是资源标识，绑定到会话的是标识而不是地址
-  let uploaded: AgentImage[] = []
-  if (files.length > 0) {
-    try {
-      uploaded = await Promise.all(files.map((f) => uploadAgentImage(f)))
-    } catch {
-      message.error('图片上传失败，无法发送消息')
-      return
-    }
-  }
-
+  // 清空上一轮的消息与资源，再放入本轮用户消息；
+  // sendMessage 不再负责清空，否则会把刚 push 的用户气泡一起删掉
+  resetStream()
   pushMessage({
     type: 'user',
     content: text,
@@ -707,10 +719,58 @@ const handleSend = async (text: string, files: File[] = []) => {
   }
 }
 
+// 「重新生成」走反馈端点：服务端基于当前会话历史再生成一版回复。
+// 没有分支模型，新回复追加在末尾；服务端同时把回复写进历史。
+const regenerating = ref(false)
+const handleRegenerate = async () => {
+  const id = currentThreadId.value || threadId.value
+  if (!id || streaming.value || regenerating.value) return
+  regenerating.value = true
+  // 请求期间可能切到别的会话：结果只属于发起时的那个会话
+  const isSameSession = () => (currentThreadId.value || threadId.value) === id
+  try {
+    const res = await feedbackUsingPost(
+      {
+        threadId: id,
+        satisfied: false,
+        reason: '重新生成',
+        // 后端枚举按大写序列化，发送小写会直接 400
+        action: 'REGENERATE',
+      },
+      // 重新生成要等模型完整跑完，默认 5 秒超时必然失败
+      { timeout: 120000 },
+    )
+    if (!isSameSession()) return
+    if (res.data?.code !== 0) {
+      message.warning(res.data?.message || '重新生成失败，请稍后重试')
+      return
+    }
+    const content = res.data?.data
+    if (content) {
+      pushMessage({
+        type: 'assistant',
+        content,
+        node: 'agent',
+        time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
+      })
+    }
+  } catch (error) {
+    if (!isSameSession()) return
+    message.error(error instanceof Error ? error.message : '重新生成失败，请重试')
+  } finally {
+    if (isSameSession()) regenerating.value = false
+    await loadRecoveryState()
+  }
+}
+
 const handleNewChat = () => {
   saveThreadId('')
   currentThreadId.value = ''
   threadId.value = generateThreadId()
+  // 先中止在途流：resetStream 只清本地状态，不会停止仍在校验/生成的请求
+  abort()
+  // 在途的重新生成属于旧会话，不能让它的 busy 状态带到新会话
+  regenerating.value = false
   resetStream()
   clearAssetResults(false)
   showTodoList.value = false
@@ -720,6 +780,11 @@ const handleNewChat = () => {
 
 const handleSelectHistory = async (id: string) => {
   if (isNarrowViewport()) leftCollapsed.value = true
+  // 重选当前会话不做任何事：不能中止在途流，也不能清掉重新生成的忙状态
+  if (id === (currentThreadId.value || threadId.value)) return
+  // 切换会话必须先停下旧流，否则旧会话的输出会继续写进新会话
+  abort()
+  regenerating.value = false
   currentThreadId.value = id
   threadId.value = id
   saveThreadId(id)

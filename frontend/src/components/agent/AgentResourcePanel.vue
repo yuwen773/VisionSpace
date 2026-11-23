@@ -110,26 +110,16 @@
 
       <!-- 链接 Tab -->
       <div v-else-if="activeTab === 'link'" class="link-list">
-        <a
-          v-for="(link, index) in links"
-          :key="index"
-          :href="link.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link-card"
-        >
-          <div class="link-title">{{ link.title }}</div>
-          <div class="link-snippet">{{ link.snippet }}</div>
-          <div class="link-domain">{{ link.domain }}</div>
-        </a>
+        <SourceCard v-for="link in links" :key="link.url" :link="link" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { ImageResource, LinkResource } from './types'
+import SourceCard from './SourceCard.vue'
 import AssetResultCard from './AssetResultCard.vue'
 import AssetBoardEditor from './AssetBoardEditor.vue'
 import type { AssetResult } from '@/api-custom/assetSearch'
@@ -163,6 +153,17 @@ const emit = defineEmits<{
 }>()
 
 const activeTab = ref<'image' | 'link'>('image')
+
+// 只有链接没有图片时（例如纯检索结果）默认落到「链接」页，
+// 否则用户打开面板看到的是空网格
+watch(
+  () => [props.images.length, props.links.length] as const,
+  ([imageCount, linkCount]) => {
+    if (imageCount === 0 && linkCount > 0) activeTab.value = 'link'
+    else if (linkCount === 0 && imageCount > 0) activeTab.value = 'image'
+  },
+  { immediate: true },
+)
 
 const tabs = computed(() => [
   { key: 'image' as const, label: '图片', count: props.images.length },
@@ -386,47 +387,6 @@ const totalCount = computed(() => props.images.length + props.links.length)
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.link-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border-subtle);
-  background: var(--color-bg-elevated);
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.link-card:hover {
-  border-color: var(--color-primary-500);
-  transform: translateY(-1px);
-}
-
-.link-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.link-snippet {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.link-domain {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
 }
 /* ============ 响应式 ============ */
 @media (max-width: 768px) {
