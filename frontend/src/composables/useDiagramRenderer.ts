@@ -78,6 +78,14 @@ function preferCodePanel(wrapper: HTMLElement): void {
   wrapper.querySelector('.diagram-tab[data-tab="code"]')?.classList.add('active')
 }
 
+export type RenderDiagramsOptions = {
+  /**
+   * 流式输出中不做图表渲染：半截的 Mermaid / drawio 源码既画不出终稿，
+   * 也会让每次 token 都触发一次昂贵渲染。此时只保留代码块，并完成链接收敛。
+   */
+  streaming?: boolean
+}
+
 export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
   const plantumlServer =
     deps.plantumlServer ?? (import.meta.env.VITE_PLANTUML_SERVER as string | undefined)
@@ -97,7 +105,10 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
    * @param htmlContent Markdown 渲染后的 HTML 内容
    * @returns 图表渲染后的 HTML 内容
    */
-  const renderDiagrams = async (htmlContent: string): Promise<string> => {
+  const renderDiagrams = async (
+    htmlContent: string,
+    options: RenderDiagramsOptions = {},
+  ): Promise<string> => {
     if (!htmlContent) return htmlContent
 
     const tempDiv = document.createElement('div')
@@ -105,6 +116,9 @@ export function useDiagramRenderer(deps: DiagramRendererDeps = {}) {
 
     // 先收敛链接，再处理图表
     sanitizeLinks(tempDiv)
+
+    // 流式阶段只做廉价后处理，图表留给终稿一次性渲染
+    if (options.streaming) return tempDiv.innerHTML
 
     const codeBlocks = Array.from(
       tempDiv.querySelectorAll<HTMLElement>('pre.code-block[data-lang]'),

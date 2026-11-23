@@ -66,7 +66,11 @@
             :to="{ query: { board: msg.boardId } }"
             >读取候选板 · 版本 {{ msg.revision }}</RouterLink
           >
-          <ReasoningMessage v-else-if="msg.type === 'reasoning'" :content="msg.content" />
+          <ReasoningMessage
+            v-else-if="msg.type === 'reasoning'"
+            :content="msg.content"
+            :streaming="loading"
+          />
           <AssistantMessage
             v-else-if="msg.type === 'assistant'"
             :content="msg.content"

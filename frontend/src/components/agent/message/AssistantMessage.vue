@@ -114,9 +114,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMarkdown } from '@/composables/useMarkdown'
 import { useDiagramRenderer } from '@/composables/useDiagramRenderer'
+import { useProgressiveRender } from '@/composables/useProgressiveRender'
 import { handleContentClick } from '@/utils/diagramEvents'
 import { isLoadableImage } from '@/utils/imagePolicy'
 import { extractImages, extractLinks } from '@/utils/markdownResources'
@@ -145,50 +146,20 @@ const { render } = useMarkdown()
 const { renderDiagrams } = useDiagramRenderer()
 const liked = ref(false)
 
-// 图表渲染后的最终内容
-const finalContent = ref('')
-
-// 渲染代次：内容在渲染期间再次变化时，丢弃过期结果，避免旧结果覆盖新内容
-let renderGeneration = 0
-
-// 渲染图表
-const renderWithDiagrams = async (markdownContent: string) => {
-  const generation = ++renderGeneration
-  if (!markdownContent) {
-    finalContent.value = ''
-    return
-  }
-  // 1. 先 Markdown 渲染
-  const htmlContent = render(markdownContent)
-  // 2. 后处理图表代码块（含清理与危险链接降级）
-  const rendered = await renderDiagrams(htmlContent)
-  if (generation !== renderGeneration) return
-  finalContent.value = rendered
-}
-
-// 监听 content 变化
-watch(
-  () => props.content,
-  async (newContent) => {
-    await renderWithDiagrams(newContent)
+// 流式渲染：token 到达时按渲染耗时自适应节流；
+// 图表只在终稿渲染一次，流式中保留源码块
+const { html: finalContent, update: updateContent } = useProgressiveRender({
+  render: (content, streaming) => {
+    if (!content) return ''
+    return renderDiagrams(render(content), { streaming })
   },
+})
+
+watch(
+  [() => props.content, () => props.isLoading],
+  ([content, loading]) => updateContent(content ?? '', Boolean(loading)),
   { immediate: true },
 )
-
-// 监听 isLoading 变化，loading 结束后重新渲染图表
-watch(
-  () => props.isLoading,
-  async (isLoading) => {
-    if (!isLoading && props.content) {
-      await renderWithDiagrams(props.content)
-    }
-  },
-)
-
-onUnmounted(() => {
-  // 让在途渲染失效，防止卸载后再写入状态
-  renderGeneration++
-})
 
 const extractedImages = computed(() => extractImages(props.content))
 
