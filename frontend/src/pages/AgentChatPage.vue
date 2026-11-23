@@ -147,7 +147,13 @@
             :current-step="currentTodoStep"
             @toggle="toggleTodoListExpanded"
           />
-          <AgentChatInput :loading="streaming" @send="handleSend" @stop="abort" />
+          <AgentChatInput
+            :loading="streaming"
+            :session-id="currentThreadId || threadId"
+            :attachments-enabled="!assetMode"
+            @send="handleSend"
+            @stop="abort"
+          />
         </div>
       </template>
 
@@ -200,13 +206,13 @@ import type { ResourceData, ImageResource, LinkResource } from '@/components/age
 import { AgentStreamError, useAgentStream } from '@/composables/useAgentStream'
 import {
   confirmAction,
+  deleteAgentImage,
   dismissAction,
   getHistory,
   getRecoveryState,
   getSessions,
   resumeSession,
   sendAgentFeedback,
-  uploadAgentImage,
   type AgentImage,
   type HistoryMessage,
   type RecoveryState,
@@ -654,22 +660,17 @@ watch(streaming, (isStreaming) => {
 })
 
 // Handlers
-const handleSend = async (text: string, files: File[] = []) => {
-  if ((!text.trim() && files.length === 0) || streaming.value) return
-  if (assetMode.value && (!assetSpaceId.value || files.length)) {
+const handleSend = async (text: string, uploaded: AgentImage[] = []) => {
+  if ((!text.trim() && uploaded.length === 0) || streaming.value) return
+  if (assetMode.value && uploaded.length) {
+    // 站内找图不用上传；若仍有残留资源，回收后拒绝发送，避免孤儿图片
+    for (const item of uploaded) void deleteAgentImage(item.resourceId).catch(() => {})
     assetError.value = '请先选择团队空间；站内找图使用空间内已有素材'
     return
   }
-
-  // 先上传再发消息：上传拿到的是资源标识，绑定到会话的是标识而不是地址
-  let uploaded: AgentImage[] = []
-  if (files.length > 0) {
-    try {
-      uploaded = await Promise.all(files.map((f) => uploadAgentImage(f)))
-    } catch {
-      message.error('图片上传失败，无法发送消息')
-      return
-    }
+  if (assetMode.value && !assetSpaceId.value) {
+    assetError.value = '请先选择团队空间；站内找图使用空间内已有素材'
+    return
   }
 
   // 清空上一轮的消息与资源，再放入本轮用户消息；
