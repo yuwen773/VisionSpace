@@ -87,4 +87,41 @@ public interface PictureMapper extends BaseMapper<Picture> {
      */
     @Select("SELECT * FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
     Picture selectForUpdate(@Param("id") Long id);
+
+    /**
+     * 公开图库里当前不该被检索的图片 id：审核未通过（待审核、拒绝或状态为空）。
+     *
+     * <p>这类图片可能还留在向量库里：审核撤销只改了数据库，异步删除索引可能
+     * 还没执行。全量同步按这个清单把它们移出索引，索引才会与数据库一致。
+     *
+     * @param pass 审核通过的状态值
+     * @return 图片 id 列表
+     */
+    @Select("""
+            SELECT `id` FROM `picture`
+            WHERE `spaceId` IS NULL AND `isDelete` = 0 AND (`reviewStatus` IS NULL OR `reviewStatus` <> #{pass})
+            """)
+    List<Long> selectNonApprovedPublicPictureIds(@Param("pass") int pass);
+
+    /**
+     * 公开图库里审核通过但正处于隔离状态的图片 id。
+     *
+     * <p>隔离中的图片不对外展示，索引里也不保留；恢复后由隔离流程重新触发同步。
+     *
+     * @param pass         审核通过的状态值
+     * @param resourceType 资源类型标识
+     * @param quarantined  隔离中的状态值
+     * @return 图片 id 列表
+     */
+    @Select("""
+            SELECT p.`id` FROM `picture` p
+            JOIN `resource_isolation` ri
+              ON ri.`resourceId` = p.`id`
+             AND ri.`resourceType` = #{resourceType}
+             AND ri.`status` = #{quarantined}
+            WHERE p.`spaceId` IS NULL AND p.`isDelete` = 0 AND p.`reviewStatus` = #{pass}
+            """)
+    List<Long> selectQuarantinedApprovedPublicPictureIds(@Param("pass") int pass,
+                                                         @Param("resourceType") String resourceType,
+                                                         @Param("quarantined") int quarantined);
 }
