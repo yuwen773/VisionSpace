@@ -72,3 +72,49 @@ export interface PicturePage {
   size: number | null
   pages: number | null
 }
+
+/** 已登录用户（脱敏）；Long 字段同样以字符串到达。 */
+export interface LoginUserVO {
+  id: WireLong
+  userAccount: string | null
+  userName: string | null
+  userAvatar: string | null
+  userProfile: string | null
+  userRole: string | null
+}
+
+/** `/user/wx/login` 与 `/user/wx/bind` 的成功响应。 */
+export interface WxLoginVO {
+  token: string
+  tokenName: string
+  user: LoginUserVO
+}
+
+/** `/space/list/page/vo` 的条目。`spaceType`：0 个人，1 团队。 */
+export interface SpaceVO {
+  id: WireLong
+  spaceName: string | null
+  spaceLevel: number | null
+  spaceType: number | null
+  status: number | null
+  userId: WireLong | null
+  user: PictureUser | null
+  permissionList: string[] | null
+}
+
+export interface SpacePage {
+  records: SpaceVO[] | null
+  total: WireLong | null
+  current: number | null
+  size: number | null
+  pages: number | null
+}
+
+/** `/spaceUser/list/my`：我在各空间里的成员关系（个人空间没有这条记录）。 */
+export interface SpaceUserVO {
+  id: WireLong
+  spaceId: WireLong
+  userId: WireLong
+  spaceRole: string | null
+  space?: SpaceVO | null
+}

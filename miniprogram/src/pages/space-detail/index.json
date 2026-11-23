@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "空间",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 200,
+  "usingComponents": {
+    "picture-card": "/components/picture-card/index"
+  }
+}

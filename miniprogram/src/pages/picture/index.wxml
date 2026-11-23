@@ -5,7 +5,8 @@
 
   <view class="state" wx:elif="{{error}}">
     <view class="state-title">{{error}}</view>
-    <view class="retry-btn" bindtap="onBack">返回</view>
+    <view class="retry-btn" wx:if="{{needsLogin}}" bindtap="onLoginTap">去登录</view>
+    <view class="retry-btn" wx:else bindtap="onBack">返回</view>
   </view>
 
   <block wx:else>

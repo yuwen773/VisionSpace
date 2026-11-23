@@ -46,6 +46,15 @@ describe('toCard', () => {
     expect(card.color).toContain('rgba')
   })
 
+  it('marks quarantined pictures as placeholders even if a URL slipped through', () => {
+    const card = toCard(
+      { id: 11, thumbnailUrl: '/picture/content/11/thumbnail', quarantined: true },
+      resolve,
+    )
+    expect(card.quarantined).toBe(true)
+    expect(card.broken).toBe(true)
+  })
+
   it('accepts the string id produced by the Long serializer', () => {
     const card = toCard({ id: '42', thumbnailUrl: '/picture/content/42/thumbnail' }, resolve)
     expect(card.id).toBe(42)

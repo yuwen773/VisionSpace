@@ -1,7 +1,13 @@
 <view class="page me">
-  <view class="brand">
-    <view class="brand-name">VisionSpace</view>
-    <view class="brand-slogan">用视觉连接灵感</view>
+  <view class="profile">
+    <image wx:if="{{avatarUrl}}" class="avatar" src="{{avatarUrl}}" mode="aspectFill" />
+    <view wx:else class="avatar avatar-fallback">{{initial || 'V'}}</view>
+    <view class="profile-main">
+      <view class="profile-name">{{loggedIn ? displayName : '未登录'}}</view>
+      <view class="profile-sub" wx:if="{{loggedIn}}">ID {{userId}}</view>
+      <view class="profile-sub" wx:else>登录后可浏览个人与团队空间</view>
+    </view>
+    <view class="profile-action" wx:if="{{!loggedIn}}" bindtap="onLoginTap">登录</view>
   </view>
 
   <view class="panel">
@@ -10,14 +16,18 @@
       <text class="row-value">免登录浏览</text>
     </view>
     <view class="row">
-      <text class="row-label">空间浏览与上传</text>
-      <text class="row-value row-value-muted">即将上线</text>
-    </view>
-    <view class="row">
       <text class="row-label">版本</text>
       <text class="row-value">{{version}}</text>
     </view>
   </view>
 
-  <view class="note">登录后可使用个人空间、团队空间与上传功能。</view>
+  <button
+    wx:if="{{loggedIn}}"
+    class="logout-btn"
+    loading="{{busy}}"
+    disabled="{{busy}}"
+    bindtap="onLogout"
+  >退出登录</button>
+
+  <view class="note">VisionSpace · 用视觉连接灵感</view>
 </view>

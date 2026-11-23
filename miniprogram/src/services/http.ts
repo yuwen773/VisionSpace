@@ -1,8 +1,7 @@
 import { API_BASE_URL, API_PREFIX } from '../config/env'
 import { describeError, NETWORK_ERROR_CODE } from '../logic/errors'
-import { getToken, clearToken } from './session'
+import { getToken, getTokenName, clearToken } from './session'
 
-export const TOKEN_HEADER = 'satoken'
 const REQUEST_TIMEOUT_MS = 15000
 
 type RequestMethod = 'GET' | 'POST'
@@ -79,7 +78,7 @@ function buildHeader(auth: boolean): Record<string, string> {
   if (auth) {
     const token = getToken()
     if (token !== '') {
-      header[TOKEN_HEADER] = token
+      header[getTokenName()] = token
     }
   }
   return header

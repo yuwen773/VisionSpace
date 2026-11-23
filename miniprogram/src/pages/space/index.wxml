@@ -1,0 +1,60 @@
+<view class="page space">
+  <block wx:if="{{!loggedIn}}">
+    <view class="brand">
+      <view class="brand-name">空间</view>
+      <view class="brand-slogan">登录后查看个人与团队空间</view>
+    </view>
+    <view class="panel">
+      <view class="row">
+        <text class="row-label">个人空间</text>
+        <text class="row-value">按关键词与颜色找回作品</text>
+      </view>
+      <view class="row">
+        <text class="row-label">团队空间</text>
+        <text class="row-value">浏览你加入的团队图库</text>
+      </view>
+    </view>
+    <button class="primary-btn" bindtap="onLoginTap">微信登录</button>
+  </block>
+
+  <block wx:else>
+    <view class="greeting">
+      <view class="greeting-name">{{userName}}</view>
+      <view class="greeting-sub">共 {{spaces.length}} 个空间</view>
+    </view>
+
+    <view class="state" wx:if="{{loading}}">
+      <view class="state-title">正在加载空间…</view>
+    </view>
+
+    <view class="state" wx:elif="{{error}}">
+      <view class="state-title">{{error}}</view>
+      <view class="retry-btn" bindtap="onRetry">重新加载</view>
+    </view>
+
+    <view class="state" wx:elif="{{spaces.length === 0}}">
+      <view class="state-title">暂时没有空间</view>
+      <view class="state-desc">下拉刷新试试</view>
+    </view>
+
+    <view class="list" wx:else>
+      <view
+        wx:for="{{spaces}}"
+        wx:key="id"
+        class="space-card"
+        data-id="{{item.id}}"
+        data-name="{{item.name}}"
+        bindtap="onSpaceTap"
+      >
+        <view class="space-card-main">
+          <view class="space-name">{{item.name}}</view>
+          <view class="space-meta">
+            <text class="badge">{{item.typeText}}</text>
+            <text class="role">{{item.roleText}}</text>
+          </view>
+        </view>
+        <view class="chevron">›</view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -1,4 +1,4 @@
-import { request } from './http'
+import { request, ApiError } from './http'
 import type {
   PicturePage,
   PictureTagCategory,
@@ -15,6 +15,8 @@ export interface SearchParams {
   pageSize: number
   searchText?: string
   category?: string
+  /** 带 spaceId 时后端按空间鉴权，并且不过滤审核状态（隔离行 URL 会被置空）。 */
+  spaceId?: number
 }
 
 /** 榜单：hot / latest / quality / random，用 context 令牌保证翻页不重复。 */
@@ -45,15 +47,47 @@ export function searchPictures(params: SearchParams): Promise<PicturePage> {
   if (params.category) {
     data.category = params.category
   }
-  return request<PicturePage>({ path: '/picture/list/page/vo', method: 'POST', data })
+  if (typeof params.spaceId === 'number') {
+    data.spaceId = params.spaceId
+  }
+  return request<PicturePage>({
+    path: '/picture/list/page/vo',
+    method: 'POST',
+    data,
+    auth: typeof params.spaceId === 'number',
+  })
 }
 
 export function fetchTagCategory(): Promise<PictureTagCategory> {
   return request<PictureTagCategory>({ path: '/picture/tag_category' })
 }
 
-export function fetchPicture(id: number): Promise<PictureVO> {
-  return request<PictureVO>({ path: '/picture/get/vo', data: { id } })
+/**
+ * 作品详情。先带令牌请求（空间作品需要），令牌过期时后端返回 40100，
+ * 此时退回匿名请求：公开作品照常可看，空间作品会得到 40101 由页面引导登录。
+ */
+export async function fetchPicture(id: number): Promise<PictureVO> {
+  try {
+    return await request<PictureVO>({ path: '/picture/get/vo', data: { id }, auth: true })
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 40100) {
+      return request<PictureVO>({ path: '/picture/get/vo', data: { id } })
+    }
+    throw error
+  }
+}
+
+/**
+ * 按颜色检索空间内最相近的 12 张图片。仅空间内成员可用；公开图库不支持。
+ * 返回值没有分页信息，页面按一次性结果展示。
+ */
+export function searchByColor(spaceId: number, picColor: string): Promise<PictureVO[]> {
+  return request<PictureVO[]>({
+    path: '/picture/search/color',
+    method: 'POST',
+    data: { spaceId, picColor },
+    auth: true,
+  })
 }
 
 /** 匿名行为上报；失败只影响统计，调用方应吞掉异常。 */

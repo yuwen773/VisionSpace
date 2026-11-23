@@ -1,0 +1,55 @@
+<view class="page login">
+  <view class="brand">
+    <view class="brand-name">VisionSpace</view>
+    <view class="brand-slogan">登录后浏览个人与团队空间</view>
+  </view>
+
+  <view class="state" wx:if="{{stage === 'auto'}}">
+    <view class="state-title">正在登录…</view>
+    <view class="state-desc">使用当前微信身份</view>
+  </view>
+
+  <view class="state" wx:elif="{{stage === 'error'}}">
+    <view class="state-title">{{error}}</view>
+    <view class="retry-btn" bindtap="onRetry">重试</view>
+    <view class="back-link" bindtap="goBack">返回</view>
+  </view>
+
+  <block wx:else>
+    <view class="tip">该微信尚未绑定账号，请输入 VisionSpace 账号密码完成绑定（仅需一次）。</view>
+
+    <view class="form">
+      <view class="field">
+        <text class="field-label">账号</text>
+        <input
+          class="field-input"
+          value="{{account}}"
+          placeholder="至少 4 位"
+          placeholder-class="field-placeholder"
+          maxlength="64"
+          bindinput="onAccountInput"
+        />
+      </view>
+      <view class="field">
+        <text class="field-label">密码</text>
+        <input
+          class="field-input"
+          value="{{password}}"
+          password
+          placeholder="至少 8 位"
+          placeholder-class="field-placeholder"
+          maxlength="64"
+          bindinput="onPasswordInput"
+          bindconfirm="onBindSubmit"
+        />
+      </view>
+    </view>
+
+    <view class="error" wx:if="{{error}}">{{error}}</view>
+
+    <button class="submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onBindSubmit">
+      绑定并登录
+    </button>
+    <view class="back-link" bindtap="goBack">暂不登录</view>
+  </block>
+</view>

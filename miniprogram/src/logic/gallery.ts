@@ -31,6 +31,8 @@ export interface GalleryCard {
   tags: string[]
   /** 没有可用的内容入口，展示占位而不是破图。 */
   broken: boolean
+  /** 违规隔离：与「加载失败」区分，占位文案不同。 */
+  quarantined: boolean
 }
 
 export const GRID_COLUMN_WIDTH_RPX = 343
@@ -54,6 +56,7 @@ export function toCard(
   const thumbnail = source.thumbnailUrl
   const imageUrl = typeof thumbnail === 'string' && thumbnail !== '' ? resolveUrl(thumbnail) : ''
   const id = toNumberOrNull(source.id) ?? 0
+  const quarantined = source.quarantined === true
   return {
     id,
     title: nonEmpty(source.name) || `作品 ${id}`,
@@ -62,7 +65,8 @@ export function toCard(
     heightRpx: heightForAspect(aspect, columnWidthRpx),
     color: nonEmpty(source.picColor) || DEFAULT_COLOR,
     tags: (source.tags ?? []).filter((tag) => typeof tag === 'string' && tag !== ''),
-    broken: imageUrl === '',
+    broken: imageUrl === '' || quarantined,
+    quarantined,
   }
 }
 

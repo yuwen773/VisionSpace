@@ -1,17 +1,51 @@
-.brand {
-  padding: 80rpx 8rpx 56rpx;
+.profile {
+  display: flex;
+  align-items: center;
+  padding: 48rpx 8rpx 40rpx;
 }
 
-.brand-name {
+.avatar {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 50%;
+  background: var(--vs-surface-hover);
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vs-primary);
+  font-size: 44rpx;
+  font-weight: 600;
+}
+
+.profile-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: 24rpx;
+}
+
+.profile-name {
+  overflow: hidden;
   color: var(--vs-text);
-  font-size: 52rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
+  font-size: 36rpx;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.brand-slogan {
-  margin-top: 12rpx;
+.profile-sub {
+  margin-top: 8rpx;
   color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.profile-action {
+  padding: 12rpx 36rpx;
+  border: 1rpx solid var(--vs-border-strong);
+  border-radius: 999rpx;
+  color: var(--vs-primary);
   font-size: 26rpx;
 }
 
@@ -44,14 +78,23 @@
   font-size: 26rpx;
 }
 
-.row-value-muted {
-  color: var(--vs-text-tertiary);
+.logout-btn {
+  margin-top: 40rpx;
+  border: 1rpx solid var(--vs-border);
+  border-radius: 999rpx;
+  background: transparent;
+  color: var(--vs-accent);
+  font-size: 28rpx;
+  line-height: 84rpx;
+}
+
+.logout-btn::after {
+  border: none;
 }
 
 .note {
-  margin-top: 32rpx;
-  padding: 0 8rpx;
+  margin-top: 40rpx;
   color: var(--vs-text-tertiary);
-  font-size: 24rpx;
-  line-height: 1.7;
+  font-size: 22rpx;
+  text-align: center;
 }

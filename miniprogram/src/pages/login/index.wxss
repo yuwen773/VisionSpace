@@ -1,0 +1,86 @@
+.brand {
+  padding: 72rpx 8rpx 48rpx;
+}
+
+.brand-name {
+  color: var(--vs-text);
+  font-size: 48rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.brand-slogan {
+  margin-top: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+}
+
+.tip {
+  padding: 0 8rpx 24rpx;
+  color: var(--vs-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.form {
+  overflow: hidden;
+  border-radius: var(--vs-radius-lg);
+  background: var(--vs-surface);
+  box-shadow: var(--vs-shadow-card);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  padding: 28rpx;
+  border-bottom: 1rpx solid var(--vs-border-subtle);
+}
+
+.field:last-child {
+  border-bottom: none;
+}
+
+.field-label {
+  width: 120rpx;
+  color: var(--vs-text);
+  font-size: 28rpx;
+}
+
+.field-input {
+  flex: 1;
+  height: 56rpx;
+  color: var(--vs-text);
+  font-size: 28rpx;
+}
+
+.field-placeholder {
+  color: var(--vs-text-tertiary);
+}
+
+.error {
+  margin-top: 24rpx;
+  padding: 0 8rpx;
+  color: var(--vs-accent);
+  font-size: 24rpx;
+}
+
+.submit {
+  margin-top: 48rpx;
+  border: none;
+  border-radius: 999rpx;
+  background: var(--vs-primary);
+  color: #ffffff;
+  font-size: 30rpx;
+  line-height: 88rpx;
+}
+
+.submit::after {
+  border: none;
+}
+
+.back-link {
+  margin-top: 32rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+  text-align: center;
+}
