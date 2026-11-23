@@ -34,8 +34,8 @@
             {{ metric.label }}
             <em>{{ metric.en }}</em>
           </span>
-          <strong class="cell-value" :class="{ 'is-loading': statsLoading }">
-            {{ statsLoading ? '—' : metric.value }}
+          <strong class="cell-value" :class="{ 'is-loading': statsUnavailable }">
+            {{ statsUnavailable ? '—' : metric.value }}
           </strong>
           <span class="cell-desc">{{ metric.desc }}</span>
         </article>
@@ -61,8 +61,8 @@
             {{ metric.label }}
             <em>{{ metric.en }}</em>
           </span>
-          <strong class="cell-value" :class="{ 'is-loading': statsLoading }">
-            {{ statsLoading ? '—' : metric.value }}
+          <strong class="cell-value" :class="{ 'is-loading': statsUnavailable }">
+            {{ statsUnavailable ? '—' : metric.value }}
           </strong>
           <span class="cell-desc">{{ metric.desc }}</span>
         </article>
@@ -194,7 +194,7 @@ import {
   Cloud,
   HardDrive,
   Image,
-  Plus,
+  MessageSquare,
   RefreshCw,
   Upload,
   Users,
@@ -214,7 +214,11 @@ const { currentTheme } = useTheme()
 
 const dashboardStats = ref<API.AdminDashboardStatsVO>({})
 const statsLoading = ref(false)
+const statsError = ref(false)
 const syncedAt = ref<Date | null>(null)
+
+// 加载中或加载失败都显示「—」：把未知渲染成 0 会让人以为系统真的没有数据
+const statsUnavailable = computed(() => statsLoading.value || statsError.value)
 
 const userTrendData = ref<API.SpaceUserAnalyzeResponse[]>([])
 const userTrendLoading = ref(false)
@@ -234,6 +238,7 @@ const todayLabel = computed(() => {
 })
 
 const syncedLabel = computed(() => {
+  if (statsError.value) return '未同步 · 数据不可用'
   if (!syncedAt.value) return '待同步'
   const time = syncedAt.value
   return `Synced ${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
@@ -320,9 +325,8 @@ const quickActions = [
   { path: '/admin/user_manage', label: '用户管理', icon: Users },
   { path: '/admin/picture_manage', label: '图片管理', icon: Image },
   { path: '/admin/space_manage', label: '空间管理', icon: Cloud },
+  { path: '/admin/feedback_manage', label: '反馈管理', icon: MessageSquare },
   { path: '/admin/storage_config_manage', label: '存储配置', icon: HardDrive },
-  { path: '/add_space', label: '创建空间', icon: Plus },
-  { path: '/add_picture', label: '上传图片', icon: Upload },
 ]
 
 const fetchDashboardStats = async () => {
@@ -332,8 +336,14 @@ const fetchDashboardStats = async () => {
     if (res.data.code === 0 && res.data.data) {
       dashboardStats.value = res.data.data
       syncedAt.value = new Date()
+      statsError.value = false
+    } else {
+      statsError.value = true
+      message.error(res.data.message || '获取仪表盘统计失败')
     }
   } catch {
+    // 失败时保持「—」，不把未知渲染成 0
+    statsError.value = true
     message.error('获取仪表盘统计失败')
   } finally {
     statsLoading.value = false

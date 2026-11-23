@@ -28,6 +28,19 @@ public interface SpaceService extends IService<Space> {
     long addSpace(SpaceAddRequest spaceAddRequest, User loginUser);
 
     /**
+     * 创建空间并指定归属用户。
+     *
+     * <p>普通用户只能给自己创建；管理员可在管理端代其他用户创建。
+     * 权限判断以 operator 身份进行，ownerUserId 只决定空间归属。
+     *
+     * @param spaceAddRequest 空间参数
+     * @param operator        操作者
+     * @param ownerUserId     空间归属用户 id
+     * @return 新空间 id
+     */
+    long addSpaceForOwner(SpaceAddRequest spaceAddRequest, User operator, Long ownerUserId);
+
+    /**
      * 删除空间（逻辑删除），并释放有效空间唯一占位，之后可以重新创建。
      *
      * @param spaceId 空间 id

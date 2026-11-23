@@ -199,7 +199,7 @@ const doLogout = async () => {
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 50%;
+  border-radius: var(--admin-radius-sm);
   color: var(--admin-text-tertiary);
   cursor: pointer;
   transition:

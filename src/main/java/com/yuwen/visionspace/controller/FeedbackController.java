@@ -18,6 +18,7 @@ import com.yuwen.visionspace.model.entity.FeedbackAttachment;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.entity.UserFeedback;
 import com.yuwen.visionspace.model.vo.FeedbackAttachmentVO;
+import com.yuwen.visionspace.model.vo.FeedbackStatsVO;
 import com.yuwen.visionspace.model.vo.FeedbackVO;
 import com.yuwen.visionspace.service.FeedbackAttachmentService;
 import com.yuwen.visionspace.service.FeedbackService;
@@ -95,6 +96,19 @@ public class FeedbackController {
         ThrowUtils.throwIf(queryRequest == null, ErrorCode.PARAMS_ERROR);
         Page<FeedbackVO> result = feedbackService.listFeedbackByPage(queryRequest);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 反馈待办统计（仅管理员）。
+     *
+     * <p>页头「待处理 / 处理中 / 已解决」用全量聚合，不受当前页与分页影响。
+     */
+    @PostMapping("/stats")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<FeedbackStatsVO> feedbackStats(
+            @RequestBody(required = false) FeedbackQueryRequest queryRequest) {
+        Integer type = queryRequest == null ? null : queryRequest.getType();
+        return ResultUtils.success(feedbackService.countByStatus(type));
     }
 
     /**

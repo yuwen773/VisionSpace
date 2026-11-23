@@ -6,17 +6,17 @@
         <MessageSquare :size="19" :stroke-width="1.6" />
       </template>
       <template #extra>
-        <div class="header-stats">
+        <div class="header-stats" :class="{ 'is-stale': !statsReady }">
           <div class="stat-card">
-            <span class="stat-value">{{ stats.pending }}</span>
+            <span class="stat-value">{{ statsReady ? stats.pending : '—' }}</span>
             <span class="stat-label">待处理</span>
           </div>
           <div class="stat-card">
-            <span class="stat-value">{{ stats.processing }}</span>
+            <span class="stat-value">{{ statsReady ? stats.processing : '—' }}</span>
             <span class="stat-label">处理中</span>
           </div>
           <div class="stat-card">
-            <span class="stat-value">{{ stats.resolved }}</span>
+            <span class="stat-value">{{ statsReady ? stats.resolved : '—' }}</span>
             <span class="stat-label">已解决</span>
           </div>
         </div>
@@ -90,6 +90,13 @@
 
     <!-- 数据表格 -->
     <div class="table-card">
+      <div v-if="loadError" class="load-error" role="alert">
+        <div class="load-error-text">
+          <strong>反馈列表没能加载</strong>
+          <span>网络或服务暂时不可用，页面上不是最新数据。</span>
+        </div>
+        <button class="toolbar-btn" @click="retryLoad">重试</button>
+      </div>
       <a-table
         :columns="columns"
         :data-source="dataList"
@@ -184,25 +191,23 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <div class="action-buttons">
-              <a-tooltip title="查看详情">
-                <button class="action-btn" aria-label="查看详情" @click="showDetail(record)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-tooltip v-if="record.status !== 2" title="标记已解决">
-                <button
-                  class="action-btn success"
-                  aria-label="标记已解决"
-                  @click="quickResolve(record)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </button>
-              </a-tooltip>
+              <button class="action-btn labeled" @click="showDetail(record)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>详情</span>
+              </button>
+              <button
+                v-if="record.status !== 2"
+                class="action-btn labeled success"
+                @click="quickResolve(record)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>解决</span>
+              </button>
             </div>
           </template>
         </template>
@@ -398,8 +403,9 @@
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { MessageSquare } from 'lucide-vue-next'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useAdminTableDensity } from '@/composables/useAdminTableDensity'
+import { useUndoable } from '@/composables/useUndoable'
 import dayjs from 'dayjs'
 import ImagePreview from '@/components/ImagePreview.vue'
 import {
@@ -407,6 +413,7 @@ import {
   listFeedbackByPageUsingPost,
   updateFeedbackStatusUsingPost,
 } from '@/api/feedbackController'
+import { getFeedbackStats } from '@/api-custom/adminConsole'
 import { attachmentStatusText } from '@/api-custom/resourceProtection'
 import { contentSrc } from '@/utils'
 import { useLoginUserStore } from '@/stores/userLogin'
@@ -415,17 +422,24 @@ const loginUserStore = useLoginUserStore()
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
 
 const loading = ref(false)
+const loadError = ref(false)
+const totalCount = ref(0)
 const dataList = ref<API.FeedbackVO[]>([])
 const detailVisible = ref(false)
 const currentFeedback = ref<any>(null)
 const previewVisible = ref(false)
 const previewUrl = ref('')
 
+const undo = useUndoable()
+
 const stats = reactive({
   pending: 0,
   processing: 0,
   resolved: 0,
 })
+
+// 统计来自服务端全量聚合；加载失败时页头显示「—」而不是误导性的 0
+const statsReady = ref(false)
 
 const handleForm = reactive({
   status: 0,
@@ -442,7 +456,7 @@ const searchParams = reactive({
 const pagination = computed(() => ({
   current: searchParams.current,
   pageSize: searchParams.pageSize,
-  total: 0,
+  total: totalCount.value,
   showSizeChanger: true,
   position: ['bottomCenter'] as const,
   pageSizeOptions: ['10', '20', '50'],
@@ -459,7 +473,7 @@ const columns = computed(() => {
   const title = { title: '标题', key: 'title', width: 220, ellipsis: true }
   const status = { title: '状态', key: 'status', width: 100, align: 'center' as const }
   const createTime = { title: '提交时间', key: 'createTime', width: 160 }
-  const action = { title: '操作', key: 'action', width: 100 }
+  const action = { title: '操作', key: 'action', width: 152 }
   const pinnedAction = { ...action, fixed: 'right' as const }
 
   if (density.value === 'phone') {
@@ -471,10 +485,10 @@ const columns = computed(() => {
 })
 
 const tableScroll = computed(() => {
-  if (density.value === 'wide') return { x: 870 }
-  if (density.value === 'medium') return { x: 760 }
-  if (density.value === 'narrow') return { x: 600 }
-  return { x: 550 }
+  if (density.value === 'wide') return { x: 922 }
+  if (density.value === 'medium') return { x: 812 }
+  if (density.value === 'narrow') return { x: 652 }
+  return { x: 602 }
 })
 
 const statusTabs = [
@@ -517,10 +531,28 @@ const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
-const updateStats = (records: any[]) => {
-  stats.pending = records.filter((r: any) => r.status === 0).length
-  stats.processing = records.filter((r: any) => r.status === 1).length
-  stats.resolved = records.filter((r: any) => r.status === 2).length
+/** 服务端全量聚合；类型筛选变化时跟着重算 */
+const loadStats = async () => {
+  try {
+    const res = await getFeedbackStats({ type: searchParams.type ?? undefined })
+    if (res.data.code === 0 && res.data.data) {
+      stats.pending = res.data.data.pending
+      stats.processing = res.data.data.processing
+      stats.resolved = res.data.data.resolved
+      statsReady.value = true
+    }
+  } catch {
+    // 统计失败不影响列表；页头保持「—」，避免把未知当成 0
+  }
+}
+
+/** 本地先把数字挪一格，撤销时再挪回来 */
+const bumpStats = (from: number, to: number) => {
+  if (!statsReady.value || from === to) return
+  const field = (status: number): 'pending' | 'processing' | 'resolved' =>
+    status === 0 ? 'pending' : status === 1 ? 'processing' : 'resolved'
+  stats[field(from)] = Math.max(0, stats[field(from)] - 1)
+  stats[field(to)] += 1
 }
 
 const changeStatus = (status: number | null) => {
@@ -566,26 +598,57 @@ const loadDetail = async (id: number) => {
 const blockedAttachmentCount = (record: API.FeedbackVO): number =>
   (record?.attachments ?? []).filter((attachment) => !attachment.url).length
 
-const quickResolve = async (record: any) => {
-  try {
-    const res = await updateFeedbackStatusUsingPost({
-      id: record.id,
-      status: 2,
-      handlerNote: '已快速标记为已解决',
-    })
-    if (res.data.code === 0) {
-      message.success('已标记为已解决')
-      loadData()
-    } else {
-      message.error(res.data.message || '操作失败')
-    }
-  } catch (err) {
-    message.error('操作失败')
-  }
+const quickResolve = (record: any) => {
+  Modal.confirm({
+    title: '把这条反馈标记为已解决？',
+    content: `「${record.title}」会从待办移入已解决，原有处理备注保持不变。5 秒内可撤销。`,
+    okText: '标记已解决',
+    cancelText: '取消',
+    onOk: () => applyResolve(record),
+  })
+}
+
+const applyResolve = (record: any) => {
+  const previousStatus: number = record.status
+  const previousNote: string = record.handlerNote ?? ''
+  record.status = 2
+  bumpStats(previousStatus, 2)
+
+  undo.schedule({
+    key: `feedback-${record.id}`,
+    message: `「${record.title}」已标记为已解决`,
+    commit: async () => {
+      try {
+        const res = await updateFeedbackStatusUsingPost({
+          id: record.id,
+          status: 2,
+          // 快速解决不改写人工备注：只有原本没有备注时才补一条系统说明
+          handlerNote: previousNote || '已快速标记为已解决',
+        })
+        if (res.data.code !== 0) {
+          record.status = previousStatus
+          bumpStats(2, previousStatus)
+          message.error(res.data.message || '标记失败，已恢复原状态')
+        }
+      } catch {
+        record.status = previousStatus
+        bumpStats(2, previousStatus)
+        message.error('标记失败，已恢复原状态')
+      } finally {
+        loadStats()
+        loadData()
+      }
+    },
+    undo: () => {
+      record.status = previousStatus
+      bumpStats(2, previousStatus)
+    },
+  })
 }
 
 const doUpdateStatus = async () => {
   if (!currentFeedback.value) return
+  const previousStatus: number = currentFeedback.value.status
   try {
     const res = await updateFeedbackStatusUsingPost({
       id: currentFeedback.value.id,
@@ -595,11 +658,13 @@ const doUpdateStatus = async () => {
     if (res.data.code === 0) {
       message.success('状态更新成功')
       detailVisible.value = false
+      bumpStats(previousStatus, handleForm.status)
+      loadStats()
       loadData()
     } else {
       message.error(res.data.message || '更新失败')
     }
-  } catch (err) {
+  } catch {
     message.error('更新失败')
   }
 }
@@ -619,20 +684,35 @@ const loadData = async () => {
     })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data.records ?? []
-      updateStats(dataList.value)
+      totalCount.value = res.data.data.total ?? 0
+      loadError.value = false
+    } else {
+      loadError.value = true
+      message.error(res.data.message || '反馈列表加载失败')
     }
+  } catch {
+    // 保留上一次成功的数据，同时在表格上方明确标出「不是最新」
+    loadError.value = true
+    message.error('反馈列表加载失败')
   } finally {
     loading.value = false
   }
 }
 
+const retryLoad = () => {
+  loadData()
+  loadStats()
+}
+
 const doSearch = () => {
   searchParams.current = 1
   loadData()
+  loadStats()
 }
 
 onMounted(() => {
   loadData()
+  loadStats()
 })
 </script>
 
@@ -647,6 +727,11 @@ onMounted(() => {
   display: flex;
   gap: 0;
   border-left: 1px solid var(--admin-border-default);
+
+  /* 统计未取到时不冒充真实数字 */
+  &.is-stale .stat-value {
+    color: var(--admin-text-tertiary);
+  }
 }
 
 .stat-card {
@@ -1080,6 +1165,47 @@ onMounted(() => {
     color: var(--admin-success);
     background: var(--admin-success-bg);
     border-color: color-mix(in srgb, var(--admin-success) 22%, transparent);
+  }
+
+  /* 图标动作补文字：只靠图标认不出「详情」还是「解决」 */
+  &.labeled {
+    width: auto;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: var(--admin-text-xs);
+    font-weight: 600;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+}
+
+/* 列表加载失败：保留旧数据，但明确说明它不是最新的 */
+.load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  padding: var(--admin-space-3) var(--admin-space-4);
+  background: var(--admin-danger-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--admin-danger) 24%, transparent);
+
+  .load-error-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+      font-size: var(--admin-text-sm);
+      color: var(--admin-text-primary);
+    }
+
+    span {
+      font-size: var(--admin-text-xs);
+      color: var(--admin-text-secondary);
+    }
   }
 }
 

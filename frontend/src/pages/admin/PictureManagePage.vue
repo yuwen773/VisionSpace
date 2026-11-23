@@ -1,7 +1,7 @@
 <template>
   <div id="pictureManagePage">
     <!-- 页面头部 -->
-    <AdminPageHeader title="图片管理" subtitle="管理平台所有图片和审核状态" size="md">
+    <AdminPageHeader title="图片管理" subtitle="管理平台所有图片和审核状态" size="lg">
       <template #icon>
         <Image :size="19" :stroke-width="1.6" />
       </template>
@@ -22,6 +22,7 @@
         </svg>
         <a-input
           v-model:value="searchParams.searchText"
+          aria-label="按图片名称搜索"
           placeholder="搜索图片名称..."
           class="search-input"
           @pressEnter="doSearch"
@@ -31,6 +32,7 @@
       <div class="filter-selects">
         <a-select
           v-model:value="searchParams.spaceId"
+          aria-label="按空间筛选"
           placeholder="选择空间"
           class="filter-select"
           allow-clear
@@ -42,6 +44,7 @@
         </a-select>
         <a-select
           v-model:value="searchParams.reviewStatus"
+          aria-label="按审核状态筛选"
           placeholder="审核状态"
           class="filter-select"
           allow-clear
@@ -53,6 +56,7 @@
         </a-select>
         <a-input
           v-model:value="searchParams.category"
+          aria-label="按分类搜索"
           placeholder="搜索分类..."
           class="search-input category-input"
           @pressEnter="doSearch"
@@ -108,7 +112,11 @@
     </div>
 
     <!-- 图片卡片网格 -->
-    <div class="picture-grid" v-if="dataList.length > 0">
+    <div
+      class="picture-grid"
+      v-if="dataList.length > 0"
+      :style="{ counterReset: `plate ${plateOffset}` }"
+    >
       <div
         v-for="record in dataList"
         :key="record.id"
@@ -118,6 +126,7 @@
         <div class="card-checkbox">
           <a-checkbox
             :checked="record.id !== undefined && selectedIds.includes(record.id)"
+            :aria-label="`选择「${record.name || '未命名图片'}」`"
             @change="
               (e: any) => record.id !== undefined && toggleSelect(record.id, e.target.checked)
             "
@@ -158,9 +167,7 @@
           <p class="picture-intro" v-if="record.introduction">{{ record.introduction }}</p>
 
           <div class="info-tags" v-if="record.category || parseTags(record.tags).length">
-            <a-tag v-if="record.category" color="blue" class="category-tag">{{
-              record.category
-            }}</a-tag>
+            <a-tag v-if="record.category" class="category-tag">{{ record.category }}</a-tag>
             <a-tag v-for="tag in parseTags(record.tags).slice(0, 2)" :key="tag" class="tag-item">{{
               tag
             }}</a-tag>
@@ -225,78 +232,61 @@
               dayjs(record.createTime).format('YYYY-MM-DD HH:mm')
             }}</span>
             <div class="action-btns">
-              <a-tooltip
-                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '编辑'"
+              <button
+                class="action-btn success labeled"
+                aria-label="通过审核"
+                :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
+                :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.PASS)"
               >
-                <button
-                  class="action-btn"
-                  aria-label="编辑图片"
-                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
-                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
-                  @click="record.id !== undefined && goToEdit(record.id)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-tooltip
-                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '已通过' : '通过'"
-              >
-                <button
-                  class="action-btn success"
-                  aria-label="通过审核"
-                  :class="{ disabled: record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS }"
-                  :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
-                  @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.PASS)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </button>
-              </a-tooltip>
-              <a-tooltip
-                :title="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ? '已拒绝' : '拒绝'"
-              >
-                <button
-                  class="action-btn danger"
-                  aria-label="拒绝审核"
-                  :class="{
-                    disabled:
-                      record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
-                      record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS,
-                  }"
-                  :disabled="
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                通过
+              </button>
+              <button
+                class="action-btn danger labeled"
+                aria-label="拒绝审核"
+                :class="{
+                  disabled:
                     record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
-                    record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS
-                  "
-                  @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.REJECT)"
+                    record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS,
+                }"
+                :disabled="
+                  record.reviewStatus === PIC_REVIEW_STATUS_ENUM.REJECT ||
+                  record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS
+                "
+                @click="handleReview(record, PIC_REVIEW_STATUS_ENUM.REJECT)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                拒绝
+              </button>
+              <a-dropdown trigger="click" placement="bottomRight">
+                <button
+                  class="action-btn labeled"
+                  :aria-label="`更多操作：${record.name || '未命名图片'}`"
                 >
+                  更多
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                    <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-              </a-tooltip>
-              <a-popconfirm
-                title="删除该图片？"
-                ok-text="删除"
-                cancel-text="取消"
-                @confirm="doDelete(record.id)"
-                placement="topRight"
-              >
-                <a-tooltip title="删除">
-                  <button class="action-btn danger" aria-label="删除图片">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path
-                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                      ></path>
-                    </svg>
-                  </button>
-                </a-tooltip>
-              </a-popconfirm>
+                <template #overlay>
+                  <a-menu @click="(info: any) => onPictureAction(String(info.key), record)">
+                    <a-menu-item
+                      key="edit"
+                      :disabled="record.reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS"
+                    >
+                      编辑图片
+                    </a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item key="delete" danger>删除图片</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </div>
           </div>
         </div>
@@ -324,24 +314,70 @@
         :show-total="(total: number) => `共 ${total} 张图片`"
       />
     </div>
+    <!-- 编辑抽屉：在管理端完成，不再跳转到用户侧表单 -->
+    <a-drawer
+      v-model:open="drawerVisible"
+      title="编辑图片"
+      width="480"
+      class="picture-drawer"
+      :destroy-on-close="true"
+    >
+      <a-spin :spinning="drawerLoading">
+        <a-form layout="vertical" :model="editForm" @finish="submitEditDrawer">
+          <a-form-item label="图片名称" required>
+            <a-input v-model:value="editForm.name" :maxlength="80" show-count />
+          </a-form-item>
+          <a-form-item label="简介">
+            <a-textarea
+              v-model:value="editForm.introduction"
+              :rows="4"
+              :maxlength="800"
+              show-count
+              placeholder="这张图片讲了什么"
+            />
+          </a-form-item>
+          <a-form-item label="分类">
+            <a-input v-model:value="editForm.category" placeholder="如：风景" />
+          </a-form-item>
+          <a-form-item label="标签">
+            <a-select
+              v-model:value="editForm.tags"
+              mode="tags"
+              placeholder="输入后回车添加"
+              :token-separators="[',', '，']"
+            />
+          </a-form-item>
+        </a-form>
+      </a-spin>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button @click="drawerVisible = false">取消</a-button>
+          <a-button type="primary" :loading="drawerSubmitting" @click="submitEditDrawer">
+            保存修改
+          </a-button>
+        </div>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
 <script lang="ts" setup>
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { Image } from 'lucide-vue-next'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import {
   deletePictureUsingPost,
   doPictureReviewUsingPost,
+  getPictureByIdUsingGet,
   listPictureByPageUsingPost,
+  updatePictureUsingPost,
 } from '@/api/pictureController.ts'
 import { listSpaceByPageUsingPost } from '@/api/spaceController.ts'
-import { message } from 'ant-design-vue'
-import { useRouter } from 'vue-router'
+import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture.ts'
 import { contentSrc, formatSize } from '@/utils'
+import { useUndoable } from '@/composables/useUndoable'
 
 // 内容入口可能对无权限或无资源记录的图片返回 403/404，用中性的纸面占位兜底。
 // 占位本身也做客制化：一个细描边的空画框 + 双语小字，深浅主题下都不突兀。
@@ -361,7 +397,7 @@ const FALLBACK_IMAGE =
     ].join(''),
   )
 
-const router = useRouter()
+const undo = useUndoable()
 
 // 管理端列表走 /picture/list/page，只返回元数据（不含原图、缩略图与预览地址）；
 // 统计字段由图片统计接口单独提供，这里声明为可选，避免伪造出「一定存在」的类型。
@@ -384,6 +420,11 @@ const searchParams = reactive<API.PictureQueryRequest>({
   sortOrder: 'descend',
   sortField: 'createTime',
 })
+
+// PLATE 编号跨页连续：第 2 页从 21 开始，而不是每页都从 01 重来
+const plateOffset = computed(
+  () => (Number(searchParams.current ?? 1) - 1) * Number(searchParams.pageSize ?? 20),
+)
 
 // 空间下拉要取全量：只取第一页 100 条时，空间一多就有选项静默消失，筛选永远找不到。
 // 逐页取到 total 为止，并留一个上限避免异常数据把请求打爆。
@@ -469,20 +510,47 @@ const toggleSelect = (id: number, checked: boolean) => {
   }
 }
 
-const doDelete = async (id: number | undefined) => {
+const confirmDelete = (record: API.Picture) => {
+  if (!record.id) return
+  Modal.confirm({
+    title: `删除图片「${record.name || '未命名图片'}」？`,
+    content: '图片及其互动记录会被移除。5 秒内可撤销。',
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: () => applyDelete(record),
+  })
+}
+
+const applyDelete = (record: API.Picture) => {
+  const id = record.id
   if (!id) return
-  try {
-    const res = await deletePictureUsingPost({ id })
-    if (res.data.code === 0) {
-      message.success('图片已删除')
-      selectedIds.value = selectedIds.value.filter((k) => k !== id)
-      await fetchData()
-    } else {
-      message.error('删除失败：' + res.data.message)
-    }
-  } catch (error) {
-    message.error('删除失败')
-  }
+  const index = dataList.value.findIndex((row) => row.id === id)
+  if (index < 0) return
+  dataList.value.splice(index, 1)
+  total.value = Math.max(0, total.value - 1)
+  selectedIds.value = selectedIds.value.filter((key) => key !== id)
+
+  undo.schedule({
+    key: `picture-delete-${id}`,
+    message: `「${record.name || '未命名图片'}」已删除`,
+    commit: async () => {
+      try {
+        const res = await deletePictureUsingPost({ id })
+        if (res.data.code !== 0) {
+          message.error(res.data.message || '删除失败，已恢复')
+        }
+      } catch {
+        message.error('删除失败，已恢复')
+      } finally {
+        await fetchData()
+      }
+    },
+    undo: () => {
+      dataList.value.splice(Math.min(index, dataList.value.length), 0, record)
+      total.value += 1
+    },
+  })
 }
 
 const handleReview = async (record: API.Picture, reviewStatus: number) => {
@@ -529,8 +597,26 @@ const batchReview = async (reviewStatus: number, reviewMessage: string) => {
   }
 }
 
-const batchApprove = () => batchReview(PIC_REVIEW_STATUS_ENUM.PASS, '管理员批量通过')
-const batchReject = () => batchReview(PIC_REVIEW_STATUS_ENUM.REJECT, '管理员批量拒绝')
+const confirmBatchReview = (reviewStatus: number) => {
+  const count = selectedIds.value.length
+  if (!count) return
+  const verb = reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '通过' : '拒绝'
+  Modal.confirm({
+    title: `${verb}选中的 ${count} 张图片？`,
+    content: `审核结果会立即对用户可见，可在单张图片上重新审核。`,
+    okText: `批量${verb}`,
+    okType: reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? 'primary' : 'danger',
+    cancelText: '取消',
+    onOk: () =>
+      batchReview(
+        reviewStatus,
+        reviewStatus === PIC_REVIEW_STATUS_ENUM.PASS ? '管理员批量通过' : '管理员批量拒绝',
+      ),
+  })
+}
+
+const batchApprove = () => confirmBatchReview(PIC_REVIEW_STATUS_ENUM.PASS)
+const batchReject = () => confirmBatchReview(PIC_REVIEW_STATUS_ENUM.REJECT)
 
 // 标签可能是数组，也可能是 JSON / 逗号分隔的字符串，统一归一化后再渲染
 const parseTags = (tags: unknown): string[] => {
@@ -557,8 +643,81 @@ const getStatusClass = (status: number) => {
   return classMap[status] || 'reviewing'
 }
 
-const goToEdit = (id: number) => {
-  router.push(`/add_picture?id=${id}`)
+/* ---------- 管理端编辑抽屉：不再跳转到用户侧 /add_picture ---------- */
+const drawerVisible = ref(false)
+const drawerLoading = ref(false)
+const drawerSubmitting = ref(false)
+const editingPicture = ref<API.Picture | null>(null)
+const editForm = reactive({
+  name: '',
+  introduction: '',
+  category: '',
+  tags: [] as string[],
+})
+
+const openEditDrawer = async (record: API.Picture) => {
+  const id = record.id
+  if (!id) return
+  editingPicture.value = record
+  editForm.name = record.name ?? ''
+  editForm.introduction = record.introduction ?? ''
+  editForm.category = record.category ?? ''
+  editForm.tags = parseTags(record.tags)
+  drawerVisible.value = true
+
+  drawerLoading.value = true
+  try {
+    // 列表只返回元数据，详情补一次以保证编辑的是最新值
+    const res = await getPictureByIdUsingGet({ id })
+    if (res.data.code === 0 && res.data.data) {
+      const picture = res.data.data
+      editingPicture.value = picture
+      editForm.name = picture.name ?? ''
+      editForm.introduction = picture.introduction ?? ''
+      editForm.category = picture.category ?? ''
+      editForm.tags = parseTags(picture.tags)
+    }
+  } catch {
+    // 列表数据已足够编辑，详情失败不阻塞
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+const submitEditDrawer = async () => {
+  const id = editingPicture.value?.id
+  if (!id || drawerSubmitting.value) return
+  const name = editForm.name.trim()
+  if (!name) {
+    message.warning('请填写图片名称')
+    return
+  }
+  drawerSubmitting.value = true
+  try {
+    const res = await updatePictureUsingPost({
+      id,
+      name,
+      introduction: editForm.introduction,
+      category: editForm.category,
+      tags: editForm.tags,
+    })
+    if (res.data.code === 0) {
+      message.success('图片信息已更新')
+      drawerVisible.value = false
+      await fetchData()
+    } else {
+      message.error(res.data.message || '保存失败')
+    }
+  } catch {
+    message.error('保存失败')
+  } finally {
+    drawerSubmitting.value = false
+  }
+}
+
+const onPictureAction = (key: string, record: API.Picture) => {
+  if (key === 'edit') openEditDrawer(record)
+  else if (key === 'delete') confirmDelete(record)
 }
 </script>
 
@@ -1068,6 +1227,26 @@ const goToEdit = (id: number) => {
     opacity: 0.4;
     cursor: not-allowed;
   }
+
+  /* 审核动作补文字，卡片底部不再只靠图标辨认 */
+  &.labeled {
+    width: auto;
+    gap: 5px;
+    padding: 0 8px;
+    font-size: var(--admin-text-xs);
+    font-weight: 600;
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--admin-space-3);
 }
 
 /* ========== 空状态 & 加载 ========== */
