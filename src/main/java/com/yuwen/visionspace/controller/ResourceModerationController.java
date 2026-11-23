@@ -14,11 +14,14 @@ import com.yuwen.visionspace.model.enums.ResourceIsolationStatusEnum;
 import com.yuwen.visionspace.model.enums.ResourceTypeEnum;
 import com.yuwen.visionspace.model.vo.ModerationResourceVO;
 import com.yuwen.visionspace.service.FeedbackAttachmentService;
+import com.yuwen.visionspace.service.PictureEmbeddingService;
 import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.ResourceIsolationService;
 import com.yuwen.visionspace.service.UserService;
 import com.yuwen.visionspace.utils.IdentifierUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
@@ -54,6 +57,10 @@ public class ResourceModerationController {
     @Resource
     private UserService userService;
 
+    // 站内向量检索（RAG）默认关闭；关闭时该 Bean 不存在，调用点统一判空。
+    @Autowired
+    private ObjectProvider<PictureEmbeddingService> pictureEmbeddingServiceProvider;
+
     /**
      * 隔离资源。
      */
@@ -67,6 +74,7 @@ public class ResourceModerationController {
         requireTarget(valid.getResourceType(), resourceId);
         ResourceIsolation isolation = resourceIsolationService.quarantine(
                 valid.getResourceType(), resourceId, operator, valid.getReason());
+        syncPictureIndex(valid.getResourceType(), resourceId);
         return ResultUtils.success(toVOs(List.of(isolation)).get(0));
     }
 
@@ -83,6 +91,7 @@ public class ResourceModerationController {
         requireTarget(valid.getResourceType(), resourceId);
         ResourceIsolation isolation = resourceIsolationService.release(
                 valid.getResourceType(), resourceId, operator, valid.getReason());
+        syncPictureIndex(valid.getResourceType(), resourceId);
         return ResultUtils.success(toVOs(List.of(isolation)).get(0));
     }
 
@@ -130,6 +139,24 @@ public class ResourceModerationController {
             ThrowUtils.throwIf(feedbackAttachmentService.getById(resourceId) == null,
                     ErrorCode.NOT_FOUND_ERROR, "附件不存在");
         }
+    }
+
+    /**
+     * 处置之后同步公开图库索引。
+     *
+     * <p>隔离中的图片不对外展示，不应继续留在检索索引里；恢复之后如果它仍是
+     * 审核通过的公开图片，重新写回索引。同步以数据库当前状态为准。
+     */
+    private void syncPictureIndex(String resourceType, long resourceId) {
+        if (!ResourceTypeEnum.PICTURE.getValue().equals(resourceType)) {
+            return;
+        }
+        PictureEmbeddingService embeddings = pictureEmbeddingServiceProvider.getIfAvailable();
+        if (embeddings == null) {
+            // 未开启站内检索时没有索引可同步
+            return;
+        }
+        embeddings.syncPictureIndex(resourceId);
     }
 
     /**

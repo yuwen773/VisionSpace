@@ -1,0 +1,21 @@
+# 隔离验收里的站内检索配置。
+#
+# 与开发默认（application.yml 的 vectorstore.type=none）分开：只有显式把这一份
+# 加进 spring.config.location 时才装配站内检索。默认环境不因此多出向量库依赖。
+#
+# 隔离环境没有 Chroma 服务：地址指向必定拒绝连接的端口。这里要验证的是
+# 「装配真实 Bean、健康信号如实反映、检索降级而不是报错」，不是检索命中。
+spring:
+  ai:
+    model:
+      embedding:
+        # 向量库的嵌入模型由验收替身提供，这里不启用在线 embedding
+        text: none
+    vectorstore:
+      type: chroma
+      chroma:
+        client:
+          host: http://127.0.0.1
+          port: 1
+        collection-name: acceptance_picture_vectors
+        initialize-schema: true

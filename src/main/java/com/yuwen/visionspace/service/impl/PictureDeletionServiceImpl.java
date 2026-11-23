@@ -112,10 +112,11 @@ public class PictureDeletionServiceImpl implements PictureDeletionService {
             }
             return lockedPicture;
         });
-        // 异步删除向量嵌入
+        // 索引同步：图片已被删除，同步时按数据库当前状态判定为移出索引。
+        // 放在事务之后，事务回滚时索引不该先一步把文档删掉。
         PictureEmbeddingService embeddings = embeddingService();
         if (embeddings != null) {
-            embeddings.deleteEmbedding(pictureId);
+            embeddings.syncPictureIndex(pictureId);
         }
         // 对象清理放在事务之后：图片记录此时已经删除，隔离无法再针对它生效，
         // 因此不会与处置流程抢同一份内容。

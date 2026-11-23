@@ -296,13 +296,15 @@ public class PictureUploadServiceImpl implements PictureUploadService {
             throw e;
         }
         picturePreviewService.generateAndUpdatePreview(picture.getId(), uploadPictureResult.getUrl());
-        // 异步生成向量嵌入（仅审核通过的公开图片）
+        // 写入公开图库索引（仅审核通过的公开图片）。是否真的可检索由索引服务按
+        // 数据库当前状态判定；这里的条件只省掉空间图片与待审核图片的无谓调用。
+        // 调用点在事务提交之后，索引不会读到未提交的状态。
         if (picture.getReviewStatus() != null
                 && picture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
                 && picture.getSpaceId() == null) {
             PictureEmbeddingService embeddings = embeddingService();
             if (embeddings != null) {
-                embeddings.generateAndStoreEmbedding(picture);
+                embeddings.syncPictureIndex(picture.getId());
             }
         }
         PictureVO pictureVO = PictureVO.objToVo(picture);

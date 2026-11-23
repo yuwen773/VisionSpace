@@ -33,6 +33,7 @@ import com.yuwen.visionspace.service.PictureService;
 import com.yuwen.visionspace.service.PictureStatsService;
 import com.yuwen.visionspace.service.SpaceService;
 import com.yuwen.visionspace.service.UserService;
+import com.yuwen.visionspace.utils.AfterCommitExecutor;
 import com.yuwen.visionspace.utils.ColorSimilarUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -234,16 +235,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         updatePicture.setReviewTime(new Date());
         boolean result = this.updateById(updatePicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        // 审核通过且为公开图片时，异步生成向量嵌入
-        if (pictureReviewRequest.getReviewStatus() != null
-                && pictureReviewRequest.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())
-                && oldPicture.getSpaceId() == null) {
-            Picture reviewedPicture = this.getById(id);
-            PictureEmbeddingService embeddings = embeddingService();
-            if (reviewedPicture != null && embeddings != null) {
-                embeddings.generateAndStoreEmbedding(reviewedPicture);
-            }
-        }
+        // 索引跟随图片当前的审核状态：审核通过则写入索引，被拒绝或撤审则移出索引。
+        // 这里只给图片 id，同步时以数据库当前状态为准——用改动前的对象重建索引，
+        // 会让一张已转入待审核的公开图片带着旧内容继续留在索引里。
+        syncPictureIndex(id);
     }
 
     /**
@@ -288,14 +283,25 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        // 异步更新向量嵌入（仅审核通过的公开图片）
-        if (oldPicture.getSpaceId() == null && oldPicture.getReviewStatus() != null
-                && oldPicture.getReviewStatus().equals(PictureReviewStatusEnum.PASS.getValue())) {
-            PictureEmbeddingService embeddings = embeddingService();
-            if (embeddings != null) {
-                embeddings.updateEmbedding(oldPicture);
-            }
+        // 索引跟随图片编辑后的当前状态：编辑后转入待审核的图片要移出索引，
+        // 仍然审核通过的才按新内容重建。同步只给图片 id，不传改动前的对象。
+        syncPictureIndex(id);
+    }
+
+    /**
+     * 触发公开图库索引同步。
+     *
+     * <p>没有开启站内检索时不存在这个服务，直接跳过。同步在事务提交后执行：
+     * 事务回滚时索引不该已经按未提交的状态改过。
+     *
+     * @param pictureId 图片 id
+     */
+    private void syncPictureIndex(Long pictureId) {
+        PictureEmbeddingService embeddings = embeddingService();
+        if (embeddings == null) {
+            return;
         }
+        AfterCommitExecutor.run(() -> embeddings.syncPictureIndex(pictureId));
     }
 
     /**
@@ -497,7 +503,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         return pictureEmbeddingServiceProvider.getIfAvailable();
     }
 }
-
 
 
 

@@ -3,6 +3,7 @@ package com.yuwen.visionspace.agent.tools;
 import com.yuwen.visionspace.agent.model.ImageCategoryEnum;
 import com.yuwen.visionspace.agent.model.ImageResource;
 import com.yuwen.visionspace.rag.PictureIndex;
+import com.yuwen.visionspace.rag.PublicGalleryIndexReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,12 +24,18 @@ import static org.mockito.Mockito.when;
 
 /**
  * 站内检索的可见范围只由索引契约决定，模型参数无法扩大它。
+ *
+ * <p>向量命中之后必须复核：复核逻辑在 {@link PublicGalleryIndexReader} 里，
+ * 这里只断言工具把候选交给复核，并把复核结果原样返回。
  */
 @ExtendWith(MockitoExtension.class)
 class InternalImageSearchToolTest {
 
     @Mock
     private VectorStore vectorStore;
+
+    @Mock
+    private PublicGalleryIndexReader reader;
 
     @InjectMocks
     private InternalImageSearchTool tool;
@@ -60,19 +67,34 @@ class InternalImageSearchToolTest {
     }
 
     @Test
-    void documentsWithAnImageUrlBecomeContentResources() {
-        Document withUrl = new Document("picture_1", "蓝色渐变背景",
+    void vectorCandidatesAreRecheckedBeforeTheyAreReturned() {
+        Document stale = new Document("picture_1", "蓝色渐变背景",
                 Map.of("imageUrl", "https://example.com/a.png"));
-        Document withoutUrl = new Document("picture_2", "无地址", Map.of("imageUrl", ""));
-        when(vectorStore.similaritySearch(any(SearchRequest.class)))
-                .thenReturn(List.of(withUrl, withoutUrl));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(stale));
+        ImageResource verified = ImageResource.builder()
+                .category(ImageCategoryEnum.CONTENT)
+                .url("https://example.com/a.png")
+                .description("蓝色渐变背景")
+                .source("internal")
+                .build();
+        when(reader.present(List.of(stale))).thenReturn(List.of(verified));
 
         List<ImageResource> results = tool.searchInternalImages("蓝色", 3);
 
+        verify(reader).present(List.of(stale));
         assertEquals(1, results.size());
         assertEquals("https://example.com/a.png", results.get(0).getUrl());
-        assertEquals("蓝色渐变背景", results.get(0).getDescription());
         assertEquals("internal", results.get(0).getSource());
-        assertEquals(ImageCategoryEnum.CONTENT, results.get(0).getCategory());
+    }
+
+    @Test
+    void candidatesDroppedByTheRecheckAreNotReturned() {
+        Document stale = new Document("picture_1", "蓝色渐变背景",
+                Map.of("imageUrl", "https://example.com/a.png"));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(stale));
+        when(reader.present(List.of(stale))).thenReturn(List.of());
+
+        assertEquals(0, tool.searchInternalImages("蓝色", 3).size(),
+                "复核不通过的候选不得进入结果");
     }
 }
