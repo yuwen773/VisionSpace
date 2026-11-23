@@ -110,8 +110,19 @@ export function useAgentStream() {
     Object.assign(messages.value[index], updates)
   }
 
+  /** 结束仍在流式中的气泡：取消或错误后不能让它一直显示光标。 */
+  const finishStreamingMessages = () => {
+    for (let i = messages.value.length - 1; i >= 0; i--) {
+      const msg = messages.value[i]
+      if ((msg.type === 'assistant' || msg.type === 'reasoning') && msg.isLoading) {
+        msg.isLoading = false
+      }
+    }
+  }
+
   /** 中止在途请求并让它的所有回调失效。 */
   const invalidateStream = () => {
+    finishStreamingMessages()
     streamEpoch++
     if (abortController) {
       abortController.abort()
@@ -168,6 +179,14 @@ export function useAgentStream() {
     const seenResults = new Set<string>()
     const seenEvents = new Set<string>()
     const boardVersions = new Map<string, number>()
+
+    /** 结束思考块：思考内容在下一个消息块出现时就不再流式了。 */
+    const closeReasoning = () => {
+      if (reasoningMsgIndex !== -1) {
+        updateMessage(reasoningMsgIndex, { isLoading: false })
+        reasoningMsgIndex = -1
+      }
+    }
 
     // 同时接受 JSON：归属或登录校验失败时后端返回的是普通 JSON 错误，
     // 只声明 text/event-stream 会把它变成无法读取的 406。
@@ -300,7 +319,7 @@ export function useAgentStream() {
 
             switch (msgDto.messageType) {
               case 'assistant':
-                reasoningMsgIndex = -1
+                closeReasoning()
                 streamContent += msgDto.content || ''
                 lastAssistantContent = msgDto.content || ''
                 if (assistantMsgIndex === -1) {
@@ -319,7 +338,12 @@ export function useAgentStream() {
               case 'reasoning':
                 if (reasoningMsgIndex === -1) {
                   reasoningMsgIndex = messages.value.length
-                  pushMessage({ type: 'reasoning', content: msgDto.content || '', node: 'agent' })
+                  pushMessage({
+                    type: 'reasoning',
+                    content: msgDto.content || '',
+                    node: 'agent',
+                    isLoading: true,
+                  })
                 } else {
                   updateMessage(reasoningMsgIndex, {
                     content: messages.value[reasoningMsgIndex].content + (msgDto.content || ''),
@@ -328,8 +352,8 @@ export function useAgentStream() {
                 break
 
               case 'tool-request': {
+                closeReasoning()
                 assistantMsgIndex = -1
-                reasoningMsgIndex = -1
                 streamContent = ''
                 const toolCalls = msgDto.toolCalls || []
                 for (const tc of toolCalls) {
@@ -353,8 +377,8 @@ export function useAgentStream() {
 
               case 'tool-confirm':
               case 'mcp-confirm':
+                closeReasoning()
                 assistantMsgIndex = -1
-                reasoningMsgIndex = -1
                 streamContent = ''
                 if (
                   !messages.value.some(
@@ -372,8 +396,8 @@ export function useAgentStream() {
               // 外部结果未知：与明确失败分开。这里不当作错误重试，
               // 用户需要先核对动作是否真的发生。
               case 'action-unknown':
+                closeReasoning()
                 assistantMsgIndex = -1
-                reasoningMsgIndex = -1
                 streamContent = ''
                 pushMessage({
                   type: 'action-unknown',
@@ -384,8 +408,8 @@ export function useAgentStream() {
                 break
 
               case 'tool-response': {
+                closeReasoning()
                 assistantMsgIndex = -1
-                reasoningMsgIndex = -1
                 streamContent = ''
                 const toolContent = msgDto.content || ''
                 pushMessage({
@@ -401,8 +425,12 @@ export function useAgentStream() {
               // 服务端运行期失败：单独落成一条错误消息，
               // 而不是让流无声结束，用户至少知道这次没有成功。
               case 'error':
+                closeReasoning()
+                // 失败前已经流出的半个回答要停止光标，否则看起来还在生成
+                if (assistantMsgIndex !== -1) {
+                  updateMessage(assistantMsgIndex, { isLoading: false })
+                }
                 assistantMsgIndex = -1
-                reasoningMsgIndex = -1
                 streamContent = ''
                 pushMessage({
                   type: 'error',
@@ -413,6 +441,7 @@ export function useAgentStream() {
 
               // 显式结束帧：与 onclose 做同一件事，保持幂等
               case 'done':
+                closeReasoning()
                 if (assistantMsgIndex !== -1) {
                   updateMessage(assistantMsgIndex, { isLoading: false })
                 }
@@ -429,6 +458,7 @@ export function useAgentStream() {
           if (lastAssistantContent) {
             extractResources(streamContent)
           }
+          closeReasoning()
           if (assistantMsgIndex !== -1) {
             updateMessage(assistantMsgIndex, { isLoading: false })
           }
@@ -437,6 +467,7 @@ export function useAgentStream() {
         onerror(err) {
           if (!isCurrent()) return
           console.error('SSE error:', err)
+          closeReasoning()
           if (assistantMsgIndex !== -1) {
             updateMessage(assistantMsgIndex, { isLoading: false })
           }

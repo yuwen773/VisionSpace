@@ -128,7 +128,8 @@
         <!-- 消息列表 -->
         <AgentMessageList
           :messages="messages"
-          :loading="streaming || historyLoading"
+          :loading="streaming || historyLoading || regenerating"
+          :busy="regenerating"
           :session-id="currentThreadId || threadId"
           :asset-results="assetResults"
           @refresh-asset="refreshAsset"
@@ -200,6 +201,7 @@ import SettingsModal from '@/components/agent/settings/SettingsModal.vue'
 import RecoveryBanner from '@/components/agent/RecoveryBanner.vue'
 import { searchAssets, readAssetResult, type AssetResult } from '@/api-custom/assetSearch'
 import { listMyTeamSpaceUsingPost } from '@/api/spaceUserController'
+import { feedbackUsingPost } from '@/api/agentController'
 import { useLoginUserStore } from '@/stores/userLogin'
 import { useRoute, useRouter } from 'vue-router'
 import type { ResourceData, ImageResource, LinkResource } from '@/components/agent/types'
@@ -212,7 +214,6 @@ import {
   getRecoveryState,
   getSessions,
   resumeSession,
-  sendAgentFeedback,
   type AgentImage,
   type HistoryMessage,
   type RecoveryState,
@@ -662,6 +663,10 @@ watch(streaming, (isStreaming) => {
 // Handlers
 const handleSend = async (text: string, uploaded: AgentImage[] = []) => {
   if ((!text.trim() && uploaded.length === 0) || streaming.value) return
+  if (regenerating.value) {
+    message.info('正在重新生成，请稍候')
+    return
+  }
   if (assetMode.value && uploaded.length) {
     // 站内找图不用上传；若仍有残留资源，回收后拒绝发送，避免孤儿图片
     for (const item of uploaded) void deleteAgentImage(item.resourceId).catch(() => {})
@@ -720,13 +725,21 @@ const handleRegenerate = async () => {
   const id = currentThreadId.value || threadId.value
   if (!id || streaming.value || regenerating.value) return
   regenerating.value = true
+  // 请求期间可能切到别的会话：结果只属于发起时的那个会话
+  const isSameSession = () => (currentThreadId.value || threadId.value) === id
   try {
-    const res = await sendAgentFeedback({
-      threadId: id,
-      satisfied: false,
-      reason: '重新生成',
-      action: 'regenerate',
-    })
+    const res = await feedbackUsingPost(
+      {
+        threadId: id,
+        satisfied: false,
+        reason: '重新生成',
+        // 后端枚举按大写序列化，发送小写会直接 400
+        action: 'REGENERATE',
+      },
+      // 重新生成要等模型完整跑完，默认 5 秒超时必然失败
+      { timeout: 120000 },
+    )
+    if (!isSameSession()) return
     if (res.data?.code !== 0) {
       message.warning(res.data?.message || '重新生成失败，请稍后重试')
       return
@@ -741,18 +754,22 @@ const handleRegenerate = async () => {
       })
     }
   } catch (error) {
+    if (!isSameSession()) return
     message.error(error instanceof Error ? error.message : '重新生成失败，请重试')
   } finally {
-    regenerating.value = false
+    if (isSameSession()) regenerating.value = false
     await loadRecoveryState()
   }
 }
 
-const handleNewChat = () => {  saveThreadId('')
+const handleNewChat = () => {
+  saveThreadId('')
   currentThreadId.value = ''
   threadId.value = generateThreadId()
   // 先中止在途流：resetStream 只清本地状态，不会停止仍在校验/生成的请求
   abort()
+  // 在途的重新生成属于旧会话，不能让它的 busy 状态带到新会话
+  regenerating.value = false
   resetStream()
   clearAssetResults(false)
   showTodoList.value = false
@@ -764,6 +781,7 @@ const handleSelectHistory = async (id: string) => {
   if (isNarrowViewport()) leftCollapsed.value = true
   // 切换会话必须先停下旧流，否则旧会话的输出会继续写进新会话
   abort()
+  regenerating.value = false
   currentThreadId.value = id
   threadId.value = id
   saveThreadId(id)

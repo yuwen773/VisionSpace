@@ -48,7 +48,7 @@
           class="action-icon-btn"
           title="重新生成"
           aria-label="重新生成"
-          :disabled="isLoading"
+          :disabled="isLoading || busy"
           @click="emit('regenerate')"
         >
           <svg
@@ -146,12 +146,15 @@ import type { ImageResource, ResourceData } from '../types'
 interface Props {
   content: string
   isLoading?: boolean
+  /** 有重新生成正在跑：避免重复点击发出多次请求 */
+  busy?: boolean
   images?: ImageResource[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   isLoading: false,
+  busy: false,
   images: undefined,
 })
 
@@ -290,9 +293,7 @@ const handleToggleResources = () => {
   })
 }
 
-const hasResources = computed(
-  () => allImages.value.length > 0 || extractedLinks.value.length > 0,
-)
+const hasResources = computed(() => allImages.value.length > 0 || extractedLinks.value.length > 0)
 
 const copyContent = async () => {
   try {

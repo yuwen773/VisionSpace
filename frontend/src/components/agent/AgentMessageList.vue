@@ -69,12 +69,13 @@
           <ReasoningMessage
             v-else-if="msg.type === 'reasoning'"
             :content="msg.content"
-            :streaming="loading"
+            :streaming="Boolean(msg.isLoading)"
           />
           <AssistantMessage
             v-else-if="msg.type === 'assistant'"
             :content="msg.content"
             :isLoading="msg.isLoading"
+            :busy="busy"
             @toggle-resources="(data: ResourceData) => emit('toggleResources', data)"
             @regenerate="emit('regenerate')"
           />
@@ -179,6 +180,8 @@ interface Message {
 interface Props {
   messages: Message[]
   loading?: boolean
+  /** 重新生成等后台动作在跑：禁用会重复发请求的按钮 */
+  busy?: boolean
   /** 当前会话标识：附件按会话与资源双重授权后读取 */
   sessionId?: string
   assetResults?: Record<string, AssetResult>
@@ -187,6 +190,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
   loading: false,
+  busy: false,
   sessionId: '',
   assetResults: () => ({}),
 })
