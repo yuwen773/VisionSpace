@@ -15,9 +15,20 @@ describe('extractLinks 的来源信息', () => {
       faviconUrl: 'https://github.com/favicon.ico',
       index: 1,
     })
-    expect(links[0].snippet).toContain('检索增强')
+    expect(links[0].snippet).toContain('详见')
     expect(links[0].snippet).not.toContain('chat-demo')
+    expect(links[0].snippet).not.toContain('检索增强')
     expect(links[1].index).toBe(2)
+  })
+
+  it('摘要只取链接所在句，不把整段列表带进来', () => {
+    const content =
+      '检索结果如下：\n\n- 第一篇讲检索增强，值得一读。\n- 第二篇见 [Vue 文档](https://cn.vuejs.org/guide/)，讲组合式 API。\n- 第三篇是别的主题。'
+
+    const [link] = extractLinks(content)
+    expect(link.snippet).toContain('组合式 API')
+    expect(link.snippet).not.toContain('检索增强')
+    expect(link.snippet).not.toContain('别的主题')
   })
 
   it('段落里只有链接本身时摘要留空，避免与标题重复', () => {
@@ -36,7 +47,9 @@ describe('extractLinks 的来源信息', () => {
   })
 
   it('资源解析同时返回图片与链接', () => {
-    const result = extractResources('![图](https://cdn.example.com/a.png) [页](https://example.com)')
+    const result = extractResources(
+      '![图](https://cdn.example.com/a.png) [页](https://example.com)',
+    )
     expect(result.images).toHaveLength(1)
     expect(result.links).toHaveLength(1)
   })

@@ -91,7 +91,9 @@
             :disabled="!attachmentsEnabled"
             @click="triggerFilePicker"
             aria-label="添加附件"
-            :title="attachmentsEnabled ? '上传图片（JPG/PNG/WebP，最大 2MB）' : '当前模式下不能上传图片'"
+            :title="
+              attachmentsEnabled ? '上传图片（JPG/PNG/WebP，最大 2MB）' : '当前模式下不能上传图片'
+            "
           >
             <svg
               width="20"
@@ -215,6 +217,11 @@ interface Attachment {
   status: AttachmentStatus
   resource?: AgentImage
   error?: string
+  /**
+   * 已从草稿移除。上传是跨会话异步的，不能靠"是否还在当前数组里"判断，
+   * 否则切到别的会话再回来时状态会被误判。
+   */
+  removed?: boolean
 }
 
 interface Draft {
@@ -310,19 +317,20 @@ const handlePaste = (e: ClipboardEvent) => {
 const validate = (file: File): string | null => validateAttachment(file)
 
 const upload = async (att: Attachment) => {
+  att.removed = false
   att.status = 'uploading'
   att.error = undefined
   try {
     const resource = await uploadAgentImage(att.file)
     // 上传期间被移除：这张图不会随消息发送，直接回收
-    if (!attachments.value.includes(att)) {
+    if (att.removed) {
       void deleteAgentImage(resource.resourceId).catch(() => {})
       return
     }
     att.resource = resource
     att.status = 'done'
   } catch (error) {
-    if (!attachments.value.includes(att)) return
+    if (att.removed) return
     att.status = 'error'
     att.error = error instanceof Error ? error.message : '上传失败'
   }
@@ -364,6 +372,7 @@ const removeAttachment = (att: Attachment) => {
   const index = attachments.value.indexOf(att)
   if (index === -1) return
   attachments.value.splice(index, 1)
+  att.removed = true
   if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
   // 已上传但未发送的图片要回收，避免留下孤儿资源
   if (att.status === 'done' && att.resource) {
@@ -386,6 +395,7 @@ const handleFileSelect = (e: Event) => {
 const clearDraft = () => {
   inputText.value = ''
   attachments.value.forEach((a) => {
+    a.removed = true
     if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
   })
   attachments.value = []
@@ -412,8 +422,7 @@ const handleStop = () => {
 const dragDepth = ref(0)
 const dragging = computed(() => dragDepth.value > 0)
 
-const carriesFiles = (e: DragEvent) =>
-  Array.from(e.dataTransfer?.types ?? []).includes('Files')
+const carriesFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
 
 const onDragEnter = (e: DragEvent) => {
   if (!props.attachmentsEnabled || !carriesFiles(e)) return
@@ -633,8 +642,8 @@ onUnmounted(() => {
 }
 
 .attachment-card:has(.file-icon) .remove-badge:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
 }
 
 /* ============ 上传状态 ============ */
@@ -656,7 +665,7 @@ onUnmounted(() => {
 }
 
 .attachment-card.error .upload-state {
-  background: rgba(239, 68, 68, 0.78);
+  background: color-mix(in srgb, var(--color-error) 78%, transparent);
 }
 
 .upload-spinner {
@@ -687,7 +696,7 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-error) 35%, transparent);
 }
 
 .retry-badge:hover {

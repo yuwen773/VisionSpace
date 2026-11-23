@@ -25,8 +25,17 @@ describe('SourceCard', () => {
     expect(wrapper.attributes('rel')).toContain('noopener')
   })
 
-  it('站点图标加载失败时回退到域名首字母', async () => {
+  it('第三方站点图标不发起请求，直接显示域名首字母', () => {
     const wrapper = mount(SourceCard, { props: { link } })
+
+    expect(wrapper.find('.source-favicon img').exists()).toBe(false)
+    expect(wrapper.find('.source-initial').text()).toBe('G')
+  })
+
+  it('受控来源的图标加载失败时回退到域名首字母', async () => {
+    const wrapper = mount(SourceCard, {
+      props: { link: { ...link, faviconUrl: '/favicon.ico' } },
+    })
     expect(wrapper.find('.source-favicon img').exists()).toBe(true)
 
     await wrapper.find('.source-favicon img').trigger('error')
@@ -35,9 +44,9 @@ describe('SourceCard', () => {
     expect(wrapper.find('.source-initial').text()).toBe('G')
   })
 
-  it('紧凑模式不显示摘要', () => {
+  it('紧凑模式仍保留摘要', () => {
     const wrapper = mount(SourceCard, { props: { link, compact: true } })
-    expect(wrapper.find('.source-snippet').exists()).toBe(false)
+    expect(wrapper.find('.source-snippet').text()).toContain('静态聊天')
   })
 })
 

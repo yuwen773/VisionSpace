@@ -43,23 +43,47 @@ const stripMarkdown = (text: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
+/** 句子边界：摘要取链接所在句，而不是整段，避免列表/长段带进无关内容。 */
+const SENTENCE_BOUNDARIES = ['。', '！', '？', '!', '?', '\n']
+
 /**
- * 取链接所在段落的上下文作为摘要。
- * 段落里只有链接文字本身时返回空串，避免标题和摘要完全重复。
+ * 取链接所在句子的上下文作为摘要。
+ * 句子去掉链接文字后为空时返回空串，避免标题和摘要完全重复。
  */
 function extractSnippet(content: string, start: number, end: number, label: string): string {
-  const paragraphStart = content.lastIndexOf('\n\n', start)
+  const paragraphBreak = content.lastIndexOf('\n\n', start)
+  const paragraphStart = paragraphBreak === -1 ? 0 : paragraphBreak + 2
   const paragraphEnd = content.indexOf('\n\n', end)
   const paragraph = content.slice(
-    paragraphStart === -1 ? 0 : paragraphStart + 2,
+    paragraphStart,
     paragraphEnd === -1 ? content.length : paragraphEnd,
   )
-  let text = stripMarkdown(paragraph)
-  if (label) text = text.replace(label, ' ').replace(/\s+/g, ' ').trim()
+
+  const relStart = Math.min(Math.max(0, start - paragraphStart), paragraph.length)
+  const relEnd = Math.min(Math.max(relStart, end - paragraphStart), paragraph.length)
+  const head = paragraph.slice(0, relStart)
+  const tail = paragraph.slice(relEnd)
+
+  let sentenceStart = 0
+  for (const boundary of SENTENCE_BOUNDARIES) {
+    sentenceStart = Math.max(sentenceStart, head.lastIndexOf(boundary) + 1)
+  }
+  let sentenceEnd = paragraph.length
+  for (const boundary of SENTENCE_BOUNDARIES) {
+    const index = tail.indexOf(boundary)
+    if (index !== -1) sentenceEnd = Math.min(sentenceEnd, relEnd + index + 1)
+  }
+
+  const toSnippet = (raw: string): string => {
+    let text = stripMarkdown(raw)
+    if (label) text = text.split(label).join(' ')
+    return text.replace(/\s+/g, ' ').trim()
+  }
+
+  // 链接自成一整段（如资源清单）时没有上下文，不要用标题凑摘要
+  const text = toSnippet(paragraph.slice(sentenceStart, sentenceEnd))
   if (!text) return ''
-  return text.length > MAX_SNIPPET_LENGTH
-    ? `${text.slice(0, MAX_SNIPPET_LENGTH).trimEnd()}…`
-    : text
+  return text.length > MAX_SNIPPET_LENGTH ? `${text.slice(0, MAX_SNIPPET_LENGTH).trimEnd()}…` : text
 }
 
 function faviconFor(domain: string): string | undefined {

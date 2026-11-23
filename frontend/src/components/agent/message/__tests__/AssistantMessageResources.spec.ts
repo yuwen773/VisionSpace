@@ -59,10 +59,10 @@ describe('AssistantMessage 的来源链', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     const anchor = wrapper.find('.message-body a')
-    if (anchor.exists()) {
-      await anchor.trigger('mouseover')
-      await vi.advanceTimersByTimeAsync(310)
-    }
+    expect(anchor.exists()).toBe(true)
+
+    await anchor.trigger('mouseover')
+    await vi.advanceTimersByTimeAsync(310)
 
     expect(document.body.querySelector('.source-preview')).toBeFalsy()
     wrapper.unmount()

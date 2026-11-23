@@ -9,7 +9,7 @@
   >
     <span class="source-favicon" aria-hidden="true">
       <img
-        v-if="link.faviconUrl && faviconOk"
+        v-if="link.faviconUrl && faviconLoadable && faviconOk"
         :src="link.faviconUrl"
         alt=""
         referrerpolicy="no-referrer"
@@ -20,7 +20,7 @@
     </span>
     <span class="source-body">
       <span class="source-title">{{ link.title || link.domain }}</span>
-      <span v-if="link.snippet && !compact" class="source-snippet">{{ link.snippet }}</span>
+      <span v-if="link.snippet" class="source-snippet">{{ link.snippet }}</span>
       <span class="source-meta">
         <span v-if="link.index" class="source-index">{{ link.index }}</span>
         <span class="source-domain">{{ link.domain }}</span>
@@ -31,11 +31,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { isLoadableImage } from '@/utils/imagePolicy'
 import type { LinkResource } from './types'
 
 interface Props {
   link: LinkResource
-  /** 悬停预览用紧凑版：不展示摘要 */
+  /** 悬停预览用紧凑版：收紧留白 */
   compact?: boolean
 }
 
@@ -44,6 +45,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const faviconOk = ref(true)
+
+// 站点图标同样是第三方请求：只有受控清单里的地址才实际发起，
+// 否则直接退回域名首字母（详见 utils/imagePolicy.ts）
+const faviconLoadable = computed(
+  () => Boolean(props.link.faviconUrl) && isLoadableImage(props.link.faviconUrl as string),
+)
 
 const initial = computed(() => {
   const host = props.link.domain.replace(/^www\./, '')
