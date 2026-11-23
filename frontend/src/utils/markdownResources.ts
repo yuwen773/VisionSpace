@@ -14,8 +14,13 @@ export interface MarkdownImage {
 export interface MarkdownLink {
   url: string
   title: string
+  /** 链接所在段落的上下文摘要；段落里只有链接本身时为空 */
   snippet: string
   domain: string
+  /** 站点图标地址；加载失败时由 SourceCard 回退到首字母 */
+  faviconUrl?: string
+  /** 在本次回复里的顺序号，从 1 开始 */
+  index?: number
 }
 
 /** `![alt](url)` */
@@ -25,6 +30,41 @@ const LINK_SYNTAX = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g
 
 const IMAGE_EXTENSION = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
 const IMAGE_HOSTS = ['images.pexels.com', 'images.unsplash.com', 'imgur.com']
+
+const MAX_SNIPPET_LENGTH = 120
+
+/** 清掉段落里的 Markdown 标记，留下可读文本。 */
+const stripMarkdown = (text: string): string =>
+  text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*`_~|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/**
+ * 取链接所在段落的上下文作为摘要。
+ * 段落里只有链接文字本身时返回空串，避免标题和摘要完全重复。
+ */
+function extractSnippet(content: string, start: number, end: number, label: string): string {
+  const paragraphStart = content.lastIndexOf('\n\n', start)
+  const paragraphEnd = content.indexOf('\n\n', end)
+  const paragraph = content.slice(
+    paragraphStart === -1 ? 0 : paragraphStart + 2,
+    paragraphEnd === -1 ? content.length : paragraphEnd,
+  )
+  let text = stripMarkdown(paragraph)
+  if (label) text = text.replace(label, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > MAX_SNIPPET_LENGTH
+    ? `${text.slice(0, MAX_SNIPPET_LENGTH).trimEnd()}…`
+    : text
+}
+
+function faviconFor(domain: string): string | undefined {
+  return domain ? `https://${domain}/favicon.ico` : undefined
+}
 
 /**
  * 地址本身看起来是不是图片：扩展名，或已知的图床域名。
@@ -69,7 +109,17 @@ export function extractLinks(content: string): MarkdownLink[] {
     if (seen.has(url)) continue
     seen.add(url)
     try {
-      links.push({ url, title: match[1], snippet: match[1], domain: new URL(url).hostname })
+      const domain = new URL(url).hostname
+      const title = match[1]
+      const start = match.index ?? 0
+      links.push({
+        url,
+        title,
+        snippet: extractSnippet(content, start, start + match[0].length, title),
+        domain,
+        faviconUrl: faviconFor(domain),
+        index: links.length + 1,
+      })
     } catch {
       // 解析不出域名的地址不当作链接资源
     }
