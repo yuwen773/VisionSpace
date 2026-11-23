@@ -16,7 +16,10 @@
 
   <block wx:else>
     <view class="header">
-      <view class="title">{{name}}</view>
+      <view class="header-row">
+        <view class="title">{{name}}</view>
+        <view class="upload-btn" wx:if="{{canUpload}}" bindtap="onUploadTap">上传作品</view>
+      </view>
       <view class="subtitle">
         <text wx:if="{{typeText}}">{{typeText}}</text>
         <text wx:if="{{typeText && total !== null}}" class="dot">·</text>

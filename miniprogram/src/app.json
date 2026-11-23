@@ -5,6 +5,7 @@
     "pages/me/index",
     "pages/picture/index",
     "pages/space-detail/index",
+    "pages/upload/index",
     "pages/login/index"
   ],
   "window": {

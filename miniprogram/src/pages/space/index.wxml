@@ -45,6 +45,7 @@
         data-id="{{item.id}}"
         data-name="{{item.name}}"
         data-type="{{item.spaceType}}"
+        data-upload="{{item.canUpload}}"
         bindtap="onSpaceTap"
       >
         <view class="space-card-main">

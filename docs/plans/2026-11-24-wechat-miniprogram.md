@@ -101,6 +101,7 @@ miniprogram/
     discover/   公开图库：榜单切换 + 关键词 + 分类
     space/      空间列表（个人/团队）
     space-detail/ 图片网格 + 颜色检索 + 上传入口
+    upload/     选图、改名称、压缩与串行上传
     picture/    详情：大图、元数据、计数、分享（仅公开）
     me/         资料 + 退出登录
     login/      账号密码绑定
@@ -275,3 +276,39 @@ miniprogram/
   `belongsToSpace()`；`spaceTypeLabel()` 统一「个人/团队空间」文案；`normalizeHex`
   文档与实现对齐（三位简写展开为六位）。
 - 测试 78 → 82 项。
+
+## 12. M4 实施记录（2026-11-24）
+
+已落地：
+
+- **入口**：空间列表按「所有者 / admin / editor」计算 `canUploadToSpace`，通过 URL
+  带到空间详情；只读成员看不到「上传作品」。真正的权限仍由后端
+  `SpaceAuthority.canOperateSpace(PICTURE_UPLOAD)` 复核。
+- **选图**：`wx.chooseMedia`（album + camera，sizeType compressed），一次最多 9 张，
+  已选满时隐藏入口并提示。
+- **压缩**：后端 `FilePictureUpload` 硬限制 2MB、只收 jpeg/png/jpg/webp。
+  客户端先用 `FileSystemManager.getFileInfo` 读大小；格式合法且未超限就原样用，
+  否则按 `COMPRESS_STEPS`（质量 80→60→40，再叠 1600/1200 缩边）逐档重压，
+  每次都从原图压，避免画质叠加损失；仍超限才报「请换一张」。
+  压缩结果复制到 `wx.env.USER_DATA_PATH/vs-upload-*` 固定后缀，上传结束后清理。
+- **命名**：默认取文件名（机器名如 `tmp_xxx` 回退「作品 N」），可逐张修改，
+  折叠空白、40 字截断、空名回退。
+- **上传**：`wx.uploadFile` 串行队列，part 名 `file`，表单字段 `spaceId` / `picName`，
+  令牌走同一 `tokenName` 头；`onProgressUpdate` 驱动逐张进度条。
+  响应仍是 `BaseResponse`，复用 `toApiError` 映射；40100 清令牌、停止队列并引导重登。
+- **失败处理**：单张失败只标红该张，其余继续；按钮变为「重试失败项」，
+  已压缩文件直接复用，不重复压缩。配额/频控等 50001 展示服务端文案。
+- **回空间刷新**：上传页成功后写一次性 `markSpaceUploaded(spaceId)`，
+  空间详情在 `onShow` 用 `consumeSpaceUploaded` 消费后重新拉第一页。
+
+关键取舍：
+
+- 全程串行：微信并发上传容易触发网关限流，也让「部分失败可重试」的状态更简单。
+- 上传页不判断角色，只负责上传；权限错误按 40101 文案展示，避免前后端规则漂移。
+- 上传后的作品是 REVIEWING 状态，空间列表按成员可见（公开图库仍需审核通过）。
+
+验证证据：
+
+- `npm run type-check`（src + tests）通过。
+- `npm test`：9 个测试文件 97 项全通过（新增上传队列规则、权限判定）。
+- 真机清单（M2–M4）尚未执行，需开发者工具 + 体验版手动过；上传相关项见 README。

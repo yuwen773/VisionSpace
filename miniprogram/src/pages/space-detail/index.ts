@@ -9,6 +9,7 @@ import { pickImageColor } from '../../services/image-color'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { ApiError } from '../../services/http'
+import { consumeSpaceUploaded } from '../../services/upload-signal'
 import type { PictureVO } from '../../services/types'
 
 const PAGE_SIZE = 12
@@ -20,6 +21,7 @@ Page({
     id: 0,
     name: '',
     typeText: '',
+    canUpload: false,
     needsLogin: false,
     loading: true,
     error: '',
@@ -53,14 +55,19 @@ Page({
     const typeText = spaceType === undefined || !Number.isFinite(spaceType)
       ? ''
       : spaceTypeLabel(spaceType)
-    this.setData({ id, name, typeText })
+    const canUpload = options.canUpload === '1'
+    this.setData({ id, name, typeText, canUpload })
     wx.setNavigationBarTitle({ title: name })
     this.load()
   },
 
   onShow() {
-    // 从登录页返回后自动重试一次
+    // 从登录页返回后自动重试一次；上传页成功后回到本页也要刷新列表
     if (this.data.needsLogin && getToken() !== '') {
+      this.load()
+      return
+    }
+    if (consumeSpaceUploaded(this.data.id)) {
       this.load()
     }
   },
@@ -227,6 +234,18 @@ Page({
 
   onLoginTap() {
     openLogin()
+  },
+
+  onUploadTap() {
+    if (getToken() === '') {
+      openLogin()
+      return
+    }
+    wx.navigateTo({
+      url: `/pages/upload/index?spaceId=${this.data.id}&spaceName=${encodeURIComponent(
+        this.data.name,
+      )}`,
+    })
   },
 
   onCardTap(event: WechatMiniprogram.CustomEvent<{ id: number }>) {

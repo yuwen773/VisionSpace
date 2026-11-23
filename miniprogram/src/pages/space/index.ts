@@ -4,6 +4,7 @@ import { getStoredUser, getToken } from '../../services/session'
 import { openLogin } from '../../services/navigation'
 import { errorMessage, isLoginExpired } from '../../logic/errors'
 import {
+  canUploadToSpace,
   defaultPersonalSpaceName,
   mergeSpaceSummaries,
   PERSONAL_SPACE_TYPE,
@@ -15,6 +16,7 @@ import {
 interface SpaceCard extends SpaceSummary {
   roleText: string
   typeText: string
+  canUpload: boolean
 }
 
 Page({
@@ -66,6 +68,7 @@ Page({
           ...space,
           roleText: roleLabel(space, currentUserId),
           typeText: spaceTypeLabel(space.spaceType, true),
+          canUpload: canUploadToSpace(space, currentUserId),
         }),
       )
       this.setData({ spaces, loading: false })
@@ -118,12 +121,15 @@ Page({
     const id = Number(event.currentTarget.dataset.id)
     const name = String(event.currentTarget.dataset.name ?? '')
     const spaceType = Number(event.currentTarget.dataset.type)
+    const upload = event.currentTarget.dataset.upload
+    const canUpload = upload === true || upload === 'true'
     if (!Number.isFinite(id) || id <= 0) {
       return
     }
     const typeQuery = Number.isFinite(spaceType) ? `&type=${spaceType}` : ''
+    const uploadQuery = canUpload ? '&canUpload=1' : ''
     wx.navigateTo({
-      url: `/pages/space-detail/index?id=${id}${typeQuery}&name=${encodeURIComponent(name)}`,
+      url: `/pages/space-detail/index?id=${id}${typeQuery}${uploadQuery}&name=${encodeURIComponent(name)}`,
     })
   },
 

@@ -1,0 +1,60 @@
+<view class="page upload">
+  <view class="state" wx:if="{{spaceId === 0}}">
+    <view class="state-title">空间信息缺失</view>
+    <view class="state-desc">请返回空间重新进入</view>
+  </view>
+
+  <block wx:else>
+    <view class="header">
+      <view class="title">上传到 {{spaceName}}</view>
+      <view class="subtitle">最多 {{maxCount}} 张 · 单张自动压缩到 2MB 以内 · 上传后待审核</view>
+    </view>
+
+    <view class="picker" wx:if="{{!busy && items.length < maxCount}}" bindtap="onChoose">
+      <view class="picker-plus">＋</view>
+      <view class="picker-text">选择图片</view>
+      <view class="picker-hint">还可选 {{maxCount - items.length}} 张</view>
+    </view>
+
+    <view class="list">
+      <view class="item" wx:for="{{items}}" wx:key="key">
+        <image class="thumb" src="{{item.path}}" mode="aspectFill" />
+        <view class="item-main">
+          <input
+            class="name-input"
+            value="{{item.name}}"
+            data-index="{{index}}"
+            maxlength="{{maxNameLength}}"
+            disabled="{{busy}}"
+            confirm-type="done"
+            bindinput="onNameInput"
+          />
+          <view class="item-meta">
+            <text class="size">{{item.sizeText}}</text>
+            <text class="status status-{{item.status}}">{{item.statusText}}</text>
+          </view>
+          <view class="progress" wx:if="{{item.status === 'uploading'}}">
+            <view class="progress-bar" style="width: {{item.progress}}%;"></view>
+          </view>
+          <view class="item-error" wx:if="{{item.message}}">{{item.message}}</view>
+        </view>
+        <view class="remove" wx:if="{{!busy}}" data-index="{{index}}" bindtap="onRemove">✕</view>
+      </view>
+    </view>
+
+    <button
+      wx:if="{{items.length > 0}}"
+      class="primary-btn"
+      disabled="{{busy || pendingCount === 0}}"
+      bindtap="onStart"
+    >
+      {{busy ? '上传中…' : actionText}}
+    </button>
+
+    <view class="tips" wx:if="{{items.length === 0}}">
+      <view class="tips-line">· 支持 JPG / PNG / WebP，超限会自动压缩</view>
+      <view class="tips-line">· 名称可逐张修改，不改则用默认名</view>
+      <view class="tips-line">· 多张按顺序串行上传，中途失败可单独重试</view>
+    </view>
+  </block>
+</view>

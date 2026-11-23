@@ -102,6 +102,17 @@ export function roleLabel(space: SpaceSummary, currentUserId: number | null): st
   return ROLE_LABELS[space.role] ?? '成员'
 }
 
+/**
+ * 能否向该空间上传：所有者，或具备 PICTURE_UPLOAD 权限的 admin/editor 成员。
+ * 只用于决定按钮是否出现，真正的权限判定仍由后端 `SpaceAuthority` 复核。
+ */
+export function canUploadToSpace(space: SpaceSummary, currentUserId: number | null): boolean {
+  if (currentUserId !== null && space.ownerId === currentUserId) {
+    return true
+  }
+  return space.role === 'admin' || space.role === 'editor'
+}
+
 /** 默认个人空间名：`<昵称>的空间`，截到后端 30 字上限。 */
 export function defaultPersonalSpaceName(userName: string | null | undefined): string {
   const name = typeof userName === 'string' ? userName.trim() : ''

@@ -2,10 +2,31 @@
   padding: 24rpx 8rpx 16rpx;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.upload-btn {
+  flex: none;
+  margin-left: 20rpx;
+  padding: 10rpx 28rpx;
+  border-radius: 999rpx;
+  background: var(--vs-primary);
+  color: #ffffff;
+  font-size: 24rpx;
+}
+
 .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   color: var(--vs-text);
   font-size: 40rpx;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .subtitle {

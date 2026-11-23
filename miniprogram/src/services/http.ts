@@ -92,7 +92,8 @@ function isBaseResponse<T>(body: unknown): body is BaseResponse<T> {
   )
 }
 
-function toApiError(code: number, serverMessage?: string): ApiError {
+/** 供 `wx.uploadFile` 等非 `wx.request` 通道复用同一套错误映射。 */
+export function toApiError(code: number, serverMessage?: string): ApiError {
   const described = describeError(code, serverMessage)
   return new ApiError(described.code, described.message, described.retryable, described.loginRequired)
 }

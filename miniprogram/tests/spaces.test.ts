@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canUploadToSpace,
   defaultPersonalSpaceName,
   mergeSpaceSummaries,
   pickDefaultSpace,
@@ -83,6 +84,27 @@ describe('roleLabel', () => {
   it('falls back to a neutral label when nothing matches', () => {
     const space = mergeSpaceSummaries([teamA], [])[0]
     expect(roleLabel(space, null)).toBe('成员')
+  })
+})
+
+describe('canUploadToSpace', () => {
+  it('lets the owner upload without a membership row', () => {
+    const [space] = mergeSpaceSummaries([personal], [])
+    expect(canUploadToSpace(space, 9)).toBe(true)
+  })
+
+  it('lets admin/editor members upload but not viewers', () => {
+    const admin = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'admin' }])[0]
+    const editor = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'editor' }])[0]
+    const viewer = mergeSpaceSummaries([teamA], [{ spaceId: 2, spaceRole: 'viewer' }])[0]
+    expect(canUploadToSpace(admin, 9)).toBe(true)
+    expect(canUploadToSpace(editor, 9)).toBe(true)
+    expect(canUploadToSpace(viewer, 9)).toBe(false)
+  })
+
+  it('does not treat an unknown viewer as the owner', () => {
+    const [space] = mergeSpaceSummaries([personal], [])
+    expect(canUploadToSpace(space, null)).toBe(false)
   })
 })
 
