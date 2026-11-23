@@ -150,6 +150,7 @@
             key="send"
             class="action-btn send-btn"
             :disabled="!canSend"
+            :title="busy ? '正在重新生成，请稍候' : '发送'"
             @click="handleSend"
             aria-label="发送"
           >
@@ -231,6 +232,12 @@ interface Draft {
 
 interface Props {
   loading?: boolean
+  /**
+   * 有不能被打断的后台请求（如重新生成）在跑。
+   * 此时发不出去：页面会拒绝，但输入框若已清空草稿就会丢字丢图，
+   * 所以在这里就禁掉发送。
+   */
+  busy?: boolean
   /** 当前会话标识：草稿按会话隔离，切换会话不丢输入 */
   sessionId?: string
   /** 站内找图模式不允许上传附件 */
@@ -239,6 +246,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
+  busy: false,
   sessionId: '',
   attachmentsEnabled: true,
 })
@@ -266,6 +274,8 @@ const openPreview = (url: string) => {
 }
 
 const canSend = computed(() => {
+  // 后台请求未结束时页面会拒绝发送，提前禁掉，避免草稿被清空却发不出去
+  if (props.busy) return false
   // 只要还有上传中或失败的附件，就不允许发送：发出去会缺图
   if (attachments.value.some((att) => att.status !== 'done')) return false
   return Boolean(inputText.value.trim()) || attachments.value.length > 0
@@ -464,15 +474,24 @@ watch(
 )
 
 onUnmounted(() => {
-  // 离开页面时把所有未发送的预览地址回收掉
-  for (const draft of drafts.values()) {
-    draft.attachments.forEach((a) => {
-      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
-    })
+  // 离开页面时未发送的附件全部回收：预览地址与已上传资源都不能留下。
+  // 草稿可能和当前附件是同一批对象，按资源标识去重。
+  const seenResources = new Set<string>()
+  const pending: Attachment[] = [
+    ...attachments.value,
+    ...[...drafts.values()].flatMap((draft) => draft.attachments),
+  ]
+  for (const att of pending) {
+    // 标记为已移除：仍在途的上传完成后会自行删除刚创建的资源
+    att.removed = true
+    if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+    const resourceId = att.resource?.resourceId
+    if (resourceId === undefined) continue
+    const key = String(resourceId)
+    if (seenResources.has(key)) continue
+    seenResources.add(key)
+    void deleteAgentImage(resourceId).catch(() => {})
   }
-  attachments.value.forEach((a) => {
-    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
-  })
 })
 </script>
 

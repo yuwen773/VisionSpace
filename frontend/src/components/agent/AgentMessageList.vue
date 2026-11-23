@@ -654,10 +654,10 @@ watch(
   text-align: center;
   color: #fff;
   pointer-events: none;
-  background: #ef4444;
+  background: var(--color-error);
   box-shadow:
     0 0 0 2px var(--color-bg-primary, #fff),
-    0 2px 8px rgba(239, 68, 68, 0.4);
+    0 2px 8px color-mix(in srgb, var(--color-error) 40%, transparent);
   animation: badgePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 

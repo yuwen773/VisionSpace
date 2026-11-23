@@ -150,6 +150,7 @@
           />
           <AgentChatInput
             :loading="streaming"
+            :busy="regenerating"
             :session-id="currentThreadId || threadId"
             :attachments-enabled="!assetMode"
             @send="handleSend"
@@ -779,6 +780,8 @@ const handleNewChat = () => {
 
 const handleSelectHistory = async (id: string) => {
   if (isNarrowViewport()) leftCollapsed.value = true
+  // 重选当前会话不做任何事：不能中止在途流，也不能清掉重新生成的忙状态
+  if (id === (currentThreadId.value || threadId.value)) return
   // 切换会话必须先停下旧流，否则旧会话的输出会继续写进新会话
   abort()
   regenerating.value = false

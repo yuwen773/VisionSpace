@@ -126,4 +126,63 @@ describe('AgentChatInput 的附件状态机', () => {
     await wrapper.find('.remove-badge').trigger('click')
     expect(deleteAgentImage).toHaveBeenCalledWith('r1')
   })
+
+  it('后台请求进行中时禁止发送，草稿原样保留', async () => {
+    const wrapper = mountInput({ busy: true })
+    await wrapper.find('textarea').setValue('这句话不能丢')
+
+    expect(wrapper.find('.send-btn').attributes('disabled')).toBeDefined()
+    await wrapper.find('.send-btn').trigger('click')
+
+    expect(wrapper.emitted('send')).toBeFalsy()
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('这句话不能丢')
+  })
+
+  it('上传期间切走会话，完成后仍按附件自身状态落位', async () => {
+    let resolveUpload: (value: unknown) => void = () => {}
+    uploadAgentImage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveUpload = resolve
+      }),
+    )
+    const wrapper = mountInput()
+    await selectFiles(wrapper, [pngFile()])
+    expect(wrapper.find('.attachment-card.uploading').exists()).toBe(true)
+
+    await wrapper.setProps({ sessionId: 's2' })
+    resolveUpload({ resourceId: 'r1', url: 'https://cdn.invalid/a.png' })
+    await flushPromises()
+
+    await wrapper.setProps({ sessionId: 's1' })
+    expect(wrapper.find('.attachment-card.done').exists()).toBe(true)
+  })
+
+  it('上传期间移除附件，完成后回收刚创建的资源', async () => {
+    let resolveUpload: (value: unknown) => void = () => {}
+    uploadAgentImage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveUpload = resolve
+      }),
+    )
+    const wrapper = mountInput()
+    await selectFiles(wrapper, [pngFile()])
+
+    await wrapper.find('.remove-badge').trigger('click')
+    resolveUpload({ resourceId: 'r-late', url: 'https://cdn.invalid/late.png' })
+    await flushPromises()
+
+    expect(deleteAgentImage).toHaveBeenCalledWith('r-late')
+  })
+
+  it('离开页面时回收所有未发送的已上传资源', async () => {
+    const wrapper = mountInput()
+    await selectFiles(wrapper, [pngFile()])
+    // 切到另一个会话：已上传的附件留在 s1 的草稿里
+    await wrapper.setProps({ sessionId: 's2' })
+
+    wrapper.unmount()
+
+    expect(deleteAgentImage).toHaveBeenCalledTimes(1)
+    expect(deleteAgentImage).toHaveBeenCalledWith('r1')
+  })
 })
