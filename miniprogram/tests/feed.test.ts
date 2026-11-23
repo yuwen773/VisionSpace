@@ -38,13 +38,29 @@ describe('applyPage', () => {
     expect(second.hasMore).toBe(true)
   })
 
-  it('stops when a page is not full', () => {
+  it('keeps paging after a partial page when the total is unknown', () => {
+    // 后端会在页内过滤隔离/删除的记录，拿不满不代表到底
     const state = applyPage(createFeed<Item>(), {
       records: [item(1)],
       page: 1,
       pageSize: 2,
     })
-    expect(state.hasMore).toBe(false)
+    expect(state.hasMore).toBe(true)
+  })
+
+  it('stops when a page is empty', () => {
+    const first = applyPage(createFeed<Item>(), {
+      records: [item(1)],
+      page: 1,
+      pageSize: 2,
+    })
+    const second = applyPage(first, {
+      records: [],
+      page: 2,
+      pageSize: 2,
+    })
+    expect(second.hasMore).toBe(false)
+    expect(second.items).toHaveLength(1)
   })
 
   it('stops when accumulated items reach the reported total', () => {
@@ -114,7 +130,8 @@ describe('applyPage', () => {
       total: 'not-a-number',
     })
     expect(state.total).toBeNull()
-    expect(state.hasMore).toBe(false)
+    // 总数未知时仍按「本页有数据」继续翻页，避免把无效 total 当成到底
+    expect(state.hasMore).toBe(true)
   })
 })
 

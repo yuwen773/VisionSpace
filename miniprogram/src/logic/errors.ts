@@ -13,8 +13,7 @@ export interface ClientError {
 
 const FALLBACK_MESSAGE = '网络开小差了，请稍后再试'
 
-export function describeError(code: number, message?: string | null): ClientError {
-  const serverMessage = typeof message === 'string' ? message.trim() : ''
+export function describeError(code: number, message?: string | null): ClientError {  const serverMessage = typeof message === 'string' ? message.trim() : ''
   switch (code) {
     case 0:
       return { code, message: '', retryable: false, loginRequired: false }
@@ -41,4 +40,17 @@ export function describeError(code: number, message?: string | null): ClientErro
     default:
       return { code, message: serverMessage || FALLBACK_MESSAGE, retryable: true, loginRequired: false }
   }
+}
+
+/**
+ * 把任意异常转成用户可读文案。
+ *
+ * ApiError 的 message 已经是 describeError 的结果；其它异常（含非 Error）
+ * 统一退回服务不可用的兜底文案，不把原始英文错误抛给用户。
+ */
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim() !== '') {
+    return error.message
+  }
+  return describeError(50000).message
 }

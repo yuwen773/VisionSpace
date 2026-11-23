@@ -7,7 +7,8 @@
  * - 检索：`POST /picture/list/page/vo`，按 current/total 翻页。
  */
 export interface FeedRecord {
-  id: number
+  /** 后端把 Long 序列化成字符串，因此 id 可能是 number 或十进制字符串。 */
+  id: number | string
 }
 
 export interface FeedState<T extends FeedRecord = FeedRecord> {
@@ -36,7 +37,9 @@ export function createFeed<T extends FeedRecord>(): FeedState<T> {
  *
  * - `page <= 1` 或 `contextValid === false` 时视为重置，丢弃旧条目；
  * - 其余情况追加，并按 id 去重（随机榜单可能跨页重复）；
- * - 只有「本页拿满」且「总数未知或尚未取完」时才认为还有下一页。
+ * - 本页为空，或累计条目已达到总数，才认为到底。
+ *   不能用「本页没拿满」判断：后端会在页内过滤隔离/删除的记录，
+ *   拿不满可能仍有下一页。
  */
 export function applyPage<T extends FeedRecord>(
   state: FeedState<T>,
@@ -45,8 +48,7 @@ export function applyPage<T extends FeedRecord>(
   const reset = payload.page <= 1 || payload.contextValid === false
   const items = mergeUnique(reset ? [] : state.items, payload.records)
   const total = normalizeTotal(payload.total)
-  const pageFull = payload.records.length >= payload.pageSize
-  const hasMore = pageFull && (total === null || items.length < total)
+  const hasMore = payload.records.length > 0 && (total === null || items.length < total)
   return {
     items,
     nextPage: reset ? 2 : payload.page + 1,
@@ -58,7 +60,7 @@ export function applyPage<T extends FeedRecord>(
 
 /** 按 id 去重后追加，保持已有顺序，再按返回顺序追加新条目。 */
 export function mergeUnique<T extends FeedRecord>(existing: readonly T[], incoming: readonly T[]): T[] {
-  const seen = new Set<number>()
+  const seen = new Set<number | string>()
   const merged: T[] = []
   for (const record of existing) {
     if (!seen.has(record.id)) {

@@ -5,7 +5,8 @@
 
 /** 推荐接口与检索接口字段的并集；两边都只保证 id。 */
 export interface GallerySource {
-  id: number
+  /** Long 序列化为十进制字符串，这里两种都接受。 */
+  id: number | string
   name?: string | null
   thumbnailUrl?: string | null
   previewUrl?: string | null
@@ -52,9 +53,10 @@ export function toCard(
   const aspect = resolveAspect(source)
   const thumbnail = source.thumbnailUrl
   const imageUrl = typeof thumbnail === 'string' && thumbnail !== '' ? resolveUrl(thumbnail) : ''
+  const id = toNumberOrNull(source.id) ?? 0
   return {
-    id: source.id,
-    title: nonEmpty(source.name) || `作品 ${source.id}`,
+    id,
+    title: nonEmpty(source.name) || `作品 ${id}`,
     imageUrl,
     aspect,
     heightRpx: heightForAspect(aspect, columnWidthRpx),
@@ -92,8 +94,8 @@ export function heightForAspect(aspect: number, columnWidthRpx: number = GRID_CO
 
 /** 计数展示：1 万以内用原值，超过用「万」，保留一位小数并去掉多余的 .0。 */
 export function formatCount(value: number | string | null | undefined): string {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  if (typeof parsed !== 'number' || !Number.isFinite(parsed) || parsed < 0) {
+  const parsed = toNumberOrNull(value)
+  if (parsed === null || parsed < 0) {
     return '0'
   }
   if (parsed < 10000) {
@@ -120,8 +122,8 @@ export function formatDate(value: string | number | Date | null | undefined): st
 }
 
 export function formatFileSize(bytes: number | string | null | undefined): string {
-  const parsed = typeof bytes === 'string' ? Number(bytes) : bytes
-  if (typeof parsed !== 'number' || !Number.isFinite(parsed) || parsed <= 0) {
+  const parsed = toNumberOrNull(bytes)
+  if (parsed === null || parsed <= 0) {
     return ''
   }
   if (parsed < 1024) {
@@ -157,6 +159,18 @@ function parseDate(value: string | number): Date | null {
 
 function pad2(value: number): string {
   return value < 10 ? `0${value}` : String(value)
+}
+
+/** 后端 Long 字段统一序列化为十进制字符串，所有数值入口都走这里。 */
+export function toNumberOrNull(value: number | string | null | undefined): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 function nonEmpty(value: string | null | undefined): string {

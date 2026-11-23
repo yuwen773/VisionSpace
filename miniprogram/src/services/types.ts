@@ -4,15 +4,18 @@
  * - PictureVO / Page<PictureVO>
  * - PictureTagCategory
  *
- * 注意：后端把 Long 序列化成十进制字符串，`total` 是 `number | string`。
+ * 注意：`JsonConfig` 把 Long 序列化成十进制字符串，所以 id / 计数 / 体积
+ * 在运行时可能是字符串；`total` 同理。
  */
+export type WireLong = number | string
+
 export interface PictureTagCategory {
   tagList: string[]
   categoryList: string[]
 }
 
 export interface RecommendPicture {
-  id: number
+  id: WireLong
   thumbnailUrl: string | null
   name: string | null
   picWidth: number | null
@@ -24,19 +27,19 @@ export interface RecommendPicture {
 
 export interface RecommendPage {
   records: RecommendPicture[] | null
-  total: number | string | null
+  total: WireLong | null
   context: string | null
   contextValid: boolean | null
 }
 
 export interface PictureUser {
-  id: number
+  id: WireLong
   userName: string | null
   userAvatar: string | null
 }
 
 export interface PictureVO {
-  id: number
+  id: WireLong
   url: string | null
   thumbnailUrl: string | null
   previewUrl: string | null
@@ -44,27 +47,27 @@ export interface PictureVO {
   introduction: string | null
   tags: string[] | null
   category: string | null
-  picSize: number | null
+  picSize: WireLong | null
   picWidth: number | null
   picHeight: number | null
   picScale: number | null
   picFormat: string | null
   picColor: string | null
-  userId: number | null
-  spaceId: number | null
+  userId: WireLong | null
+  spaceId: WireLong | null
   createTime: string | null
   user: PictureUser | null
   quarantined: boolean | null
-  viewCount: number | null
-  likeCount: number | null
-  collectCount: number | null
-  downloadCount: number | null
-  shareCount: number | null
+  viewCount: WireLong | null
+  likeCount: WireLong | null
+  collectCount: WireLong | null
+  downloadCount: WireLong | null
+  shareCount: WireLong | null
 }
 
 export interface PicturePage {
   records: PictureVO[] | null
-  total: number | string | null
+  total: WireLong | null
   current: number | null
   size: number | null
   pages: number | null

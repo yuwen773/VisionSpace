@@ -205,3 +205,18 @@ miniprogram/
 - `npm test`：4 个测试文件 43 项全通过（分页状态机、展示格式化、
   埋点去重与 eventId、错误码文案）。
 - 真机清单（见 `miniprogram/README.md`）尚未在真机执行，需开发者工具 + 体验版手动过。
+
+### 10.1 代码审查修正（PR #160）
+
+两轴审查（Standards / Spec）后修正：
+
+- **Long 类型**：`JsonConfig` 把所有 Long 序列化成十进制字符串，客户端此前把 id/计数
+  写成 `number`。改为 `WireLong = number | string`，卡片 id 在 `toCard` 统一转数字，
+  计数/体积经 `toNumberOrNull` 处理。
+- **分页到底判定**：不再用「本页未拿满」判断结束（后端会在页内过滤隔离/删除记录），
+  改为「本页为空或累计达到 total」才停；无效 total 不再被当成 0。
+- **分享入口**：详情页加载一开始就 `hideShareMenu`，失败/非公开作品不会留下可转发入口。
+- **sitemap**：改为全站 disallow，与「个人主体、不上架公开搜索」一致。
+- **重复代码**：抽取 `services/telemetry.reportOnce`（闸门 + eventId + 静默失败）与
+  `logic/errors.errorMessage`；榜单 key 直接来自 `RECOMMEND_TYPES`。
+- 测试 43 → 47 项。

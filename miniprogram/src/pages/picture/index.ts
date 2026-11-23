@@ -1,13 +1,9 @@
-import { describeError } from '../../logic/errors'
+import { errorMessage } from '../../logic/errors'
 import { formatCount, formatDate, formatFileSize } from '../../logic/gallery'
-import {
-  ACTION_VIEW,
-  actionEvent,
-  createReportGate,
-  makeEventId,
-} from '../../logic/telemetry'
+import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
-import { fetchPicture, reportAction } from '../../services/gallery'
+import { fetchPicture } from '../../services/gallery'
+import { reportOnce } from '../../services/telemetry'
 import type { PictureVO } from '../../services/types'
 
 interface CountItem {
@@ -48,6 +44,8 @@ Page({
   },
 
   async load(): Promise<void> {
+    // 先收起转发菜单：加载失败或非公开作品时不能留下可转发的入口
+    wx.hideShareMenu({})
     this.setData({ loading: true, error: '', imageError: false })
     try {
       const picture = await fetchPicture(this.data.id)
@@ -60,8 +58,10 @@ Page({
         this.setData({ loading: false, error: '该作品暂无可查看的图片' })
         return
       }
-      // 只有公开图库（无空间归属）的作品才可分享，避免接收方无权限
-      const canShare = (picture.spaceId === null || picture.spaceId === undefined) && !picture.quarantined
+      // 只有公开图库（无空间归属）的作品才可分享，避免接收方无权限；
+      // 隔离作品已在上面提前返回
+      const isPublic = picture.spaceId === null || picture.spaceId === undefined
+      const canShare = isPublic
       const title = picture.name || '未命名作品'
       this.setData({
         loading: false,
@@ -80,26 +80,12 @@ Page({
       wx.setNavigationBarTitle({ title })
       if (canShare) {
         wx.showShareMenu({ menus: ['shareAppMessage'] })
-      } else {
-        wx.hideShareMenu({})
       }
-      this.reportView()
+      reportOnce(this.gate, this.data.id, ACTION_VIEW)
     } catch (error) {
       console.warn('作品详情加载失败', error)
-      const fallback = describeError(50000).message
-      this.setData({ loading: false, error: error instanceof Error && error.message ? error.message : fallback })
+      this.setData({ loading: false, error: errorMessage(error) })
     }
-  },
-
-  reportView(): void {
-    const id = this.data.id
-    if (!this.gate.tryAcquire(id, ACTION_VIEW)) {
-      return
-    }
-    const eventId = makeEventId(Date.now(), Math.random().toString(36).slice(2, 10))
-    reportAction(actionEvent(id, ACTION_VIEW, eventId)).catch((error) => {
-      console.warn('浏览上报失败', error)
-    })
   },
 
   onPreview() {

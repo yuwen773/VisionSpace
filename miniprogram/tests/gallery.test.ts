@@ -7,6 +7,7 @@ import {
   heightForAspect,
   resolveAspect,
   toCard,
+  toNumberOrNull,
 } from '../src/logic/gallery'
 
 const resolve = (path: string) => `https://example.test/api${path}`
@@ -43,6 +44,12 @@ describe('toCard', () => {
   it('falls back to a neutral placeholder colour', () => {
     const card = toCard({ id: 9, thumbnailUrl: '/x', picColor: null }, resolve)
     expect(card.color).toContain('rgba')
+  })
+
+  it('accepts the string id produced by the Long serializer', () => {
+    const card = toCard({ id: '42', thumbnailUrl: '/picture/content/42/thumbnail' }, resolve)
+    expect(card.id).toBe(42)
+    expect(card.title).toBe('作品 42')
   })
 
   it('derives a square-ish aspect when dimensions are missing', () => {
@@ -125,5 +132,21 @@ describe('formatFileSize', () => {
   it('returns an empty string for unknown sizes', () => {
     expect(formatFileSize(null)).toBe('')
     expect(formatFileSize(0)).toBe('')
+  })
+})
+
+describe('toNumberOrNull', () => {
+  it('accepts numbers and decimal strings', () => {
+    expect(toNumberOrNull(12)).toBe(12)
+    expect(toNumberOrNull('12')).toBe(12)
+  })
+
+  it('rejects blanks and non-numeric text', () => {
+    expect(toNumberOrNull('')).toBeNull()
+    expect(toNumberOrNull('  ')).toBeNull()
+    expect(toNumberOrNull('abc')).toBeNull()
+    expect(toNumberOrNull(null)).toBeNull()
+    expect(toNumberOrNull(undefined)).toBeNull()
+    expect(toNumberOrNull(Number.NaN)).toBeNull()
   })
 })

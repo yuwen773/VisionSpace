@@ -1,44 +1,35 @@
-import { applyPage, createFeed, type FeedState } from '../../logic/feed'
-import { describeError } from '../../logic/errors'
+import { applyPage, createFeed } from '../../logic/feed'
+import { errorMessage } from '../../logic/errors'
 import { toCard, type GalleryCard } from '../../logic/gallery'
-import {
-  ACTION_CLICK,
-  ACTION_IMPRESSION,
-  actionEvent,
-  createReportGate,
-  makeEventId,
-  type AnonymousActionType,
-} from '../../logic/telemetry'
+import { ACTION_CLICK, ACTION_IMPRESSION, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import {
   fetchRecommend,
   fetchTagCategory,
-  reportAction,
+  RECOMMEND_TYPES,
   searchPictures,
   type RecommendType,
 } from '../../services/gallery'
+import { reportOnce } from '../../services/telemetry'
 import type { PictureVO, RecommendPicture } from '../../services/types'
 
 const PAGE_SIZE = 12
 const ALL_CATEGORIES = '全部'
 
-type FeedRecord = RecommendPicture | PictureVO
+type GalleryRecord = RecommendPicture | PictureVO
 type Mode = 'recommend' | 'search'
 
-interface TabItem {
-  key: RecommendType
-  label: string
+const TAB_LABELS: Record<RecommendType, string> = {
+  hot: '热门',
+  latest: '最新',
+  quality: '精选',
+  random: '随机',
 }
 
-const TABS: TabItem[] = [
-  { key: 'hot', label: '热门' },
-  { key: 'latest', label: '最新' },
-  { key: 'quality', label: '精选' },
-  { key: 'random', label: '随机' },
-]
+const TABS = RECOMMEND_TYPES.map((key) => ({ key, label: TAB_LABELS[key] }))
 
 function isTabKey(value: string): value is RecommendType {
-  return TABS.some((tab) => tab.key === value)
+  return (RECOMMEND_TYPES as readonly string[]).includes(value)
 }
 
 Page({
@@ -57,7 +48,7 @@ Page({
     summary: '',
   },
 
-  feed: createFeed<FeedRecord>(),
+  feed: createFeed<GalleryRecord>(),
   gate: createReportGate(),
   inFlight: false,
   loadSeq: 0,
@@ -99,7 +90,7 @@ Page({
     if (reset) {
       this.loadSeq += 1
       this.inFlight = false
-      this.feed = createFeed<FeedRecord>()
+      this.feed = createFeed<GalleryRecord>()
     }
     const seq = ++this.loadSeq
     const requestedPage = this.feed.nextPage
@@ -108,7 +99,6 @@ Page({
     this.setData({ loading: !hasCards, loadingMore: hasCards, error: '' })
 
     try {
-      let records: FeedRecord[]
       if (this.data.mode === 'recommend') {
         const response = await fetchRecommend(
           this.data.activeTab,
@@ -119,9 +109,8 @@ Page({
         if (seq !== this.loadSeq) {
           return
         }
-        records = response.records ?? []
         this.feed = applyPage(this.feed, {
-          records,
+          records: response.records ?? [],
           // contextValid=false 表示令牌失效，服务端返回的是新一轮第一页
           page: response.contextValid === false ? 1 : requestedPage,
           pageSize: PAGE_SIZE,
@@ -153,10 +142,7 @@ Page({
         return
       }
       console.warn('图库加载失败', error)
-      const message = error instanceof Error && error.message !== ''
-        ? error.message
-        : describeError(50000).message
-      this.setData({ error: message })
+      this.setData({ error: errorMessage(error) })
     } finally {
       if (seq === this.loadSeq) {
         this.inFlight = false
@@ -194,19 +180,8 @@ Page({
       }
       const id = Number(result.dataset.pictureId)
       if (Number.isFinite(id) && id > 0) {
-        this.report(id, ACTION_IMPRESSION)
+        reportOnce(this.gate, id, ACTION_IMPRESSION)
       }
-    })
-  },
-
-  report(pictureId: number, actionType: AnonymousActionType): void {
-    if (!this.gate.tryAcquire(pictureId, actionType)) {
-      return
-    }
-    const eventId = makeEventId(Date.now(), Math.random().toString(36).slice(2, 10))
-    reportAction(actionEvent(pictureId, actionType, eventId)).catch((error) => {
-      // 统计失败不影响浏览
-      console.warn('行为上报失败', actionType, error)
     })
   },
 
@@ -228,8 +203,7 @@ Page({
   },
 
   onSearchConfirm() {
-    const searchText = this.data.searchText.trim()
-    this.applyFilter({ searchText })
+    this.applyFilter({ searchText: this.data.searchText.trim() })
   },
 
   onClearSearch() {
@@ -285,7 +259,7 @@ Page({
     if (!Number.isFinite(id) || id <= 0) {
       return
     }
-    this.report(id, ACTION_CLICK)
+    reportOnce(this.gate, id, ACTION_CLICK)
     wx.navigateTo({ url: `/pages/picture/index?id=${id}` })
   },
 
