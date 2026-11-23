@@ -136,6 +136,7 @@
           @asset-unavailable="handleAssetUnavailable"
           @send="handleSend"
           @toggle-resources="toggleResourcePanel"
+          @regenerate="handleRegenerate"
         />
 
         <!-- 底部区域：TodoList + 输入框 -->
@@ -204,6 +205,7 @@ import {
   getRecoveryState,
   getSessions,
   resumeSession,
+  sendAgentFeedback,
   uploadAgentImage,
   type AgentImage,
   type HistoryMessage,
@@ -670,6 +672,9 @@ const handleSend = async (text: string, files: File[] = []) => {
     }
   }
 
+  // 清空上一轮的消息与资源，再放入本轮用户消息；
+  // sendMessage 不再负责清空，否则会把刚 push 的用户气泡一起删掉
+  resetStream()
   pushMessage({
     type: 'user',
     content: text,
@@ -707,10 +712,46 @@ const handleSend = async (text: string, files: File[] = []) => {
   }
 }
 
-const handleNewChat = () => {
-  saveThreadId('')
+// 「重新生成」走反馈端点：服务端基于当前会话历史再生成一版回复。
+// 没有分支模型，新回复追加在末尾；服务端同时把回复写进历史。
+const regenerating = ref(false)
+const handleRegenerate = async () => {
+  const id = currentThreadId.value || threadId.value
+  if (!id || streaming.value || regenerating.value) return
+  regenerating.value = true
+  try {
+    const res = await sendAgentFeedback({
+      threadId: id,
+      satisfied: false,
+      reason: '重新生成',
+      action: 'regenerate',
+    })
+    if (res.data?.code !== 0) {
+      message.warning(res.data?.message || '重新生成失败，请稍后重试')
+      return
+    }
+    const content = res.data?.data
+    if (content) {
+      pushMessage({
+        type: 'assistant',
+        content,
+        node: 'agent',
+        time: new Date().toLocaleTimeString(DATE_LOCALE, TIME_OPTIONS),
+      })
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '重新生成失败，请重试')
+  } finally {
+    regenerating.value = false
+    await loadRecoveryState()
+  }
+}
+
+const handleNewChat = () => {  saveThreadId('')
   currentThreadId.value = ''
   threadId.value = generateThreadId()
+  // 先中止在途流：resetStream 只清本地状态，不会停止仍在校验/生成的请求
+  abort()
   resetStream()
   clearAssetResults(false)
   showTodoList.value = false
@@ -720,6 +761,8 @@ const handleNewChat = () => {
 
 const handleSelectHistory = async (id: string) => {
   if (isNarrowViewport()) leftCollapsed.value = true
+  // 切换会话必须先停下旧流，否则旧会话的输出会继续写进新会话
+  abort()
   currentThreadId.value = id
   threadId.value = id
   saveThreadId(id)

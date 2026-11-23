@@ -28,6 +28,8 @@ export interface MessageDTO {
     | 'tool-confirm'
     | 'reasoning'
     | 'action-unknown'
+    | 'error'
+    | 'done'
   content?: string
   toolCalls?: any[]
   toolName?: string
@@ -76,6 +78,11 @@ export function useAgentStream() {
   const links = ref<{ url: string; title: string; snippet: string; domain: string }[]>([])
   const protocolError = ref('')
   let abortController: AbortController | null = null
+  /**
+   * 流代次。切换会话、取消或重新发送时递增，
+   * 在途请求的回调据此判断自己是否已经过期，避免旧流写进新会话。
+   */
+  let streamEpoch = 0
 
   const extractResources = (content: string) => {
     if (!content) return
@@ -103,7 +110,18 @@ export function useAgentStream() {
     Object.assign(messages.value[index], updates)
   }
 
+  /** 中止在途请求并让它的所有回调失效。 */
+  const invalidateStream = () => {
+    streamEpoch++
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
+    isStreaming.value = false
+  }
+
   const reset = () => {
+    invalidateStream()
     messages.value = []
     images.value = []
     links.value = []
@@ -123,9 +141,19 @@ export function useAgentStream() {
     uploaded: AgentImage[] = [],
     assetSpaceId?: string,
   ) => {
+    // 上一段流即使还没完全收尾，也不再允许写入。
+    // 调用方负责在发送前清空消息列表：用户消息是先 push 再发送的，
+    // 如果这里 reset 会把刚加进去的用户气泡一起清掉。
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
+    const epoch = ++streamEpoch
+    const controller = new AbortController()
+    abortController = controller
     isStreaming.value = true
-    reset()
-    abortController = new AbortController()
+    /** 本次请求是否仍是当前有效的那一段流。 */
+    const isCurrent = () => epoch === streamEpoch
 
     // 与 REST/上传共用同一个来源，生产走同源 HTTPS，不会出现混合内容
     const url = `${API_ROOT}/agent/image/chat/stream`
@@ -163,7 +191,7 @@ export function useAgentStream() {
         method: 'POST',
         headers,
         body,
-        signal: abortController.signal,
+        signal: controller.signal,
         credentials: 'include',
         openWhenHidden: true,
 
@@ -186,6 +214,7 @@ export function useAgentStream() {
         },
 
         onmessage(event) {
+          if (!isCurrent()) return
           if (!event.data) return
 
           try {
@@ -368,6 +397,26 @@ export function useAgentStream() {
                 extractResources(toolContent)
                 break
               }
+
+              // 服务端运行期失败：单独落成一条错误消息，
+              // 而不是让流无声结束，用户至少知道这次没有成功。
+              case 'error':
+                assistantMsgIndex = -1
+                reasoningMsgIndex = -1
+                streamContent = ''
+                pushMessage({
+                  type: 'error',
+                  content: msgDto.content || '系统繁忙，请稍后重试',
+                  node: 'agent',
+                })
+                break
+
+              // 显式结束帧：与 onclose 做同一件事，保持幂等
+              case 'done':
+                if (assistantMsgIndex !== -1) {
+                  updateMessage(assistantMsgIndex, { isLoading: false })
+                }
+                break
             }
           } catch (e) {
             console.error('JSON parse error:', e)
@@ -375,6 +424,7 @@ export function useAgentStream() {
         },
 
         onclose() {
+          if (!isCurrent()) return
           // Extract resources from final accumulated assistant content
           if (lastAssistantContent) {
             extractResources(streamContent)
@@ -385,6 +435,7 @@ export function useAgentStream() {
         },
 
         onerror(err) {
+          if (!isCurrent()) return
           console.error('SSE error:', err)
           if (assistantMsgIndex !== -1) {
             updateMessage(assistantMsgIndex, { isLoading: false })
@@ -392,9 +443,11 @@ export function useAgentStream() {
           throw err
         },
       })
+    } catch (error) {
+      // 已被新请求或会话切换取代的流：它的失败与当前界面无关
+      if (!isCurrent()) return
+      throw error
     } finally {
-      isStreaming.value = false
-      abortController = null
       // 请求没有被服务端接收时，附件还没有绑定到会话：这时丢弃它。
       // 服务端已接收的附件一律不删——流成功、异常、取消与断开都不删已绑定的图片。
       if (!serverAccepted && uploaded.length > 0) {
@@ -402,15 +455,16 @@ export function useAgentStream() {
           deleteAgentImage(item.resourceId).catch(() => {})
         }
       }
+      // 只有当前流才有权改写共享的流式状态；过期流不能把新流的 loading 关掉
+      if (isCurrent()) {
+        isStreaming.value = false
+        abortController = null
+      }
     }
   }
 
   const abort = () => {
-    if (abortController) {
-      abortController.abort()
-      abortController = null
-    }
-    isStreaming.value = false
+    invalidateStream()
   }
 
   onUnmounted(() => {

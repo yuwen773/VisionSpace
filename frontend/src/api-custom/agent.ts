@@ -65,6 +65,26 @@ export async function deleteAgentImage(resourceId: string | number): Promise<voi
   }
 }
 
+// ============ 用户反馈 / 重新生成 ============
+
+export type FeedbackAction = 'regenerate' | 'research' | 'return'
+
+/**
+ * 提交用户反馈。`action: 'regenerate'` 会让服务端基于当前会话历史再生成一版回复。
+ * POST /api/agent/image/feedback
+ */
+export async function sendAgentFeedback(params: {
+  threadId: string
+  satisfied: boolean
+  reason?: string
+  action?: FeedbackAction
+}) {
+  return request<ApiResponse<string>>('/api/agent/image/feedback', {
+    method: 'POST',
+    data: params,
+  })
+}
+
 // ============ 聊天历史 ============
 
 export interface HistoryMessage {

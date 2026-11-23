@@ -42,6 +42,7 @@
           class="action-icon-btn"
           title="重新生成"
           aria-label="重新生成"
+          :disabled="isLoading"
           @click="emit('regenerate')"
         >
           <svg
@@ -751,6 +752,16 @@ const copyContent = async () => {
 .action-icon-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+.action-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--color-text-tertiary);
 }
 
 .action-icon-btn.liked {

@@ -72,7 +72,9 @@
             :content="msg.content"
             :isLoading="msg.isLoading"
             @toggle-resources="(data: ResourceData) => emit('toggleResources', data)"
+            @regenerate="emit('regenerate')"
           />
+          <ErrorMessage v-else-if="msg.type === 'error'" :content="msg.content" />
           <ToolRequestMessage
             v-else-if="msg.type === 'tool-request'"
             :toolName="msg.toolName || '工具'"
@@ -148,6 +150,7 @@ import ToolRequestMessage from './message/ToolRequestMessage.vue'
 import ToolResponseMessage from './message/ToolResponseMessage.vue'
 import ToolConfirmMessage from './message/ToolConfirmMessage.vue'
 import ActionUnknownMessage from './message/ActionUnknownMessage.vue'
+import ErrorMessage from './message/ErrorMessage.vue'
 import type { ToolCallArg } from '@/composables/useAgentStream'
 import type { ResourceData } from './types'
 import AssetResultCard from './AssetResultCard.vue'
@@ -190,6 +193,7 @@ const emit = defineEmits<{
   (e: 'refreshAsset', resultId: string): void
   (e: 'previewAsset', url: string): void
   (e: 'assetUnavailable', resultId: string): void
+  (e: 'regenerate'): void
 }>()
 
 const quickHints = ['一张赛博朋克风格的城市夜景', '用水彩风格画一只猫', '复古海报风格的旅行插画']

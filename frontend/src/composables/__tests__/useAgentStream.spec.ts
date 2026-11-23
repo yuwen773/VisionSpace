@@ -127,4 +127,58 @@ describe('useAgentStream 的附件生命周期', () => {
     expect(deleteAgentImage).toHaveBeenCalledWith('1900000000000000001')
     expect(deleteAgentImage).toHaveBeenCalledWith('1900000000000000002')
   })
+
+  it('发送时不清空已经放入的用户消息', async () => {
+    const stream = useAgentStream()
+    stream.pushMessage({ type: 'user', content: '帮我找一张星空', node: 'user' })
+
+    await stream.sendMessage('帮我找一张星空', 'thread-keep-user')
+
+    expect(stream.messages.value[0]).toMatchObject({ type: 'user', content: '帮我找一张星空' })
+  })
+
+  it('服务端错误事件会落成一条错误消息，而不是无声断流', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('hi', 'thread-error')
+
+    captured.opts.onmessage({
+      data: JSON.stringify({ messageType: 'error', content: '系统繁忙，请稍后重试' }),
+    })
+
+    expect(stream.messages.value).toHaveLength(1)
+    expect(stream.messages.value[0]).toMatchObject({ type: 'error', content: '系统繁忙，请稍后重试' })
+  })
+
+  it('切换会话（reset）后旧流的回调不再写入', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('hello', 'thread-old')
+    const stale = captured.opts
+
+    stream.reset()
+    stale.onmessage({ data: JSON.stringify({ messageType: 'assistant', content: '旧会话的输出' }) })
+
+    expect(stream.messages.value).toHaveLength(0)
+  })
+
+  it('取消后旧流既不再写入，也不会关掉新流的 loading', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('hello', 'thread-abort')
+    const stale = captured.opts
+
+    stream.abort()
+    expect(stream.isStreaming.value).toBe(false)
+    stale.onmessage({ data: JSON.stringify({ messageType: 'assistant', content: '迟到内容' }) })
+    expect(stream.messages.value).toHaveLength(0)
+  })
+
+  it('重新发送后，上一段流的回调失效', async () => {
+    const stream = useAgentStream()
+    await stream.sendMessage('first', 'thread-a')
+    const first = captured.opts
+
+    await stream.sendMessage('second', 'thread-b')
+    first.onmessage({ data: JSON.stringify({ messageType: 'assistant', content: '旧输出' }) })
+
+    expect(stream.messages.value).toHaveLength(0)
+  })
 })

@@ -36,6 +36,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -196,18 +197,21 @@ public class AgentController {
                 .map(data -> ServerSentEvent.<String>builder()
                         .data(toJson(data))
                         .build())
-                .concatWith(Mono.just(
-                        ServerSentEvent.<String>builder()
-                                .event("done")
-                                .data("")
-                                .build()
+                .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<String>builder()
+                        // 结束帧走默认事件：浏览器 EventSource 的 onmessage 只接收
+                        // 无名事件，带 event: 名的帧需要额外注册监听，容易漏掉
+                        .data(toJson(Map.of("messageType", "done")))
+                        .build()
                 ))
                 .onErrorResume(error -> {
                     log.error("流式对话错误", error);
-                    // 只返回通用错误信息，不泄露内部错误细节
+                    // 只返回通用错误信息，不泄露内部错误细节。
+                    // 同样走默认事件，保证前端 onmessage 能收到并把它显示出来，
+                    // 而不是变成一次无声断流
                     return Flux.just(ServerSentEvent.<String>builder()
-                            .event("error")
-                            .data("系统繁忙，请稍后重试")
+                            .data(toJson(Map.of(
+                                    "messageType", "error",
+                                    "content", "系统繁忙，请稍后重试")))
                             .build());
                 });
 
