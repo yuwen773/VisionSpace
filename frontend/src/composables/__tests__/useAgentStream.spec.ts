@@ -258,4 +258,26 @@ describe('useAgentStream 的附件生命周期', () => {
     releaseStream?.()
     await pending
   })
+
+  it('工具调用打断正文时，正文气泡立刻结束流式状态', async () => {
+    holdOpen = true
+    const stream = useAgentStream()
+    const pending = stream.sendMessage('hello', 'thread-tool')
+    await flush()
+
+    captured.opts.onmessage({
+      data: JSON.stringify({ messageType: 'assistant', content: '先查一下' }),
+    })
+    captured.opts.onmessage({
+      data: JSON.stringify({
+        messageType: 'tool-request',
+        toolCalls: [{ name: 'search', arguments: '{}' }],
+      }),
+    })
+
+    expect(stream.messages.value[0]).toMatchObject({ type: 'assistant', isLoading: false })
+
+    releaseStream?.()
+    await pending
+  })
 })
