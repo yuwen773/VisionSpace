@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * 控制帧必须走默认事件：命名事件的帧前端 onmessage 收不到。
+ * 控制帧走默认事件：前端只有一条按 messageType 分派的通用通道。
  */
 class AgentSseFramesTest {
 
@@ -15,7 +15,7 @@ class AgentSseFramesTest {
     void doneFrameUsesDefaultEvent() {
         ServerSentEvent<String> frame = AgentSseFrames.done();
 
-        assertNull(frame.event(), "结束帧不能带 event 名，否则前端收不到");
+        assertNull(frame.event(), "结束帧不应依赖带名字的事件");
         assertEquals("{\"messageType\":\"done\"}", frame.data());
     }
 
@@ -23,7 +23,7 @@ class AgentSseFramesTest {
     void errorFrameUsesDefaultEventAndCarriesMessage() {
         ServerSentEvent<String> frame = AgentSseFrames.error();
 
-        assertNull(frame.event(), "错误帧不能带 event 名，否则前端收不到");
+        assertNull(frame.event(), "错误帧不应依赖带名字的事件");
         assertEquals("{\"messageType\":\"error\",\"content\":\""
                 + AgentSseFrames.ERROR_CONTENT + "\"}", frame.data());
     }

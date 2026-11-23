@@ -5,10 +5,10 @@ import org.springframework.http.codec.ServerSentEvent;
 /**
  * 对话流的固定控制帧。
  *
- * <p>结束与失败都用<b>默认事件</b>（不设置 {@code event:} 名）。浏览器的
- * {@code EventSource} 与 {@code @microsoft/fetch-event-source} 的 {@code onmessage}
- * 只接收无名事件，命名事件必须额外注册监听；早期实现用 {@code event: error/done}
- * 发出，前端收不到，失败就变成了无声断流。
+ * <p>结束与失败都用<b>默认事件</b>（不设置 {@code event:} 名）：无名事件是所有
+ * SSE 客户端都会交给通用 {@code onmessage} 的通道，前端只需按 {@code messageType}
+ * 分派；带名字的事件要求客户端显式注册监听，多一条容易漏处理的路径。此前找图
+ * 分支的结束帧还带着空 data，被前端的 {@code if (!event.data) return} 直接丢掉。
  */
 public final class AgentSseFrames {
 
