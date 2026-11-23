@@ -17,6 +17,21 @@ export async function addSpaceUsingPost(
   })
 }
 
+/** 此处后端没有提供注释 POST /space/admin/add */
+export async function adminAddSpaceUsingPost(
+  body: API.SpaceAdminAddRequest,
+  options?: { [key: string]: any },
+) {
+  return request<API.BaseResponseLong>('/space/admin/add', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /space/delete */
 export async function deleteSpaceUsingPost(
   body: API.DeleteRequest,

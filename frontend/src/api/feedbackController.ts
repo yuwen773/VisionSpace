@@ -60,6 +60,21 @@ export async function listFeedbackByPageUsingPost(
   })
 }
 
+/** 此处后端没有提供注释 POST /feedback/stats */
+export async function feedbackStatsUsingPost(
+  body: API.FeedbackQueryRequest,
+  options?: { [key: string]: any },
+) {
+  return request<API.BaseResponseFeedbackStatsVO>('/feedback/stats', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /feedback/update/status */
 export async function updateFeedbackStatusUsingPost(
   body: API.FeedbackUpdateStatusRequest,

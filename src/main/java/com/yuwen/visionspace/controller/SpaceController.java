@@ -53,6 +53,24 @@ public class SpaceController {
         return ResultUtils.success(newId);
     }
 
+    /**
+     * 管理员代指定用户创建空间（仅管理员可用）。
+     *
+     * <p>管理端需要「代表某个用户」建空间；普通 /add 只能把空间记在登录管理员名下。
+     */
+    @PostMapping("/admin/add")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Long> adminAddSpace(@RequestBody SpaceAdminAddRequest spaceAdminAddRequest,
+                                            HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceAdminAddRequest == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(spaceAdminAddRequest.getUserId() == null
+                || spaceAdminAddRequest.getUserId() <= 0, ErrorCode.PARAMS_ERROR, "归属用户不能为空");
+        User loginUser = userService.getLoginUser(request);
+        long newId = spaceService.addSpaceForOwner(spaceAdminAddRequest, loginUser,
+                spaceAdminAddRequest.getUserId());
+        return ResultUtils.success(newId);
+    }
+
     @PostMapping("/delete")
     public BaseResponse<Boolean> deleteSpace(@RequestBody DeleteRequest deleteRequest
             , HttpServletRequest request) {
@@ -159,9 +177,10 @@ public class SpaceController {
                                                          HttpServletRequest request) {
         long current = spaceQueryRequest.getCurrent();
         long size = spaceQueryRequest.getPageSize();
-        // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
+        // 管理端列表需要所有者信息，走 VO 入口；管理员可一次取更多行（上限 100），
+        // 普通用户仍限制 20 条，避免被当作爬虫入口。
+        ThrowUtils.throwIf(size > (userService.isAdmin(loginUser) ? 100 : 20), ErrorCode.PARAMS_ERROR);
         // 管理员可跨用户查询；其他用户只能查看自己创建或已加入的空间。
         // 可见范围统一由 pageAccessible 追加条件，这里不再改写 userId，
         // 否则会与团队空间的 id 条件互相抵消，导致成员看不到自己加入的团队空间。

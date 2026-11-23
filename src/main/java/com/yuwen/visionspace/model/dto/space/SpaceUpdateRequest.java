@@ -35,5 +35,10 @@ public class SpaceUpdateRequest implements Serializable {
      */
     private Long maxCount;
 
+    /**
+     * 空间状态：0-禁用 1-正常
+     */
+    private Integer status;
+
     private static final long serialVersionUID = 1L;
 }

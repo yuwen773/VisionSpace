@@ -154,6 +154,9 @@ def main():
         env["VS_ACCEPTANCE_MYSQL_PORT"] = str(mysql_port)
         env["VS_ACCEPTANCE_REDIS_PORT"] = str(redis_port)
         env["MYSQL_PWD"] = ""
+        # 与 scripts/acceptance.ps1:22-23 保持一致：MySQL 以 +00:00 运行，
+        # 测试 JVM 也必须用 UTC，否则租约/过期类断言会整体偏移本机时区（+08:00）。
+        env["JAVA_TOOL_OPTIONS"] = "-Duser.timezone=UTC"
         env["npm_config_cache"] = str(Path(tempfile.gettempdir()) / "npm-cache-vs")
         reports = Path(args.reports) if args.reports else run_dir / "surefire"
         mvn_exe = "mvn.cmd" if os.name == "nt" else "mvn"

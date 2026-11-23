@@ -18,7 +18,7 @@
       </template>
     </AdminPageHeader>
 
-    <!-- 统计卡片 -->
+    <!-- 统计卡片：只保留「平台总数 / 本实例生效 / 未激活」三种口径 -->
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-icon total">
@@ -29,7 +29,7 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-value">{{ configList.length }}</span>
+          <span class="stat-value">{{ statsUnavailable ? '—' : configList.length }}</span>
           <span class="stat-label">存储平台</span>
         </div>
       </div>
@@ -40,47 +40,17 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-value">{{ activeCount }}</span>
-          <span class="stat-label">已激活</span>
-        </div>
-      </div>
-      <div class="stat-card" v-if="switchStatus">
-        <div class="stat-icon" :class="switchStatus.phase === 'pending' ? 'warning' : 'active'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value">{{ switchStatus.localDefaultPlatform || '—' }}</span>
-          <span class="stat-label">
-            本实例生效（v{{ switchStatus.localEffectiveVersion }}）
-            <template v-if="!switchStatus.localSynced">· 版本漂移</template>
-          </span>
-        </div>
-      </div>
-      <div class="stat-card" v-if="switchStatus && switchStatus.phase === 'pending'">
-        <div class="stat-icon warning">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-        </div>
-        <div class="stat-info">
           <span class="stat-value">
-            {{ switchStatus.confirmCount }}/{{ switchStatus.expectedInstances }}
+            {{ switchStatus ? switchStatus.localDefaultPlatform || '—' : '—' }}
           </span>
           <span class="stat-label">
-            切换确认中 → {{ switchStatus.pendingPlatform }}（v{{ switchStatus.pendingVersion }}）
+            本实例生效
+            <template v-if="switchStatus">（v{{ switchStatus.localEffectiveVersion }}）</template>
+            <template v-if="switchStatus && !switchStatus.localSynced">· 版本漂移</template>
           </span>
-          <div class="pending-actions">
-            <a-button size="small" type="primary" @click="handleConfirmSwitch">确认生效</a-button>
-            <a-button size="small" danger @click="handleRollbackSwitch">回滚</a-button>
-          </div>
         </div>
       </div>
-      <div class="stat-card" v-else-if="switchStatus">
+      <div class="stat-card">
         <div class="stat-icon warning">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
@@ -89,14 +59,41 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-value">{{ configList.length - activeCount }}</span>
+          <span class="stat-value">{{
+            statsUnavailable ? '—' : configList.length - activeCount
+          }}</span>
           <span class="stat-label">未激活</span>
         </div>
       </div>
     </div>
 
+    <!-- 待确认切换：整宽告警条，不再挤在统计卡片里 -->
+    <div v-if="switchStatus?.phase === 'pending'" class="switch-alert" role="alert">
+      <div class="switch-alert-main">
+        <strong>切换待确认：{{ switchStatus.pendingPlatform }}</strong>
+        <span>
+          本实例已切到 v{{ switchStatus.localEffectiveVersion }}，还需
+          {{
+            Math.max(0, (switchStatus.expectedInstances ?? 1) - (switchStatus.confirmCount ?? 0))
+          }}
+          个实例确认；全部确认前不会晋升为完整生效。
+        </span>
+      </div>
+      <div class="switch-alert-actions">
+        <a-button size="small" type="primary" @click="handleConfirmSwitch">确认生效</a-button>
+        <a-button size="small" danger @click="handleRollbackSwitch">回滚</a-button>
+      </div>
+    </div>
+
+    <!-- 加载骨架：首次加载时不要把空状态当成结果 -->
+    <div v-if="loadingConfig && configList.length === 0" class="config-grid" aria-busy="true">
+      <div v-for="n in 3" :key="`skeleton-${n}`" class="config-card skeleton-card">
+        <a-skeleton active :paragraph="{ rows: 4 }" />
+      </div>
+    </div>
+
     <!-- 配置卡片列表 -->
-    <div class="config-grid" v-if="configList.length > 0">
+    <div class="config-grid" v-else-if="configList.length > 0">
       <div
         v-for="item in configList"
         :key="item.id"
@@ -150,9 +147,9 @@
               <span class="platform-type">{{ getPlatformName(item.platform) }}</span>
             </div>
           </div>
-          <div class="status-badge" :class="item.isActive === 1 ? 'enabled' : 'disabled'">
+          <div class="status-badge" :class="statusOf(item).key">
             <span class="status-dot"></span>
-            {{ item.isActive === 1 ? '已激活' : '未激活' }}
+            {{ statusOf(item).label }}
           </div>
         </div>
 
@@ -190,38 +187,38 @@
         </div>
 
         <div class="card-footer">
-          <button class="action-btn" @click="openEditModal(item)" title="编辑" aria-label="编辑">
+          <button class="action-btn labeled" @click="openEditModal(item)" aria-label="编辑配置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg>
+            编辑
           </button>
           <button
-            class="action-btn success"
+            class="action-btn success labeled"
             :disabled="item.isActive === 1"
-            @click="openSwitchModal(item)"
+            :aria-label="`切换到此平台：${item.platformName}`"
             title="切换到此平台（候选验证后生效）"
+            @click="openSwitchModal(item)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
+            切换
           </button>
-          <a-popconfirm
-            title="确定要删除此配置吗？此操作不可恢复。"
-            ok-text="删除"
-            cancel-text="取消"
-            @confirm="handleDelete(item)"
-            placement="topRight"
+          <button
+            class="action-btn danger labeled"
+            aria-label="删除配置"
+            @click="confirmDelete(item)"
           >
-            <button class="action-btn danger" title="删除" aria-label="删除">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path
-                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                ></path>
-              </svg>
-            </button>
-          </a-popconfirm>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path
+                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              ></path>
+            </svg>
+            删除
+          </button>
         </div>
       </div>
     </div>
@@ -235,8 +232,13 @@
         <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
         <line x1="12" y1="22.08" x2="12" y2="12"></line>
       </svg>
-      <p class="empty-text">暂无存储配置</p>
-      <p class="empty-hint">点击上方按钮添加第一个存储平台配置</p>
+      <p class="empty-text">{{ loadError ? '存储配置加载失败' : '暂无存储配置' }}</p>
+      <p class="empty-hint">
+        {{
+          loadError ? '网络或服务暂时不可用，请稍后重试。' : '点击上方按钮添加第一个存储平台配置'
+        }}
+      </p>
+      <button v-if="loadError" class="toolbar-btn" @click="loadConfigList">重试</button>
     </div>
     <!-- 添加/编辑弹窗 -->
     <a-modal
@@ -420,7 +422,8 @@
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import { HardDrive } from 'lucide-vue-next'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
+import { useUndoable } from '@/composables/useUndoable'
 import {
   getStorageConfigListUsingGet,
   addStorageConfigUsingPost,
@@ -438,6 +441,9 @@ import {
 } from '@/api-custom/storage'
 
 const configList = ref<StorageConfigVO[]>([])
+const loadingConfig = ref(true)
+const loadError = ref(false)
+const undo = useUndoable()
 const modalVisible = ref(false)
 const editingConfig = ref<StorageConfigVO | null>(null)
 const submitLoading = ref(false)
@@ -456,6 +462,27 @@ const openSwitchModal = (item: StorageConfigVO) => {
 }
 
 const activeCount = computed(() => configList.value.filter((item) => item.isActive === 1).length)
+
+// 加载中或失败时统计显示「—」，不把未知渲染成 0
+const statsUnavailable = computed(() => loadingConfig.value || loadError.value)
+
+/**
+ * 卡片状态只用三个词：本实例生效 / 已激活，待确认 / 未激活。
+ * 「生效」以服务端给出的本实例默认平台为准，而不是前端按 isActive 猜。
+ */
+const statusOf = (item: StorageConfigVO): { key: string; label: string } => {
+  const status = switchStatus.value
+  if (status?.phase === 'pending' && status.pendingPlatform === item.platform) {
+    return { key: 'pending', label: '已激活，待确认' }
+  }
+  if (item.isActive === 1) {
+    if (status?.localDefaultPlatform && status.localDefaultPlatform === item.platform) {
+      return { key: 'local', label: '本实例生效' }
+    }
+    return { key: 'enabled', label: '已激活' }
+  }
+  return { key: 'disabled', label: '未激活' }
+}
 
 const formData = reactive<
   StorageConfigAddRequest & {
@@ -507,13 +534,21 @@ const onPlatformChange = () => {
 }
 
 const loadConfigList = async () => {
+  loadingConfig.value = true
   try {
     const res = await getStorageConfigListUsingGet({})
     if (res.data.code === 0) {
       configList.value = res.data.data || []
+      loadError.value = false
+    } else {
+      loadError.value = true
+      message.error(res.data.message || '加载配置列表失败')
     }
   } catch (e) {
+    loadError.value = true
     message.error('加载配置列表失败')
+  } finally {
+    loadingConfig.value = false
   }
 }
 
@@ -683,19 +718,42 @@ const handleRollbackSwitch = async () => {
   }
 }
 
-const handleDelete = async (item: StorageConfigVO) => {
+const confirmDelete = (item: StorageConfigVO) => {
+  Modal.confirm({
+    title: `删除存储配置「${item.platformName}」？`,
+    content: '删除后该平台不能再用于上传。5 秒内可撤销。',
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: () => applyDelete(item),
+  })
+}
+
+const applyDelete = (item: StorageConfigVO) => {
   if (!item.id) return
-  try {
-    const res = await deleteStorageConfigUsingPost({ id: item.id })
-    if (res.data.code === 0) {
-      message.success('删除成功')
-      await loadConfigList()
-    } else {
-      message.error(res.data.message || '删除失败')
-    }
-  } catch (e) {
-    message.error('删除失败')
-  }
+  const index = configList.value.findIndex((row) => row.id === item.id)
+  if (index < 0) return
+  configList.value.splice(index, 1)
+
+  undo.schedule({
+    key: `storage-delete-${item.id}`,
+    message: `「${item.platformName}」已删除`,
+    commit: async () => {
+      try {
+        const res = await deleteStorageConfigUsingPost({ id: item.id as number })
+        if (res.data.code !== 0) {
+          message.error(res.data.message || '删除失败，已恢复')
+        }
+      } catch {
+        message.error('删除失败，已恢复')
+      } finally {
+        await loadConfigList()
+      }
+    },
+    undo: () => {
+      configList.value.splice(Math.min(index, configList.value.length), 0, item)
+    },
+  })
 }
 
 const handleRefresh = async () => {
@@ -965,6 +1023,28 @@ onMounted(() => {
     }
   }
 
+  /* 本实例真正在用的那一份：比「已激活」再强一档，用主色描边 */
+  &.local {
+    color: var(--admin-primary);
+    background: var(--admin-primary-bg);
+    border: 1px solid color-mix(in srgb, var(--admin-primary) 32%, transparent);
+
+    .status-dot {
+      background: var(--admin-primary);
+    }
+  }
+
+  /* 已写入但还没等到全部实例确认 */
+  &.pending {
+    color: var(--admin-warning);
+    background: var(--admin-warning-bg);
+    border: 1px solid color-mix(in srgb, var(--admin-warning) 30%, transparent);
+
+    .status-dot {
+      background: var(--admin-warning);
+    }
+  }
+
   &.disabled {
     color: var(--admin-text-tertiary);
     background: transparent;
@@ -1070,6 +1150,67 @@ onMounted(() => {
     color: var(--admin-danger);
     background: var(--admin-danger-bg);
     border-color: color-mix(in srgb, var(--admin-danger) 22%, transparent);
+  }
+
+  &.labeled {
+    width: auto;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: var(--admin-text-xs);
+    font-weight: 600;
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+}
+
+/* ========== 待确认切换告警条 ========== */
+.switch-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+  padding: var(--admin-space-4);
+  background: var(--admin-warning-bg);
+  border: 1px solid color-mix(in srgb, var(--admin-warning) 34%, transparent);
+  border-radius: var(--admin-radius-sm);
+
+  .switch-alert-main {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+
+    strong {
+      font-size: var(--admin-text-sm);
+      color: var(--admin-text-primary);
+    }
+
+    span {
+      font-size: var(--admin-text-xs);
+      color: var(--admin-text-secondary);
+    }
+  }
+
+  .switch-alert-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--admin-space-2);
+  }
+}
+
+.skeleton-card {
+  pointer-events: none;
+  padding: var(--admin-space-4);
+  min-height: 220px;
+
+  &:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--admin-border-default);
   }
 }
 
