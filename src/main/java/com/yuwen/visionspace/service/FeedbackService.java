@@ -6,6 +6,7 @@ import com.yuwen.visionspace.model.dto.feedback.FeedbackQueryRequest;
 import com.yuwen.visionspace.model.dto.feedback.FeedbackUpdateStatusRequest;
 import com.yuwen.visionspace.model.entity.User;
 import com.yuwen.visionspace.model.entity.UserFeedback;
+import com.yuwen.visionspace.model.vo.FeedbackStatsVO;
 import com.yuwen.visionspace.model.vo.FeedbackVO;
 
 public interface FeedbackService {
@@ -27,6 +28,13 @@ public interface FeedbackService {
      * 分页查询反馈列表（仅平台管理员）
      */
     Page<FeedbackVO> listFeedbackByPage(FeedbackQueryRequest queryRequest);
+
+    /**
+     * 按状态聚合反馈数量（仅平台管理员）。
+     *
+     * @param type 可选的反馈类型过滤；为 null 时统计全部类型
+     */
+    FeedbackStatsVO countByStatus(Integer type);
 
     /**
      * 更新反馈状态（仅平台管理员）

@@ -96,6 +96,14 @@ public interface UserService extends IService<User> {
     boolean userLogout(HttpServletRequest request);
 
     /**
+     * 按姓名或账号模糊搜索用户，供管理端选择空间所有者。
+     *
+     * @param keyword 搜索词；为空时返回空列表，避免误把全量用户吐给选择器
+     * @return 最多 20 条脱敏用户信息
+     */
+    List<UserVO> searchForAdmin(String keyword);
+
+    /**
      * 获取查询条件
      * @param userQueryRequest
      * @return

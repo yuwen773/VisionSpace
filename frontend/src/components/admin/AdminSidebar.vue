@@ -47,7 +47,8 @@
     <div class="sidebar-foot">
       <span v-show="!isCollapsed" class="foot-status">
         <span class="foot-dot" aria-hidden="true"></span>
-        <span class="foot-text">System online</span>
+        <!-- 静态标识：这里没有健康检查数据，不假装实时在线状态 -->
+        <span class="foot-text">Admin workspace</span>
       </span>
       <span v-show="!isCollapsed" class="foot-mark">VS / ADMIN</span>
       <span v-show="isCollapsed" class="foot-dot foot-dot--solo" aria-hidden="true"></span>
@@ -147,7 +148,7 @@ const toggleCollapse = () => {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border-radius: 7px;
+  border-radius: var(--admin-radius-sm);
 }
 
 .logo-copy {
@@ -186,7 +187,7 @@ const toggleCollapse = () => {
   flex-shrink: 0;
   background: transparent;
   border: 1px solid var(--admin-border-default);
-  border-radius: 50%;
+  border-radius: var(--admin-radius-sm);
   color: var(--admin-text-tertiary);
   cursor: pointer;
   transition:
@@ -339,8 +340,7 @@ const toggleCollapse = () => {
   inset: -3px;
   border-radius: 50%;
   border: 1px solid var(--admin-success);
-  opacity: 0;
-  animation: admin-pulse 2.8s var(--admin-ease) infinite;
+  opacity: 0.35;
 }
 
 .foot-dot--solo {
@@ -362,18 +362,6 @@ const toggleCollapse = () => {
   letter-spacing: 0.18em;
   color: var(--admin-text-disabled);
   white-space: nowrap;
-}
-
-@keyframes admin-pulse {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.8);
-  }
-  70%,
-  100% {
-    opacity: 0;
-    transform: scale(1.8);
-  }
 }
 
 /* ============ 响应式 ============ */

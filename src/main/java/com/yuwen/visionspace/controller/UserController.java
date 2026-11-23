@@ -184,6 +184,15 @@ public class UserController {
     }
 
     /**
+     * 按姓名或账号搜索用户（仅管理员），用于管理端选择空间所有者。
+     */
+    @GetMapping("/search")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<List<UserVO>> searchUser(@RequestParam("keyword") String keyword) {
+        return ResultUtils.success(userService.searchForAdmin(keyword));
+    }
+
+    /**
      * 兑换会员。返回明确状态：success（含新到期时间）/ already_used / invalid。
      */
     @PostMapping("/exchange/vip")

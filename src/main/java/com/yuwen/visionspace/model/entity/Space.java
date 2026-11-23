@@ -56,6 +56,11 @@ public class Space implements Serializable {
     private Long totalCount;
 
     /**
+     * 空间状态：0-禁用 1-正常
+     */
+    private Integer status;
+
+    /**
      * 创建用户 id
      */
     private Long userId;

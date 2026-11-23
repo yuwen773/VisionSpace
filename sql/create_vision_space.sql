@@ -146,6 +146,7 @@ CREATE TABLE `space`  (
   `isDelete` tinyint(4) NOT NULL DEFAULT 0 COMMENT '鏄?惁鍒犻櫎',
   `spaceType` int(11) NOT NULL DEFAULT 0 COMMENT '绌洪棿绫诲瀷锛?-绉佹湁 1-鍥㈤槦',
   `activeKey` varchar(64) NULL DEFAULT NULL COMMENT '有效空间唯一占位键 userId:spaceType，删除后置空',
+  `status` int(11) NOT NULL DEFAULT 1 COMMENT '空间状态：0-禁用 1-正常',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_space_active_key`(`activeKey`) USING BTREE,
   INDEX `idx_userId`(`userId`) USING BTREE,
