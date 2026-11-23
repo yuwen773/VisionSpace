@@ -10,7 +10,8 @@ public enum ActionSourceEnum {
     HOME_RECOMMEND(0, "首页推荐"),
     DETAIL(1, "详情页"),
     SEARCH(2, "搜索页"),
-    OTHER(3, "其他来源");
+    OTHER(3, "其他来源"),
+    MINI_PROGRAM(4, "小程序");
 
     private final int value;
     private final String label;

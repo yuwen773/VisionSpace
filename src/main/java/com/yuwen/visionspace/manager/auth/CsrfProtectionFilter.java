@@ -2,7 +2,6 @@ package com.yuwen.visionspace.manager.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.common.ResultUtils;
-import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.config.WebSecurityProperties;
 import com.yuwen.visionspace.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
@@ -53,11 +52,15 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
 
+    private final TokenAuthenticationSupport tokenAuthenticationSupport;
+
     private final SecureRandom random = new SecureRandom();
 
-    public CsrfProtectionFilter(WebSecurityProperties properties, ObjectMapper objectMapper) {
+    public CsrfProtectionFilter(WebSecurityProperties properties, ObjectMapper objectMapper,
+                                TokenAuthenticationSupport tokenAuthenticationSupport) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.tokenAuthenticationSupport = tokenAuthenticationSupport;
     }
 
     @Override
@@ -68,6 +71,14 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
 
         if (stateChanging) {
             if (!properties.isCsrfEnabled()) {
+                chain.doFilter(request, response);
+                return;
+            }
+            // 令牌客户端（小程序）先分流：令牌由客户端显式携带，浏览器不会自动附带，
+            // 因此不构成 CSRF 载体，也不需要双提交令牌或 Origin 判定。
+            // 放在签发令牌 Cookie 之前，避免给不认 Cookie 的客户端创建无用会话。
+            if (tokenAuthenticationSupport.classify(request)
+                    == TokenAuthenticationSupport.CredentialKind.TOKEN) {
                 chain.doFilter(request, response);
                 return;
             }
@@ -101,21 +112,15 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 请求是否带上了服务端可识别的登录态（HTTP 会话或空间鉴权令牌）。
+     * 请求是否带上了浏览器可自动附带的登录态（HTTP 会话或 Sa-Token Cookie）。
      *
      * <p>只有这类请求才可能被第三方站点借用身份，因此必须同时证明令牌一致。
-     * 匿名请求（含公开的 POST 查询）没有可被借用的授权，不强制令牌。
+     * 匿名请求（含公开的 POST 查询）没有可被借用的授权，不强制令牌；
+     * 显式携带令牌的客户端已在入口处分流，不会走到这里。
      */
     private boolean isAuthenticated(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session != null && session.getAttribute(UserConstant.USER_LOGIN_STATE) != null) {
-            return true;
-        }
-        try {
-            return StpKit.SPACE.isLogin();
-        } catch (Exception e) {
-            return false;
-        }
+        return tokenAuthenticationSupport.classify(request)
+                == TokenAuthenticationSupport.CredentialKind.SESSION;
     }
 
     private boolean originAllowed(HttpServletRequest request) {

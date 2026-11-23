@@ -40,6 +40,20 @@ vision-space:
     csrf-cookie-name: VS_CSRF
     csrf-header-name: X-CSRF-Token
     csrf-token-max-age: 7200
+  # 非浏览器客户端（小程序）的令牌读取：Web 仍走 SESSION Cookie，两者共用同一套账号
+  auth:
+    token:
+      header-name: ${VISION_SPACE_AUTH_TOKEN_HEADER:satoken}
+      # 查询参数供 <image> 等无法自定义请求头的加载场景；反向代理必须对该参数脱敏
+      query-name: ${VISION_SPACE_AUTH_TOKEN_QUERY:satoken}
+  # 微信小程序登录：appid 可公开，secret 只从环境变量注入
+  wechat:
+    miniprogram:
+      appid: ${VISION_SPACE_WX_APPID:}
+      secret: ${VISION_SPACE_WX_SECRET:}
+      base-url: ${VISION_SPACE_WX_BASE_URL:https://api.weixin.qq.com}
+      connect-timeout-ms: ${VISION_SPACE_WX_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${VISION_SPACE_WX_READ_TIMEOUT_MS:5000}
   # 用户输入出站请求（URL 图片下载、远程 MCP 目标）
   outbound:
     # 回环、私网、链路本地、云元数据等地址一律内置拒绝，没有对应的放宽开关。

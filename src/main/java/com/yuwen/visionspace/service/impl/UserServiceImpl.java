@@ -15,6 +15,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.StpKit;
+import com.yuwen.visionspace.manager.auth.TokenAuthenticationSupport;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
 import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.Picture;
@@ -55,6 +56,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Autowired
     private PasswordHasher passwordHasher;
+
+    @Autowired
+    private TokenAuthenticationSupport tokenAuthenticationSupport;
 
     /**
      * 用户注册
@@ -103,6 +107,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request) {
+        User user = authenticateForPassword(userAccount, userPassword);
+        // 保存用户的登录态
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
+        // 记录用户登录态到 Sa-token，便于空间鉴权时使用，注意保证该用户信息与 SpringSession 中的信息过期时间一致
+        StpKit.SPACE.login(user.getId());
+        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, user);
+        return this.getLoginUserVO(user);
+    }
+
+    @Override
+    public User authenticateForPassword(String userAccount, String userPassword) {
         // 1. 校验
         if (StrUtil.hasBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
@@ -127,12 +142,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         // 3. 旧摘要或低成本摘要：仅在验证成功后升级。失败路径不写库。
         upgradeStoredPassword(user, userPassword);
-        // 4. 保存用户的登录态
-        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
-        // 记录用户登录态到 Sa-token，便于空间鉴权时使用，注意保证该用户信息与 SpringSession 中的信息过期时间一致
-        StpKit.SPACE.login(user.getId());
-        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, user);
-        return this.getLoginUserVO(user);
+        return user;
     }
 
     /**
@@ -177,8 +187,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public User getLoginUser(HttpServletRequest request) {
+        // 小程序等非浏览器客户端：请求头或查询参数携带令牌，不依赖 Cookie 会话。
+        // 先判令牌再判会话，令牌客户端因此不会顺带创建空 Session。
+        Long tokenUserId = tokenAuthenticationSupport.resolveUserId(request);
+        if (tokenUserId != null) {
+            User byToken = this.getById(tokenUserId);
+            if (byToken == null) {
+                throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+            }
+            return byToken;
+        }
         // 判断是否已经登录
-        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        HttpSession session = request.getSession(false);
+        Object userObj = session == null ? null : session.getAttribute(UserConstant.USER_LOGIN_STATE);
         User currentUser = (User) userObj;
         if (currentUser == null || currentUser.getId() == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
@@ -257,7 +278,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         HttpSession session = request.getSession(false);
         Object userObj = session == null ? null : session.getAttribute(UserConstant.USER_LOGIN_STATE);
         boolean spaceLoggedIn = StpKit.SPACE.isLogin();
-        if (userObj == null && !spaceLoggedIn) {
+        // 小程序用请求头/查询参数带令牌，Sa-Token 不一定能自己读到（查询参数就属于这种情况），
+        // 所以这里显式解析一次，避免「令牌有效却提示未登录」。
+        String explicitToken = tokenAuthenticationSupport.resolveTokenValue(request);
+        boolean tokenLoggedIn = explicitToken != null && tokenAuthenticationSupport.resolveUserId(request) != null;
+        if (userObj == null && !spaceLoggedIn && !tokenLoggedIn) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         // 1. 撤销空间认证：删除令牌与账号映射，旧 Cookie 里的令牌立即失效
@@ -267,6 +292,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             StpKit.SPACE.logout(SaLogoutParameter.create()
                     .setMode(SaLogoutMode.LOGOUT)
                     .setRange(SaLogoutRange.ACCOUNT));
+        } else if (tokenLoggedIn) {
+            // Sa-Token 读不到该令牌（如查询参数携带）时，按令牌值精确撤销本次凭据
+            StpKit.SPACE.logoutByTokenValue(explicitToken);
         }
         // 2. 失效整个 HTTP 会话，只移除单个属性会让旧 Session 继续可用
         if (session != null) {

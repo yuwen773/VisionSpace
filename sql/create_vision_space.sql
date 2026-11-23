@@ -211,6 +211,7 @@ CREATE TABLE `user`  (
   `userAvatar` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '鐢ㄦ埛澶村儚',
   `userProfile` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '鐢ㄦ埛绠?粙',
   `userRole` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'user' COMMENT '鐢ㄦ埛瑙掕壊锛歶ser/admin',
+  `wxOpenId` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT 'WeChat mini program openid; 1:1 with account, NULL when unbound',
   `editTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '缂栬緫鏃堕棿',
   `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '鍒涘缓鏃堕棿',
   `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '鏇存柊鏃堕棿',
@@ -220,6 +221,7 @@ CREATE TABLE `user`  (
   `vipNumber` bigint(20) NULL DEFAULT NULL COMMENT '浼氬憳缂栧彿',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_userAccount`(`userAccount`) USING BTREE,
+  UNIQUE INDEX `uk_user_wxOpenId`(`wxOpenId`) USING BTREE,
   INDEX `idx_userName`(`userName`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1911004288852279298 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '鐢ㄦ埛' ROW_FORMAT = DYNAMIC;
 
