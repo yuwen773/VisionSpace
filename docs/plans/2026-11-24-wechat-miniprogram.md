@@ -220,3 +220,35 @@ miniprogram/
 - **重复代码**：抽取 `services/telemetry.reportOnce`（闸门 + eventId + 静默失败）与
   `logic/errors.errorMessage`；榜单 key 直接来自 `RECOMMEND_TYPES`。
 - 测试 43 → 47 项。
+
+## 11. M3 实施记录（2026-11-24）
+
+已落地：
+
+- **登录**：`pages/login` 先 `wx.login` → `POST /user/wx/login`；40102 才展示
+  账号密码绑定表单，绑定每次重新取 code；成功后存令牌 + 令牌名 + 脱敏用户。
+  「我的」展示昵称/ID、退出登录（后端 50001「未登录」也照常清本地）。
+- **空间列表**：没有 `/space/list/my`，用 `POST /space/list/page/vo`（pageSize=20，
+  非管理员上限）+ `POST /spaceUser/list/my` 合并角色；个人空间无成员记录，
+  所有者按 `SpaceVO.userId` 判定为「创建者」。注册不建空间，列表缺个人空间时
+  自动 `POST /space/add`（重复创建 50001 视为已存在）。
+- **空间详情**：`POST /picture/list/page/vo` 带 `spaceId`，分页 12；隔离行由后端
+  置空 URL 并带 `quarantined=true`，卡片显示「内容已隔离」。
+- **颜色检索**：`POST /picture/search/color`（top 12，无分页）；12 色色卡 +
+  「从图片取色」（离屏 canvas 32×32 取平均色），失败提示改用色卡。
+- **图片访问**：空间作品的内容 URL 在查询参数带 `satoken`（`<image>` 无法带头）；
+  详情先带令牌取，40100 自动退回匿名，公开作品不受过期令牌影响。
+- **埋点/分享**：空间作品不报行为（后端 403），也不出现分享入口；公开作品保持 M2 行为。
+- 主题：新增页面沿用同一套 token，未新增第三套配色。
+
+关键取舍：
+
+- 颜色检索返回无距离字段，展示顺序即后端相似度顺序。
+- 空间列表一次取 20 个；个人/团队空间总量超出后再做分页（当前约定上限足够）。
+- 取色依赖离屏 canvas 2d，旧机型失败时降级到色卡，不阻塞检索。
+
+验证证据：
+
+- `npm run type-check`（src + tests）通过。
+- `npm test`：8 个测试文件 78 项全通过（新增颜色、空间合并、账号校验、URL 拼接）。
+- 真机清单（M2 + M3）尚未执行，需开发者工具 + 体验版手动过。
