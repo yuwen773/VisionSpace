@@ -1,0 +1,17 @@
+{
+  "desc": "VisionSpace 公开图库允许被微信搜索索引",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/discover/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/picture/index"
+    },
+    {
+      "action": "disallow",
+      "page": "pages/me/index"
+    }
+  ]
+}

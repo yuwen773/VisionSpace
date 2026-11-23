@@ -1,0 +1,108 @@
+.hero {
+  margin: 16rpx -24rpx 0;
+  background: var(--vs-bg-secondary);
+}
+
+.hero-image {
+  display: block;
+  width: 100%;
+}
+
+.hero-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 520rpx;
+  background: var(--vs-surface);
+}
+
+.content {
+  padding: 32rpx 0 48rpx;
+}
+
+.title {
+  color: var(--vs-text);
+  font-size: 38rpx;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.meta {
+  margin-top: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.dot {
+  margin: 0 8rpx;
+}
+
+.counts {
+  display: flex;
+  margin-top: 28rpx;
+  padding: 24rpx 0;
+  border-top: 1rpx solid var(--vs-border-subtle);
+  border-bottom: 1rpx solid var(--vs-border-subtle);
+}
+
+.count {
+  flex: 1;
+  text-align: center;
+}
+
+.count-value {
+  color: var(--vs-text);
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.count-label {
+  margin-top: 4rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 22rpx;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 24rpx;
+}
+
+.tag {
+  margin: 0 12rpx 12rpx 0;
+  padding: 6rpx 20rpx;
+  border-radius: 999rpx;
+  background: var(--vs-surface-hover);
+  color: var(--vs-text-secondary);
+  font-size: 24rpx;
+}
+
+.intro {
+  margin-top: 16rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.share-btn {
+  margin-top: 40rpx;
+  border: none;
+  border-radius: 999rpx;
+  background: var(--vs-primary);
+  color: #ffffff;
+  font-size: 30rpx;
+  line-height: 88rpx;
+}
+
+.share-btn::after {
+  border: none;
+}
+
+.hint {
+  margin-top: 32rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 22rpx;
+  text-align: center;
+}

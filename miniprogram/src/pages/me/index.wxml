@@ -1,0 +1,23 @@
+<view class="page me">
+  <view class="brand">
+    <view class="brand-name">VisionSpace</view>
+    <view class="brand-slogan">用视觉连接灵感</view>
+  </view>
+
+  <view class="panel">
+    <view class="row">
+      <text class="row-label">公开图库</text>
+      <text class="row-value">免登录浏览</text>
+    </view>
+    <view class="row">
+      <text class="row-label">空间浏览与上传</text>
+      <text class="row-value row-value-muted">即将上线</text>
+    </view>
+    <view class="row">
+      <text class="row-label">版本</text>
+      <text class="row-value">{{version}}</text>
+    </view>
+  </view>
+
+  <view class="note">登录后可使用个人空间、团队空间与上传功能。</view>
+</view>

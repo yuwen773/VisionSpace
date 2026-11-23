@@ -1,0 +1,57 @@
+.brand {
+  padding: 80rpx 8rpx 56rpx;
+}
+
+.brand-name {
+  color: var(--vs-text);
+  font-size: 52rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.brand-slogan {
+  margin-top: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+}
+
+.panel {
+  overflow: hidden;
+  border-radius: var(--vs-radius-lg);
+  background: var(--vs-surface);
+  box-shadow: var(--vs-shadow-card);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx 28rpx;
+  border-bottom: 1rpx solid var(--vs-border-subtle);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row-label {
+  color: var(--vs-text);
+  font-size: 28rpx;
+}
+
+.row-value {
+  color: var(--vs-text-secondary);
+  font-size: 26rpx;
+}
+
+.row-value-muted {
+  color: var(--vs-text-tertiary);
+}
+
+.note {
+  margin-top: 32rpx;
+  padding: 0 8rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  line-height: 1.7;
+}

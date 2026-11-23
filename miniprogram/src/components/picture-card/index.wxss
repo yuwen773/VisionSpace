@@ -1,0 +1,52 @@
+.card {
+  overflow: hidden;
+  border-radius: var(--vs-radius-lg);
+  background: var(--vs-surface);
+  box-shadow: var(--vs-shadow-card);
+}
+
+.media {
+  position: relative;
+  width: 100%;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.body {
+  padding: 16rpx 20rpx 20rpx;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--vs-text);
+  font-size: 26rpx;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tags {
+  display: flex;
+  margin-top: 8rpx;
+  overflow: hidden;
+}
+
+.tag {
+  margin-right: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 22rpx;
+  white-space: nowrap;
+}

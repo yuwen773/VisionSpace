@@ -1,0 +1,19 @@
+<view class="card" bindtap="onTap">
+  <view class="media" style="height: {{card.heightRpx}}rpx; background: {{card.color}};">
+    <image
+      wx:if="{{card.imageUrl && !failed}}"
+      class="image"
+      src="{{card.imageUrl}}"
+      mode="aspectFill"
+      lazy-load
+      bind:error="onImageError"
+    />
+    <view wx:else class="fallback">{{card.broken ? '图片暂不可用' : '加载失败'}}</view>
+  </view>
+  <view class="body">
+    <view class="title">{{card.title}}</view>
+    <view class="tags" wx:if="{{card.tags.length > 0}}">
+      <text wx:for="{{card.tags}}" wx:key="*this" class="tag">#{{item}}</text>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,57 @@
+<view class="page detail">
+  <view class="state" wx:if="{{loading}}">
+    <view class="state-title">正在加载…</view>
+  </view>
+
+  <view class="state" wx:elif="{{error}}">
+    <view class="state-title">{{error}}</view>
+    <view class="retry-btn" bindtap="onBack">返回</view>
+  </view>
+
+  <block wx:else>
+    <view class="hero" bindtap="onPreview">
+      <image
+        wx:if="{{!imageError}}"
+        class="hero-image"
+        src="{{imageUrl}}"
+        mode="widthFix"
+        bind:error="onImageError"
+      />
+      <view wx:else class="hero-fallback">
+        <view class="state-title">图片暂不可用</view>
+        <view class="state-desc">可返回列表查看其他作品</view>
+      </view>
+    </view>
+
+    <view class="content">
+      <view class="title">{{title}}</view>
+
+      <view class="meta" wx:if="{{author || category || dateText}}">
+        <text wx:if="{{author}}">{{author}}</text>
+        <text wx:if="{{author && (category || dateText)}}" class="dot">·</text>
+        <text wx:if="{{category}}">{{category}}</text>
+        <text wx:if="{{category && dateText}}" class="dot">·</text>
+        <text wx:if="{{dateText}}">{{dateText}}</text>
+        <text wx:if="{{sizeText}}" class="dot">·</text>
+        <text wx:if="{{sizeText}}">{{sizeText}}</text>
+      </view>
+
+      <view class="counts">
+        <view class="count" wx:for="{{counts}}" wx:key="key">
+          <view class="count-value">{{item.value}}</view>
+          <view class="count-label">{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="tags" wx:if="{{tags.length > 0}}">
+        <text class="tag" wx:for="{{tags}}" wx:key="*this">#{{item}}</text>
+      </view>
+
+      <view class="intro" wx:if="{{description}}">{{description}}</view>
+
+      <button wx:if="{{canShare}}" class="share-btn" open-type="share">分享给朋友</button>
+
+      <view class="hint">点赞、收藏与下载请在 VisionSpace 网页端登录后使用。</view>
+    </view>
+  </block>
+</view>

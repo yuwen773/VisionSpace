@@ -1,0 +1,26 @@
+{
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "projectname": "visionspace-miniprogram",
+  "miniprogramRoot": "src/",
+  "libVersion": "3.7.12",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "coverView": true,
+    "useCompilerPlugins": ["typescript"],
+    "ignoreUploadUnusedFiles": true,
+    "packNpmManually": false
+  },
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}

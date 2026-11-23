@@ -1,0 +1,37 @@
+{
+  "pages": [
+    "pages/discover/index",
+    "pages/me/index",
+    "pages/picture/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "VisionSpace",
+    "navigationBarBackgroundColor": "@navBg",
+    "navigationBarTextStyle": "@navText",
+    "backgroundColor": "@pageBg",
+    "backgroundColorTop": "@pageBg",
+    "backgroundColorBottom": "@pageBg",
+    "backgroundTextStyle": "@bgText"
+  },
+  "tabBar": {
+    "color": "@tabColor",
+    "selectedColor": "@tabSelected",
+    "backgroundColor": "@tabBg",
+    "borderStyle": "@tabBorder",
+    "list": [
+      {
+        "pagePath": "pages/discover/index",
+        "text": "发现"
+      },
+      {
+        "pagePath": "pages/me/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "darkmode": true,
+  "themeLocation": "theme.json",
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

@@ -1,0 +1,44 @@
+/**
+ * 后端 `BaseResponse.code` 到用户可读文案的映射（纯逻辑）。
+ * 只收录小程序会碰到的码；未知码优先用服务端 message，其次用兜底文案。
+ */
+export const NETWORK_ERROR_CODE = -1
+
+export interface ClientError {
+  code: number
+  message: string
+  retryable: boolean
+  loginRequired: boolean
+}
+
+const FALLBACK_MESSAGE = '网络开小差了，请稍后再试'
+
+export function describeError(code: number, message?: string | null): ClientError {
+  const serverMessage = typeof message === 'string' ? message.trim() : ''
+  switch (code) {
+    case 0:
+      return { code, message: '', retryable: false, loginRequired: false }
+    case NETWORK_ERROR_CODE:
+      return { code, message: '连接失败，请检查网络后重试', retryable: true, loginRequired: false }
+    case 40000:
+      return { code, message: serverMessage || '请求参数有误', retryable: false, loginRequired: false }
+    case 40100:
+      return { code, message: '登录已失效，请重新登录', retryable: false, loginRequired: true }
+    case 40101:
+      return { code, message: '没有访问权限', retryable: false, loginRequired: false }
+    case 40102:
+      return { code, message: '该微信尚未绑定账号', retryable: false, loginRequired: true }
+    case 40103:
+      return { code, message: '该微信已绑定其他账号', retryable: false, loginRequired: true }
+    case 40300:
+      return { code, message: '没有访问权限', retryable: false, loginRequired: false }
+    case 40400:
+      return { code, message: '内容不存在或已下线', retryable: false, loginRequired: false }
+    case 50000:
+      return { code, message: '服务暂时不可用，请稍后再试', retryable: true, loginRequired: false }
+    case 50001:
+      return { code, message: '今日上传额度已用完', retryable: false, loginRequired: false }
+    default:
+      return { code, message: serverMessage || FALLBACK_MESSAGE, retryable: true, loginRequired: false }
+  }
+}

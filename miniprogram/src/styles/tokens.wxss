@@ -1,0 +1,49 @@
+/*
+ * 两套主题的色值对齐 Web 端：
+ *   浅色 = 紫漾（design-tokens-ziyan.css），深色 = 极光（design-tokens.css）。
+ * 小程序 WXSS 的 prefers-color-scheme 始终跟随系统，与 app.json 的 darkmode 开关无关，
+ * 因此这里只保留 CSS 变量，原生导航栏/tabBar 由 theme.json 处理。
+ */
+page {
+  --vs-bg: #faf7ff;
+  --vs-bg-secondary: #ffffff;
+  --vs-surface: #ffffff;
+  --vs-surface-hover: #ede9fe;
+  --vs-text: #1e1b4b;
+  --vs-text-secondary: #5b21b6;
+  --vs-text-tertiary: #6d7280;
+  --vs-border: #ddd6fe;
+  --vs-border-subtle: #ede9fe;
+  --vs-border-strong: #a78bfa;
+  --vs-primary: #a855f7;
+  --vs-primary-strong: #9333ea;
+  --vs-accent: #ec4899;
+  --vs-overlay: rgba(250, 247, 255, 0.86);
+  --vs-radius-sm: 8rpx;
+  --vs-radius-md: 16rpx;
+  --vs-radius-lg: 24rpx;
+  --vs-radius-xl: 32rpx;
+  --vs-shadow-card: 0 8rpx 40rpx rgba(139, 92, 246, 0.08);
+  --vs-shadow-float: 0 12rpx 48rpx rgba(139, 92, 246, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  page {
+    --vs-bg: #030712;
+    --vs-bg-secondary: #0a0f1a;
+    --vs-surface: #1a2332;
+    --vs-surface-hover: #243044;
+    --vs-text: #f8fafc;
+    --vs-text-secondary: #cbd5e1;
+    --vs-text-tertiary: #94a3b8;
+    --vs-border: rgba(148, 163, 184, 0.15);
+    --vs-border-subtle: rgba(148, 163, 184, 0.08);
+    --vs-border-strong: rgba(148, 163, 184, 0.25);
+    --vs-primary: #6aa3ff;
+    --vs-primary-strong: #4485ff;
+    --vs-accent: #00d4aa;
+    --vs-overlay: rgba(10, 15, 26, 0.86);
+    --vs-shadow-card: 0 8rpx 40rpx rgba(0, 0, 0, 0.45);
+    --vs-shadow-float: 0 12rpx 48rpx rgba(0, 0, 0, 0.6);
+  }
+}
