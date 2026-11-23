@@ -146,3 +146,29 @@ miniprogram/
 - Agent 对话与语义检索、图片编辑/删除/批量、空间成员管理、会员兑换、用户中心业务分区、
   空间分析、反馈、admin/moderation、实时协作编辑。
 - 不新增第三套主题；不改现有 `/user/center` 与全局页头页脚。
+
+## 9. M1 实施记录（2026-11-24）
+
+已落地：
+
+- `user.wxOpenId` 列 + 唯一索引（前向迁移、回滚说明、全量 DDL 同步）。
+- `POST /user/wx/login`、`POST /user/wx/bind`；一对一绑定、幂等重绑、并发由唯一索引兜底。
+- `TokenAuthenticationSupport`：请求头 / 查询参数读取 `satoken`，`getLoginUser` 令牌优先。
+- `CsrfProtectionFilter` 按凭据类型分流：`TOKEN` 跳过双提交与 Origin，`SESSION` 行为不变。
+- `ActionSourceEnum.MINI_PROGRAM(4)`。
+- nginx 三个入口配置对 `satoken` 查询参数做日志脱敏；`.env.example` / compose 增加可选配置。
+
+验证证据：
+
+- `HttpMiniProgramAuthTest` 9/9。
+- 回归：`HttpAccountSecurityTest` 12/12、`HttpPictureActionReportingTest` 10/10、
+  `HttpPublicGalleryTest` 4/4、`HttpSpaceAuthorizationTest` 9/9、
+  `HttpForgedAuthorizationTest` 5/5、`HttpFeedbackProtectionTest` 10/10、
+  `HttpPictureGrantTest` 9/9。
+- `HttpPictureContentAuthTest` 11/12：唯一失败项是浏览器矩阵脚本，原因是本 worktree 未安装
+  `frontend/node_modules`（`ERR_MODULE_NOT_FOUND: playwright-core`），与本次改动无关。
+
+**环境注意**：Windows 原生 Redis 最高 5.0.14，Sa-Token 1.46 写会话时使用 Redis 5 不支持的
+`SET` 语法（`ERR syntax error`），会导致**任何**登录类验收失败。以上测试改用 Docker
+`redis:7.2.4` 跑隔离环境；原生 Redis 5 不可用于本套件的 HTTP 验收。
+
