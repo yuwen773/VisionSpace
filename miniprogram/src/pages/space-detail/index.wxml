@@ -16,14 +16,13 @@
 
   <block wx:else>
     <view class="header">
+      <view class="label-row">
+        <text class="label-type" wx:if="{{typeText}}">{{typeText}}</text>
+        <text class="label-count mono" wx:if="{{total !== null}}">{{total}} 件作品</text>
+      </view>
       <view class="header-row">
         <view class="title">{{name}}</view>
-        <view class="upload-btn" wx:if="{{canUpload}}" bindtap="onUploadTap">上传作品</view>
-      </view>
-      <view class="subtitle">
-        <text wx:if="{{typeText}}">{{typeText}}</text>
-        <text wx:if="{{typeText && total !== null}}" class="dot">·</text>
-        <text wx:if="{{total !== null}}">{{total}} 件作品</text>
+        <view class="upload-link" wx:if="{{canUpload}}" bindtap="onUploadTap">上传作品</view>
       </view>
     </view>
 
@@ -48,7 +47,7 @@
       <view class="filter-summary">
         <view class="filter-dot" style="background: {{filterColor}};"></view>
         <text>相近颜色</text>
-        <text wx:if="{{!colorLoading && !colorError}}"> · {{colorCount}} 件</text>
+        <text wx:if="{{!colorLoading && !colorError}}" class="mono"> · {{colorCount}} 件</text>
       </view>
 
       <view class="state" wx:if="{{colorLoading}}">

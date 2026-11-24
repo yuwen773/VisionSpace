@@ -1,26 +1,15 @@
-.header {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding-top: 16rpx;
-  background: var(--vs-bg);
-}
-
-.search {
+.search-line {
   display: flex;
   align-items: center;
-  height: 72rpx;
-  padding: 0 24rpx;
-  border: 1rpx solid var(--vs-border);
-  border-radius: 999rpx;
-  background: var(--vs-surface);
+  height: 92rpx;
+  border-bottom: 1rpx solid var(--vs-rule);
 }
 
 .search-input {
   flex: 1;
-  height: 72rpx;
+  height: 92rpx;
   color: var(--vs-text);
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .search-placeholder {
@@ -28,73 +17,57 @@
 }
 
 .search-clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44rpx;
-  height: 44rpx;
-  border-radius: 50%;
-  background: var(--vs-surface-hover);
+  padding: 0 8rpx 0 24rpx;
   color: var(--vs-text-tertiary);
-  font-size: 30rpx;
+  font-size: 32rpx;
   line-height: 1;
 }
 
+/* 榜单：文字排成一行，当前项用强调色下划线，不做胶囊 */
 .tabs {
-  margin-top: 20rpx;
+  margin-top: 8rpx;
   white-space: nowrap;
 }
 
 .tab {
   display: inline-block;
-  padding: 10rpx 28rpx;
-  border-radius: 999rpx;
-  color: var(--vs-text-secondary);
-  font-size: 28rpx;
-  transition: background-color 0.2s ease;
+  margin-right: 44rpx;
+  padding: 18rpx 0 14rpx;
+  border-bottom: 4rpx solid transparent;
+  color: var(--vs-text-tertiary);
+  font-size: 30rpx;
 }
 
 .tab-active {
-  background: var(--vs-primary);
-  color: #ffffff;
+  border-bottom-color: var(--vs-primary);
+  color: var(--vs-text);
   font-weight: 600;
 }
 
 .categories {
-  margin-top: 12rpx;
-  padding-bottom: 8rpx;
+  margin-top: 4rpx;
   white-space: nowrap;
 }
 
-.chip {
+.category {
   display: inline-block;
-  margin-right: 16rpx;
-  padding: 8rpx 24rpx;
-  border: 1rpx solid var(--vs-border);
-  border-radius: 999rpx;
+  margin-right: 32rpx;
+  padding: 12rpx 0;
   color: var(--vs-text-tertiary);
-  font-size: 24rpx;
+  font-size: 26rpx;
 }
 
-.chip-active {
-  border-color: var(--vs-primary);
+.category-active {
   color: var(--vs-primary);
-}
-
-.summary {
-  padding: 12rpx 0 4rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 24rpx;
 }
 
 .grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  padding-top: 16rpx;
+  padding-top: 12rpx;
 }
 
 .grid-item {
-  width: 343rpx;
-  margin-bottom: 16rpx;
+  width: 325rpx;
 }

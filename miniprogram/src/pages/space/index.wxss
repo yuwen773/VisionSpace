@@ -1,41 +1,21 @@
-.brand {
-  padding: 72rpx 8rpx 40rpx;
-}
-
-.brand-name {
-  color: var(--vs-text);
-  font-size: 48rpx;
-  font-weight: 700;
-}
-
-.brand-slogan {
-  margin-top: 12rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 26rpx;
-}
-
-.panel {
-  overflow: hidden;
-  border-radius: var(--vs-radius-lg);
-  background: var(--vs-surface);
-  box-shadow: var(--vs-shadow-card);
+.lead {
+  padding: 24rpx 0 8rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
 }
 
 .row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 30rpx 28rpx;
-  border-bottom: 1rpx solid var(--vs-border-subtle);
-}
-
-.row:last-child {
-  border-bottom: none;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
 }
 
 .row-label {
   color: var(--vs-text);
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .row-value {
@@ -43,34 +23,8 @@
   font-size: 24rpx;
 }
 
-.primary-btn {
+.login-btn {
   margin-top: 48rpx;
-  border: none;
-  border-radius: 999rpx;
-  background: var(--vs-primary);
-  color: #ffffff;
-  font-size: 30rpx;
-  line-height: 88rpx;
-}
-
-.primary-btn::after {
-  border: none;
-}
-
-.greeting {
-  padding: 32rpx 8rpx 24rpx;
-}
-
-.greeting-name {
-  color: var(--vs-text);
-  font-size: 40rpx;
-  font-weight: 600;
-}
-
-.greeting-sub {
-  margin-top: 8rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 24rpx;
 }
 
 .list {
@@ -78,53 +32,44 @@
   flex-direction: column;
 }
 
-.space-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16rpx;
-  padding: 30rpx 28rpx;
-  border-radius: var(--vs-radius-lg);
-  background: var(--vs-surface);
-  box-shadow: var(--vs-shadow-card);
+.space-row {
+  padding: 28rpx 0 24rpx;
+  border-bottom: 1rpx solid var(--vs-rule);
 }
 
-.space-card-main {
-  flex: 1;
-  min-width: 0;
+.space-head {
+  display: flex;
+  align-items: baseline;
+}
+
+.space-serial {
+  width: 56rpx;
+  flex: none;
+  color: var(--vs-primary);
+  font-size: 24rpx;
 }
 
 .space-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: var(--vs-text);
-  font-size: 30rpx;
+  font-size: 34rpx;
+  font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.space-meta {
-  display: flex;
-  align-items: center;
-  margin-top: 10rpx;
-}
-
-.badge {
-  margin-right: 12rpx;
-  padding: 2rpx 14rpx;
-  border-radius: 999rpx;
-  background: var(--vs-surface-hover);
-  color: var(--vs-text-secondary);
-  font-size: 20rpx;
-}
-
-.role {
-  color: var(--vs-text-tertiary);
-  font-size: 22rpx;
-}
-
-.chevron {
+.space-type {
+  flex: none;
   margin-left: 16rpx;
   color: var(--vs-text-tertiary);
-  font-size: 40rpx;
-  line-height: 1;
+  font-size: 24rpx;
+}
+
+.space-meta {
+  margin-top: 8rpx;
+  padding-left: 56rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
 }

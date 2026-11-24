@@ -28,21 +28,24 @@
     </view>
 
     <view class="content">
+      <view class="label-row" wx:if="{{category || dateText}}">
+        <text class="label-accent" wx:if="{{category}}">{{category}}</text>
+        <text class="label-meta mono" wx:if="{{dateText}}">{{dateText}}</text>
+      </view>
+
       <view class="title">{{title}}</view>
 
-      <view class="meta" wx:if="{{author || category || dateText}}">
-        <text wx:if="{{author}}">{{author}}</text>
-        <text wx:if="{{author && (category || dateText)}}" class="dot">·</text>
-        <text wx:if="{{category}}">{{category}}</text>
-        <text wx:if="{{category && dateText}}" class="dot">·</text>
-        <text wx:if="{{dateText}}">{{dateText}}</text>
-        <text wx:if="{{sizeText}}" class="dot">·</text>
-        <text wx:if="{{sizeText}}">{{sizeText}}</text>
+      <view class="intro" wx:if="{{description}}">{{description}}</view>
+
+      <view class="rule" wx:if="{{author || sizeText}}"></view>
+      <view class="meta-line" wx:if="{{author || sizeText}}">
+        <text class="meta-author" wx:if="{{author}}">{{author}}</text>
+        <text class="meta-size mono" wx:if="{{sizeText}}">{{sizeText}}</text>
       </view>
 
       <view class="counts">
         <view class="count" wx:for="{{counts}}" wx:key="key">
-          <view class="count-value">{{item.value}}</view>
+          <view class="count-value mono">{{item.value}}</view>
           <view class="count-label">{{item.label}}</view>
         </view>
       </view>
@@ -51,9 +54,7 @@
         <text class="tag" wx:for="{{tags}}" wx:key="*this">#{{item}}</text>
       </view>
 
-      <view class="intro" wx:if="{{description}}">{{description}}</view>
-
-      <button wx:if="{{canShare}}" class="share-btn" open-type="share">分享给朋友</button>
+      <button wx:if="{{canShare}}" class="ink-btn share-btn" open-type="share">分享给朋友</button>
 
       <view class="hint">点赞、收藏与下载请在 VisionSpace 网页端登录后使用。</view>
     </view>

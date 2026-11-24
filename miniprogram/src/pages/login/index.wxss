@@ -1,56 +1,61 @@
 .brand {
-  padding: 72rpx 8rpx 48rpx;
+  padding: 64rpx 0 32rpx;
+}
+
+.brand-kicker {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  letter-spacing: 1rpx;
 }
 
 .brand-name {
+  margin-top: 20rpx;
   color: var(--vs-text);
-  font-size: 48rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
+  font-size: 60rpx;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.brand-name-second {
+  margin-top: 0;
 }
 
 .brand-slogan {
-  margin-top: 12rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 26rpx;
+  margin-top: 16rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
 }
 
 .tip {
-  padding: 0 8rpx 24rpx;
+  padding: 24rpx 0 8rpx;
   color: var(--vs-text-secondary);
-  font-size: 26rpx;
+  font-size: 28rpx;
   line-height: 1.7;
 }
 
 .form {
-  overflow: hidden;
-  border-radius: var(--vs-radius-lg);
-  background: var(--vs-surface);
-  box-shadow: var(--vs-shadow-card);
+  border-top: 1rpx solid var(--vs-rule);
 }
 
 .field {
   display: flex;
   align-items: center;
-  padding: 28rpx;
-  border-bottom: 1rpx solid var(--vs-border-subtle);
-}
-
-.field:last-child {
-  border-bottom: none;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
 }
 
 .field-label {
-  width: 120rpx;
-  color: var(--vs-text);
-  font-size: 28rpx;
+  width: 96rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
 }
 
 .field-input {
   flex: 1;
-  height: 56rpx;
+  height: 52rpx;
   color: var(--vs-text);
-  font-size: 28rpx;
+  font-size: 30rpx;
 }
 
 .field-placeholder {
@@ -58,24 +63,13 @@
 }
 
 .error {
-  margin-top: 24rpx;
-  padding: 0 8rpx;
-  color: var(--vs-accent);
-  font-size: 24rpx;
+  margin-top: 20rpx;
+  color: #ef4444;
+  font-size: 26rpx;
 }
 
 .submit {
-  margin-top: 48rpx;
-  border: none;
-  border-radius: 999rpx;
-  background: var(--vs-primary);
-  color: #ffffff;
-  font-size: 30rpx;
-  line-height: 88rpx;
-}
-
-.submit::after {
-  border: none;
+  margin-top: 40rpx;
 }
 
 .back-link {

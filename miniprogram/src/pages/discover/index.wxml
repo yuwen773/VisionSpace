@@ -1,40 +1,42 @@
 <view class="page discover">
-  <view class="header">
-    <view class="search">
-      <input
-        class="search-input"
-        value="{{searchText}}"
-        placeholder="搜索作品名称或简介"
-        placeholder-class="search-placeholder"
-        confirm-type="search"
-        bindinput="onSearchInput"
-        bindconfirm="onSearchConfirm"
-      />
-      <view wx:if="{{searchText}}" class="search-clear" bindtap="onClearSearch">×</view>
-    </view>
-
-    <scroll-view class="tabs" scroll-x show-scrollbar="{{false}}">
-      <view
-        wx:for="{{tabs}}"
-        wx:key="key"
-        class="tab {{activeTab === item.key ? 'tab-active' : ''}}"
-        data-key="{{item.key}}"
-        bindtap="onTabTap"
-      >{{item.label}}</view>
-    </scroll-view>
-
-    <scroll-view class="categories" scroll-x show-scrollbar="{{false}}">
-      <view
-        wx:for="{{categories}}"
-        wx:key="*this"
-        class="chip {{activeCategory === item ? 'chip-active' : ''}}"
-        data-category="{{item}}"
-        bindtap="onCategoryTap"
-      >{{item}}</view>
-    </scroll-view>
-
-    <view class="summary" wx:if="{{summary}}">{{summary}}</view>
+  <view class="masthead">
+    <text class="masthead-title">VisionSpace 作品集</text>
+    <text class="masthead-meta" wx:if="{{summary}}">{{summary}}</text>
   </view>
+  <view class="rule"></view>
+
+  <view class="search-line">
+    <input
+      class="search-input"
+      value="{{searchText}}"
+      placeholder="搜索作品名称或简介"
+      placeholder-class="search-placeholder"
+      confirm-type="search"
+      bindinput="onSearchInput"
+      bindconfirm="onSearchConfirm"
+    />
+    <view wx:if="{{searchText}}" class="search-clear" bindtap="onClearSearch">×</view>
+  </view>
+
+  <scroll-view class="tabs" scroll-x show-scrollbar="{{false}}">
+    <view
+      wx:for="{{tabs}}"
+      wx:key="key"
+      class="tab {{activeTab === item.key ? 'tab-active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="onTabTap"
+    >{{item.label}}</view>
+  </scroll-view>
+
+  <scroll-view class="categories" scroll-x show-scrollbar="{{false}}">
+    <view
+      wx:for="{{categories}}"
+      wx:key="*this"
+      class="category {{activeCategory === item ? 'category-active' : ''}}"
+      data-category="{{item}}"
+      bindtap="onCategoryTap"
+    >{{item}}</view>
+  </scroll-view>
 
   <view class="grid" wx:if="{{cards.length > 0}}">
     <view

@@ -1,5 +1,10 @@
+.detail {
+  padding: 0 40rpx;
+}
+
+/* 主图占满左右：一屏一张纸 */
 .hero {
-  margin: 16rpx -24rpx 0;
+  margin: 0 -40rpx;
   background: var(--vs-bg-secondary);
 }
 
@@ -14,95 +19,103 @@
   align-items: center;
   justify-content: center;
   height: 520rpx;
-  background: var(--vs-surface);
+  background: var(--vs-tint);
 }
 
 .content {
-  padding: 32rpx 0 48rpx;
+  padding: 24rpx 0 48rpx;
+}
+
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label-accent {
+  color: var(--vs-primary);
+  font-size: 24rpx;
+}
+
+.label-meta {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
 }
 
 .title {
-  color: var(--vs-text);
-  font-size: 38rpx;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.meta {
   margin-top: 12rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 24rpx;
-}
-
-.dot {
-  margin: 0 8rpx;
-}
-
-.counts {
-  display: flex;
-  margin-top: 28rpx;
-  padding: 24rpx 0;
-  border-top: 1rpx solid var(--vs-border-subtle);
-  border-bottom: 1rpx solid var(--vs-border-subtle);
-}
-
-.count {
-  flex: 1;
-  text-align: center;
-}
-
-.count-value {
   color: var(--vs-text);
-  font-size: 32rpx;
+  font-size: 52rpx;
   font-weight: 600;
-}
-
-.count-label {
-  margin-top: 4rpx;
-  color: var(--vs-text-tertiary);
-  font-size: 22rpx;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 24rpx;
-}
-
-.tag {
-  margin: 0 12rpx 12rpx 0;
-  padding: 6rpx 20rpx;
-  border-radius: 999rpx;
-  background: var(--vs-surface-hover);
-  color: var(--vs-text-secondary);
-  font-size: 24rpx;
+  line-height: 1.25;
 }
 
 .intro {
   margin-top: 16rpx;
   color: var(--vs-text-secondary);
   font-size: 28rpx;
-  line-height: 1.7;
+  line-height: 1.75;
   white-space: pre-wrap;
+}
+
+.meta-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 16rpx 0;
+}
+
+.meta-author {
+  color: var(--vs-text-secondary);
+  font-size: 24rpx;
+}
+
+.meta-size {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.counts {
+  display: flex;
+  margin-top: 8rpx;
+  padding: 24rpx 0;
+  border-top: 1rpx solid var(--vs-rule);
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.count {
+  flex: 1;
+}
+
+.count-value {
+  color: var(--vs-text);
+  font-size: 44rpx;
+  line-height: 1.2;
+}
+
+.count-label {
+  margin-top: 6rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.tags {
+  margin-top: 20rpx;
+}
+
+.tag {
+  margin-right: 20rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
 }
 
 .share-btn {
   margin-top: 40rpx;
-  border: none;
-  border-radius: 999rpx;
-  background: var(--vs-primary);
-  color: #ffffff;
-  font-size: 30rpx;
-  line-height: 88rpx;
-}
-
-.share-btn::after {
-  border: none;
 }
 
 .hint {
-  margin-top: 32rpx;
+  margin-top: 24rpx;
   color: var(--vs-text-tertiary);
-  font-size: 22rpx;
-  text-align: center;
+  font-size: 24rpx;
+  line-height: 1.7;
 }

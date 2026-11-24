@@ -15,6 +15,8 @@ import {
 } from '../../logic/spaces'
 
 interface SpaceCard extends SpaceSummary {
+  /** 刊行序号：01、02…，只在展示层用 */
+  serial: string
   roleText: string
   typeText: string
   canUpload: boolean
@@ -65,8 +67,9 @@ Page({
         return
       }
       const spaces: SpaceCard[] = mergeSpaceSummaries(page.records ?? [], memberships).map(
-        (space) => ({
+        (space, index) => ({
           ...space,
+          serial: String(index + 1).padStart(2, '0'),
           roleText: roleLabel(space, currentUserId),
           typeText: spaceTypeLabel(space.spaceType, true),
           canUpload: canUploadToSpace(space, currentUserId),

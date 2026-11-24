@@ -4,11 +4,12 @@
     <view wx:else class="avatar avatar-fallback">{{initial || 'V'}}</view>
     <view class="profile-main">
       <view class="profile-name">{{loggedIn ? displayName : '未登录'}}</view>
-      <view class="profile-sub" wx:if="{{loggedIn}}">ID {{userId}}</view>
+      <view class="profile-sub mono" wx:if="{{loggedIn}}">ID {{userId}}</view>
       <view class="profile-sub" wx:else>登录后可浏览个人与团队空间</view>
     </view>
     <view class="profile-action" wx:if="{{!loggedIn}}" bindtap="onLoginTap">登录</view>
   </view>
+  <view class="rule"></view>
 
   <view class="panel">
     <view class="row">
@@ -17,7 +18,7 @@
     </view>
     <view class="row">
       <text class="row-label">版本</text>
-      <text class="row-value">{{version}}</text>
+      <text class="row-value mono">{{version}}</text>
     </view>
   </view>
 

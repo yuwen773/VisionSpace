@@ -6,14 +6,15 @@
 
   <block wx:else>
     <view class="header">
-      <view class="title">上传到 {{spaceName}}</view>
+      <view class="label">登记到空间</view>
+      <view class="title">{{spaceName}}</view>
       <view class="subtitle">最多 {{maxCount}} 张 · 单张自动压缩到 2MB 以内 · 上传后待审核</view>
     </view>
+    <view class="rule"></view>
 
     <view class="picker" wx:if="{{!busy && items.length < maxCount}}" bindtap="onChoose">
-      <view class="picker-plus">＋</view>
       <view class="picker-text">选择图片</view>
-      <view class="picker-hint">还可选 {{maxCount - items.length}} 张</view>
+      <view class="picker-hint mono">还可选 {{maxCount - items.length}} 张</view>
     </view>
     <view class="full-hint" wx:elif="{{items.length >= maxCount}}">
       已选满 {{maxCount}} 张，上传后可继续添加
@@ -33,7 +34,7 @@
             bindinput="onNameInput"
           />
           <view class="item-meta">
-            <text class="size">{{item.sizeText}}</text>
+            <text class="size mono">{{item.sizeText}}</text>
             <text class="status status-{{item.status}}">{{item.statusText}}</text>
           </view>
           <view class="progress" wx:if="{{item.status === 'uploading'}}">
@@ -47,7 +48,7 @@
 
     <button
       wx:if="{{items.length > 0}}"
-      class="primary-btn"
+      class="ink-btn primary-btn"
       disabled="{{busy || pendingCount === 0}}"
       bindtap="onStart"
     >
@@ -55,9 +56,9 @@
     </button>
 
     <view class="tips" wx:if="{{items.length === 0}}">
-      <view class="tips-line">· 支持 JPG / PNG / WebP，超限会自动压缩</view>
-      <view class="tips-line">· 名称可逐张修改，不改则用默认名</view>
-      <view class="tips-line">· 多张按顺序串行上传，中途失败可单独重试</view>
+      <view class="tips-line">支持 JPG / PNG / WebP，超限会自动压缩。</view>
+      <view class="tips-line">名称可逐张修改，不改则用默认名。</view>
+      <view class="tips-line">多张按顺序串行上传，中途失败可单独重试。</view>
     </view>
   </block>
 </view>

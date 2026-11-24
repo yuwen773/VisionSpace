@@ -1,7 +1,8 @@
 <view class="page login">
   <view class="brand">
-    <view class="brand-name">VisionSpace</view>
-    <view class="brand-slogan">登录后浏览个人与团队空间</view>
+    <view class="brand-kicker">VisionSpace 作品集</view>
+    <view class="brand-name">登录后浏览\n个人与团队空间</view>
+    <view class="brand-slogan">该微信尚未绑定账号，绑定一次即可长期使用。</view>
   </view>
 
   <view class="state" wx:if="{{stage === 'auto'}}">
@@ -47,7 +48,7 @@
 
     <view class="error" wx:if="{{error}}">{{error}}</view>
 
-    <button class="submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onBindSubmit">
+    <button class="ink-btn submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onBindSubmit">
       绑定并登录
     </button>
     <view class="back-link" bindtap="goBack">暂不登录</view>

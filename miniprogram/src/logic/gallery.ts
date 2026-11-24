@@ -44,7 +44,7 @@ export interface GalleryCard {
   quarantined: boolean
 }
 
-export const GRID_COLUMN_WIDTH_RPX = 343
+export const GRID_COLUMN_WIDTH_RPX = 325
 const MIN_ASPECT = 0.5
 const MAX_ASPECT = 2
 const MIN_HEIGHT_RPX = 260
