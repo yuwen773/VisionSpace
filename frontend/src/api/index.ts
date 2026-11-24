@@ -24,6 +24,7 @@ import * as spaceAnalyzeController from './spaceAnalyzeController'
 import * as spaceUserController from './spaceUserController'
 import * as storageConfigController from './storageConfigController'
 import * as userController from './userController'
+import * as weChatAuthController from './weChatAuthController'
 export default {
   adminStatsController,
   assetSearchController,
@@ -47,4 +48,5 @@ export default {
   spaceUserController,
   storageConfigController,
   userController,
+  weChatAuthController,
 }

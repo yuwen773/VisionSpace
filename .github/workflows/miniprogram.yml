@@ -1,0 +1,38 @@
+name: Mini program checks
+
+# 小程序没有浏览器自动化：这里只跑无 DOM 的纯 TS 逻辑层单测与类型检查。
+# 真机清单见 miniprogram/README.md。
+on:
+  pull_request:
+    paths:
+      - 'miniprogram/**'
+      - '.github/workflows/miniprogram.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'miniprogram/**'
+      - '.github/workflows/miniprogram.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: miniprogram
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.21.0'
+          cache: npm
+          cache-dependency-path: miniprogram/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npm run type-check
+      - name: Logic tests
+        run: npm test

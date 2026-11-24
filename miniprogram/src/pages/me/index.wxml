@@ -1,0 +1,34 @@
+<view class="page me">
+  <view class="profile">
+    <image wx:if="{{avatarUrl}}" class="avatar" src="{{avatarUrl}}" mode="aspectFill" />
+    <view wx:else class="avatar avatar-fallback">{{initial || 'V'}}</view>
+    <view class="profile-main">
+      <view class="profile-name">{{loggedIn ? displayName : '未登录'}}</view>
+      <view class="profile-sub mono" wx:if="{{loggedIn}}">ID {{userId}}</view>
+      <view class="profile-sub" wx:else>登录后可浏览个人与团队空间</view>
+    </view>
+    <view class="profile-action" wx:if="{{!loggedIn}}" bindtap="onLoginTap">登录</view>
+  </view>
+  <view class="rule"></view>
+
+  <view class="panel">
+    <view class="kv-row">
+      <text class="kv-label">公开图库</text>
+      <text class="kv-value">免登录浏览</text>
+    </view>
+    <view class="kv-row">
+      <text class="kv-label">版本</text>
+      <text class="kv-value mono">{{version}}</text>
+    </view>
+  </view>
+
+  <button
+    wx:if="{{loggedIn}}"
+    class="logout-btn"
+    loading="{{busy}}"
+    disabled="{{busy}}"
+    bindtap="onLogout"
+  >退出登录</button>
+
+  <view class="note">VisionSpace · 用视觉连接灵感</view>
+</view>

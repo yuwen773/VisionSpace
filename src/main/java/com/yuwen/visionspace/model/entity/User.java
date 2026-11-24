@@ -50,6 +50,11 @@ public class User implements Serializable {
     private String userRole;
 
     /**
+     * 微信小程序 openid；与账号一对一，未绑定为 null
+     */
+    private String wxOpenId;
+
+    /**
      * 会员过期时间
      */
     private Date vipExpireTime;

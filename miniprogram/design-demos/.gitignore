@@ -1,0 +1,19 @@
+# 生成物：用仓库里的脚本可以重建，不重复入库
+/shots/
+/refs/
+/_design/screens/
+/_design/设计稿.html
+/dir-1-aurora.html
+/dir-2-pop.html
+/dir-2.html
+/dir-3.html
+/dir-1.offline.html
+/dir-2.offline.html
+/dir-3.offline.html
+/final.html
+/_imgcheck.js
+/shot.py
+/build.py
+/_impl_preview/
+/dir-1.html
+/.impeccable/

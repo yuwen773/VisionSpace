@@ -40,6 +40,27 @@ public interface UserService extends IService<User> {
     LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
     /**
+     * 只校验账号密码并返回用户，不建立任何登录态。
+     *
+     * <p>供小程序绑定微信时证明账号归属使用：绑定成功后是否签发令牌由调用方决定，
+     * 这里不写 Session，也不调 Sa-Token，避免「验证密码」顺便把调用方登录了。
+     * 校验规则与失败路径（含时序均衡与摘要升级）与 {@link #userLogin} 完全一致。
+     */
+    User authenticateForPassword(String userAccount, String userPassword);
+
+    /**
+     * 删除用户（逻辑删除），并释放该账号占用的微信 openid。
+     *
+     * <p>唯一索引对软删行同样生效，只标记 isDelete 不清空 openid 会让这个微信
+     * 既登不进来（已删用户查不到）也绑不上新账号（唯一索引冲突），只能人工改库。
+     *
+     * @param id 用户 id
+     * @return 是否删除成功
+     */
+    boolean deleteUser(long id);
+
+
+    /**
      * 获取加密后的密码
      *
      * @param userPassword

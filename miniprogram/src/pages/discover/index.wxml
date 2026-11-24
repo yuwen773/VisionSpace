@@ -1,0 +1,66 @@
+<view class="page discover">
+  <view class="masthead">
+    <text class="masthead-title">VisionSpace 作品集</text>
+    <text class="masthead-meta" wx:if="{{summary}}">{{summary}}</text>
+  </view>
+  <view class="rule"></view>
+
+  <view class="search-line">
+    <input
+      class="search-input"
+      value="{{searchText}}"
+      placeholder="搜索作品名称或简介"
+      placeholder-class="search-placeholder"
+      confirm-type="search"
+      bindinput="onSearchInput"
+      bindconfirm="onSearchConfirm"
+    />
+    <view wx:if="{{searchText}}" class="search-clear" bindtap="onClearSearch">×</view>
+  </view>
+
+  <scroll-view class="tabs" scroll-x show-scrollbar="{{false}}">
+    <view
+      wx:for="{{tabs}}"
+      wx:key="key"
+      class="tab {{activeTab === item.key ? 'tab-active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="onTabTap"
+    >{{item.label}}</view>
+  </scroll-view>
+
+  <scroll-view class="categories" scroll-x show-scrollbar="{{false}}">
+    <view
+      wx:for="{{categories}}"
+      wx:key="*this"
+      class="category {{activeCategory === item ? 'category-active' : ''}}"
+      data-category="{{item}}"
+      bindtap="onCategoryTap"
+    >{{item}}</view>
+  </scroll-view>
+
+  <view class="grid" wx:if="{{cards.length > 0}}">
+    <view
+      wx:for="{{cards}}"
+      wx:key="id"
+      class="grid-item impression-anchor"
+      style="width: {{columnWidthRpx}}rpx;"
+      data-picture-id="{{item.id}}"
+    >
+      <picture-card card="{{item}}" bind:open="onCardTap" />
+    </view>
+  </view>
+
+  <view class="state" wx:if="{{error && cards.length === 0}}">
+    <view class="state-title">{{error}}</view>
+    <view class="retry-btn" bindtap="onRetry">重新加载</view>
+  </view>
+
+  <view class="state" wx:if="{{!loading && !error && cards.length === 0}}">
+    <view class="state-title">这里还没有作品</view>
+    <view class="state-desc">换个榜单或关键词试试</view>
+  </view>
+
+  <view class="footer-end" wx:if="{{loading || loadingMore}}">正在加载…</view>
+  <view class="footer-end" wx:if="{{ended}}">没有更多了</view>
+  <view class="footer-end" wx:if="{{error && cards.length > 0}}" bindtap="onRetry">加载失败，点击重试</view>
+</view>

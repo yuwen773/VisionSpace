@@ -1,0 +1,99 @@
+import { request } from './http'
+import type {
+  PicturePage,
+  PictureTagCategory,
+  PictureVO,
+  RecommendPage,
+} from './types'
+import type { ActionEvent } from '../logic/telemetry'
+
+export const RECOMMEND_TYPES = ['hot', 'latest', 'quality', 'random'] as const
+export type RecommendType = (typeof RECOMMEND_TYPES)[number]
+
+export interface SearchParams {
+  current: number
+  pageSize: number
+  searchText?: string
+  category?: string
+  /** 带 spaceId 时后端按空间鉴权，并且不过滤审核状态（隔离行 URL 会被置空）。 */
+  spaceId?: string
+}
+
+/** 榜单：hot / latest / quality / random，用 context 令牌保证翻页不重复。 */
+export function fetchRecommend(
+  type: RecommendType,
+  page: number,
+  size: number,
+  context: string | null,
+): Promise<RecommendPage> {
+  const data: Record<string, unknown> = { type, page, size }
+  if (context !== null && context !== '') {
+    data.context = context
+  }
+  return request<RecommendPage>({ path: '/picture/recommend/list', data })
+}
+
+/** 检索：关键词与分类都走这个接口；匿名访问时后端强制只返回已审核的公开图。 */
+export function searchPictures(params: SearchParams): Promise<PicturePage> {
+  const data: Record<string, unknown> = {
+    current: params.current,
+    pageSize: params.pageSize,
+    sortField: 'createTime',
+    sortOrder: 'descend',
+  }
+  if (params.searchText) {
+    data.searchText = params.searchText
+  }
+  if (params.category) {
+    data.category = params.category
+  }
+  if (typeof params.spaceId === 'string' && params.spaceId !== '') {
+    data.spaceId = params.spaceId
+  }
+  return request<PicturePage>({
+    path: '/picture/list/page/vo',
+    method: 'POST',
+    data,
+    auth: typeof params.spaceId === 'string' && params.spaceId !== '',
+  })
+}
+
+export function fetchTagCategory(): Promise<PictureTagCategory> {
+  return request<PictureTagCategory>({ path: '/picture/tag_category' })
+}
+
+/**
+ * 作品详情。带令牌请求：公开作品匿名也能看，空间作品需要成员身份。
+ * 未登录或令牌过期时后端返回 40101/40100，由页面决定引导登录还是提示无权限。
+ */
+export function fetchPicture(id: string): Promise<PictureVO> {
+  return request<PictureVO>({ path: '/picture/get/vo', data: { id }, auth: true })
+}
+
+/**
+ * 按颜色检索空间内最相近的 12 张图片。仅空间内成员可用；公开图库不支持。
+ * 返回值没有分页信息，页面按一次性结果展示。
+ */
+export function searchByColor(spaceId: string, picColor: string): Promise<PictureVO[]> {
+  return request<PictureVO[]>({
+    path: '/picture/search/color',
+    method: 'POST',
+    data: { spaceId, picColor },
+    auth: true,
+  })
+}
+
+/** 匿名行为上报；失败只影响统计，调用方应吞掉异常。 */
+export function reportAction(event: ActionEvent): Promise<boolean> {
+  return request<boolean>({
+    path: '/picture/action/report',
+    method: 'POST',
+    data: {
+      pictureId: event.pictureId,
+      actionType: event.actionType,
+      source: event.source,
+      eventId: event.eventId,
+    },
+    timeout: 5000,
+  })
+}

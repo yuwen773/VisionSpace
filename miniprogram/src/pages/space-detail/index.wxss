@@ -1,0 +1,87 @@
+.header {
+  padding-top: 24rpx;
+}
+
+.label-type,
+.label-count {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 8rpx;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vs-text);
+  font-size: 48rpx;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.upload-link {
+  flex: none;
+  margin-left: 20rpx;
+  color: var(--vs-primary);
+  font-size: 26rpx;
+}
+
+.color-bar {
+  margin-top: 20rpx;
+  padding: 20rpx 0 16rpx;
+  border-top: 1rpx solid var(--vs-rule);
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.swatches {
+  white-space: nowrap;
+}
+
+.swatch {
+  display: inline-block;
+  width: 48rpx;
+  height: 48rpx;
+  margin-right: 20rpx;
+  border: 2rpx solid transparent;
+  border-radius: 50%;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.swatch-active {
+  border-color: var(--vs-text);
+}
+
+.color-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 12rpx;
+}
+
+.color-action {
+  margin-right: 32rpx;
+  color: var(--vs-primary);
+  font-size: 24rpx;
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0 4rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.filter-dot {
+  width: 24rpx;
+  height: 24rpx;
+  margin-right: 12rpx;
+  border-radius: 50%;
+}

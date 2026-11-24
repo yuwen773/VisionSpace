@@ -1,0 +1,62 @@
+.search-line {
+  display: flex;
+  align-items: center;
+  height: 92rpx;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.search-input {
+  flex: 1;
+  height: 92rpx;
+  color: var(--vs-text);
+  font-size: 30rpx;
+}
+
+.search-placeholder {
+  color: var(--vs-text-tertiary);
+}
+
+.search-clear {
+  padding: 0 8rpx 0 24rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 32rpx;
+  line-height: 1;
+}
+
+/* 榜单：文字排成一行，当前项用强调色下划线，不做胶囊 */
+.tabs {
+  margin-top: 8rpx;
+  white-space: nowrap;
+}
+
+.tab {
+  display: inline-block;
+  margin-right: 44rpx;
+  padding: 18rpx 0 14rpx;
+  border-bottom: 4rpx solid transparent;
+  color: var(--vs-text-tertiary);
+  font-size: 30rpx;
+}
+
+.tab-active {
+  border-bottom-color: var(--vs-primary);
+  color: var(--vs-text);
+  font-weight: 600;
+}
+
+.categories {
+  margin-top: 4rpx;
+  white-space: nowrap;
+}
+
+.category {
+  display: inline-block;
+  margin-right: 32rpx;
+  padding: 12rpx 0;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+}
+
+.category-active {
+  color: var(--vs-primary);
+}

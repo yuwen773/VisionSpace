@@ -78,9 +78,9 @@ public class PictureStatsAggregateServiceImpl implements PictureStatsAggregateSe
 
         while (true) {
             String claimToken = UUID.randomUUID().toString();
-            LocalDateTime claimedAt = LocalDateTime.now();
-            LocalDateTime claimExpireAt = claimedAt.plusSeconds(Math.max(1, leaseSeconds));
-            int claimed = actionMapper.claimPendingEvents(claimToken, claimedAt, claimExpireAt, batchSize);
+            // 租约时间由数据库时钟生成并比较（见 claimPendingEvents）：调用方时钟与库时钟
+            // 有偏差时，用 JVM 时间判断「租约是否过期」会让快钟抢事件、慢钟卡事件。
+            int claimed = actionMapper.claimPendingEvents(claimToken, Math.max(1, leaseSeconds), batchSize);
             if (claimed == 0) {
                 break;
             }

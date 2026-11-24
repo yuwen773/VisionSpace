@@ -34,6 +34,14 @@
 | 3D 效果 | vue-bits (Three.js) |
 | Markdown | markdown-it + highlight.js |
 
+### 微信小程序
+
+| 类别 | 技术/版本 |
+|------|-----------|
+| 平台 | 原生小程序 + TypeScript |
+| 逻辑层测试 | Vitest（无 DOM 纯 TS） |
+| 主题 | 跟随系统：深色极光 / 浅色紫漾 |
+
 ### 部署
 
 Docker Compose（MySQL 8.0 + Redis 7 + Spring Boot）
@@ -195,6 +203,17 @@ frontend/src/
 └── main.ts                # 入口
 ```
 
+```text
+miniprogram/src/
+├── pages/                  # 发现（公开图库）/ 我的 / 作品详情
+├── components/             # 作品卡片
+├── services/               # 请求层、契约类型、登录令牌
+├── logic/                  # 无 DOM 纯 TS：分页、展示、埋点、错误文案
+├── styles/                 # 两套主题的 WXSS 变量
+├── app.* / theme.json      # 全局配置与深色模式
+└── ../tests/               # Vitest 逻辑层单测
+```
+
 ## 快速开始
 
 ### 前置条件
@@ -243,6 +262,12 @@ cd frontend
 npm install
 npm run dev
 ```
+
+#### 微信小程序
+
+用微信开发者工具导入 `miniprogram/` 目录，把 `project.config.json` 里的 `appid`
+换成自己的小程序 AppID（默认 `touristappid` 只能游客预览）。真机与体验版需要
+`https://visionspace.space` 已配置为 request 合法域名。详见 [miniprogram/README.md](miniprogram/README.md)。
 
 ### 接口文档
 

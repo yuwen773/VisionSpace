@@ -11,12 +11,12 @@
     <update id="claimPendingEvents">
         UPDATE user_picture_action a
         SET claimToken = #{claimToken},
-            claimedAt = #{claimedAt},
-            claimExpireAt = #{claimExpireAt},
+            claimedAt = NOW(),
+            claimExpireAt = DATE_ADD(NOW(), INTERVAL #{leaseSeconds} SECOND),
             attemptCount = attemptCount + 1
         WHERE a.isProcessed = 0
           AND a.isAccumulated = 0
-          AND (a.claimToken IS NULL OR a.claimExpireAt IS NULL OR a.claimExpireAt &lt;= #{claimedAt})
+          AND (a.claimToken IS NULL OR a.claimExpireAt IS NULL OR a.claimExpireAt &lt;= NOW())
           AND EXISTS (SELECT 1 FROM picture p WHERE p.id = a.pictureId AND p.isDelete = 0)
         ORDER BY a.id
         LIMIT #{limit}

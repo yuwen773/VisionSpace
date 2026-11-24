@@ -1,0 +1,65 @@
+<view class="page detail">
+  <view class="state" wx:if="{{loading}}">
+    <view class="state-title">正在加载…</view>
+  </view>
+
+  <view class="state" wx:elif="{{error}}">
+    <view class="state-title">{{error}}</view>
+    <view class="retry-btn" wx:if="{{needsLogin}}" bindtap="onLoginTap">去登录</view>
+    <view class="retry-btn" wx:else bindtap="onBack">返回</view>
+  </view>
+
+  <block wx:else>
+    <view class="hero" bindtap="onPreview">
+      <image
+        wx:if="{{imageUrl && !imageError}}"
+        class="hero-image"
+        src="{{imageUrl}}"
+        mode="widthFix"
+        bind:error="onImageError"
+      />
+      <view wx:elif="{{imagePending}}" class="hero-fallback">
+        <view class="state-title">正在加载图片…</view>
+      </view>
+      <view wx:else class="hero-fallback">
+        <view class="state-title">图片暂不可用</view>
+        <view class="state-desc">可返回列表查看其他作品</view>
+      </view>
+    </view>
+
+    <view class="content">
+      <view class="label-row" wx:if="{{category || dateText || color}}">
+        <view class="label-left">
+          <view wx:if="{{color}}" class="color-dot" style="background: {{color}};"></view>
+          <text class="label-accent" wx:if="{{category}}">{{category}}</text>
+        </view>
+        <text class="label-meta mono" wx:if="{{dateText}}">{{dateText}}</text>
+      </view>
+
+      <view class="title">{{title}}</view>
+
+      <view class="intro" wx:if="{{description}}">{{description}}</view>
+
+      <view class="rule" wx:if="{{author || specText}}"></view>
+      <view class="meta-line" wx:if="{{author || specText}}">
+        <text class="meta-author" wx:if="{{author}}">{{author}}</text>
+        <text class="meta-size mono" wx:if="{{specText}}">{{specText}}</text>
+      </view>
+
+      <view class="counts">
+        <view class="count" wx:for="{{counts}}" wx:key="key">
+          <view class="count-value mono">{{item.value}}</view>
+          <view class="count-label">{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="tags" wx:if="{{tags.length > 0}}">
+        <text class="tag" wx:for="{{tags}}" wx:key="*this">#{{item}}</text>
+      </view>
+
+      <button wx:if="{{canShare}}" class="ink-btn share-btn" open-type="share">分享给朋友</button>
+
+      <view class="hint">点赞、收藏与下载请在 VisionSpace 网页端登录后使用。</view>
+    </view>
+  </block>
+</view>

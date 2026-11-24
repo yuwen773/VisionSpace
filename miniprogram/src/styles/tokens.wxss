@@ -1,0 +1,59 @@
+/*
+ * 两套主题的色值对齐 Web 端与设计定稿（design-demos/final.offline.html）：
+ *   浅色 = 紫漾（design-tokens-ziyan.css），深色 = 极光（design-tokens.css）。
+ * 小程序 WXSS 的 prefers-color-scheme 始终跟随系统，与 app.json 的 darkmode 开关无关，
+ * 因此这里只保留 CSS 变量，原生导航栏/tabBar 由 theme.json 处理。
+ *
+ * 语义顺序沿用「编辑成册」：纸底（bg）、墨（text）、细分隔线（rule）、
+ * 编号/当前态（primary）。页面不再用卡片阴影，只有控件保留圆角。
+ */
+page {
+  --vs-bg: #faf7ff;
+  --vs-bg-secondary: #ffffff;
+  --vs-surface: #ffffff;
+  --vs-surface-hover: #f5f3ff;
+  --vs-text: #1e1b4b;
+  --vs-text-secondary: #5f6472;
+  --vs-text-tertiary: #6b7280;
+  --vs-border: #ddd6fe;
+  --vs-border-subtle: #ede9fe;
+  --vs-border-strong: #a78bfa;
+  --vs-rule: #ddd6fe;
+  --vs-tint: #f5f3ff;
+  --vs-primary: #9333ea;
+  --vs-primary-strong: #7e22ce;
+  --vs-accent: #ec4899;
+  --vs-danger: #b42318;
+  --vs-overlay: rgba(250, 247, 255, 0.86);
+  --vs-radius-sm: 8rpx;
+  --vs-radius-md: 16rpx;
+  --vs-radius-lg: 24rpx;
+  --vs-radius-xl: 32rpx;
+  --vs-shadow-card: 0 8rpx 40rpx rgba(139, 92, 246, 0.08);
+  --vs-shadow-float: 0 12rpx 48rpx rgba(139, 92, 246, 0.16);
+  --vs-font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  page {
+    --vs-bg: #030712;
+    --vs-bg-secondary: #0a0f1a;
+    --vs-surface: #0a0f1a;
+    --vs-surface-hover: #111827;
+    --vs-text: #f8fafc;
+    --vs-text-secondary: #cbd5e1;
+    --vs-text-tertiary: #94a3b8;
+    --vs-border: rgba(148, 163, 184, 0.18);
+    --vs-border-subtle: rgba(148, 163, 184, 0.1);
+    --vs-border-strong: rgba(148, 163, 184, 0.3);
+    --vs-rule: rgba(148, 163, 184, 0.18);
+    --vs-tint: #111827;
+    --vs-primary: #6aa3ff;
+    --vs-primary-strong: #4485ff;
+      --vs-accent: #00d4aa;
+  --vs-danger: #ff8a80;
+    --vs-overlay: rgba(10, 15, 26, 0.86);
+    --vs-shadow-card: 0 8rpx 40rpx rgba(0, 0, 0, 0.45);
+    --vs-shadow-float: 0 12rpx 48rpx rgba(0, 0, 0, 0.6);
+  }
+}

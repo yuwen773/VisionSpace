@@ -1,0 +1,154 @@
+.header {
+  padding-top: 24rpx;
+}
+
+.label {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.title {
+  margin-top: 6rpx;
+  color: var(--vs-text);
+  font-size: 48rpx;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.subtitle {
+  margin-top: 12rpx;
+  color: var(--vs-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 24rpx;
+  padding: 52rpx 24rpx;
+  border: 2rpx dashed var(--vs-rule);
+  border-radius: 16rpx;
+}
+
+.picker-text {
+  color: var(--vs-text);
+  font-size: 30rpx;
+}
+
+.picker-hint {
+  margin-top: 8rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.full-hint {
+  margin-top: 24rpx;
+  padding: 24rpx;
+  background: var(--vs-tint);
+  color: var(--vs-text-secondary);
+  font-size: 26rpx;
+  text-align: center;
+}
+
+.list {
+  margin-top: 8rpx;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.thumb {
+  flex: none;
+  width: 96rpx;
+  height: 96rpx;
+  background: var(--vs-tint);
+}
+
+.item-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: 20rpx;
+}
+
+.name-input {
+  height: 56rpx;
+  color: var(--vs-text);
+  font-size: 28rpx;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+}
+
+.size {
+  color: var(--vs-text-tertiary);
+}
+
+.status {
+  color: var(--vs-text-tertiary);
+}
+
+.status-uploading,
+.status-preparing {
+  color: var(--vs-primary);
+}
+
+.status-done {
+  color: var(--vs-accent);
+}
+
+.status-failed {
+  color: var(--vs-danger);
+}
+
+.progress {
+  overflow: hidden;
+  height: 4rpx;
+  margin-top: 12rpx;
+  background: var(--vs-tint);
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--vs-primary);
+  transition: width 0.2s ease;
+}
+
+.item-error {
+  margin-top: 8rpx;
+  color: var(--vs-danger);
+  font-size: 24rpx;
+}
+
+.remove {
+  flex: none;
+  margin-left: 16rpx;
+  padding: 4rpx 8rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+  line-height: 1;
+}
+
+.primary-btn {
+  margin-top: 32rpx;
+}
+
+.tips {
+  margin-top: 32rpx;
+}
+
+.tips-line {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  line-height: 1.9;
+}

@@ -15,6 +15,7 @@ import com.yuwen.visionspace.constant.UserConstant;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.StpKit;
+import com.yuwen.visionspace.manager.auth.TokenAuthenticationSupport;
 import com.yuwen.visionspace.model.dto.user.UserQueryRequest;
 import com.yuwen.visionspace.model.vo.VipExchangeResult;
 import com.yuwen.visionspace.model.entity.Picture;
@@ -32,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import cn.dev33.satoken.stp.parameter.SaLogoutParameter;
 import cn.dev33.satoken.stp.parameter.enums.SaLogoutMode;
@@ -55,6 +57,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Autowired
     private PasswordHasher passwordHasher;
+
+    @Autowired
+    private TokenAuthenticationSupport tokenAuthenticationSupport;
 
     /**
      * 用户注册
@@ -103,6 +108,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request) {
+        User user = authenticateForPassword(userAccount, userPassword);
+        // 保存用户的登录态
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
+        // 记录用户登录态到 Sa-token，便于空间鉴权时使用，注意保证该用户信息与 SpringSession 中的信息过期时间一致
+        StpKit.SPACE.login(user.getId());
+        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, user);
+        return this.getLoginUserVO(user);
+    }
+
+    @Override
+    public User authenticateForPassword(String userAccount, String userPassword) {
         // 1. 校验
         if (StrUtil.hasBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
@@ -127,12 +143,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         // 3. 旧摘要或低成本摘要：仅在验证成功后升级。失败路径不写库。
         upgradeStoredPassword(user, userPassword);
-        // 4. 保存用户的登录态
-        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
-        // 记录用户登录态到 Sa-token，便于空间鉴权时使用，注意保证该用户信息与 SpringSession 中的信息过期时间一致
-        StpKit.SPACE.login(user.getId());
-        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, user);
-        return this.getLoginUserVO(user);
+        return user;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteUser(long id) {
+        // 先释放微信绑定：逻辑删除只改 isDelete，行还在，唯一索引仍占着这个 openid。
+        // 不清空的话，该微信下次登录查不到已删账号（40102），
+        // 换绑新账号又撞唯一索引（40103），两头都走不通。
+        // 两步必须同一事务：解绑成功而删除失败会留下「账号还在、绑定没了」的中间态。
+        // 解绑的 UPDATE 会锁住该行，并发绑定只能在它前后排队，不会插进两步之间。
+        this.lambdaUpdate()
+                .set(User::getWxOpenId, null)
+                .eq(User::getId, id)
+                .update();
+        return this.removeById(id);
     }
 
     /**
@@ -177,8 +203,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public User getLoginUser(HttpServletRequest request) {
+        // 小程序等非浏览器客户端：请求头携带令牌，不依赖 Cookie 会话。
+        // 先判令牌再判会话，令牌客户端因此不会顺带创建空 Session。
+        Long tokenUserId = tokenAuthenticationSupport.resolveUserId(request);
+        if (tokenUserId != null) {
+            User byToken = this.getById(tokenUserId);
+            if (byToken == null) {
+                throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+            }
+            return byToken;
+        }
         // 判断是否已经登录
-        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        HttpSession session = request.getSession(false);
+        Object userObj = session == null ? null : session.getAttribute(UserConstant.USER_LOGIN_STATE);
         User currentUser = (User) userObj;
         if (currentUser == null || currentUser.getId() == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
@@ -257,13 +294,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         HttpSession session = request.getSession(false);
         Object userObj = session == null ? null : session.getAttribute(UserConstant.USER_LOGIN_STATE);
         boolean spaceLoggedIn = StpKit.SPACE.isLogin();
-        if (userObj == null && !spaceLoggedIn) {
+        // 小程序用请求头带令牌，Sa-Token 自己也会读到同一个头，无法据此区分两端，
+        // 所以这里显式解析一次，判断「本次请求是不是令牌客户端」。
+        String explicitToken = tokenAuthenticationSupport.resolveTokenValue(request);
+        boolean tokenLoggedIn = explicitToken != null && tokenAuthenticationSupport.resolveUserId(request) != null;
+        if (userObj == null && !spaceLoggedIn && !tokenLoggedIn) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
-        // 1. 撤销空间认证：删除令牌与账号映射，旧 Cookie 里的令牌立即失效
+        // 1. 撤销认证。
+        //    * 令牌客户端（无浏览器会话、显式带头）：只撤销本次令牌，一台设备退出
+        //      不会把同账号其它设备一起踢下线；
+        //    * 浏览器：按账号撤销，连带清掉 Sa-Token Cookie 对应的令牌与其它端令牌，
+        //      保留「Web 退出即全端退出」的既有语义。
         // 撤销失败必须让调用方看到，不能吞掉异常后返回「已注销」：
         // 那样会话被清掉、令牌却还活着，用户以为退出了而空间鉴权仍然通过。
-        if (spaceLoggedIn) {
+        if (tokenLoggedIn && userObj == null) {
+            StpKit.SPACE.logoutByTokenValue(explicitToken);
+        } else if (spaceLoggedIn) {
             StpKit.SPACE.logout(SaLogoutParameter.create()
                     .setMode(SaLogoutMode.LOGOUT)
                     .setRange(SaLogoutRange.ACCOUNT));

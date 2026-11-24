@@ -1,0 +1,161 @@
+@import './styles/tokens.wxss';
+
+page {
+  background: var(--vs-bg);
+  color: var(--vs-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+view,
+text,
+image,
+input {
+  box-sizing: border-box;
+}
+
+/*
+ * 版式沿用「编辑成册」：页面左右各 20px（40rpx）留白，
+ * 分隔只用 1rpx 细线，卡片不投影、不圆角。
+ */
+.page {
+  min-height: 100vh;
+  padding: 0 40rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  background: var(--vs-bg);
+}
+
+/* 刊头：左边名字，右边期号或计数 */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 24rpx;
+}
+
+.masthead-title {
+  color: var(--vs-text);
+  font-size: 28rpx;
+}
+
+.masthead-meta {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.rule {
+  height: 1rpx;
+  margin-top: 16rpx;
+  background: var(--vs-rule);
+}
+
+.mono {
+  font-family: var(--vs-font-mono);
+}
+
+/* 双列图版：列宽由各页 data.columnWidthRpx 给出，与 GRID_COLUMN_WIDTH_RPX 同源 */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding-top: 12rpx;
+}
+
+.grid-item {
+  width: 325rpx;
+}
+
+/* 详情与专辑页的眉标行：左类目、右日期或件数 */
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label-accent {
+  color: var(--vs-primary);
+  font-size: 24rpx;
+}
+
+.label-meta {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+/* 键值行：设置项、空间说明共用 */
+.kv-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.kv-label {
+  color: var(--vs-text);
+  font-size: 30rpx;
+}
+
+.kv-value {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+/* 主按钮：墨底纸字，和网页端的深色主色一致 */
+.ink-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 16rpx;
+  background: var(--vs-text);
+  color: var(--vs-bg);
+  font-size: 30rpx;
+  line-height: 88rpx;
+}
+
+.ink-btn::after {
+  border: none;
+}
+
+.ink-btn[disabled] {
+  background: var(--vs-tint);
+  color: var(--vs-text-tertiary);
+}
+
+.text-link {
+  color: var(--vs-primary);
+  font-size: 28rpx;
+}
+
+/* 通用状态块：加载失败 / 空列表 / 占位 */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 120rpx 0 80rpx;
+}
+
+.state-title {
+  color: var(--vs-text-secondary);
+  font-size: 30rpx;
+}
+
+.state-desc {
+  margin-top: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.retry-btn {
+  margin-top: 32rpx;
+  color: var(--vs-primary);
+  font-size: 28rpx;
+}
+
+.footer-end {
+  padding: 40rpx 0 24rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  text-align: center;
+}

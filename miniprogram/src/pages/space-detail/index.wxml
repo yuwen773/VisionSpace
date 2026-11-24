@@ -1,0 +1,91 @@
+<view class="page space-detail">
+  <view class="state" wx:if="{{needsLogin}}">
+    <view class="state-title">登录后查看该空间</view>
+    <view class="state-desc">空间内容仅对成员可见</view>
+    <view class="retry-btn" bindtap="onLoginTap">去登录</view>
+  </view>
+
+  <view class="state" wx:elif="{{loading && cards.length === 0}}">
+    <view class="state-title">正在加载空间…</view>
+  </view>
+
+  <view class="state" wx:elif="{{error && cards.length === 0}}">
+    <view class="state-title">{{error}}</view>
+    <view class="retry-btn" bindtap="onRetry">重新加载</view>
+  </view>
+
+  <block wx:else>
+    <view class="header">
+      <view class="label-row">
+        <text class="label-type" wx:if="{{typeText}}">{{typeText}}</text>
+        <text class="label-count mono" wx:if="{{total !== null}}">{{total}} 件作品</text>
+      </view>
+      <view class="header-row">
+        <view class="title">{{name}}</view>
+        <view class="upload-link" wx:if="{{canUpload}}" bindtap="onUploadTap">上传作品</view>
+      </view>
+    </view>
+
+    <view class="color-bar">
+      <scroll-view class="swatches" scroll-x show-scrollbar="{{false}}">
+        <view
+          wx:for="{{palette}}"
+          wx:key="*this"
+          class="swatch {{filterColor === item ? 'swatch-active' : ''}}"
+          style="background: {{item}};"
+          data-color="{{item}}"
+          bindtap="onSwatchTap"
+        ></view>
+      </scroll-view>
+      <view class="color-actions">
+        <view class="color-action" bindtap="onPickColor">从图片取色</view>
+        <view class="color-action" wx:if="{{colorMode}}" bindtap="onClearColor">清除筛选</view>
+      </view>
+    </view>
+
+    <block wx:if="{{colorMode}}">
+      <view class="filter-summary">
+        <view class="filter-dot" style="background: {{filterColor}};"></view>
+        <text>相近颜色</text>
+        <text wx:if="{{!colorLoading && !colorError}}" class="mono"> · {{colorCount}} 件</text>
+      </view>
+
+      <view class="state" wx:if="{{colorLoading}}">
+        <view class="state-title">正在按颜色检索…</view>
+      </view>
+
+      <view class="state" wx:elif="{{colorError}}">
+        <view class="state-title">{{colorError}}</view>
+        <view class="retry-btn" bindtap="onClearColor">返回全部作品</view>
+      </view>
+
+      <view class="state" wx:elif="{{colorCards.length === 0}}">
+        <view class="state-title">没有相近颜色的作品</view>
+        <view class="state-desc">换个色卡或从图片重新取色</view>
+      </view>
+
+      <view class="grid" wx:else>
+        <view wx:for="{{colorCards}}" wx:key="id" class="grid-item" style="width: {{columnWidthRpx}}rpx;">
+          <picture-card card="{{item}}" bind:open="onCardTap" />
+        </view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="grid" wx:if="{{cards.length > 0}}">
+        <view wx:for="{{cards}}" wx:key="id" class="grid-item" style="width: {{columnWidthRpx}}rpx;">
+          <picture-card card="{{item}}" bind:open="onCardTap" />
+        </view>
+      </view>
+
+      <view class="state" wx:elif="{{!loading}}">
+        <view class="state-title">空间里还没有作品</view>
+        <view class="state-desc">在小程序端上传功能开放后可以添加</view>
+      </view>
+
+      <view class="footer-end" wx:if="{{loadingMore}}">正在加载…</view>
+      <view class="footer-end" wx:if="{{ended}}">没有更多了</view>
+      <view class="footer-end" wx:if="{{error && cards.length > 0}}" bindtap="onRetry">加载失败，点击重试</view>
+    </block>
+  </block>
+</view>

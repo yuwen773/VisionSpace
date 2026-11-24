@@ -1,0 +1,62 @@
+<view class="page space">
+  <block wx:if="{{!loggedIn}}">
+    <view class="masthead">
+      <text class="masthead-title">空间</text>
+    </view>
+    <view class="rule"></view>
+    <view class="lead">登录后查看个人与团队空间</view>
+
+    <view class="kv-row">
+      <text class="kv-label">个人空间</text>
+      <text class="kv-value">按关键词与颜色找回作品</text>
+    </view>
+    <view class="kv-row">
+      <text class="kv-label">团队空间</text>
+      <text class="kv-value">浏览你加入的团队图库</text>
+    </view>
+
+    <button class="ink-btn login-btn" bindtap="onLoginTap">微信登录</button>
+  </block>
+
+  <block wx:else>
+    <view class="masthead">
+      <text class="masthead-title">我的空间</text>
+      <text class="masthead-meta" wx:if="{{!loading && !error}}">共 {{spaces.length}} 个</text>
+    </view>
+    <view class="rule"></view>
+
+    <view class="state" wx:if="{{loading}}">
+      <view class="state-title">正在加载空间…</view>
+    </view>
+
+    <view class="state" wx:elif="{{error}}">
+      <view class="state-title">{{error}}</view>
+      <view class="retry-btn" bindtap="onRetry">重新加载</view>
+    </view>
+
+    <view class="state" wx:elif="{{spaces.length === 0}}">
+      <view class="state-title">暂时没有空间</view>
+      <view class="state-desc">下拉刷新试试</view>
+    </view>
+
+    <view class="list" wx:else>
+      <view
+        wx:for="{{spaces}}"
+        wx:key="id"
+        class="space-row"
+        data-id="{{item.id}}"
+        data-name="{{item.name}}"
+        data-type="{{item.spaceType}}"
+        data-upload="{{item.canUpload}}"
+        bindtap="onSpaceTap"
+      >
+        <view class="space-head">
+          <text class="space-serial mono">{{item.serial}}</text>
+          <text class="space-name">{{item.name}}</text>
+          <text class="space-type">{{item.typeText}}</text>
+        </view>
+        <view class="space-meta">{{item.roleText}}</view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -15,6 +15,10 @@ server:
 # Sa-Token 默认不给令牌 Cookie 加 Secure，HTTPS 入口下浏览器仍会明文回传。
 # 生产入口统一为 HTTPS，所以默认开启；只有明文 http 的隔离验收才临时关闭。
 sa-token:
+  # 令牌只从请求头与 Cookie 读取。Sa-Token 默认还会读请求参数（is-read-body），
+  # 而 getParameter 同时覆盖查询串，等于允许 ?satoken=<完整令牌>——URL 会进日志与
+  # Referer，与「令牌不进 URL」冲突，所以显式关闭。
+  is-read-body: false
   cookie:
     secure: ${VISION_SPACE_COOKIE_SECURE:true}
     http-only: true
@@ -40,6 +44,19 @@ vision-space:
     csrf-cookie-name: VS_CSRF
     csrf-header-name: X-CSRF-Token
     csrf-token-max-age: 7200
+  # 非浏览器客户端（小程序）的令牌读取：Web 仍走 SESSION Cookie，两者共用同一套账号
+  auth:
+    token:
+      # 只认请求头：记录该头名并下发；不提供查询参数形式（令牌不进 URL）
+      header-name: ${VISION_SPACE_AUTH_TOKEN_HEADER:satoken}
+  # 微信小程序登录：appid 可公开，secret 只从环境变量注入
+  wechat:
+    miniprogram:
+      appid: ${VISION_SPACE_WX_APPID:}
+      secret: ${VISION_SPACE_WX_SECRET:}
+      base-url: ${VISION_SPACE_WX_BASE_URL:https://api.weixin.qq.com}
+      connect-timeout-ms: ${VISION_SPACE_WX_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${VISION_SPACE_WX_READ_TIMEOUT_MS:5000}
   # 用户输入出站请求（URL 图片下载、远程 MCP 目标）
   outbound:
     # 回环、私网、链路本地、云元数据等地址一律内置拒绝，没有对应的放宽开关。

@@ -62,6 +62,12 @@ def main():
         (key + " = '" + literal + "'", True),
         (key + ": " + bare, True),
     ]
+    # 提供方前缀大小写固定：base64 图片里的小写串不是 AccessKey，大写前缀仍须命中。
+    # 同样在运行时拼装，避免本文件被自己扫出。
+    cases += [
+        ("data:image/jpeg;base64," + "ltai" + "InHOpVxaqYTqUkIHKSI==", False),
+        ("OSS key: " + "LT" + "AI5tA1b2C3d4E5F6G7", True),
+    ]
     for sample, should_hit in cases:
         hit = any(re.search(pattern, sample) for _, pattern in rules)
         if hit != should_hit:

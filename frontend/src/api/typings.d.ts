@@ -476,6 +476,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseWxLoginVO = {
+    code?: number
+    data?: WxLoginVO
+    message?: string
+  }
+
   type boardPreviewUsingGetParams = {
     boardId: string
     itemId: string
@@ -1640,6 +1646,22 @@ declare namespace API {
   type VipExchangeResult = {
     status?: string
     vipExpireTime?: string
+  }
+
+  type WxBindRequest = {
+    code?: string
+    userAccount?: string
+    userPassword?: string
+  }
+
+  type WxLoginRequest = {
+    code?: string
+  }
+
+  type WxLoginVO = {
+    token?: string
+    tokenName?: string
+    user?: LoginUserVO
   }
 
   // === 生成后补丁：尾下划线别名（scripts/postgen-typings.mjs） ===

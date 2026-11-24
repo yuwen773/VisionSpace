@@ -1,0 +1,80 @@
+.brand {
+  padding: 64rpx 0 32rpx;
+}
+
+.brand-kicker {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+  letter-spacing: 1rpx;
+}
+
+.brand-name {
+  margin-top: 20rpx;
+  color: var(--vs-text);
+  font-size: 60rpx;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.brand-name-second {
+  margin-top: 0;
+}
+
+.brand-slogan {
+  margin-top: 16rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.tip {
+  padding: 24rpx 0 8rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.form {
+  border-top: 1rpx solid var(--vs-rule);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.field-label {
+  width: 96rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.field-input {
+  flex: 1;
+  height: 52rpx;
+  color: var(--vs-text);
+  font-size: 30rpx;
+}
+
+.field-placeholder {
+  color: var(--vs-text-tertiary);
+}
+
+.error {
+  margin-top: 20rpx;
+  color: var(--vs-danger);
+  font-size: 26rpx;
+}
+
+.submit {
+  margin-top: 40rpx;
+}
+
+.back-link {
+  margin-top: 32rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 26rpx;
+  text-align: center;
+}

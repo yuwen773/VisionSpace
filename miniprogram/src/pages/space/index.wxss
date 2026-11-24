@@ -1,0 +1,57 @@
+.lead {
+  padding: 24rpx 0 8rpx;
+  color: var(--vs-text-secondary);
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.login-btn {
+  margin-top: 48rpx;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.space-row {
+  padding: 28rpx 0 24rpx;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.space-head {
+  display: flex;
+  align-items: baseline;
+}
+
+.space-serial {
+  width: 56rpx;
+  flex: none;
+  color: var(--vs-primary);
+  font-size: 24rpx;
+}
+
+.space-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vs-text);
+  font-size: 34rpx;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.space-type {
+  flex: none;
+  margin-left: 16rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.space-meta {
+  margin-top: 8rpx;
+  padding-left: 56rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}

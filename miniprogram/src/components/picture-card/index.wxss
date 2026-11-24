@@ -1,0 +1,51 @@
+.card {
+  padding-bottom: 28rpx;
+  background: transparent;
+}
+
+.media {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+.caption {
+  padding-top: 12rpx;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--vs-text);
+  font-size: 28rpx;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tags {
+  margin-top: 4rpx;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tag {
+  margin-right: 12rpx;
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
