@@ -24,7 +24,12 @@ export interface GalleryCard {
   /** 19 位雪花 id 超过 JS 安全整数，必须以字符串一路带到详情页。 */
   id: string
   title: string
+  /** 远程内容地址；不带令牌，私有图片靠它下载。 */
   imageUrl: string
+  /** 私有图片鉴权下载后的本地路径；公开图库为空。 */
+  localPath: string
+  /** 实际交给 `<image>` 的地址：私有图片下载完成前为空。 */
+  src: string
   /** 宽高比（宽 / 高），用于排版；始终落在合理区间。 */
   aspect: number
   /** 双列布局下的图片高度（rpx）。 */
@@ -33,6 +38,8 @@ export interface GalleryCard {
   tags: string[]
   /** 没有可用的内容入口，展示占位而不是破图。 */
   broken: boolean
+  /** 正在鉴权下载：展示占位而不是「暂不可用」。 */
+  pending: boolean
   /** 违规隔离：与「加载失败」区分，占位文案不同。 */
   quarantined: boolean
 }
@@ -48,6 +55,8 @@ const DEFAULT_COLOR = 'rgba(148, 163, 184, 0.12)'
  * 把接口条目转成卡片模型。
  *
  * `resolveUrl` 由调用方提供（页面注入了 API 域名），逻辑层因此不依赖运行环境。
+ * 公开图库用 `toCard`：地址直接可展示。私有图片用 `toPrivateCard`：先占位，
+ * 下载完成后再由 `withLocalPath` 填上本地路径。
  */
 export function toCard(
   source: GallerySource,
@@ -63,13 +72,46 @@ export function toCard(
     id,
     title: nonEmpty(source.name) || (id === '' ? '作品' : `作品 ${id}`),
     imageUrl,
+    localPath: '',
+    src: imageUrl,
     aspect,
     heightRpx: heightForAspect(aspect, columnWidthRpx),
     color: nonEmpty(source.picColor) || DEFAULT_COLOR,
     tags: (source.tags ?? []).filter((tag) => typeof tag === 'string' && tag !== ''),
     broken: imageUrl === '' || quarantined,
+    pending: false,
     quarantined,
   }
+}
+
+/**
+ * 私有图片卡片：内容接口需要令牌，地址要下载后才能展示。
+ *
+ * 这里先返回「下载中」的卡片，页面拿到下载结果后调用 `withLocalPath` 补上本地路径。
+ */
+export function toPrivateCard(
+  source: GallerySource,
+  resolveUrl: (path: string) => string,
+  columnWidthRpx: number = GRID_COLUMN_WIDTH_RPX,
+): GalleryCard {
+  const card = toCard(source, resolveUrl, columnWidthRpx)
+  if (card.quarantined || card.imageUrl === '') {
+    return { ...card, src: '', pending: false }
+  }
+  return { ...card, src: '', pending: true }
+}
+
+/** 下载完成：把本地路径写进卡片。 */
+export function withLocalPath(card: GalleryCard, localPath: string): GalleryCard {
+  if (localPath === '') {
+    return withDownloadFailure(card)
+  }
+  return { ...card, localPath, src: localPath, pending: false, broken: false }
+}
+
+/** 下载失败：退回「暂不可用」占位，不再显示成加载中。 */
+export function withDownloadFailure(card: GalleryCard): GalleryCard {
+  return { ...card, src: '', pending: false, broken: true }
 }
 
 /** 优先用后端算好的 picScale，缺失时退回宽高，仍缺失则给一个接近方形的默认值。 */

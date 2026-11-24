@@ -1,12 +1,18 @@
 import { COLOR_PALETTE, normalizeHex } from '../../logic/color'
 import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { applyPage, createFeed } from '../../logic/feed'
-import { toCard, type GalleryCard } from '../../logic/gallery'
+import {
+  toPrivateCard,
+  withDownloadFailure,
+  withLocalPath,
+  type GalleryCard,
+} from '../../logic/gallery'
 import { isValidId } from '../../logic/long'
 import { spaceTypeLabel } from '../../logic/spaces'
 import { resolveContentUrl } from '../../services/content'
 import { searchByColor, searchPictures } from '../../services/gallery'
 import { pickImageColor } from '../../services/image-color'
+import { ImageDownloadError, imageQueue } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { ApiError } from '../../services/http'
@@ -138,12 +144,13 @@ Page({
         pageSize: PAGE_SIZE,
         total: response.total,
       })
-      const cards = this.feed.items.map((record) => toCard(record, this.tokenizedUrl))
+      const cards = this.privateCards(this.feed.items)
       this.setData({
         cards,
         total: this.feed.total,
         ended: !this.feed.hasMore && cards.length > 0,
       })
+      this.loadPrivateImages(cards, 'cards')
     } catch (error) {
       if (seq !== this.loadSeq) {
         return
@@ -170,9 +177,55 @@ Page({
     }
   },
 
-  /** 空间图片的内容接口需要令牌，`<image>` 只能把令牌放查询参数。 */
-  tokenizedUrl(path: string): string {
-    return resolveContentUrl(path, true)
+  /** 空间图片的内容接口需要令牌，令牌放在请求头里，地址本身不带凭据。 */
+  contentUrl(path: string): string {
+    return resolveContentUrl(path)
+  },
+
+  /**
+   * 私有图片卡片：下载过的直接用缓存路径，没下载过的先占位。
+   *
+   * 翻页时列表会整体重建，不复用缓存就会让已下载的图片重新闪一次占位。
+   */
+  privateCards(records: SpaceRecord[]): GalleryCard[] {
+    return records.map((record) => {
+      const card = toPrivateCard(record, this.contentUrl)
+      const cached = card.imageUrl === '' ? '' : imageQueue.cached(card.imageUrl)
+      return cached === '' ? card : withLocalPath(card, cached)
+    })
+  },
+
+  /**
+   * 下载私有图片并回填本地路径。
+   *
+   * 下载走全局队列（限流 + 去重），列表与颜色检索的结果都写回各自的卡片数组。
+   */
+  loadPrivateImages(cards: GalleryCard[], field: 'cards' | 'colorCards'): void {
+    cards.forEach((card) => {
+      if (!card.pending || card.imageUrl === '') {
+        return
+      }
+      imageQueue.request(card.imageUrl).then(
+        (path) => this.patchCard(field, card.id, withLocalPath(card, path)),
+        (error: unknown) => {
+          // 令牌过期时整页都该退回登录引导，否则用户只看到一堆「暂不可用」
+          if (error instanceof ImageDownloadError && error.statusCode === 401) {
+            this.setData({ needsLogin: true })
+          }
+          this.patchCard(field, card.id, withDownloadFailure(card))
+        },
+      )
+    })
+  },
+
+  /** 按 id 替换一张卡片；找不到就忽略（页面可能已经切走）。 */
+  patchCard(field: 'cards' | 'colorCards', id: string, next: GalleryCard): void {
+    const list = this.data[field] as GalleryCard[]
+    const index = list.findIndex((card) => card.id === id)
+    if (index < 0) {
+      return
+    }
+    this.setData({ [`${field}[${index}]`]: next })
   },
 
   onSwatchTap(event: WechatMiniprogram.TouchEvent) {
@@ -210,8 +263,9 @@ Page({
         if (seq !== this.colorSeq) {
           return
         }
-        const cards = records.map((record) => toCard(record, this.tokenizedUrl))
+        const cards = this.privateCards(records)
         this.setData({ colorCards: cards, colorCount: cards.length, colorLoading: false })
+        this.loadPrivateImages(cards, 'colorCards')
       })
       .catch((error) => {
         if (seq !== this.colorSeq) {

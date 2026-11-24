@@ -7,6 +7,9 @@ import {
   heightForAspect,
   resolveAspect,
   toCard,
+  toPrivateCard,
+  withDownloadFailure,
+  withLocalPath,
 } from '../src/logic/gallery'
 import { toNumberOrNull } from '../src/logic/long'
 
@@ -68,6 +71,46 @@ describe('toCard', () => {
 
   it('derives a square-ish aspect when dimensions are missing', () => {
     expect(toCard({ id: 10 }, resolve).aspect).toBe(1)
+  })
+})
+
+describe('toPrivateCard', () => {
+  it('keeps the remote url but waits for an authenticated download', () => {
+    const card = toPrivateCard({ id: 7, thumbnailUrl: '/picture/content/7/thumbnail' }, resolve)
+    expect(card.imageUrl).toBe('https://example.test/api/picture/content/7/thumbnail')
+    expect(card.src).toBe('')
+    expect(card.localPath).toBe('')
+    expect(card.pending).toBe(true)
+    expect(card.broken).toBe(false)
+  })
+
+  it('does not put a token into the url', () => {
+    const card = toPrivateCard({ id: 7, thumbnailUrl: '/picture/content/7/thumbnail' }, resolve)
+    expect(card.imageUrl).not.toContain('satoken')
+    expect(card.imageUrl).not.toContain('?')
+  })
+
+  it('keeps quarantined pictures as placeholders instead of pending downloads', () => {
+    const card = toPrivateCard({ id: 8, thumbnailUrl: '/x', quarantined: true }, resolve)
+    expect(card.pending).toBe(false)
+    expect(card.quarantined).toBe(true)
+  })
+
+  it('fills the local path once the download succeeds', () => {
+    const card = toPrivateCard({ id: 7, thumbnailUrl: '/x' }, resolve)
+    const loaded = withLocalPath(card, '/tmp/7')
+    expect(loaded.src).toBe('/tmp/7')
+    expect(loaded.localPath).toBe('/tmp/7')
+    expect(loaded.pending).toBe(false)
+    expect(loaded.broken).toBe(false)
+  })
+
+  it('falls back to an unavailable placeholder when the download fails', () => {
+    const card = toPrivateCard({ id: 7, thumbnailUrl: '/x' }, resolve)
+    const failed = withDownloadFailure(card)
+    expect(failed.src).toBe('')
+    expect(failed.pending).toBe(false)
+    expect(failed.broken).toBe(true)
   })
 })
 

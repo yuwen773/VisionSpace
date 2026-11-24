@@ -2,14 +2,13 @@
  * 小程序登录态存储。
  *
  * M1 的 `/user/wx/*` 签发 Sa-Token；小程序把令牌与脱敏用户信息放本地存储。
- * 请求走 `satoken` 头；`<image>` 无法带自定义头，空间图片的 URL 需要在查询参数
- * 里携带同一个令牌（见 services/content.ts）。
+ * 请求走 `satoken` 头；私有图片用 `wx.downloadFile` 带同一个头下载到本地，
+ * 令牌不进 URL（见 services/image-download.ts）。
  */
 import { toStoredProfile, type ProfileLike, type StoredProfile } from '../logic/auth'
 
 const TOKEN_STORAGE_KEY = 'vs_satoken'
 const TOKEN_NAME_KEY = 'vs_token_name'
-const TOKEN_QUERY_NAME_KEY = 'vs_token_query_name'
 const USER_STORAGE_KEY = 'vs_user'
 const DEFAULT_TOKEN_NAME = 'satoken'
 
@@ -33,19 +32,6 @@ export function getTokenName(): string {
   }
 }
 
-/** `<image>` 用的查询参数名；服务端未下发时与请求头名保持一致。 */
-export function getTokenQueryName(): string {
-  try {
-    const name = wx.getStorageSync(TOKEN_QUERY_NAME_KEY)
-    if (typeof name === 'string' && name !== '') {
-      return name
-    }
-  } catch (error) {
-    console.warn('读取令牌查询参数名失败', error)
-  }
-  return getTokenName()
-}
-
 export function getStoredUser(): StoredProfile | null {
   try {
     const value = wx.getStorageSync(USER_STORAGE_KEY) as ProfileLike | ''
@@ -61,18 +47,12 @@ export function getStoredUser(): StoredProfile | null {
 }
 
 /** 登录/绑定成功后一次性写入令牌、令牌名与脱敏用户。 */
-export function saveSession(
-  token: string,
-  tokenName: string,
-  user: StoredProfile,
-  tokenQueryName = '',
-): void {
+export function saveSession(token: string, tokenName: string, user: StoredProfile): void {
   if (token === '') {
     return
   }
   wx.setStorageSync(TOKEN_STORAGE_KEY, token)
   wx.setStorageSync(TOKEN_NAME_KEY, tokenName || DEFAULT_TOKEN_NAME)
-  wx.setStorageSync(TOKEN_QUERY_NAME_KEY, tokenQueryName || tokenName || DEFAULT_TOKEN_NAME)
   wx.setStorageSync(USER_STORAGE_KEY, user)
 }
 
@@ -94,7 +74,6 @@ export function clearSession(): void {
   try {
     wx.removeStorageSync(USER_STORAGE_KEY)
     wx.removeStorageSync(TOKEN_NAME_KEY)
-    wx.removeStorageSync(TOKEN_QUERY_NAME_KEY)
   } catch (error) {
     console.warn('清除本地登录信息失败', error)
   }

@@ -341,3 +341,40 @@ miniprogram/
 - **数据契约**：`WxLoginVO` 的接受度测试补 `tokenQueryName` 断言。
 - 验证：`mvn -q -DskipTests compile` 通过；小程序 `npm run type-check` 通过，
   `npm test` 10 个文件 109 项全通过。真机清单仍未执行。
+
+## 14. M5 实施记录（2026-11-24）
+
+### 14.1 目标
+
+§13 之后剩下的最大风险是把令牌放进图片 URL：查询参数会进 nginx 访问日志、Referer
+与图片缓存，等于把凭据散出去。本轮把私有图片改成「带鉴权头下载到本地再展示」，
+公开图库不受影响。
+
+### 14.2 落地
+
+- `logic/image-queue.ts`：纯逻辑下载队列——限流（默认并发 4）、同 URL 去重、
+  成功路径按 URL 缓存、失败只回调不抛出；可单测，不依赖 wx API。
+- `services/image-download.ts`：`wx.downloadFile` 带 `satoken` 头下载，返回
+  `tempFilePath`；失败抛 `ImageDownloadError`（带状态码，401 触发重新登录引导）。
+- `logic/gallery.ts`：卡片新增 `localPath` / `src` / `pending` 三个字段。公开图库
+  走 `toCard`（`src` 直接是远程地址）；私有图走 `toPrivateCard`（先占位），
+  下载完成后由 `withLocalPath` / `withDownloadFailure` 收尾。
+- `pages/space-detail`：列表与颜色检索结果都走私有卡片；翻页重建列表时优先复用
+  队列缓存，避免已下载的图重新闪一次占位。
+- `pages/picture`：空间作品的大图与原图预览都先鉴权下载；原图预览走本地路径。
+- 删除 `logic/url.ts`（`withTokenQuery`）与 `tests/url.test.ts`：令牌不再进 URL，
+  客户端也不再保存 `tokenQueryName`。服务端仍在登录响应里下发该字段，作为
+  「无请求头场景的查询参数名」契约说明。
+
+### 14.3 验证
+
+- 小程序 `npm run type-check` 通过；`npm test` 10 个文件 116 项全通过
+  （新增 `tests/image-queue.test.ts` 6 项与 `toPrivateCard` 相关 5 项）。
+- 真机清单新增「M5 私有图片鉴权下载」一节，仍未执行。
+
+### 14.4 后续（未做）
+
+- 大量私有缩略图若实测首屏过慢，再评估短期签名 URL；本轮不动服务端私有图片
+  安全模型。
+- Agent 的 SSE 接入层（开流前用 401/403/404/429 状态码、流内错误事件、
+  增量 UTF-8 解码）尚未开始，属第 2 期。

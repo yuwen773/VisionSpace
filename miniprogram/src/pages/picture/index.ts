@@ -5,6 +5,7 @@ import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import { fetchPicture } from '../../services/gallery'
 import { ApiError } from '../../services/http'
+import { ImageDownloadError, imageQueue } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { reportOnce } from '../../services/telemetry'
@@ -25,6 +26,7 @@ Page({
     needsLogin: false,
     picture: null as PictureVO | null,
     imageUrl: '',
+    imagePending: false,
     title: '',
     author: '',
     category: '',
@@ -67,11 +69,8 @@ Page({
         return
       }
       const inSpace = belongsToSpace(picture)
-      const imageUrl = resolveContentUrl(
-        picture.previewUrl || picture.url || picture.thumbnailUrl,
-        inSpace,
-      )
-      if (imageUrl === '') {
+      const remoteUrl = resolveContentUrl(picture.previewUrl || picture.url || picture.thumbnailUrl)
+      if (remoteUrl === '') {
         this.setData({ loading: false, error: '该作品暂无可查看的图片' })
         return
       }
@@ -82,7 +81,8 @@ Page({
       this.setData({
         loading: false,
         picture,
-        imageUrl,
+        imageUrl: inSpace ? '' : remoteUrl,
+        imagePending: inSpace,
         title,
         author: picture.user?.userName ?? '',
         category: picture.category ?? '',
@@ -93,6 +93,10 @@ Page({
         counts: buildCounts(picture),
         canShare,
       })
+      if (inSpace) {
+        // 空间图片需要令牌：下载到本地后再展示，令牌只出现在请求头里
+        this.loadPrivateImage(remoteUrl)
+      }
       wx.setNavigationBarTitle({ title })
       if (canShare) {
         wx.showShareMenu({ menus: ['shareAppMessage'] })
@@ -117,16 +121,44 @@ Page({
     }
   },
 
+  /** 下载私有图片并展示；失败时退回「暂不可用」。 */
+  loadPrivateImage(remoteUrl: string): void {
+    imageQueue.request(remoteUrl).then(
+      (path) => this.setData({ imageUrl: path, imagePending: false }),
+      (error: unknown) => {
+        if (error instanceof ImageDownloadError && error.statusCode === 401) {
+          this.setData({ needsLogin: true })
+        }
+        this.setData({ imagePending: false, imageError: true })
+      },
+    )
+  },
+
   onPreview() {
     const picture = this.data.picture
     if (!picture) {
       return
     }
-    const original = resolveContentUrl(picture.url || picture.previewUrl, belongsToSpace(picture))
+    const original = resolveContentUrl(picture.url || picture.previewUrl)
     if (original === '') {
       return
     }
-    wx.previewImage({ urls: [original], current: original })
+    if (!belongsToSpace(picture)) {
+      wx.previewImage({ urls: [original], current: original })
+      return
+    }
+    // 原图同样需要令牌：先鉴权下载，再预览本地文件
+    wx.showLoading({ title: '加载原图…', mask: true })
+    imageQueue.request(original).then(
+      (path) => {
+        wx.hideLoading()
+        wx.previewImage({ urls: [path], current: path })
+      },
+      () => {
+        wx.hideLoading()
+        wx.showToast({ title: '原图加载失败', icon: 'none' })
+      },
+    )
   },
 
   onImageError() {

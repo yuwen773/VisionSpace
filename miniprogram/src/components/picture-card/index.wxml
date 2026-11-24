@@ -1,14 +1,14 @@
 <view class="card" bindtap="onTap">
   <view class="media" style="height: {{card.heightRpx}}rpx; background: {{card.color}};">
     <image
-      wx:if="{{card.imageUrl && !failed}}"
+      wx:if="{{card.src && !failed}}"
       class="image"
-      src="{{card.imageUrl}}"
+      src="{{card.src}}"
       mode="aspectFill"
       lazy-load
       bind:error="onImageError"
     />
-    <view wx:else class="fallback">{{card.quarantined ? '内容已隔离' : (card.broken ? '图片暂不可用' : '加载失败')}}</view>
+    <view wx:else class="fallback">{{card.pending ? '' : (card.quarantined ? '内容已隔离' : (card.broken ? '图片暂不可用' : '加载失败'))}}</view>
   </view>
   <view class="body">
     <view class="title">{{card.title}}</view>

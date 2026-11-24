@@ -12,12 +12,15 @@
   <block wx:else>
     <view class="hero" bindtap="onPreview">
       <image
-        wx:if="{{!imageError}}"
+        wx:if="{{imageUrl && !imageError}}"
         class="hero-image"
         src="{{imageUrl}}"
         mode="widthFix"
         bind:error="onImageError"
       />
+      <view wx:elif="{{imagePending}}" class="hero-fallback">
+        <view class="state-title">正在加载图片…</view>
+      </view>
       <view wx:else class="hero-fallback">
         <view class="state-title">图片暂不可用</view>
         <view class="state-desc">可返回列表查看其他作品</view>
