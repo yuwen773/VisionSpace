@@ -72,14 +72,18 @@
 
 ### 4.3 令牌解析
 
-- `UserServiceImpl.getLoginUser` 增加回退：**显式令牌优先**（请求头或查询参数带有效
+> **现状（最终收口后）**：令牌**只认请求头**。下文的查询参数方案在 M5 客户端停用，
+> 最终收口（§16）里连同 `sa-token.is-read-body` 一起删除，`tokenQueryName` 契约不再下发。
+> 保留这段描述是为了说明当时的取舍与风险从何而来。
+
+- `UserServiceImpl.getLoginUser` 增加回退：**显式令牌优先**（请求头带有效
   `satoken` 时按该令牌解析 userId），否则用浏览器会话；两者共用 `StpKit.SPACE` 存储。
 - 内容接口 `/picture/content/**` 因此可直接用 `?satoken=` 被 `<image>` 加载。
 - **风险**：令牌进入 nginx access_log。M1 同步给出 nginx 脱敏方案（按参数名打码），
   并保留后续改为短时 ticket 的接口位置。
 - **M5 起已调整**：小程序的私有图片改为 `wx.downloadFile` 带鉴权头下载，
-  客户端不再把令牌放进 URL；服务端的查询参数鉴权保留为无头客户端的兼容路径，
-  nginx 脱敏随之改为按「参数名里带 token」打码（见 §15）。
+  客户端不再把令牌放进 URL。**最终收口（§16）删除了服务端的查询参数鉴权**，
+  nginx 脱敏保留为日志兜底。
 
 ### 4.4 CSRF 分流
 
@@ -368,8 +372,8 @@ miniprogram/
   队列缓存，避免已下载的图重新闪一次占位。
 - `pages/picture`：空间作品的大图与原图预览都先鉴权下载；原图预览走本地路径。
 - 删除 `logic/url.ts`（`withTokenQuery`）与 `tests/url.test.ts`：令牌不再进 URL，
-  客户端也不再保存 `tokenQueryName`。服务端仍在登录响应里下发该字段，作为
-  「无请求头场景的查询参数名」契约说明。
+  客户端也不再保存 `tokenQueryName`。服务端此时仍在登录响应里下发该字段，作为
+  「无请求头场景的查询参数名」契约说明（该字段与查询参数鉴权已在最终收口删除，见 §16）。
 
 ### 14.3 验证
 
@@ -416,9 +420,118 @@ miniprogram/
   （颜色模式、needsLogin 分流），抽公共 helper 只会把差异变成一串参数；
   分页状态机已在 `logic/feed.ts` 共享，暂不抽。
 - **`contentUrl` / `openLogin` 薄封装**：保留为页面与路由的接缝。
-- **服务端查询参数令牌未删除**：作为无头客户端的兼容路径保留，nginx 已兜底；
-  若第 2 期确认没有消费者再摘掉。
+- ~~服务端查询参数令牌未删除~~：最终收口已删除，见 §16。
 - **上传页空间选择器**：§2 的「默认个人空间可选团队」仍未做，取舍见 §12。
 
 验证：`npm run type-check` 通过；`npm test` 10 个文件 119 项全通过；
 `HttpMiniProgramAuthTest` 10 项全通过（隔离 MySQL 8.0.36 + Redis 7.2.4）；真机清单仍未执行。
+
+## 16. 最终安全收口（Final Gate，2026-11-24）
+
+功能范围冻结：不加新功能、不新建 worktree、不重构前端技术栈。整改全部落在 #164
+收口分支上，不拆出单独合并的中间版本。
+
+### 16.1 任务一：查询参数令牌的真实消费者
+
+审计结论：**没有必要的消费者**。
+
+- 我方客户端已无引用：小程序在 M5 改为带鉴权头下载（§14.2），`miniprogram/src` 里
+  `tokenQueryName` / `?satoken=` 都已删除；`frontend/src` 从未使用过查询参数令牌。
+  检索范围覆盖 `frontend/src`、`miniprogram/src`、`src/main` 与三个 nginx 配置。
+- 唯一「消费者」是验收测试自己：原 `bindThenTokenIdentifiesTheSameAccount...` 断言
+  `?satoken=` 能登录。没有外部调用方。
+
+因此删除整条服务端查询参数认证：
+
+- `AuthTokenProperties` 去掉 `queryName`，只留 `headerName`。
+- `TokenAuthenticationSupport` 只读请求头，删除 `queryToken()` 与 URL 解码分支。
+- `WxLoginVO` 去掉 `tokenQueryName`；`MiniProgramAuthServiceImpl` 同步不再下发。
+- OpenAPI 契约重生成：`frontend/src/api/typings.d.ts` 的唯一差异就是删掉该字段，
+  CI 的 `frontend-api-contract` 仍按字节比对通过。
+- 原「查询参数可登录」的成功断言改为拒绝断言 `queryTokenIsRejected`：
+  `GET /user/get/login?satoken=<有效令牌>` → 40100；`POST /user/logout?satoken=<有效>`
+  → 50001「未登录」；随后请求头访问仍正常。
+
+Sa-Token 自身是否还接受 URL 凭据：**默认会**。`is-read-body` 允许从请求参数读令牌，
+而 `getParameter` 同时覆盖查询串——只删我们自己的读取器不够，`StpKit.SPACE.isLogin()`
+仍会认 `?satoken=`。两份配置都显式关闭：
+
+- `application.yml`（生产）；
+- `src/test/resources/acceptance.yml`——**必须重复写一遍**：验收用
+  `spring.config.location=classpath:/acceptance.yml` 整体替换默认配置，不继承
+  `application.yml`。漏写这一步时 `queryTokenIsRejected` 直接拿到 403（CSRF 判定为
+  会话请求）而不是「未登录」，是这个坑留下的证据。
+
+### 16.2 任务二：跨端会话与令牌（真实 HTTP + Redis）
+
+`HttpMiniProgramAuthTest` 用真实隔离 MySQL + Redis、真实 `CsrfProtectionFilter`，
+覆盖混合凭据：
+
+| 场景 | 期望 |
+|---|---|
+| 浏览器会话 + 伪造 `satoken` 头做状态修改 | 403（分类先看会话，伪造头不能把请求降级成免 CSRF 的 TOKEN） |
+| 小程序登出 | 浏览器会话仍在（按设备吊销） |
+| 浏览器登出 | 小程序令牌同步失效（账号级吊销） |
+| 同账号同时带会话与显式令牌 | 显式令牌优先 |
+| 两线程并发绑定同一 openid | 恰好一个成功，另一个 40103 |
+
+据此做的最小整改：`userLogout` 里令牌客户端只吊销**自己的令牌**
+（`logoutByTokenValue`），浏览器会话仍按账号级（`SaLogoutRange.ACCOUNT`）吊销。
+改之前带令牌登出会把同账号的网页会话一起踢掉——小程序里点「退出登录」不该顺带
+把用户浏览器踢下线。
+
+### 16.3 任务三：私有图片下载
+
+- **同源限制**：新增 `logic/image-url.ts:isTrustedContentUrl`，按 `API_BASE_URL`
+  前缀判断并规范化末尾斜杠。`https://visionspace.space.evil.com` 这类前缀伪装、
+  非 http(s) 协议、相对路径、空 base 全部拒绝。`fetchImageFile` 在**读取令牌之前**
+  做这个判断，令牌不会被发给第三方域名。
+- **缓存容量**：上限 60 条（微信临时文件总量约 10MB），按写入顺序淘汰最早的。
+- **过期与撤权**：TTL 5 分钟。缓存的只是本地临时文件路径，不是权限证明；过期后
+  重新鉴权下载，撤权最多 5 分钟后生效。
+- **账号隔离**：条目记录 owner（`getStoredUser()?.id`），与当前账号不一致立即失效。
+- **失败分流**：401 → 清空缓存并引导重新登录；403 → `invalidate(url)`，下次重新鉴权。
+- **取消正确性**：`clear()` 拒绝排队中与在飞任务（不留悬空 Promise），并用代数丢弃
+  清空后才落地的结果；`forget()` 移到 resolve 之前，否则调用方 await 回来后立刻重试
+  同一 URL 会拿到上一次已完成的 Promise。
+- 新增 `tests/image-url.test.ts`（5 项）与 4 项队列用例（TTL / 账号隔离 / 容量 /
+  invalidate）。
+
+### 16.4 任务四：删号与 openid 原子性
+
+`UserService.deleteUser` 先把 `wxOpenId` 置 `NULL`（释放 `uk_user_wxOpenId`）再逻辑
+删除，两步放进同一个 `@Transactional(rollbackFor = Exception.class)`：中途失败不会
+留下「openid 已释放但账号还在」的中间态。
+
+并发绑定由唯一索引兜底：两个线程同时绑同一 openid，一个拿到 0，另一个拿到 40103，
+库里恰好一个账号持有该 openid（`concurrentBindOfTheSameOpenIdBindsExactlyOneAccount`）。
+
+### 16.5 任务五：保持不变
+
+原生 TypeScript 小程序架构、雪花 ID 字符串契约、上传流程、M1–M5 全部功能均未改动。
+`miniprogram/src` 只动了私有图片下载相关的 `logic/image-queue.ts`、`logic/image-url.ts`
+（新）、`services/image-download.ts` 与两个页面的失败分支。
+
+### 16.6 验证矩阵
+
+详见交付报告；本地复现：
+
+```bash
+# 后端全量验收（隔离 MySQL 8.0.36 + Redis 7.2.4 + 真实第二 JVM 实例）
+pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1
+# 小程序
+cd miniprogram && npm run type-check && npm test
+```
+
+### 16.7 剩余风险
+
+- **本地临时文件删不掉**：`wx.downloadFile` 没有删除 API，缓存只保证「不再引用」，
+  文件由微信自行回收。撤权后旧文件最多可用 5 分钟（TTL），要更强保证需上短期签名 URL
+  （属第 2 期，本轮不动服务端私有图片安全模型）。
+- **nginx 脱敏保留**：服务端已不接受 URL 令牌，脱敏规则退化为日志兜底，防止客户端
+  误传时把凭据写进 access_log。
+- **真机清单未执行**：无真机与开发者工具自动化，清单见 `miniprogram/README.md`。
+
+### 16.8 未做
+
+不合并、不部署、不启动第二期 Agent/SSE 开发。
