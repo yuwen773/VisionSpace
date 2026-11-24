@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @Import(WeChatStubConfiguration.class)
 class HttpMiniProgramAuthTest {
 
-    private static final String PASSWORD = "mini-program-password";
+    private static final String PASSWORD = "acceptance-password";
     private static final String TOKEN_HEADER = "satoken";
 
     @LocalServerPort
