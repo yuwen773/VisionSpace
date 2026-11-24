@@ -30,7 +30,7 @@ import java.util.UUID;
  * </pre>
  *
  * <p><b>执行互斥靠原子认领，不靠等待时间。</b>{@link #claim} 用一条
- * {@code INSERT ... ON CONFLICT (thread_id, user_id, action_id) DO UPDATE} 完成「判定 + 占用」，只有尚不存在
+ * {@code INSERT ... ON CONFLICT (thread_id, action_id) DO UPDATE} 完成「判定 + 占用」，只有尚不存在
  * 或已明确失败的动作能被认领；执行中、待核对、已完成一律影响 0 行。
  * 认领成功会拿到 {@code claimToken}，后续推进状态必须带同一个 token。
  *

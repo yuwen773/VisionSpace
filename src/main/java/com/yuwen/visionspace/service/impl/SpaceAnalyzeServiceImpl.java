@@ -103,7 +103,8 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         fillAnalyzeQueryWrapper(spaceCategoryAnalyzeRequest, queryWrapper);
 
         // 使用 MyBatis Plus 分组查询
-        queryWrapper.select("category", "count(*) as count", "sum(pic_size) as total_size")
+        // pic_size 可为 NULL：整组都是 NULL 时 sum() 返回 NULL，coalesce 兜到 0，避免拆箱 NPE。
+        queryWrapper.select("category", "count(*) as count", "coalesce(sum(pic_size), 0) as total_size")
                 .groupBy("category");
 
         // 查询并转换结果
@@ -112,7 +113,8 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 .map(result -> {
                     String category = (String) result.get("category");
                     Long count = ((Number) result.get("count")).longValue();
-                    Long totalSize = ((Number) result.get("totalSize")).longValue();
+                    // selectMaps 的键是 SQL 别名本身，不会 camel 化。
+                    Long totalSize = ((Number) result.get("total_size")).longValue();
                     return new SpaceCategoryAnalyzeResponse(category, count, totalSize);
                 })
                 .collect(Collectors.toList());

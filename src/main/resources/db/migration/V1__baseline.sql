@@ -860,8 +860,9 @@ CREATE INDEX ix_asset_board_operation_board ON asset_board_operation (board_id);
 CREATE INDEX ix_asset_board_proposal_pending ON asset_board_proposal (owner_id, board_id, thread_id, status);
 CREATE INDEX ix_picture_index_task_status_retry ON picture_index_task (status, next_retry_time);
 
--- Seed: the only shipped row
-INSERT INTO storage_switch_state (id, active_version) VALUES (1, 1) ON CONFLICT DO NOTHING;
+-- Seed: the only shipped row. 冲突目标写成列清单：不带目标的 DO NOTHING 会连
+-- 「主键之外的新唯一约束」一起吞掉（ADR 0004 §4）。
+INSERT INTO storage_switch_state (id, active_version) VALUES (1, 1) ON CONFLICT (id) DO NOTHING;
 
 -- update-time triggers: one function per distinct column, only for columns
 -- that carried ON UPDATE CURRENT_TIMESTAMP in MySQL.

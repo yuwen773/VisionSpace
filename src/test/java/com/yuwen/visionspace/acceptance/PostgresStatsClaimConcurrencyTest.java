@@ -1,11 +1,14 @@
 package com.yuwen.visionspace.acceptance;
 
 import com.yuwen.visionspace.mapper.UserPictureActionMapper;
+import com.yuwen.visionspace.service.PictureStatsAggregateService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,6 +48,12 @@ class PostgresStatsClaimConcurrencyTest {
     private UserPictureActionMapper actionMapper;
 
     @Autowired
+    private PictureStatsAggregateService aggregateService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @BeforeEach
@@ -63,6 +72,7 @@ class PostgresStatsClaimConcurrencyTest {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id = ?", PICTURE_ID);
         jdbc.update("DELETE FROM user_picture_action WHERE picture_id = ?", PICTURE_ID);
         jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE_ID);
     }
@@ -150,5 +160,65 @@ class PostgresStatsClaimConcurrencyTest {
                 "租约未到期时不能抢：否则同一个 worker 正在累计的事件会被重复累计");
         assertEquals("acceptance-claim-owner", jdbc.queryForObject(
                 "SELECT claim_token FROM user_picture_action WHERE id = ?", String.class, FIRST_EVENT_ID));
+    }
+
+    /**
+     * 并发累计的最终值必须恰好等于事件数：小于说明丢更新，大于说明重复累计。
+     * 认领不重不漏只是前半程，统计表的累加语义要单独钉住。
+     */
+    @Test
+    void concurrentAggregatorsAccumulateEveryEventExactlyOnce() throws Exception {
+        int workers = 4;
+        ExecutorService pool = Executors.newFixedThreadPool(workers);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int worker = 0; worker < workers; worker++) {
+                futures.add(pool.submit(() -> {
+                    start.await(10, TimeUnit.SECONDS);
+                    aggregateService.aggregateActionStats();
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(120, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals(EVENT_COUNT, pictureStats("impression_count"),
+                "并发累计的最终值必须等于事件数");
+        assertEquals(0L, unfinishedEvents(), "所有事件都必须被累计并完成");
+    }
+
+    /**
+     * 失败注入：整轮聚合在外层事务里回滚后，事件必须退回待处理，统计不留下增量。
+     */
+    @Test
+    void rolledBackAggregationLeavesEventsPendingWithoutDoubleCounting() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.executeWithoutResult(status -> {
+            aggregateService.aggregateActionStats();
+            assertEquals(0L, unfinishedEvents(), "回滚前事件应当已被累计并标记完成");
+            status.setRollbackOnly();
+        });
+
+        assertEquals(0L, pictureStats("impression_count"), "整体回滚后统计不能留下增量");
+        assertEquals(EVENT_COUNT, unfinishedEvents(), "整体回滚后事件必须全部回到待处理：不丢也不重复累计");
+    }
+
+    private long pictureStats(String column) {
+        List<Long> values = jdbc.queryForList(
+                "SELECT " + column + " FROM picture_stats WHERE picture_id = ?", Long.class, PICTURE_ID);
+        return values.isEmpty() ? 0L : values.get(0);
+    }
+
+    private long unfinishedEvents() {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM user_picture_action
+                WHERE picture_id = ? AND (is_accumulated = 0 OR is_processed = 0)
+                """, Long.class, PICTURE_ID);
     }
 }

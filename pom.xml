@@ -467,6 +467,7 @@
                     <locations>
                         <location>filesystem:src/main/resources/db/migration</location>
                     </locations>
+                    <encoding>UTF-8</encoding>
                     <cleanDisabled>true</cleanDisabled>
                     <validateOnMigrate>true</validateOnMigrate>
                     <outOfOrder>false</outOfOrder>

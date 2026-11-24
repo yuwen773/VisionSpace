@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.yuwen.visionspace.exception.BusinessException;
+import com.yuwen.visionspace.service.UserService;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,20 +78,26 @@ class PostgresUniqueCaseSemanticsTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private UserService userService;
+
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM app_user WHERE id IN (?, ?)", USER_A, USER_B);
+        jdbc.update("DELETE FROM app_user WHERE lower(user_account) = lower(?) OR id IN (?, ?)",
+                "CaseUserOne", USER_A, USER_B);
         jdbc.update("DELETE FROM vip_redemption_code WHERE code_hash IN (?, ?)", "CaseCodeHashX", "casecodehashx");
     }
 
     @Test
-    void accountUniquenessIgnoresCaseAndLookupIsCaseInsensitive() {
-        insertUser(USER_A, "CaseUserOne", null);
-        assertThrows(DataIntegrityViolationException.class, () -> insertUser(USER_B, "caseuserone", null),
-                "账号唯一索引在 lower(user_account) 上：只差大小写的账号必须冲突");
-        assertEquals(1L, jdbc.queryForObject(
-                "SELECT count(*) FROM app_user WHERE lower(user_account) = lower(?)", Long.class, "CASEUSERONE"),
-                "按账号登录必须大小写不敏感地命中同一行");
+    void accountUniquenessIgnoresCaseAndLoginMatchesAnyCase() {
+        String password = "acceptance-case-password";
+        // 走真实注册/登录链路：索引、查重、登录查询三处必须同口径，读回自己写的行不算证据。
+        long userId = userService.userRegister("CaseUserOne", password, password);
+        assertThrows(BusinessException.class,
+                () -> userService.userRegister("caseuserone", password, password),
+                "注册查重必须与 lower(user_account) 唯一索引同口径，否则第二个账号要等数据库抛 500");
+        assertEquals(userId, userService.authenticateForPassword("CASEUSERONE", password).getId(),
+                "登录查询必须大小写不敏感：迁移前整库是 CI 排序规则，用户能用任意大小写登录");
     }
 
     @Test

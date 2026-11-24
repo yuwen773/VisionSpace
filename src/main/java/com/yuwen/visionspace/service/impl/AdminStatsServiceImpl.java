@@ -45,7 +45,8 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         queryWrapper.select("count(*) as cnt", "coalesce(sum(pic_size), 0) as total_size");
         Map<String, Object> result = pictureService.getBaseMapper().selectMaps(queryWrapper).get(0);
         stats.setPictureCount(((Number) result.get("cnt")).longValue());
-        stats.setUsedSize(((Number) result.get("totalSize")).longValue());
+        // selectMaps 的键是 SQL 别名本身，不会 camel 化：别名写成 total_size 就得按 total_size 取。
+        stats.setUsedSize(((Number) result.get("total_size")).longValue());
 
         // 今日推荐统计
         LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);

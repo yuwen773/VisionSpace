@@ -39,7 +39,7 @@ class HttpResourceQuarantineTest {
     private static final long TEAM_PICTURE = 88011;
     private static final long GRANTED_PICTURE = 88012;
     /**
-     * picture_file 的主键由应用分配（基线里没有自增列），测试自己给一个不与其它用例撞车的段位。
+     * picture_file.id 是 IDENTITY，测试仍显式给 id：段位拉开，避免与其它用例的自增段撞车。
      */
     private static final long RESOURCE_ID_BASE = 8_800_100_000L;
 

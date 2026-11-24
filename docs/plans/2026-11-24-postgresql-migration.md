@@ -107,7 +107,7 @@ Docker init / 部署初始化脚本**只允许**做四件事：建角色、建�
 <flyway.version>13.13.0</flyway.version>
 ```
 
-插件声明在 `<pluginManagement>`，`flyway-database-postgresql` 作为插件依赖。CI 与本地用：
+插件声明在 `<plugins>`（不绑定生命周期，只供显式调用；`pluginManagement` 同样可行，实际按 `<plugins>` 落地），`flyway-database-postgresql` 作为插件依赖。CI 与本地用：
 
 ```bash
 mvn -N org.flywaydb:flyway-maven-plugin:13.13.0:migrate \
@@ -306,7 +306,7 @@ BEGIN
 END $$;
 ```
 
-只绑定原本具有 `ON UPDATE CURRENT_TIMESTAMP` 的 37 个列；不扩大范围。测试矩阵：普通更新刷新；无变化更新不刷新；显式赋不同时间保留；显式赋旧值（已知不可区分，记录为 ADR 差异）；批量更新逐行刷新；事务回滚后不残留；历史 `update_time` 迁移时原值保留。
+只绑定原本具有 `ON UPDATE CURRENT_TIMESTAMP` 的列——归档 MySQL dump 实测为 22 处，PG 侧 22 个触发器一一对应（原稿写 37 是估算，实施时按 dump 核准）；不扩大范围。测试矩阵：普通更新刷新；无变化更新不刷新；显式赋不同时间保留；显式赋旧值（已知不可区分，记录为 ADR 差异）；批量更新逐行刷新；事务回滚后不残留；历史 `update_time` 迁移时原值保留。
 
 ### 5.5 统计事件 claim/lease 并发验收
 
@@ -569,25 +569,46 @@ python -I scripts/drill-isolated-run.py --full
 |---|---|---|
 | `scripts/tests/test-postgres-persistence.ps1` | PASS | 命名卷 + `docker rm -f` + 同卷重建后数据仍在；卷带 `vs.*` 标签 |
 | `scripts/tests/test-postgres-backup-restore.ps1` | PASS | `pg_dump -Fc` → 新库恢复 → 应用可读 |
-| `scripts/tests/test-postgres-init.ps1` | PASS | init 脚本收敛性：只建双角色/库/扩展/库注释，出现 `CREATE TABLE` 即失败；口令经 `psql -v` 传入 |
+| `scripts/tests/test-postgres-init.ps1` | PASS | init 脚本收敛性：只建双角色/库/扩展/库注释，出现 `CREATE TABLE` 即失败；口令经 `psql -v` 传入。**首轮验收时它只被手工执行、没进 `srf-matrix.json`，现已登记到 runner-tests** |
 
 运行角色无 DDL 权限的负例在后端套件里：`PostgresLeastPrivilegeTest` 断言 `vision_app` 执行 `CREATE TABLE` / `TRUNCATE` 得到 `42501 insufficient_privilege`。
 
 ### B.4 迁移分支全量验收
 
-`scripts/acceptance.ps1`，runId `46ceb80f0bb34037b6e8d48e21745715`，退出码 **0**，14 个关卡全 PASS：
+`scripts/acceptance.ps1`，两次都是退出码 **0**、14 个关卡全 PASS：
+
+| 轮次 | runId | 后端 |
+|---|---|---|
+| 迁移完成时 | `46ceb80f0bb34037b6e8d48e21745715` | 879 项，0 失败 / 0 错误 / 0 跳过 |
+| 评审修复后 | `5f1b37b3308c450f83159adc2586de5e` | 881 项，0 失败 / 0 错误 / 0 跳过（新增两个累计/回滚用例） |
 
 | 关卡 | 结果 |
 |---|---|
-| runner-tests / secret-scan / isolation | PASS |
-| backend | PASS：879 项，0 失败 / 0 错误 / 0 跳过（含 3 个浏览器 IT） |
+| runner-tests / secret-scan / isolation | PASS（runner-tests 含本轮新登记的 `test-postgres-init.ps1`） |
+| backend | PASS（含 3 个浏览器 IT） |
 | frontend-install / lint / format / typecheck / tests / build | PASS |
 | asset-color-calibration / asset-search-browser | PASS |
 | frontend-api-contract / cleanup | PASS |
 
-与 M0 基线（846 / 0 / 0 / 0）对照：+33 项，退役与新增逐项登记在 `scripts/pg-migration-test-map.json`，由 `scripts/tests/test-pg-test-coverage-map.py` 把关。
+与 M0 基线（846 / 0 / 0 / 0）对照：+35 项，退役与新增逐项登记在 `scripts/pg-migration-test-map.json`。把关方式是 `acceptance.ps1` 的 runner-tests 回合：它除按 `srf-matrix.json` 跑 `.ps1` 外，还会遍历 `scripts/tests/test-*.py` 全部执行，覆盖率对照脚本（输出 `OK: 132 个基线测试类全部有下落…`）就在这一步跑。
 
-### B.5 未完成
+### B.5 两轴代码评审（Standards + Spec）与处置
 
-- M4 低资源排练（§5.9）：本机按 2 vCPU / 1700 MB 参数做一次冷启动 + 备份恢复演练；阿里云实机（`121.199.77.168`）需授权后执行。
+评审在提交 `6a165e2` 上以 `main` 为基点跑了两轴。**真缺陷 3 个，已修**：
+
+| 发现 | 处置 |
+|---|---|
+| `AdminStatsServiceImpl` / `SpaceAnalyzeServiceImpl` 的 SQL 别名改成 `total_size`，Java 侧仍 `get("totalSize")` → 拆箱 NPE | 两处改读 `total_size`；同类风险用 `check-repo-hygiene.py` 新增规则守住（selectMaps 的键不会 camel 化，按同文件 `as` 别名对齐；先在坏行上验证会报错） |
+| 空间分类分析的 `sum(pic_size)` 在整组为空时返回 NULL | 包 `coalesce(..., 0)` |
+| `AgentActionLedger` 注释写 `ON CONFLICT (thread_id, user_id, action_id)`，与真实唯一键不符 | 注释改为 `(thread_id, action_id)` |
+
+**证据强度问题，已修**：`test-postgres-init.ps1` 之前只手工跑过、没进 `srf-matrix.json`（现已登记）；`PostgresUniqueCaseSemanticsTest` 的账号用例原本用自写 SELECT 自证大小写不敏感，改为走真实 `userRegister` + `authenticateForPassword`；`PostgresSchemaConformanceTest` 的账号索引断言补上 `CREATE UNIQUE INDEX`（否则非唯一索引也能过）、并删掉一段自相矛盾的过期 javadoc；`HttpResourceQuarantineTest` 里「picture_file 没有自增列」的注释与基线冲突，已改。
+
+**补齐的计划项**：§5.5 的「最终值 = 事件数」与失败注入（`PostgresStatsClaimConcurrencyTest` 新增两个用例：4 线程并发聚合后 `impression_count` 必须恰好等于事件数；外层事务回滚后统计无增量、事件全部退回待处理）；§3.3 的加锁顺序写进 ADR §4 并指明唯一入口 `ResourceLockManager.lockResourceRow`（隔离/删除/替换/编辑租约都先取它）；§5.10 的备份口径（每日一次、保留 7 天、恢复演练）写进 ADR §6；§5.4 的触发器数量按归档 dump 核准为 22（原稿 37 是估算），计划已更正；`sql/README.md` 标明该目录是归档件、任何流程都不执行。
+
+### B.6 仍未完成（不阻塞合并，但上线前要闭）
+
+- M4 低资源排练（§5.9）：本机按 2 vCPU / 1700 MB 参数做一次冷启动 + 备份恢复演练；阿里云实机（`121.199.77.168`）需授权后执行。§7 门禁第 8 条因此未满足。
+- §5.7 的「错误口令启动 → readiness DOWN/503」负例没有单独用例：验收上下文里 `IsolatedApplicationInitializer` 会先因库级 nonce 校验失败而中止启动，readiness 根本不可达；现有证据是 `test-container-verification.ps1` 的依赖后到/停库场景断言 readiness 不 UP。
+- §5.2 的「同一索引插一对只差大小写的值」行为矩阵只覆盖账号、openid、兑换码哈希三类；其余文本唯一键靠 `PostgresUniqueCaseSemanticsTest` 的索引清单（名称 + 覆盖表达式逐条钉住）结构性保证。
 - 合并、打 1.1.0、部署生产：均需显式授权，未执行。
