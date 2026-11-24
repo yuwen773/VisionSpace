@@ -27,15 +27,18 @@ public interface UserPictureActionMapper extends BaseMapper<UserPictureAction> {
      * <p>只领取「未完成、未计入、且没有有效租约」的事件；目标图片已不存在的事件
      * 不在这里领取，它们留在待处理状态里作为冲突可见，不会被静默丢弃。
      *
+     * <p>租约的时间基准一律取数据库时钟（{@code NOW()}）：租约到期时间是写进库的值，
+     * 如果改用调用方 JVM 的时间去比较，容器与宿主、多个实例之间的时钟偏差就会让
+     * 「租约是否过期」失真——快钟提前抢走别人的事件，慢钟让事件迟迟无法回收。
+     * 写库与比较必须是同一个时钟。
+     *
      * @param claimToken 本次领取的令牌
-     * @param claimedAt  领取时间
-     * @param claimExpireAt 租约到期时间
+     * @param leaseSeconds 租约时长（秒）
      * @param limit 本次最多领取的事件数
      * @return 实际领取的事件数
      */
     int claimPendingEvents(@Param("claimToken") String claimToken,
-                           @Param("claimedAt") LocalDateTime claimedAt,
-                           @Param("claimExpireAt") LocalDateTime claimExpireAt,
+                           @Param("leaseSeconds") int leaseSeconds,
                            @Param("limit") int limit);
 
     /**
