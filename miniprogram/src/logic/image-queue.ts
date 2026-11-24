@@ -18,6 +18,14 @@ export interface ImageQueueOptions {
   fetch: (url: string) => Promise<string>
   /** 单张下载结束后的回调；失败时 path 为 null。 */
   onSettled?: (url: string, path: string | null) => void
+  /** 本地路径缓存条数上限，默认 60；超出按写入顺序淘汰最早的。 */
+  maxCached?: number
+  /** 缓存有效期（毫秒），默认 5 分钟；过期后重新下载，撤权不会一直用旧文件。 */
+  cacheTtlMs?: number
+  /** 当前账号标识；与下载时记录的不一致，缓存即视为失效（账号隔离）。 */
+  owner?: () => string
+  /** 当前时间来源，测试可注入。 */
+  now?: () => number
 }
 
 interface WaitingTask {
@@ -26,7 +34,16 @@ interface WaitingTask {
   reject: (error: Error) => void
 }
 
+/** 一条已下载记录：谁下的、什么时候下的、落在哪个本地文件。 */
+interface CacheEntry {
+  path: string
+  owner: string
+  at: number
+}
+
 const DEFAULT_CONCURRENCY = 4
+const DEFAULT_MAX_CACHED = 60
+const DEFAULT_TTL_MS = 5 * 60 * 1000
 
 export class ImageQueue {
   private readonly fetch: (url: string) => Promise<string>
@@ -35,8 +52,16 @@ export class ImageQueue {
 
   private readonly onSettled?: (url: string, path: string | null) => void
 
-  /** 已下载完成的本地路径。 */
-  private readonly resolved = new Map<string, string>()
+  private readonly maxCached: number
+
+  private readonly cacheTtlMs: number
+
+  private readonly owner: () => string
+
+  private readonly now: () => number
+
+  /** 已下载完成的本地路径，带归属与时间。 */
+  private readonly resolved = new Map<string, CacheEntry>()
 
   /** 正在下载中的任务，key 是 URL。 */
   private readonly inflight = new Map<string, Promise<string>>()
@@ -61,11 +86,33 @@ export class ImageQueue {
     this.fetch = options.fetch
     this.maxConcurrency = Math.max(1, options.maxConcurrency ?? DEFAULT_CONCURRENCY)
     this.onSettled = options.onSettled
+    this.maxCached = Math.max(1, options.maxCached ?? DEFAULT_MAX_CACHED)
+    this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_TTL_MS)
+    this.owner = options.owner ?? (() => '')
+    this.now = options.now ?? (() => Date.now())
   }
 
-  /** 已下载完成的本地路径；还没下载或下载失败都返回空串。 */
+  /**
+   * 已下载完成的本地路径；还没下载、下载失败、已过期或换了账号都返回空串。
+   *
+   * 过期与换号都在这里顺手删掉记录：调用方拿到空串就会重新下载，
+   * 不会因为缓存一直命中而看不到撤权后的结果。
+   */
   cached(url: string): string {
-    return this.resolved.get(url) ?? ''
+    const entry = this.resolved.get(url)
+    if (entry === undefined) {
+      return ''
+    }
+    if (entry.owner !== this.owner() || this.now() - entry.at > this.cacheTtlMs) {
+      this.resolved.delete(url)
+      return ''
+    }
+    return entry.path
+  }
+
+  /** 撤掉一条缓存；下载返回 401/403 时调用，下一次请求会重新鉴权。 */
+  invalidate(url: string): void {
+    this.resolved.delete(url)
   }
 
   /** 尚未完成的下载数量（含排队中的）。 */
@@ -82,8 +129,8 @@ export class ImageQueue {
     if (url === '') {
       return Promise.reject(new Error('图片地址为空'))
     }
-    const cached = this.resolved.get(url)
-    if (cached !== undefined) {
+    const cached = this.cached(url)
+    if (cached !== '') {
       return Promise.resolve(cached)
     }
     const inflight = this.inflight.get(url)
@@ -122,6 +169,24 @@ export class ImageQueue {
     cancelled.forEach((task) => task.reject(new Error('图片下载已取消')))
   }
 
+  /**
+   * 写入缓存并维持容量上限。
+   *
+   * 微信的临时文件总量有限（约 10MB），缓存无上限增长最终会让新图下载失败；
+   * Map 保持插入顺序，超出上限就淘汰最早写入的那条。
+   */
+  private remember(url: string, path: string): void {
+    this.resolved.delete(url)
+    this.resolved.set(url, { path, owner: this.owner(), at: this.now() })
+    while (this.resolved.size > this.maxCached) {
+      const oldest = this.resolved.keys().next()
+      if (oldest.done === true) {
+        return
+      }
+      this.resolved.delete(oldest.value)
+    }
+  }
+
   private pump(): void {
     while (this.active < this.maxConcurrency && this.waiting.length > 0) {
       const task = this.waiting.shift()
@@ -132,29 +197,42 @@ export class ImageQueue {
       this.active += 1
       this.running.set(task.url, task)
       this.fetch(task.url)
-        .then((path) => {
-          if (generation === this.generation) {
-            this.resolved.set(task.url, path)
-            this.onSettled?.(task.url, path)
-          }
-          task.resolve(path)
-        })
-        .catch((error: unknown) => {
-          if (generation === this.generation) {
-            this.onSettled?.(task.url, null)
-          }
-          task.reject(error instanceof Error ? error : new Error(String(error)))
-        })
+        .then(
+          (path) => {
+            if (generation === this.generation) {
+              this.remember(task.url, path)
+              this.onSettled?.(task.url, path)
+            }
+            // 先摘掉 inflight 再兑现：调用方 await 回来后立刻重试同一 URL 时，
+            // 不能拿到上一次已经完成的 Promise
+            this.forget(task.url, generation)
+            task.resolve(path)
+          },
+          (error: unknown) => {
+            if (generation === this.generation) {
+              this.onSettled?.(task.url, null)
+            }
+            this.forget(task.url, generation)
+            task.reject(error instanceof Error ? error : new Error(String(error)))
+          },
+        )
         .finally(() => {
           // 清空之后 running/inflight/active 都已经重置，这一代的结果不能再改它们
           if (generation !== this.generation) {
             return
           }
-          this.running.delete(task.url)
-          this.inflight.delete(task.url)
           this.active -= 1
           this.pump()
         })
     }
+  }
+
+  /** 下载结束后移除进行中记录；已清空的一代不再改动任何状态。 */
+  private forget(url: string, generation: number): void {
+    if (generation !== this.generation) {
+      return
+    }
+    this.running.delete(url)
+    this.inflight.delete(url)
   }
 }

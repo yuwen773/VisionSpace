@@ -5,7 +5,7 @@ import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import { fetchPicture } from '../../services/gallery'
 import { ApiError } from '../../services/http'
-import { ImageDownloadError, imageQueue } from '../../services/image-download'
+import { ImageDownloadError, clearDownloadedImages, imageQueue } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { reportOnce } from '../../services/telemetry'
@@ -126,8 +126,14 @@ Page({
     imageQueue.request(remoteUrl).then(
       (path) => this.setData({ imageUrl: path, imagePending: false }),
       (error: unknown) => {
-        if (error instanceof ImageDownloadError && error.statusCode === 401) {
-          this.setData({ needsLogin: true })
+        if (error instanceof ImageDownloadError) {
+          if (error.statusCode === 401) {
+            // 令牌过期：清掉缓存，重新登录后必须重新鉴权
+            clearDownloadedImages()
+            this.setData({ needsLogin: true })
+          } else if (error.statusCode === 403) {
+            imageQueue.invalidate(remoteUrl)
+          }
         }
         this.setData({ imagePending: false, imageError: true })
       },

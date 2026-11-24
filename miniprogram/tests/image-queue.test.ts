@@ -143,4 +143,66 @@ describe('ImageQueue', () => {
     expect(queue.cached('late')).toBe('')
     expect(settled).toEqual([])
   })
+
+  it('treats entries older than the ttl as missing', async () => {
+    const fetcher = createFetcher()
+    let now = 1_000
+    const queue = new ImageQueue({ fetch: fetcher.fetch, cacheTtlMs: 500, now: () => now })
+
+    const pending = queue.request('a')
+    fetcher.resolvers.get('a')?.('/tmp/a')
+    await pending
+    expect(queue.cached('a')).toBe('/tmp/a')
+
+    // 撤权后不能一直吃旧文件：过期即失效，下一次请求重新走鉴权
+    now += 600
+    expect(queue.cached('a')).toBe('')
+    queue.request('a').catch(() => undefined)
+    expect(fetcher.started).toEqual(['a', 'a'])
+  })
+
+  it('never serves an image cached for another account', async () => {
+    const fetcher = createFetcher()
+    let owner = 'user-a'
+    const queue = new ImageQueue({ fetch: fetcher.fetch, owner: () => owner })
+
+    const pending = queue.request('private')
+    fetcher.resolvers.get('private')?.('/tmp/private')
+    await pending
+    expect(queue.cached('private')).toBe('/tmp/private')
+
+    // 换账号后同一个 URL 也不能命中上一个账号的本地文件
+    owner = 'user-b'
+    expect(queue.cached('private')).toBe('')
+  })
+
+  it('keeps the cache within its capacity limit', async () => {
+    const fetcher = createFetcher()
+    const queue = new ImageQueue({ fetch: fetcher.fetch, maxCached: 2 })
+
+    for (const url of ['a', 'b', 'c']) {
+      const pending = queue.request(url)
+      fetcher.resolvers.get(url)?.(`/tmp/${url}`)
+      await pending
+    }
+
+    // 微信临时文件总量有限，最旧的先淘汰
+    expect(queue.cached('a')).toBe('')
+    expect(queue.cached('b')).toBe('/tmp/b')
+    expect(queue.cached('c')).toBe('/tmp/c')
+  })
+
+  it('re-downloads after an entry is invalidated', async () => {
+    const fetcher = createFetcher()
+    const queue = new ImageQueue({ fetch: fetcher.fetch })
+
+    const pending = queue.request('a')
+    fetcher.resolvers.get('a')?.('/tmp/a')
+    await pending
+
+    queue.invalidate('a')
+    expect(queue.cached('a')).toBe('')
+    queue.request('a').catch(() => undefined)
+    expect(fetcher.started).toEqual(['a', 'a'])
+  })
 })

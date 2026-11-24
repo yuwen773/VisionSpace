@@ -1,5 +1,7 @@
+import { API_BASE_URL } from '../config/env'
+import { isTrustedContentUrl } from '../logic/image-url'
 import { ImageQueue } from '../logic/image-queue'
-import { getToken, getTokenName } from './session'
+import { getStoredUser, getToken, getTokenName } from './session'
 
 /**
  * 私有图片的鉴权下载。
@@ -23,9 +25,18 @@ export class ImageDownloadError extends Error {
   }
 }
 
-/** 单张图片的鉴权下载：请求头带令牌，成功返回本地临时路径。 */
+/**
+ * 单张图片的鉴权下载：请求头带令牌，成功返回本地临时路径。
+ *
+ * 只给本站内容地址发令牌：图片地址来自服务端返回的数据，一旦被改成外链，
+ * 带着鉴权头去下载就等于把登录令牌送给第三方域名。
+ */
 export function fetchImageFile(url: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
+    if (!isTrustedContentUrl(url, API_BASE_URL)) {
+      reject(new ImageDownloadError(0, '图片地址不在本站域名内'))
+      return
+    }
     const token = getToken()
     if (token === '') {
       reject(new ImageDownloadError(401, '未登录，无法下载私有图片'))
@@ -53,10 +64,15 @@ export function fetchImageFile(url: string): Promise<string> {
  * 全局队列：限流、去重、缓存都在这里。
  *
  * 列表页与详情页共用一个队列，同一张图不会被重复下载。
+ * 缓存带账号归属与 5 分钟有效期：换账号立即失效，撤权后最多 5 分钟就会重新鉴权；
+ * 条数上限 60，避免微信临时文件配额（约 10MB）被无限增长的缓存吃满。
  */
 export const imageQueue = new ImageQueue({
   maxConcurrency: 4,
   fetch: fetchImageFile,
+  maxCached: 60,
+  cacheTtlMs: 5 * 60 * 1000,
+  owner: () => getStoredUser()?.id ?? '',
 })
 
 /** 登出时清空缓存，避免上一个账号的私有图片路径留在内存里。 */

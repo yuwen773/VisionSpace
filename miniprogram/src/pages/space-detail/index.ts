@@ -12,7 +12,7 @@ import { spaceTypeLabel } from '../../logic/spaces'
 import { resolveContentUrl } from '../../services/content'
 import { searchByColor, searchPictures } from '../../services/gallery'
 import { pickImageColor } from '../../services/image-color'
-import { ImageDownloadError, imageQueue } from '../../services/image-download'
+import { ImageDownloadError, clearDownloadedImages, imageQueue } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { ApiError } from '../../services/http'
@@ -208,9 +208,16 @@ Page({
       imageQueue.request(card.imageUrl).then(
         (path) => this.patchCard(field, card.id, withLocalPath(card, path)),
         (error: unknown) => {
-          // 令牌过期时整页都该退回登录引导，否则用户只看到一堆「暂不可用」
-          if (error instanceof ImageDownloadError && error.statusCode === 401) {
-            this.setData({ needsLogin: true })
+          if (error instanceof ImageDownloadError) {
+            if (error.statusCode === 401) {
+              // 令牌过期时整页都该退回登录引导，否则用户只看到一堆「暂不可用」。
+              // 顺带清空缓存：重新登录后这些图必须重新鉴权，不能命中旧文件。
+              clearDownloadedImages()
+              this.setData({ needsLogin: true })
+            } else if (error.statusCode === 403) {
+              // 撤权：单张缓存作废，下次展示重新走鉴权
+              imageQueue.invalidate(card.imageUrl)
+            }
           }
           this.patchCard(field, card.id, withDownloadFailure(card))
         },
