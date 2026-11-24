@@ -7,18 +7,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Component;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-
 /**
  * 非浏览器客户端（小程序）的令牌解析。
  *
  * <p>Web 端登录态在 Spring Session 里，凭据是 {@code SESSION} Cookie；
- * 小程序没有可靠的 Cookie 机制，改为持有一个 Sa-Token 令牌，放在请求头或查询参数里。
+ * 小程序没有可靠的 Cookie 机制，改为持有一个 Sa-Token 令牌，只放在<b>请求头</b>里。
  * 两者共用同一套账号体系与同一个 {@link StpKit#SPACE} 令牌存储。
  *
- * <p>查询参数只被手动解析 {@code queryString}，<b>不调用</b> {@code getParameter}：
- * 上传接口是 multipart POST，在过滤器阶段触发容器解析表单体会让后续文件解析拿到空部件。
+ * <p><b>只认请求头</b>：不接受查询参数与请求体里的令牌。URL 会进浏览器历史、
+ * Referer、图片缓存与反向代理日志，等于把完整登录凭据留在多处副本。
  */
 @Component
 public class TokenAuthenticationSupport {
@@ -47,10 +44,7 @@ public class TokenAuthenticationSupport {
             return null;
         }
         String header = request.getHeader(properties.getHeaderName());
-        if (StrUtil.isNotBlank(header)) {
-            return header.trim();
-        }
-        return queryToken(request);
+        return StrUtil.isBlank(header) ? null : header.trim();
     }
 
     /**
@@ -79,6 +73,9 @@ public class TokenAuthenticationSupport {
      * <p>顺序有意义：先看浏览器会话，再看显式令牌，最后才看 Sa-Token 自己是否认为已登录
      * （浏览器可能带着 Sa-Token 写的同名 Cookie）。这样 Web 端行为不变，
      * 而带令牌头的请求一定归入 {@link CredentialKind#TOKEN}。
+     *
+     * <p>Sa-Token 的请求参数读取已关闭（{@code sa-token.is-read-body: false}），
+     * 否则 {@code StpKit.SPACE.isLogin()} 也会认 {@code ?satoken=}，把 URL 凭据又放回来。
      */
     public CredentialKind classify(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
@@ -96,27 +93,5 @@ public class TokenAuthenticationSupport {
             // Sa-Token 在过滤器阶段不可用（无请求上下文等）时按匿名处理
         }
         return CredentialKind.ANONYMOUS;
-    }
-
-    private String queryToken(HttpServletRequest request) {
-        String queryString = request.getQueryString();
-        if (StrUtil.isBlank(queryString)) {
-            return null;
-        }
-        String name = properties.getQueryName();
-        for (String pair : queryString.split("&")) {
-            int separator = pair.indexOf('=');
-            String key = separator >= 0 ? pair.substring(0, separator) : pair;
-            if (!name.equals(key)) {
-                continue;
-            }
-            String value = separator >= 0 ? pair.substring(separator + 1) : "";
-            try {
-                return URLDecoder.decode(value, StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-        return null;
     }
 }

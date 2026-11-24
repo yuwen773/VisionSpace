@@ -1661,7 +1661,6 @@ declare namespace API {
   type WxLoginVO = {
     token?: string
     tokenName?: string
-    tokenQueryName?: string
     user?: LoginUserVO
   }
 

@@ -7,6 +7,9 @@ server:
     context-path: /api
 # 隔离验收使用明文 http：Secure Cookie 不会被客户端回传，这里必须关闭。
 sa-token:
+  # 本文件通过 spring.config.location 整体替换默认配置，不继承 application.yml，
+  # 所以「不接受请求参数里的令牌」必须在这里再写一次，否则验收跑的仍是放宽后的规则。
+  is-read-body: false
   cookie:
     secure: false
 spring:
