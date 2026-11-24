@@ -6,13 +6,13 @@
     <view class="rule"></view>
     <view class="lead">登录后查看个人与团队空间</view>
 
-    <view class="row">
-      <text class="row-label">个人空间</text>
-      <text class="row-value">按关键词与颜色找回作品</text>
+    <view class="kv-row">
+      <text class="kv-label">个人空间</text>
+      <text class="kv-value">按关键词与颜色找回作品</text>
     </view>
-    <view class="row">
-      <text class="row-label">团队空间</text>
-      <text class="row-value">浏览你加入的团队图库</text>
+    <view class="kv-row">
+      <text class="kv-label">团队空间</text>
+      <text class="kv-value">浏览你加入的团队图库</text>
     </view>
 
     <button class="ink-btn login-btn" bindtap="onLoginTap">微信登录</button>

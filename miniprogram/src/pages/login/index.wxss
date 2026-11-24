@@ -64,7 +64,7 @@
 
 .error {
   margin-top: 20rpx;
-  color: #ef4444;
+  color: var(--vs-danger);
   font-size: 26rpx;
 }
 

@@ -28,8 +28,11 @@
     </view>
 
     <view class="content">
-      <view class="label-row" wx:if="{{category || dateText}}">
-        <text class="label-accent" wx:if="{{category}}">{{category}}</text>
+      <view class="label-row" wx:if="{{category || dateText || color}}">
+        <view class="label-left">
+          <view wx:if="{{color}}" class="color-dot" style="background: {{color}};"></view>
+          <text class="label-accent" wx:if="{{category}}">{{category}}</text>
+        </view>
         <text class="label-meta mono" wx:if="{{dateText}}">{{dateText}}</text>
       </view>
 
@@ -37,10 +40,10 @@
 
       <view class="intro" wx:if="{{description}}">{{description}}</view>
 
-      <view class="rule" wx:if="{{author || sizeText}}"></view>
-      <view class="meta-line" wx:if="{{author || sizeText}}">
+      <view class="rule" wx:if="{{author || specText}}"></view>
+      <view class="meta-line" wx:if="{{author || specText}}">
         <text class="meta-author" wx:if="{{author}}">{{author}}</text>
-        <text class="meta-size mono" wx:if="{{sizeText}}">{{sizeText}}</text>
+        <text class="meta-size mono" wx:if="{{specText}}">{{specText}}</text>
       </view>
 
       <view class="counts">

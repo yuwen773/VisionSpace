@@ -65,7 +65,7 @@
       </view>
 
       <view class="grid" wx:else>
-        <view wx:for="{{colorCards}}" wx:key="id" class="grid-item">
+        <view wx:for="{{colorCards}}" wx:key="id" class="grid-item" style="width: {{columnWidthRpx}}rpx;">
           <picture-card card="{{item}}" bind:open="onCardTap" />
         </view>
       </view>
@@ -73,7 +73,7 @@
 
     <block wx:else>
       <view class="grid" wx:if="{{cards.length > 0}}">
-        <view wx:for="{{cards}}" wx:key="id" class="grid-item">
+        <view wx:for="{{cards}}" wx:key="id" class="grid-item" style="width: {{columnWidthRpx}}rpx;">
           <picture-card card="{{item}}" bind:open="onCardTap" />
         </view>
       </view>

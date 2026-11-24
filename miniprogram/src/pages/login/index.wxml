@@ -1,8 +1,9 @@
 <view class="page login">
   <view class="brand">
     <view class="brand-kicker">VisionSpace 作品集</view>
-    <view class="brand-name">登录后浏览\n个人与团队空间</view>
-    <view class="brand-slogan">该微信尚未绑定账号，绑定一次即可长期使用。</view>
+    <view class="brand-name">登录后浏览</view>
+    <view class="brand-name brand-name-second">个人与团队空间</view>
+    <view class="brand-slogan">收藏图版、给空间补图，都在这里。</view>
   </view>
 
   <view class="state" wx:if="{{stage === 'auto'}}">

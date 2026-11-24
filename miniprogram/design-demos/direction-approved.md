@@ -35,6 +35,13 @@
 - 字体：系统 PingFang（小程序只能吃系统字体），数字用等宽字
 - 校验：`offline.py` 像素差 0.0%；`design_lint.py check` 无红灯（黄灯为有意保留：元信息中点连接、图版号与空间序号、系统字体当标题）
 
-## 一条边界
+## 落地情况
 
-本次只交设计稿与交付包，没有改 `miniprogram/src` 下的任何代码；是否按这套改版落到真机，等用户单独点头。
+- 63a3c54 只交设计稿与交付包，当时没有动 `miniprogram/src`。
+- 用户在会话里续说「逐个开始行动吧，做完之后做一次 review」，授权了三步：提交设计目录、改 token、按定稿重排七个页面。对应提交 63a3c54 / 77071b9 / b1d3084。
+- 定稿与实现的差异（哪些示意数据换成了真实字段、哪些没做）记在 `IMPLEMENTATION.md`。
+
+## 入库范围
+
+`shots/`、拼装出来的 `*.html`（`dir-2/3.html`、`*-pop/aurora.html`、除 `final.offline.html` 外的离线版、`final.html`）与 `_design/screens/` 都不入库，用 `compose.py`、`shot.mjs`、`offline.py`、`mp_handoff.py` 重建。
+`final.offline.html` 是交付物，单独保留；方向一的源文件在 `src/dir-1.src.html`，`dir-1.html` 由 `python compose.py dir-1` 重建。

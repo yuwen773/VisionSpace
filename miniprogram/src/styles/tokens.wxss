@@ -22,8 +22,8 @@ page {
   --vs-tint: #f5f3ff;
   --vs-primary: #9333ea;
   --vs-primary-strong: #7e22ce;
-  --vs-on-primary: #ffffff;
   --vs-accent: #ec4899;
+  --vs-danger: #b42318;
   --vs-overlay: rgba(250, 247, 255, 0.86);
   --vs-radius-sm: 8rpx;
   --vs-radius-md: 16rpx;
@@ -50,8 +50,8 @@ page {
     --vs-tint: #111827;
     --vs-primary: #6aa3ff;
     --vs-primary-strong: #4485ff;
-    --vs-on-primary: #030712;
-    --vs-accent: #00d4aa;
+      --vs-accent: #00d4aa;
+  --vs-danger: #ff8a80;
     --vs-overlay: rgba(10, 15, 26, 0.86);
     --vs-shadow-card: 0 8rpx 40rpx rgba(0, 0, 0, 0.45);
     --vs-shadow-float: 0 12rpx 48rpx rgba(0, 0, 0, 0.6);

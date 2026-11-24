@@ -52,24 +52,6 @@
   margin-top: 8rpx;
 }
 
-.row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 26rpx 0;
-  border-bottom: 1rpx solid var(--vs-rule);
-}
-
-.row-label {
-  color: var(--vs-text);
-  font-size: 30rpx;
-}
-
-.row-value {
-  color: var(--vs-text-tertiary);
-  font-size: 24rpx;
-}
-
 .logout-btn {
   margin-top: 40rpx;
   padding: 0;

@@ -60,14 +60,3 @@
 .category-active {
   color: var(--vs-primary);
 }
-
-.grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  padding-top: 12rpx;
-}
-
-.grid-item {
-  width: 325rpx;
-}

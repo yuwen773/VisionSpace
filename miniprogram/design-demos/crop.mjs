@@ -2,9 +2,11 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const require = createRequire('D:/develop-worktree-t3/VisionSpace/t3-e85ff7a3-0b2d60ae6df4cde1/.claude/skills/huashu-design/package.json');
+const require = createRequire(
+  fileURLToPath(new URL('../../.claude/skills/huashu-design/package.json', import.meta.url)),
+);
 const { chromium } = require('playwright');
 
 const [name, ...idx] = process.argv.slice(2);

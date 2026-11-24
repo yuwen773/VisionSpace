@@ -12,13 +12,13 @@
   <view class="rule"></view>
 
   <view class="panel">
-    <view class="row">
-      <text class="row-label">公开图库</text>
-      <text class="row-value">免登录浏览</text>
+    <view class="kv-row">
+      <text class="kv-label">公开图库</text>
+      <text class="kv-value">免登录浏览</text>
     </view>
-    <view class="row">
-      <text class="row-label">版本</text>
-      <text class="row-value mono">{{version}}</text>
+    <view class="kv-row">
+      <text class="kv-label">版本</text>
+      <text class="kv-value mono">{{version}}</text>
     </view>
   </view>
 

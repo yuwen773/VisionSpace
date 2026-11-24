@@ -43,6 +43,7 @@
       wx:for="{{cards}}"
       wx:key="id"
       class="grid-item impression-anchor"
+      style="width: {{columnWidthRpx}}rpx;"
       data-picture-id="{{item.id}}"
     >
       <picture-card card="{{item}}" bind:open="onCardTap" />

@@ -54,6 +54,54 @@ input {
   font-family: var(--vs-font-mono);
 }
 
+/* 双列图版：列宽由各页 data.columnWidthRpx 给出，与 GRID_COLUMN_WIDTH_RPX 同源 */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding-top: 12rpx;
+}
+
+.grid-item {
+  width: 325rpx;
+}
+
+/* 详情与专辑页的眉标行：左类目、右日期或件数 */
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label-accent {
+  color: var(--vs-primary);
+  font-size: 24rpx;
+}
+
+.label-meta {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
+/* 键值行：设置项、空间说明共用 */
+.kv-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid var(--vs-rule);
+}
+
+.kv-label {
+  color: var(--vs-text);
+  font-size: 30rpx;
+}
+
+.kv-value {
+  color: var(--vs-text-tertiary);
+  font-size: 24rpx;
+}
+
 /* 主按钮：墨底纸字，和网页端的深色主色一致 */
 .ink-btn {
   display: block;

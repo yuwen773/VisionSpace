@@ -32,6 +32,18 @@
   justify-content: space-between;
 }
 
+.label-left {
+  display: flex;
+  align-items: center;
+}
+
+.color-dot {
+  width: 20rpx;
+  height: 20rpx;
+  margin-right: 10rpx;
+  border: 1rpx solid var(--vs-rule);
+}
+
 .label-accent {
   color: var(--vs-primary);
   font-size: 24rpx;

@@ -108,7 +108,7 @@
 }
 
 .status-failed {
-  color: #ef4444;
+  color: var(--vs-danger);
 }
 
 .progress {
@@ -126,7 +126,7 @@
 
 .item-error {
   margin-top: 8rpx;
-  color: #ef4444;
+  color: var(--vs-danger);
   font-size: 24rpx;
 }
 

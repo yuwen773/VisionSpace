@@ -32,6 +32,9 @@ Page({
     category: '',
     dateText: '',
     sizeText: '',
+    /** 尺寸与格式：1600 × 900 · JPEG；缺失时退回文件体积 */
+    specText: '',
+    color: '',
     description: '',
     tags: [] as string[],
     counts: [] as CountItem[],
@@ -109,6 +112,8 @@ Page({
         category: picture.category ?? '',
         dateText: formatDate(picture.createTime),
         sizeText: formatFileSize(picture.picSize),
+        specText: buildSpecText(picture),
+        color: picture.picColor ?? '',
         description: picture.introduction ?? '',
         tags: picture.tags ?? [],
         counts: buildCounts(picture),
@@ -216,6 +221,14 @@ Page({
 /** 空间作品的内容接口需要令牌；公开图库作品不带令牌，避免把令牌写进分享链接。 */
 function belongsToSpace(picture: PictureVO): boolean {
   return picture.spaceId !== null && picture.spaceId !== undefined
+}
+
+function buildSpecText(picture: PictureVO): string {
+  const dimensions =
+    picture.picWidth && picture.picHeight ? `${picture.picWidth} × ${picture.picHeight}` : ''
+  const format = (picture.picFormat ?? '').toUpperCase()
+  const spec = [dimensions, format].filter((part) => part !== '').join(' · ')
+  return spec !== '' ? spec : formatFileSize(picture.picSize)
 }
 
 function buildCounts(picture: PictureVO): CountItem[] {

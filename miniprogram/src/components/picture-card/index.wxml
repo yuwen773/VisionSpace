@@ -13,7 +13,7 @@
   <view class="caption">
     <view class="title">{{card.title}}</view>
     <view class="tags" wx:if="{{card.tags.length > 0}}">
-      <text wx:for="{{card.tags}}" wx:key="*this" class="tag">{{item}}</text>
+      <text wx:for="{{card.tags}}" wx:key="*this" class="tag">#{{item}}</text>
     </view>
   </view>
 </view>

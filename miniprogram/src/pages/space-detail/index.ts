@@ -2,6 +2,7 @@ import { COLOR_PALETTE, normalizeHex } from '../../logic/color'
 import { errorMessage, isLoginExpired } from '../../logic/errors'
 import { applyPage, createFeed } from '../../logic/feed'
 import {
+  GRID_COLUMN_WIDTH_RPX,
   toPrivateCard,
   withDownloadFailure,
   withLocalPath,
@@ -35,6 +36,8 @@ Page({
     loading: true,
     error: '',
     cards: [] as GalleryCard[],
+    /** 双列图版宽度（rpx），与 logic/gallery 的常量同源 */
+    columnWidthRpx: GRID_COLUMN_WIDTH_RPX,
     loadingMore: false,
     ended: false,
     total: null as number | null,

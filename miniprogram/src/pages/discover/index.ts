@@ -1,6 +1,6 @@
 import { applyPage, createFeed } from '../../logic/feed'
 import { errorMessage } from '../../logic/errors'
-import { toCard, type GalleryCard } from '../../logic/gallery'
+import { GRID_COLUMN_WIDTH_RPX, toCard, type GalleryCard } from '../../logic/gallery'
 import { isValidId } from '../../logic/long'
 import { ACTION_CLICK, ACTION_IMPRESSION, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
@@ -42,6 +42,8 @@ Page({
     categories: [ALL_CATEGORIES] as string[],
     activeCategory: ALL_CATEGORIES,
     cards: [] as GalleryCard[],
+    /** 双列图版宽度（rpx），与 logic/gallery 的常量同源 */
+    columnWidthRpx: GRID_COLUMN_WIDTH_RPX,
     loading: false,
     loadingMore: false,
     error: '',

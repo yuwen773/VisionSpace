@@ -2,17 +2,7 @@
   padding-top: 24rpx;
 }
 
-.label-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.label-type {
-  color: var(--vs-text-tertiary);
-  font-size: 24rpx;
-}
-
+.label-type,
 .label-count {
   color: var(--vs-text-tertiary);
   font-size: 24rpx;
@@ -94,15 +84,4 @@
   height: 24rpx;
   margin-right: 12rpx;
   border-radius: 50%;
-}
-
-.grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  padding-top: 16rpx;
-}
-
-.grid-item {
-  width: 325rpx;
 }
