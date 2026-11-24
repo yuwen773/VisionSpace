@@ -12,12 +12,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.net.CookieManager;
 import java.net.CookiePolicy;
+import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,7 +41,6 @@ class HttpMiniProgramAuthTest {
 
     private static final String PASSWORD = "acceptance-password";
     private static final String TOKEN_HEADER = "satoken";
-    private static final String TOKEN_QUERY = "satoken";
 
     @LocalServerPort
     private int port;
@@ -76,8 +79,8 @@ class HttpMiniProgramAuthTest {
         String token = bind.path("data").path("token").asText();
         assertFalse(token.isBlank(), "绑定成功必须下发令牌");
         assertEquals(TOKEN_HEADER, bind.path("data").path("tokenName").asText());
-        assertEquals(TOKEN_QUERY, bind.path("data").path("tokenQueryName").asText(),
-                "<image> 用的查询参数名必须一并下发");
+        assertFalse(bind.path("data").has("tokenQueryName"),
+                "服务端不再接受 URL 里的令牌，也就不该再下发查询参数名");
 
         assertEquals("openid-a", boundOpenId(account), "openid 必须写入该账号");
 
@@ -163,20 +166,27 @@ class HttpMiniProgramAuthTest {
     }
 
     @Test
-    void queryTokenAlsoAuthenticatesForHeaderlessClients() throws Exception {
+    void queryTokenIsRejected() throws Exception {
         String account = account();
         register(account);
         String token = bind(code("openid-g"), account, PASSWORD).path("data").path("token").asText();
 
-        // <image> / <img> 不能带请求头，只能把令牌放进查询参数。
-        // 这里用一个状态修改请求同时证明「过滤器读到了查询令牌」且不需要 CSRF 头。
+        // 令牌只认请求头：完整的登录凭据不能出现在 URL 里（会进日志、Referer 与图片缓存）
+        assertEquals(40100, get(anonymous, "/user/get/login?satoken=" + token).path("code").asInt(),
+                "查询参数里的令牌不能换到身份");
+
+        // Sa-Token 自身的请求参数读取也必须关闭，否则状态修改请求会绕过这条规则
         var request = HttpRequest.newBuilder(uri("/user/logout?satoken=" + token))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{}"))
                 .build();
-        var response = send(anonymous, request, 200);
-        assertEquals(0, json.readTree(response.body()).path("code").asInt(), response.body());
+        var response = jsonOf(anonymous, request);
+        assertEquals(50001, response.path("code").asInt(), response.toString());
+        assertEquals("未登录", response.path("message").asText(), "查询参数令牌必须按未登录处理");
+
+        // 令牌本身没被这次尝试撤销，带请求头仍然可用
+        assertEquals(0, getWithToken("/user/get/login", token).path("code").asInt());
     }
 
     @Test
@@ -188,31 +198,157 @@ class HttpMiniProgramAuthTest {
     @Test
     void browserSessionStillRequiresDoubleSubmitToken() throws Exception {
         String account = account();
-        var cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
-        var browser = HttpClient.newBuilder().cookieHandler(cookies)
-                .connectTimeout(Duration.ofSeconds(5)).build();
-
-        var registration = post(browser, "/user/register", Map.of(
-                "userAccount", account, "userPassword", PASSWORD, "checkPassword", PASSWORD));
-        assertEquals(0, registration.path("code").asInt(), registration.toString());
-        assertEquals(0, post(browser, "/user/login", Map.of(
-                "userAccount", account, "userPassword", PASSWORD)).path("code").asInt());
+        Browser browser = browserSession(account);
 
         // 浏览器会话 + 缺少 CSRF 头：必须仍然被拒绝，证明令牌分流没有放宽 Web 路径
-        var withoutCsrf = browser.send(HttpRequest.newBuilder(uri("/user/logout"))
-                .timeout(Duration.ofSeconds(10))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                .build(), HttpResponse.BodyHandlers.ofString());
+        var withoutCsrf = browser.send("/user/logout", Map.of());
         assertEquals(403, withoutCsrf.statusCode(), withoutCsrf.body());
         assertEquals(40300, json.readTree(withoutCsrf.body()).path("code").asInt());
         // 拒绝后登录态仍然有效
-        assertEquals(0, get(browser, "/user/get/login").path("code").asInt());
+        assertEquals(0, get(browser.client(), "/user/get/login").path("code").asInt());
+    }
+
+    @Test
+    void forgedTokenHeaderCannotDowngradeCsrfForABrowserSession() throws Exception {
+        String account = account();
+        Browser browser = browserSession(account);
+
+        // 浏览器会话 + 伪造的令牌头：伪造头解析不出身份，凭据类型仍是 SESSION，
+        // 因此不能借它跳过双提交校验
+        var forged = browser.send("/user/logout", Map.of(TOKEN_HEADER, "forged-token"));
+        assertEquals(403, forged.statusCode(), forged.body());
+        assertEquals(0, get(browser.client(), "/user/get/login").path("code").asInt(), "拒绝后会话仍然有效");
+    }
+
+    @Test
+    void miniProgramLogoutLeavesTheBrowserSessionIntact() throws Exception {
+        String account = account();
+        Browser browser = browserSession(account);
+        String token = bind(code("openid-i"), account, PASSWORD).path("data").path("token").asText();
+
+        // 令牌客户端退出：只撤销本次令牌，不按账号撤销
+        assertEquals(0, postWithToken("/user/logout", token, Map.of()).path("code").asInt());
+        assertEquals(40100, getWithToken("/user/get/login", token).path("code").asInt(),
+                "本次令牌必须失效");
+        assertEquals(0, get(browser.client(), "/user/get/login").path("code").asInt(),
+                "小程序退出不能把同一账号的 Web 会话一起踢下线");
+    }
+
+    @Test
+    void browserLogoutRevokesTheMiniProgramToken() throws Exception {
+        String account = account();
+        Browser browser = browserSession(account);
+        String token = bind(code("openid-j"), account, PASSWORD).path("data").path("token").asText();
+
+        // 先读一次令牌，确保 CSRF Cookie 已下发
+        assertEquals(0, get(browser.client(), "/user/get/login").path("code").asInt());
+        var logout = browser.send("/user/logout", Map.of("X-CSRF-Token", browser.csrfToken()));
+        assertEquals(0, json.readTree(logout.body()).path("code").asInt(), logout.body());
+
+        // Web 退出保持「按账号撤销」的既有语义：同一账号的小程序令牌一并失效
+        assertEquals(40100, getWithToken("/user/get/login", token).path("code").asInt(),
+                "Web 退出必须撤销该账号的令牌");
+        assertEquals(40100, get(browser.client(), "/user/get/login").path("code").asInt());
+    }
+
+    @Test
+    void explicitTokenWinsOverTheBrowserSession() throws Exception {
+        String webAccount = account();
+        Browser browser = browserSession(webAccount);
+        String phoneAccount = account();
+        register(phoneAccount);
+        String token = bind(code("openid-k"), phoneAccount, PASSWORD).path("data").path("token").asText();
+
+        // 同一请求同时带浏览器会话与令牌：显式令牌优先（客户端明确指定了身份）
+        var request = HttpRequest.newBuilder(uri("/user/get/login"))
+                .timeout(Duration.ofSeconds(10))
+                .header(TOKEN_HEADER, token)
+                .GET().build();
+        var response = jsonOf(browser.client(), request);
+        assertEquals(0, response.path("code").asInt(), response.toString());
+        assertEquals(phoneAccount, response.path("data").path("userAccount").asText(),
+                "显式令牌必须优先于浏览器会话");
+    }
+
+    @Test
+    void concurrentBindOfTheSameOpenIdBindsExactlyOneAccount() throws Exception {
+        String first = account();
+        String second = account();
+        register(first);
+        register(second);
+
+        // 两个账号同时抢同一个 openid：唯一索引兜底，只能有一个成功
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var firstBind = pool.submit(() -> bind(code("openid-l"), first, PASSWORD).path("code").asInt());
+            var secondBind = pool.submit(() -> bind(code("openid-l"), second, PASSWORD).path("code").asInt());
+            var codes = List.of(firstBind.get(20, TimeUnit.SECONDS), secondBind.get(20, TimeUnit.SECONDS))
+                    .stream().sorted().toList();
+            assertEquals(List.of(0, 40103), codes, "并发绑定必须恰好一胜一败");
+        } finally {
+            pool.shutdownNow();
+        }
+        String boundFirst = boundOpenId(first);
+        String boundSecond = boundOpenId(second);
+        assertTrue("openid-l".equals(boundFirst) ^ "openid-l".equals(boundSecond),
+                "openid 必须恰好落在其中一个账号上");
     }
 
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
+
+    /**
+     * 带 Cookie 容器的浏览器客户端。
+     *
+     * <p>CSRF 令牌从 Cookie 读、放进请求头，和真实前端的双提交方式一致；
+     * 不带 CSRF 头也不伪造，用来证明防护确实生效。
+     */
+    private final class Browser {
+
+        private final HttpClient client;
+
+        private final CookieManager cookies;
+
+        private Browser(HttpClient client, CookieManager cookies) {
+            this.client = client;
+            this.cookies = cookies;
+        }
+
+        HttpClient client() {
+            return client;
+        }
+
+        String csrfToken() {
+            for (HttpCookie cookie : cookies.getCookieStore().getCookies()) {
+                if ("VS_CSRF".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+            throw new AssertionError("缺少 CSRF Cookie");
+        }
+
+        HttpResponse<String> send(String path, Map<String, String> headers) throws Exception {
+            var builder = HttpRequest.newBuilder(uri(path))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json");
+            headers.forEach(builder::header);
+            var request = builder.POST(HttpRequest.BodyPublishers.ofString("{}")).build();
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    /** 注册并登录一个浏览器会话（真实 Cookie + CSRF 双提交）。 */
+    private Browser browserSession(String account) throws Exception {
+        var cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+        var client = HttpClient.newBuilder().cookieHandler(cookies)
+                .connectTimeout(Duration.ofSeconds(5)).build();
+        assertEquals(0, post(client, "/user/register", Map.of(
+                "userAccount", account, "userPassword", PASSWORD, "checkPassword", PASSWORD)).path("code").asInt());
+        assertEquals(0, post(client, "/user/login", Map.of(
+                "userAccount", account, "userPassword", PASSWORD)).path("code").asInt());
+        return new Browser(client, cookies);
+    }
 
     private String code(String openId) {
         return WeChatStubConfiguration.CODE_PREFIX + openId;
