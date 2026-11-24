@@ -524,7 +524,20 @@ Sa-Token 自身是否还接受 URL 凭据：**默认会**。`is-read-body` 允�
 `logic/image-url.ts`（新）、`logic/gallery.ts`（加 `withPendingDownload`）、
 `services/image-download.ts`，以及两个页面里的图片失败分支与 `onShow` 复核。
 
-### 16.6 验证矩阵
+### 16.6 最终验收中发现的额外问题：租约时钟
+
+全量验收在本机复跑时 `HttpPictureStatsAggregationTest` 失败（
+`eventHeldByAnotherInstanceIsNotTouchedUntilItsLeaseExpires`）。不是偶发，也不是
+小程序的改动：**事件领取的租约用两个时钟判定**——`claimExpireAt` 由数据库写入
+（测试与线上都是），过期判断却拿调用方 JVM 的 `LocalDateTime.now()` 去比。
+本机 Docker 里的 MySQL 比宿主快约 7 秒，测试把租约改成「已过期」后，聚合进程仍认为
+租约有效，事件一直停在待处理状态。
+
+这在多实例部署里是真实风险：快钟的实例会提前抢走别人尚未到期的事件（重复入账），
+慢钟的实例会让崩溃事件迟迟无法回收。改为在 SQL 里用 `NOW()` 写入并比较，
+写库与判定用同一个时钟；同一环境复跑该用例 14/14 通过。
+
+### 16.7 验证矩阵
 
 | 门禁 | 覆盖 | 结果 |
 |---|---|---|
@@ -544,7 +557,7 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1
 cd miniprogram && npm run type-check && npm test
 ```
 
-### 16.7 剩余风险
+### 16.8 剩余风险
 
 - **淘汰不删文件**：按容量淘汰与 TTL 过期的条目只丢引用，不删本地文件（可能还渲染在
   卡片上）；这部分交给微信的临时文件回收。真正的安全相关清理（登出、换账号、撤权）
@@ -554,8 +567,11 @@ cd miniprogram && npm run type-check && npm test
   安全模型）。
 - **nginx 脱敏保留**：服务端已不接受 URL 令牌，脱敏规则退化为日志兜底，防止客户端
   误传时把凭据写进 access_log。
+- **WS 洪泛用例的排空预算偏紧**：`WsPictureEditContractTest` 洪泛 2000 条消息后要在
+  60 秒内排空（每条都要走 Redis + DB 复核）。整机并发时观察到一次超时，隔离复跑与
+  随后的全量复跑均通过；机器更慢时可能再现，属测试预算问题，不是功能回归。
 - **真机清单未执行**：无真机与开发者工具自动化，清单见 `miniprogram/README.md`。
 
-### 16.8 未做
+### 16.9 未做
 
 不合并、不部署、不启动第二期 Agent/SSE 开发。
