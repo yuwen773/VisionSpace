@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Provision an isolated MySQL 8 + Redis instance for a single acceptance test class.
+"""Provision an isolated PostgreSQL 18 + Redis instance for a single acceptance test class.
 
 This is the native-binaries equivalent of scripts/acceptance.ps1's isolation setup,
 kept deliberately small so it can run without PowerShell in a worktree session.
-It creates a fresh temp datadir, random ports, a dedicated DB/user and the two
-instance markers, then runs `mvn -Dtest=<class> test` with the three env vars the
-IsolatedApplicationInitializer requires, and finally shuts down only its own
-processes. It never reads existing MySQL/Redis config and never uses 3306/6379.
+It starts disposable `postgres:18.7` and `redis:7.2.4` containers on random ports,
+seeds roles/database/extension the same way scripts/acceptance.ps1 does, applies the
+Flyway baseline as `vision_migrator` (the only schema entry point), then runs
+`mvn -Dtest=<class> test` with the env vars IsolationSettings requires, and finally
+removes only the containers and named volume it created. It never reads existing
+PostgreSQL/Redis services and never uses 5432/6379.
 """
 import argparse
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -21,6 +22,29 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+POSTGRES_IMAGE = "postgres:18.7"
+REDIS_IMAGE = "redis:7.2.4"
+APP_USER = "vision_app"
+MIGRATOR_USER = "vision_migrator"
+FLYWAY_PLUGIN = "org.flywaydb:flyway-maven-plugin:13.13.0"
+
+# 与 scripts/acceptance.ps1 的初始化脚本保持同一形状：只建角色、库、扩展、时区与库注释，
+# 业务表一律交给 Flyway。
+INIT_SCRIPT = r"""#!/bin/bash
+set -euo pipefail
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE ROLE vision_migrator LOGIN PASSWORD '$ACCEPTANCE_NONCE' NOSUPERUSER NOCREATEDB NOCREATEROLE"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE ROLE vision_app LOGIN PASSWORD '$ACCEPTANCE_NONCE' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE DATABASE \"$ACCEPTANCE_DB\" OWNER vision_migrator"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEPTANCE_DB" \
+  -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC" \
+  -c "GRANT USAGE ON SCHEMA public TO vision_app" \
+  -c "CREATE EXTENSION IF NOT EXISTS pgcrypto" \
+  -c "ALTER DATABASE \"$ACCEPTANCE_DB\" SET timezone = 'UTC'" \
+  -c "COMMENT ON DATABASE \"$ACCEPTANCE_DB\" IS '$ACCEPTANCE_NONCE'"
+"""
 
 
 def free_port():
@@ -29,21 +53,35 @@ def free_port():
         return s.getsockname()[1]
 
 
-def wait_port(port, deadline=90):
+def docker(*args, **kwargs):
+    return subprocess.run(["docker", *args], **kwargs)
+
+
+def published_port(container, internal):
+    out = docker("port", container, str(internal), capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError(f"cannot resolve published port for {container}:{internal}")
+    return int(out.stdout.strip().splitlines()[-1].rsplit(":", 1)[1])
+
+
+def psql(container, database, user, password, sql):
+    return docker("exec", "-e", f"PGPASSWORD={password}", container,
+                  "psql", "--no-psqlrc", "-tAc", sql, "-U", user, "-d", database,
+                  capture_output=True, text=True)
+
+
+def wait_postgres(container, database, password, deadline=180):
     end = time.time() + deadline
     while time.time() < end:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                return
-        except OSError:
-            time.sleep(0.3)
-    raise RuntimeError(f"isolated service did not open port {port}")
+        result = psql(container, database, APP_USER, password, "SELECT 1")
+        if result.returncode == 0:
+            return
+        time.sleep(0.5)
+    raise RuntimeError("isolated PostgreSQL did not accept application-role connections")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mysql-bin", required=True)
-    ap.add_argument("--redis-bin", required=True)
     ap.add_argument("--test", default=None,
                     help="Single test class (or comma-separated classes) for a focused run.")
     ap.add_argument("--reports", default=None)
@@ -52,118 +90,96 @@ def main():
                          "mirroring scripts/acceptance.ps1's dual-instance setup.")
     args = ap.parse_args()
 
-    mysql_bin = Path(args.mysql_bin)
-    redis_bin = Path(args.redis_bin)
-    mysqld = mysql_bin / "mysqld.exe"
-    mysql = mysql_bin / "mysql.exe"
-    redis_server = redis_bin / "redis-server.exe"
-    redis_cli = redis_bin / "redis-cli.exe"
-    for exe in (mysqld, mysql, redis_server, redis_cli):
-        if not exe.is_file():
-            sys.exit(f"Missing executable: {exe}")
+    if docker("info", capture_output=True).returncode != 0:
+        sys.exit("BLOCKED_ENV: Docker engine unavailable")
 
     nonce = uuid.uuid4().hex
     database = f"vs_acceptance_{nonce}"
     run_dir = Path(tempfile.gettempdir()) / f"visionspace-drill-{nonce}"
     run_dir.mkdir(parents=True, exist_ok=False)
-    data_dir = run_dir / "mysql"
-    mysql_port = free_port()
+    postgres_container = f"vs-drill-postgres-{nonce}"
+    redis_container = f"vs-drill-redis-{nonce}"
+    volume = f"vs-drill-pgdata-{nonce}"
+    postgres_port = free_port()
     redis_port = free_port()
-    while redis_port == mysql_port or mysql_port < 10000 or redis_port < 10000:
-        mysql_port, redis_port = free_port(), free_port()
+    while redis_port == postgres_port or postgres_port < 10000 or redis_port < 10000:
+        postgres_port, redis_port = free_port(), free_port()
 
-    owned = []
-
-    def spawn(exe, argv, out_name, err_name):
-        out = (run_dir / out_name).open("wb")
-        err = (run_dir / err_name).open("wb")
-        # CREATE_NO_WINDOW keeps Windows from flashing a console; harmless elsewhere.
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        proc = subprocess.Popen([str(exe)] + argv, stdout=out, stderr=err,
-                                creationflags=flags)
-        owned.append((proc, out, err))
-        return proc
-
-    mysql_proc = None
-    redis_proc = None
+    created_containers = []
+    created_volume = False
     exit_code = 1
     try:
         print(f"[drill] run dir: {run_dir}", flush=True)
-        init = subprocess.run([str(mysqld), "--no-defaults", "--initialize-insecure",
-                    f"--datadir={data_dir}", "--console"],
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        (run_dir / "mysql-init.log").write_bytes(init.stdout or b"")
-        if init.returncode != 0:
-            raise RuntimeError("mysqld initialize failed")
+        init_path = run_dir / "postgres-init.sh"
+        init_path.write_text(INIT_SCRIPT, encoding="utf-8", newline="\n")
 
-        mysql_proc = spawn(mysqld, ["--no-defaults", f"--datadir={data_dir}",
-                                    "--bind-address=127.0.0.1", f"--port={mysql_port}",
-                                    "--mysqlx=OFF", "--default-time-zone=+00:00", "--console"],
-                           "mysql-out.log", "mysql-error.log")
-        redis_proc = spawn(redis_server, ["--bind", "127.0.0.1", "--port", str(redis_port),
-                                          "--requirepass", nonce, "--save", "", "--appendonly", "no",
-                                          "--dir", str(run_dir)],
-                           "redis-out.log", "redis-error.log")
-        wait_port(mysql_port)
-        wait_port(redis_port)
+        # postgres:18 声明 VOLUME /var/lib/postgresql（PGDATA=/var/lib/postgresql/18/docker）：
+        # 显式挂命名卷，避免匿名卷在容器删除后无法回收。
+        volume_result = docker("volume", "create", "--label", f"vs.run={nonce}",
+                               "--label", "vs.role=drill", volume, capture_output=True)
+        if volume_result.returncode != 0:
+            raise RuntimeError("isolated PostgreSQL volume creation failed")
+        created_volume = True
 
-        # Verify we are talking to OUR datadir before creating anything.
-        actual = subprocess.run([str(mysql), "--no-defaults", "--host=127.0.0.1", f"--port={mysql_port}",
-                      "--user=root", "--batch", "--skip-column-names",
-                      "--execute=SELECT @@datadir"],
-                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        got = (actual.stdout or b"").decode().strip()
-        if actual.returncode != 0 or os.path.normcase(os.path.normpath(got)) != \
-                os.path.normcase(os.path.normpath(str(data_dir))):
-            raise RuntimeError(f"isolated MySQL identity could not be verified: {got}")
+        pg = docker("run", "-d", "--name", postgres_container,
+                    "-p", f"127.0.0.1:{postgres_port}:5432",
+                    "-e", f"POSTGRES_PASSWORD={nonce}", "-e", "POSTGRES_USER=postgres",
+                    "-e", "POSTGRES_DB=postgres", "-e", f"ACCEPTANCE_DB={database}",
+                    "-e", f"ACCEPTANCE_NONCE={nonce}", "-e", "TZ=UTC",
+                    "--label", f"vs.run={nonce}", "--label", "vs.role=drill",
+                    "-v", f"{volume}:/var/lib/postgresql",
+                    "--mount", f"type=bind,source={init_path},target=/docker-entrypoint-initdb.d/01-acceptance.sh,readonly",
+                    # 全量套件会同时存活多个 Spring 上下文（含双实例用例），每个池都要连接；
+                    # 镜像默认 100 个连接会被用尽，双实例用例因此拿不到连接。测试实例放宽到 200。
+                    POSTGRES_IMAGE, "-c", "max_connections=200", capture_output=True, text=True)
+        if pg.returncode != 0:
+            raise RuntimeError(f"isolated PostgreSQL startup failed: {pg.stderr.strip()}")
+        created_containers.append(postgres_container)
+        redis = docker("run", "-d", "--name", redis_container,
+                       "-p", f"127.0.0.1:{redis_port}:6379",
+                       "--label", f"vs.run={nonce}", "--label", "vs.role=drill",
+                       REDIS_IMAGE, "redis-server", "--requirepass", nonce,
+                       capture_output=True, text=True)
+        if redis.returncode != 0:
+            raise RuntimeError(f"isolated Redis startup failed: {redis.stderr.strip()}")
+        created_containers.append(redis_container)
 
-        # Same bootstrap as scripts/acceptance.ps1: only CREATE TABLE statements.
-        schema = (ROOT / "sql" / "create_vision_space.sql").read_text(encoding="utf-8")
-        tables = re.findall(r"(?ms)^CREATE TABLE .*?^\)[^\r\n]*;", schema)
-        if not tables:
-            raise RuntimeError("no CREATE TABLE statements found")
-        ddl = "\n".join(tables)
-        bootstrap = (
-            f"CREATE DATABASE {database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
-            f"CREATE USER 'vs_acceptance'@'%' IDENTIFIED BY '{nonce}';\n"
-            f"GRANT ALL ON {database}.* TO 'vs_acceptance'@'%';\n"
-            f"USE {database};\n"
-            "CREATE TABLE acceptance_instance (nonce varchar(32) NOT NULL);\n"
-            f"INSERT INTO acceptance_instance VALUES ('{nonce}');\n"
-            f"{ddl}\n"
-        )
-        boot_path = run_dir / "bootstrap.sql"
-        boot_path.write_text(bootstrap, encoding="utf-8")
-        boot = subprocess.run([str(mysql), "--no-defaults", "--host=127.0.0.1", f"--port={mysql_port}",
-                    "--user=root", "--default-character-set=utf8mb4"],
-                   input=bootstrap.encode("utf-8"), stdout=subprocess.PIPE,
-                   stderr=subprocess.STDOUT)
-        (run_dir / "bootstrap.log").write_bytes(boot.stdout or b"")
-        if boot.returncode != 0:
-            raise RuntimeError("isolated schema bootstrap failed")
-
-        marker = subprocess.run([str(redis_cli), "-h", "127.0.0.1", "-p", str(redis_port), "-a", nonce,
-                      "-n", "15", "SET", "acceptance:instance", nonce],
-                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        (run_dir / "redis-marker.log").write_bytes(marker.stdout or b"")
-        if marker.returncode != 0:
-            raise RuntimeError("redis marker creation failed")
+        wait_postgres(postgres_container, database, nonce)
 
         env = os.environ.copy()
         env["VS_ACCEPTANCE_NONCE"] = nonce
-        env["VS_ACCEPTANCE_MYSQL_PORT"] = str(mysql_port)
+        env["VS_ACCEPTANCE_PG_PORT"] = str(postgres_port)
         env["VS_ACCEPTANCE_REDIS_PORT"] = str(redis_port)
-        env["MYSQL_PWD"] = ""
-        # 与 scripts/acceptance.ps1:22-23 保持一致：MySQL 以 +00:00 运行，
-        # 测试 JVM 也必须用 UTC，否则租约/过期类断言会整体偏移本机时区（+08:00）。
+        # PostgreSQL 容器、库与会话都用 UTC；测试 JVM 必须同区，否则租约/过期类断言
+        # 会整体偏移本机时区（+08:00）。
         env["JAVA_TOOL_OPTIONS"] = "-Duser.timezone=UTC"
         env["npm_config_cache"] = str(Path(tempfile.gettempdir()) / "npm-cache-vs")
-        reports = Path(args.reports) if args.reports else run_dir / "surefire"
+
+        # 唯一建表入口：Flyway 以迁移角色执行基线；口令走环境变量，不进 argv。
+        flyway_env = env.copy()
+        flyway_env["FLYWAY_URL"] = f"jdbc:postgresql://127.0.0.1:{postgres_port}/{database}"
+        flyway_env["FLYWAY_USER"] = MIGRATOR_USER
+        flyway_env["FLYWAY_PASSWORD"] = nonce
         mvn_exe = "mvn.cmd" if os.name == "nt" else "mvn"
+        migrate = subprocess.run([mvn_exe, "-B", "-N", "--no-transfer-progress",
+                                  f"{FLYWAY_PLUGIN}:migrate"],
+                                 cwd=str(ROOT), env=flyway_env,
+                                 capture_output=True, text=True)
+        (run_dir / "flyway-migrate.log").write_text(migrate.stdout + migrate.stderr, encoding="utf-8")
+        if migrate.returncode != 0:
+            raise RuntimeError("Flyway migrate failed")
+
+        marker = docker("exec", redis_container, "redis-cli", "-a", nonce, "-n", "15",
+                        "SET", "acceptance:instance", nonce, capture_output=True, text=True)
+        (run_dir / "redis-marker.log").write_text(marker.stdout + marker.stderr, encoding="utf-8")
+        if marker.returncode != 0:
+            raise RuntimeError("redis marker creation failed")
+
+        reports = Path(args.reports) if args.reports else run_dir / "surefire"
 
         if args.full:
             # scripts/acceptance.ps1: clean test-compile, build a test classpath, then start a
-            # real second JVM that shares this isolated MySQL/Redis and hands back its port.
+            # real second JVM that shares this isolated PostgreSQL/Redis and hands back its port.
             pre = subprocess.run([mvn_exe, "-B", "--no-transfer-progress",
                        f"-Dacceptance.reportsDirectory={reports}", "clean", "test-compile"],
                       cwd=str(ROOT), env=env)
@@ -186,14 +202,14 @@ def main():
             if not java_bin.is_file():
                 java_bin = "java"
             ready_file = run_dir / "second-instance.port"
-            second_out = (run_dir / "second-instance-out.log").open("wb")
-            second_err = (run_dir / "second-instance-error.log").open("wb")
             second = subprocess.Popen(
                 [str(java_bin), "-cp", classpath,
                  "com.yuwen.visionspace.acceptance.VipSecondInstanceMain", str(ready_file)],
-                cwd=str(ROOT), env=env, stdout=second_out, stderr=second_err,
+                cwd=str(ROOT), env=env,
+                stdout=(run_dir / "second-instance-out.log").open("wb"),
+                stderr=(run_dir / "second-instance-error.log").open("wb"),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            owned.append((second, second_out, second_err))
+            owned_second = second
             deadline = time.time() + 120
             while time.time() < deadline and not ready_file.is_file():
                 if second.poll() is not None:
@@ -209,7 +225,7 @@ def main():
         else:
             if not args.test:
                 raise RuntimeError("--test is required unless --full is used")
-            # On Windows `mvn` is a shell script; subprocess needs the .cmd entrypoint.
+            owned_second = None
             cmd = [mvn_exe, "-B", "--no-transfer-progress", f"-Dtest={args.test}",
                    f"-Dacceptance.reportsDirectory={reports}", "test"]
         print(f"[drill] {' '.join(cmd)}", flush=True)
@@ -219,35 +235,33 @@ def main():
     except Exception as exc:  # noqa: BLE001 - report and keep cleanup
         print(f"[drill] RUNNER_ERROR: {exc}", flush=True)
         exit_code = 99
+        owned_second = locals().get("owned_second")
     finally:
-        # Ask the second JVM to exit on its own (stop-file handshake), then MySQL to
-        # shut down cleanly, then force-stop anything still alive.
+        # 第二实例先写 stop 文件让它自行退出，再兜底强杀。
         try:
-            (run_dir / "second-instance.port.stop").write_text("stop", encoding="utf-8")
+            second = locals().get("owned_second")
+            if second is not None:
+                Path(str(run_dir / "second-instance.port.stop")).write_text("stop", encoding="utf-8")
+                try:
+                    second.wait(timeout=15)
+                except Exception:
+                    second.kill()
         except Exception:
             pass
-        try:
-            subprocess.run([str(mysql), "--no-defaults", "--host=127.0.0.1", f"--port={mysql_port}",
-                 "--user=root", "--execute=SHUTDOWN"], timeout=20,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
-        for proc, out, err in owned:
-            try:
-                proc.wait(timeout=20)
-            except Exception:
-                proc.kill()
-            out.close()
-            err.close()
-        # The initialized MySQL datadir is hundreds of MB; without removing it every
-        # drill/--full run leaks a full datadir into %TEMP% and the next
-        # mysqld --initialize-insecure fails with "Disk is full" (same failure mode
-        # as the sibling acceptance.ps1 temp dirs). Logs/reports are small and are
-        # kept as evidence, so drop only the datadir once mysqld has fully stopped.
-        try:
-            shutil.rmtree(data_dir, ignore_errors=True)
-        except Exception:
-            pass
+        # 只回收本轮创建的容器与命名卷：先删容器（pg 需要先停），再删卷。
+        for container in reversed(created_containers):
+            docker("rm", "-f", "-v", container, capture_output=True)
+        if created_volume:
+            docker("volume", "rm", "-f", volume, capture_output=True)
+        # 日志很小、留作证据；数据在命名卷里，随卷删除一并回收。
+        if not os.environ.get("VS_DRILL_KEEP_LOGS"):
+            keep = {"flyway-migrate.log", "redis-marker.log"}
+            for entry in run_dir.iterdir():
+                if entry.is_file() and entry.name not in keep:
+                    try:
+                        entry.unlink()
+                    except Exception:
+                        pass
     sys.exit(exit_code)
 
 

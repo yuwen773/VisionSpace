@@ -99,6 +99,12 @@ class HttpQuarantineRaceTest {
     private long ownerId;
     private long moderatorId;
 
+    /**
+     * picture_file 的主键在 PostgreSQL 基线里没有默认值（由应用侧的雪花标识分配），
+     * 种子行自己给出一个不与其它用例冲突的主键。
+     */
+    private final long resourceId = 88_170_000L;
+
     @AfterEach
     void releaseTestLease() {
         leaseManager.release(TEAM_PICTURE, "quarantine-test");
@@ -117,11 +123,11 @@ class HttpQuarantineRaceTest {
         preCheckArmed.set(false);
         uploadArmed.set(false);
 
-        jdbc.update("DELETE FROM storage_cleanup_task WHERE pictureId = ?", TEAM_PICTURE);
-        jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", TEAM_PICTURE);
+        jdbc.update("DELETE FROM storage_cleanup_task WHERE picture_id = ?", TEAM_PICTURE);
+        jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", TEAM_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id = ?", TEAM_PICTURE);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceId = ?", TEAM_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ?", TEAM_SPACE);
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id = ?", TEAM_PICTURE);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ?", TEAM_SPACE);
         jdbc.update("DELETE FROM space WHERE id = ?", TEAM_SPACE);
 
         ownerId = register("race_owner_" + System.nanoTime());
@@ -130,23 +136,23 @@ class HttpQuarantineRaceTest {
                 Duration.ofMinutes(2), "quarantine-test-token").acquired());
 
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'race-team', ?, 0, 1, 1000, 1000, 10, 1, 0)
                 """, TEAM_SPACE, ownerId);
         // 空间成员关系决定空间权限：所有者必须是团队管理员，
         // 否则请求会在权限校验阶段被拒，根本到不了隔离判定
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'admin')",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'admin')",
                 TEAM_SPACE, ownerId);
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, 'race-picture', ?, 10, ?, 1, 0)
                 """, TEAM_PICTURE, ORIGINAL_URL, ownerId, TEAM_SPACE);
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                          objectKey, url, fileSize, status)
-                VALUES (?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
-                """, ownerId, TEAM_SPACE, TEAM_PICTURE, RecordingStorageConfiguration.PLATFORM,
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                          object_key, url, file_size, status)
+                VALUES (?, ?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
+                """, resourceId, ownerId, TEAM_SPACE, TEAM_PICTURE, RecordingStorageConfiguration.PLATFORM,
                 ORIGINAL_OBJECT_KEY, "https://acceptance.invalid" + ORIGINAL_OBJECT_KEY);
 
         // 删除路径的闸门：预检返回隔离生效前的判定，然后停住等隔离提交
@@ -199,14 +205,14 @@ class HttpQuarantineRaceTest {
             assertEquals(50001, response.path("code").asInt(), response.toString());
             // 隔离记录成立：处置已经生效
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM resource_isolation WHERE resourceId = ? AND status = 1",
+                    "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ? AND status = 1",
                     Integer.class, TEAM_PICTURE), "the quarantine must be recorded");
             // 数据库最终状态：图片记录与资源记录都保留
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM picture WHERE id = ? AND isDelete = 0",
+                    "SELECT COUNT(*) FROM picture WHERE id = ? AND is_delete = 0",
                     Integer.class, TEAM_PICTURE), "the quarantined picture must be kept");
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM picture_file WHERE pictureId = ? AND status = 1",
+                    "SELECT COUNT(*) FROM picture_file WHERE picture_id = ? AND status = 1",
                     Integer.class, TEAM_PICTURE), "the quarantined picture file must be kept");
             assertEquals(ORIGINAL_URL, jdbc.queryForObject(
                     "SELECT url FROM picture WHERE id = ?", String.class, TEAM_PICTURE),
@@ -244,14 +250,14 @@ class HttpQuarantineRaceTest {
             // 拒绝必须来自事务内的隔离判定，而不是更早的权限校验
             assertEquals(50001, response.path("code").asInt(), response.toString());
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM resource_isolation WHERE resourceId = ? AND status = 1",
+                    "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ? AND status = 1",
                     Integer.class, TEAM_PICTURE), "the quarantine must be recorded");
             // 数据库最终状态：原记录与原资源都保留，替换没有生效
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM picture WHERE id = ? AND isDelete = 0",
+                    "SELECT COUNT(*) FROM picture WHERE id = ? AND is_delete = 0",
                     Integer.class, TEAM_PICTURE), "the quarantined picture must be kept");
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM picture_file WHERE pictureId = ? AND status = 1",
+                    "SELECT COUNT(*) FROM picture_file WHERE picture_id = ? AND status = 1",
                     Integer.class, TEAM_PICTURE), "the original picture file must be kept");
             assertEquals(ORIGINAL_URL, jdbc.queryForObject(
                     "SELECT url FROM picture WHERE id = ?", String.class, TEAM_PICTURE),
@@ -284,14 +290,14 @@ class HttpQuarantineRaceTest {
                         String.valueOf(TEAM_PICTURE));
                 assertEquals(0, replaced.path("code").asInt(), replaced.toString());
             }
-            assertEquals(50L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?",
+            assertEquals(50L, jdbc.queryForObject("SELECT total_size FROM space WHERE id = ?",
                     Long.class, TEAM_SPACE));
             quarantineCommitted.countDown();
             JsonNode response = deleted.get(30, TimeUnit.SECONDS);
             assertEquals(0, response.path("code").asInt(), response.toString());
-            assertEquals(0L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?",
+            assertEquals(0L, jdbc.queryForObject("SELECT total_size FROM space WHERE id = ?",
                     Long.class, TEAM_SPACE), "deleting the replacement must release its actual size");
-            assertEquals(0L, jdbc.queryForObject("SELECT totalCount FROM space WHERE id = ?",
+            assertEquals(0L, jdbc.queryForObject("SELECT total_count FROM space WHERE id = ?",
                     Long.class, TEAM_SPACE));
         } finally {
             quarantineCommitted.countDown();
@@ -313,10 +319,10 @@ class HttpQuarantineRaceTest {
         assertEquals(ORIGINAL_URL, jdbc.queryForObject("SELECT url FROM picture WHERE id = ?",
                 String.class, TEAM_PICTURE));
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file "
-                + "WHERE pictureId = ? AND status = 1 AND objectKey = ?", Integer.class,
+                + "WHERE picture_id = ? AND status = 1 AND object_key = ?", Integer.class,
                 TEAM_PICTURE, ORIGINAL_OBJECT_KEY));
         assertEquals(0, deleteCallsFor(ORIGINAL_OBJECT_KEY), "rollback must keep the old object");
-        assertEquals(10L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?", Long.class, TEAM_SPACE));
+        assertEquals(10L, jdbc.queryForObject("SELECT total_size FROM space WHERE id = ?", Long.class, TEAM_SPACE));
     }
 
     // ---- helpers ----
@@ -395,12 +401,12 @@ class HttpQuarantineRaceTest {
 
     private long registerModerator(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'moderator' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'moderator' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

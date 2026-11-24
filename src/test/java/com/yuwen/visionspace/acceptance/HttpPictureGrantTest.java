@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,17 +61,24 @@ class HttpPictureGrantTest {
     private long teamAdminId;
     private long editorId;
 
+    /**
+     * picture_file 与 resource_isolation 的主键在 PostgreSQL 基线里没有默认值
+     * （由应用侧的雪花标识分配），种子行自己给出不与其它用例冲突的主键。
+     */
+    private final AtomicLong resourceIds = new AtomicLong(87_930_000L);
+    private final AtomicLong isolationIds = new AtomicLong(87_940_000L);
+
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM picture_file WHERE pictureId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM picture_file WHERE picture_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PRIVATE_PICTURE, TEAM_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PRIVATE_PICTURE, TEAM_PICTURE);
-        jdbc.update("DELETE FROM resource_access_grant WHERE resourceId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM resource_access_grant WHERE resource_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PRIVATE_PICTURE, TEAM_PICTURE);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PRIVATE_PICTURE, TEAM_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId IN (?, ?)", PRIVATE_SPACE, TEAM_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id IN (?, ?)", PRIVATE_SPACE, TEAM_SPACE);
         jdbc.update("DELETE FROM space WHERE id IN (?, ?)", PRIVATE_SPACE, TEAM_SPACE);
 
         ownerId = register("grant_owner_" + System.nanoTime());
@@ -114,7 +122,7 @@ class HttpPictureGrantTest {
             assertDenied(stranger, "/picture/content/" + PRIVATE_PICTURE + "/original");
         }
         // 到期后立即拒绝：把到期时间改到过去，无需等待
-        jdbc.update("UPDATE resource_access_grant SET expiresTime = ? WHERE id = ?",
+        jdbc.update("UPDATE resource_access_grant SET expires_time = ? WHERE id = ?",
                 Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)), grantId);
         try (var viewer = client()) {
             login(viewer, viewerId);
@@ -146,7 +154,7 @@ class HttpPictureGrantTest {
             // 撤销后可以重新授予，且只有一条有效授权
             post(ownerClient(), "/picture/grant/add", grantBody(PRIVATE_PICTURE, viewerId, hoursFromNow(1)));
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId = ? AND status = 1",
+                    "SELECT COUNT(*) FROM resource_access_grant WHERE resource_id = ? AND status = 1",
                     Integer.class, PRIVATE_PICTURE));
         }
     }
@@ -166,7 +174,7 @@ class HttpPictureGrantTest {
             assertDenied(admin, "/picture/content/" + TEAM_PICTURE + "/original");
         }
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId IN (?, ?)",
+                "SELECT COUNT(*) FROM resource_access_grant WHERE resource_id IN (?, ?)",
                 Integer.class, PRIVATE_PICTURE, TEAM_PICTURE), "rejected grants must not write records");
 
         // 团队管理员可以授权团队资源
@@ -209,7 +217,7 @@ class HttpPictureGrantTest {
             assertRejected(post(owner, "/picture/grant/add", grantBody(PRIVATE_PICTURE, 999_999_999L, hoursFromNow(1))));
         }
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId = ?",
+                "SELECT COUNT(*) FROM resource_access_grant WHERE resource_id = ?",
                 Integer.class, PRIVATE_PICTURE), "invalid grants must not write records");
     }
 
@@ -252,7 +260,7 @@ class HttpPictureGrantTest {
     void expiredGrantReleasesItsSlotSoTheResourceCanBeGrantedAgain() throws Exception {
         long grantId = grant(ownerId, PRIVATE_PICTURE, viewerId, hoursFromNow(1));
         // 让授权到期：到期是状态迁移，唯一键必须一起释放
-        jdbc.update("UPDATE resource_access_grant SET expiresTime = ? WHERE id = ?",
+        jdbc.update("UPDATE resource_access_grant SET expires_time = ? WHERE id = ?",
                 Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)), grantId);
         try (var viewer = client()) {
             login(viewer, viewerId);
@@ -262,7 +270,7 @@ class HttpPictureGrantTest {
         long regrantId = grant(ownerId, PRIVATE_PICTURE, viewerId, hoursFromNow(2));
         assertTrue(regrantId > 0);
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId = ? AND status = 1",
+                "SELECT COUNT(*) FROM resource_access_grant WHERE resource_id = ? AND status = 1",
                 Integer.class, PRIVATE_PICTURE), "only the new grant stays active");
         try (var viewer = client()) {
             login(viewer, viewerId);
@@ -303,13 +311,14 @@ class HttpPictureGrantTest {
         // 被授权人同时是团队成员：移除成员后仍可按未撤销的显式授权读取；
         // 撤销授权后才完全拒绝，两者互不覆盖对方的状态
         grant(teamAdminId, TEAM_PICTURE, editorId, hoursFromNow(1));
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", TEAM_SPACE, editorId);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", TEAM_SPACE, editorId);
         try (var editor = client()) {
             login(editor, editorId);
             assertContent(editor, "/picture/content/" + TEAM_PICTURE + "/original", null);
         }
-        jdbc.update("UPDATE resource_access_grant SET status = 2, revokedByUserId = ?, revokeTime = NOW(),"
-                + " activeKey = NULL WHERE resourceId = ? AND granteeUserId = ?", teamAdminId, TEAM_PICTURE, editorId);
+        jdbc.update("UPDATE resource_access_grant SET status = 2, revoked_by_user_id = ?,"
+                + " revoke_time = statement_timestamp(),"
+                + " active_key = NULL WHERE resource_id = ? AND grantee_user_id = ?", teamAdminId, TEAM_PICTURE, editorId);
         try (var editor = client()) {
             login(editor, editorId);
             assertDenied(editor, "/picture/content/" + TEAM_PICTURE + "/original");
@@ -319,12 +328,12 @@ class HttpPictureGrantTest {
     @Test
     void grantCannotReviveQuarantinedResource() throws Exception {
         jdbc.update("""
-                INSERT INTO resource_isolation (resourceType, resourceId, status, activeKey, operatorId, reason)
-                VALUES ('picture', ?, 1, ?, ?, '违规')
-                """, PRIVATE_PICTURE, "picture:" + PRIVATE_PICTURE, ownerId);
+                INSERT INTO resource_isolation (id, resource_type, resource_id, status, active_key, operator_id, reason)
+                VALUES (?, 'picture', ?, 1, ?, ?, '违规')
+                """, isolationIds.incrementAndGet(), PRIVATE_PICTURE, "picture:" + PRIVATE_PICTURE, ownerId);
         assertRejected(post(ownerClient(), "/picture/grant/add", grantBody(PRIVATE_PICTURE, viewerId, hoursFromNow(1))));
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_access_grant WHERE resourceId = ?",
+                "SELECT COUNT(*) FROM resource_access_grant WHERE resource_id = ?",
                 Integer.class, PRIVATE_PICTURE));
     }
 
@@ -365,30 +374,31 @@ class HttpPictureGrantTest {
 
     private void seedSpace(long id, long owner, int type) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'space', ?, 0, ?, 1000, 1000, 0, 0, 0)
                 """, id, owner, type);
     }
 
     private void joinTeam(long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 TEAM_SPACE, userId, role);
     }
 
     private void seedPicture(long id, long owner, Long spaceId, int reviewStatus) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, ?, ?, 0)
                 """, id, "https://origin.invalid/" + id + ".jpg", "picture-" + id, owner, spaceId, reviewStatus);
     }
 
     private void seedResource(long pictureId, long owner, Long spaceId, String objectKey) {
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                          objectKey, url, fileSize, status)
-                VALUES (?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
-                """, owner, spaceId, pictureId, RecordingStorageConfiguration.PLATFORM,
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                          object_key, url, file_size, status)
+                VALUES (?, ?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
+                """, resourceIds.incrementAndGet(), owner, spaceId, pictureId,
+                RecordingStorageConfiguration.PLATFORM,
                 "/" + objectKey, "https://acceptance.invalid/" + objectKey);
     }
 
@@ -432,12 +442,12 @@ class HttpPictureGrantTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

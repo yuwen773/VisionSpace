@@ -19,6 +19,7 @@ SCAN = ROOT / "scripts" / "secret-scan.ps1"
 PROGRESS = ROOT / "docs" / "progress" / "46-maintenance-window-drill.md"
 MANIFEST = ROOT / "sql" / "migrations" / "maintenance-window.manifest.json"
 JAVA_TESTS = ROOT / "src" / "test" / "java"
+JAVA_MAIN = ROOT / "src" / "main" / "java"
 CROSS_BLOCKLIST = ROOT / "sql" / "migrations" / "2026-11-05-maintenance-window-blocklist.sql"
 QUOTA_BLOCKLIST = ROOT / "sql" / "migrations" / "2026-10-25-space-uniqueness-quota-blocklist.sql"
 
@@ -51,6 +52,23 @@ def findings():
             if pattern.search(line):
                 yield (f"{java.relative_to(ROOT)}:{lineno}: assertNotNull on JsonNode.path()/get() "
                        f"is always true (MissingNode is never null)")
+
+    # QueryWrapper 的列名是裸字符串：MyBatis Plus 只做结果映射，不会把 "userId" 折成
+    # user_id。PostgreSQL 把未加引号的 userId 当成 userid 并报「列不存在」，所以这些
+    # 字符串必须手写 snake_case。按行扫描：多行调用会漏，但不会误报。
+    wrapper_call = re.compile(
+        r"\.(?:eq|ne|gt|ge|lt|le|in|notIn|like|notLike|likeLeft|likeRight|isNull|isNotNull|"
+        r"orderByAsc|orderByDesc|groupBy|having|select|apply|last|set|setSql|exists|notExists)\(")
+    column_literal = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"')
+    camel = re.compile(r"[a-z][A-Z]")
+    for java in JAVA_MAIN.rglob("*.java"):
+        for lineno, line in enumerate(java.read_text(encoding="utf-8").splitlines(), 1):
+            if not wrapper_call.search(line):
+                continue
+            for literal in column_literal.findall(line):
+                if camel.search(literal):
+                    yield (f"{java.relative_to(ROOT)}:{lineno}: QueryWrapper 列名必须是 "
+                           f"snake_case，否则 PostgreSQL 报列不存在：{literal}")
 
     # 配额偏差口径在 #37 清单、#46 明细、#46 BLOCKING 汇总里各写一份：靠人工同步会漂移。
     # 抽取每份 WHERE 谓词（明细以 ORDER BY 收尾，汇总以 )) d) 收尾），按空白归一化后

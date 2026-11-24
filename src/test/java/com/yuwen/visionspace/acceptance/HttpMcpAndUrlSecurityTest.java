@@ -63,7 +63,7 @@ class HttpMcpAndUrlSecurityTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("DELETE FROM mcp_server WHERE userId IN (?, ?)", ownerId, strangerId);
+        jdbc.update("DELETE FROM mcp_server WHERE user_id IN (?, ?)", ownerId, strangerId);
         mcp.close();
     }
 
@@ -120,7 +120,7 @@ class HttpMcpAndUrlSecurityTest {
             String cacheKey = "mcp:tools:" + ownerId + ":" + code;
             assertTrue(Boolean.TRUE.equals(redis.hasKey(cacheKey)), "tools must be cached");
 
-            jdbc.update("UPDATE mcp_server SET status = 0 WHERE mcpServerCode = ?", code);
+            jdbc.update("UPDATE mcp_server SET status = 0 WHERE mcp_server_code = ?", code);
             int before = mcp.requestCount();
 
             var afterDisable = get(owner, "/mcp-server/" + code + "?needTools=true");
@@ -136,7 +136,7 @@ class HttpMcpAndUrlSecurityTest {
         String ownerCode = seedServer(ownerId, "SSE", mcp.url(), 1);
         // 同一 code 属于另一用户时不可见；缓存键带归属，不会串用
         jdbc.update("""
-                INSERT INTO mcp_server (mcpServerCode, userId, name, deployConfig, status, installType, host)
+                INSERT INTO mcp_server (mcp_server_code, user_id, name, deploy_config, status, install_type, host)
                 VALUES (?, ?, 'shared-code', ?, 1, 'SSE', ?)
                 """, ownerCode, strangerId, deployConfig(mcp.url()), mcp.url());
 
@@ -163,7 +163,7 @@ class HttpMcpAndUrlSecurityTest {
                     "installType", "SSE"));
             assertEquals(40000, response.path("code").asInt(), response.toString());
             assertEquals(0, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM mcp_server WHERE userId = ?", Integer.class, ownerId),
+                    "SELECT COUNT(*) FROM mcp_server WHERE user_id = ?", Integer.class, ownerId),
                     "rejected config must not be persisted");
         }
     }
@@ -189,7 +189,7 @@ class HttpMcpAndUrlSecurityTest {
             long pictureId = response.path("data").path("id").asLong();
             assertTrue(pictureId > 0);
 
-            jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", pictureId);
+            jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", pictureId);
             jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
         }
     }
@@ -203,7 +203,7 @@ class HttpMcpAndUrlSecurityTest {
     private String seedServer(long userId, String installType, String url, int status) {
         String code = "mcp-" + userId + "-" + System.nanoTime();
         jdbc.update("""
-                INSERT INTO mcp_server (mcpServerCode, userId, name, deployConfig, status, installType, host)
+                INSERT INTO mcp_server (mcp_server_code, user_id, name, deploy_config, status, install_type, host)
                 VALUES (?, ?, 'controlled', ?, ?, ?, ?)
                 """, code, userId, deployConfig(url), status, installType, url);
         return code;
@@ -223,7 +223,7 @@ class HttpMcpAndUrlSecurityTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

@@ -19,7 +19,7 @@ public class PictureStatsServiceImpl extends ServiceImpl<PictureStatsMapper, Pic
 
     @Override
     public PictureStats getByPictureId(Long pictureId) {
-        return this.getOne(new QueryWrapper<PictureStats>().eq("pictureId", pictureId));
+        return this.getOne(new QueryWrapper<PictureStats>().eq("picture_id", pictureId));
     }
 
     @Override
@@ -27,7 +27,7 @@ public class PictureStatsServiceImpl extends ServiceImpl<PictureStatsMapper, Pic
         if (pictureIds == null || pictureIds.isEmpty()) {
             return Collections.emptyList();
         }
-        return this.list(new QueryWrapper<PictureStats>().in("pictureId", pictureIds));
+        return this.list(new QueryWrapper<PictureStats>().in("picture_id", pictureIds));
     }
 
     @Override

@@ -63,7 +63,8 @@ public class UserFeedback implements Serializable {
     /**
      * 创建时间
      */
-    @TableField(fill = FieldFill.INSERT)
+    // 创建时间由调用方显式赋值或数据库默认值提供；项目没有 MetaObjectHandler，
+    // fill 注解只会把未赋值的字段写成 NULL，绕过库里的 NOT NULL DEFAULT。
     private Date createTime;
 
     /**

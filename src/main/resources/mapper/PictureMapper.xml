@@ -11,10 +11,10 @@
     <select id="selectEngagementCandidateIds" resultType="java.lang.Long">
         SELECT p.id
         FROM picture p
-        LEFT JOIN picture_stats s ON s.pictureId = p.id
-        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
-        ORDER BY (COALESCE(s.viewCount, 0) + COALESCE(s.likeCount, 0) + COALESCE(s.collectCount, 0)
-                  + COALESCE(s.downloadCount, 0) + COALESCE(s.shareCount, 0)) DESC, p.id ASC
+        LEFT JOIN picture_stats s ON s.picture_id = p.id
+        WHERE p.review_status = 1 AND p.space_id IS NULL AND p.is_delete = 0
+        ORDER BY (COALESCE(s.view_count, 0) + COALESCE(s.like_count, 0) + COALESCE(s.collect_count, 0)
+                  + COALESCE(s.download_count, 0) + COALESCE(s.share_count, 0)) DESC, p.id ASC
         LIMIT #{limit}
     </select>
 
@@ -22,8 +22,8 @@
     <select id="selectRecentCandidateIds" resultType="java.lang.Long">
         SELECT p.id
         FROM picture p
-        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
-        ORDER BY p.createTime DESC, p.id DESC
+        WHERE p.review_status = 1 AND p.space_id IS NULL AND p.is_delete = 0
+        ORDER BY p.create_time DESC, p.id DESC
         LIMIT #{limit}
     </select>
 
@@ -31,8 +31,8 @@
     <select id="selectRandomCandidateIds" resultType="java.lang.Long">
         SELECT p.id
         FROM picture p
-        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
-        ORDER BY MD5(CONCAT(#{seed}, ':', p.id)) ASC
+        WHERE p.review_status = 1 AND p.space_id IS NULL AND p.is_delete = 0
+        ORDER BY md5(CONCAT(#{seed}, ':', p.id)) ASC
         LIMIT #{limit}
     </select>
 
@@ -40,16 +40,16 @@
     <select id="countPublicCandidates" resultType="long">
         SELECT COUNT(*)
         FROM picture p
-        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
+        WHERE p.review_status = 1 AND p.space_id IS NULL AND p.is_delete = 0
     </select>
 
     <!-- 符合质量条件的公开图片数 -->
     <select id="countQualityCandidates" resultType="long">
         SELECT COUNT(*)
         FROM picture p
-        WHERE p.reviewStatus = 1 AND p.spaceId IS NULL AND p.isDelete = 0
-          AND p.picWidth IS NOT NULL AND p.picHeight IS NOT NULL
-          AND p.picWidth * p.picHeight > #{minPixels}
+        WHERE p.review_status = 1 AND p.space_id IS NULL AND p.is_delete = 0
+          AND p.pic_width IS NOT NULL AND p.pic_height IS NOT NULL
+          AND p.pic_width * p.pic_height > #{minPixels}
     </select>
 
 </mapper>

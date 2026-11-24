@@ -14,7 +14,7 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
     /**
      * 按会话读取执行状态。归属条件写进查询，读到别人的状态在这里就不可能发生。
      */
-    @Select("SELECT * FROM agent_run_state WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Select("SELECT * FROM agent_run_state WHERE thread_id = #{threadId} AND user_id = #{userId}")
     AgentRunState selectOwned(@Param("threadId") String threadId, @Param("userId") Long userId);
 
     /**
@@ -22,7 +22,7 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * <p>没有行时返回 null：调用方按「从 1 开始」处理。
      */
-    @Select("SELECT stateVersion FROM agent_run_state WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Select("SELECT state_version FROM agent_run_state WHERE thread_id = #{threadId} AND user_id = #{userId}")
     Long selectVersion(@Param("threadId") String threadId, @Param("userId") Long userId);
 
     /**
@@ -31,10 +31,11 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      * @return 1 表示本次创建，0 表示已存在
      */
     @Insert("INSERT INTO agent_run_state " +
-            "(threadId, userId, stateVersion, stateFormat, runStatus, legacyArchiveOnly, backupAttempts, " +
-            "createTime, updateTime) " +
-            "VALUES (#{threadId}, #{userId}, 0, #{stateFormat}, #{runStatus}, 0, 0, NOW(), NOW()) " +
-            "ON DUPLICATE KEY UPDATE threadId = threadId")
+            "(thread_id, user_id, state_version, state_format, run_status, legacy_archive_only, backup_attempts, " +
+            "create_time, update_time) " +
+            "VALUES (#{threadId}, #{userId}, 0, #{stateFormat}, #{runStatus}, 0, 0, " +
+            "statement_timestamp(), statement_timestamp()) " +
+            "ON CONFLICT (thread_id) DO NOTHING")
     int insertIfAbsent(@Param("threadId") String threadId,
                        @Param("userId") Long userId,
                        @Param("stateFormat") String stateFormat,
@@ -64,14 +65,16 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * @return 1 表示已写入，0 表示版本不够新、世代已更替或不属于该用户
      */
-    @Update("UPDATE agent_run_state SET stateVersion = #{stateVersion}, stateFormat = #{stateFormat}, " +
-            "checkpointId = #{checkpointId}, nodeId = #{nodeId}, nextNodeId = #{nextNodeId}, " +
-            "statePayload = #{statePayload}, runStatus = #{runStatus}, " +
-            "pendingConfirmation = #{pendingConfirmation}, legacyArchiveOnly = 0, " +
-            "mcpServerCodes = COALESCE(#{mcpServerCodes}, mcpServerCodes), " +
-            "backupError = NULL, backupAttempts = 0, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId} AND stateVersion < #{stateVersion} " +
-            "AND (#{runEpoch} IS NULL OR runEpoch = #{runEpoch})")
+    @Update("UPDATE agent_run_state SET state_version = #{stateVersion}, state_format = #{stateFormat}, " +
+            "checkpoint_id = #{checkpointId}, node_id = #{nodeId}, next_node_id = #{nextNodeId}, " +
+            "state_payload = #{statePayload}, run_status = #{runStatus}, " +
+            "pending_confirmation = #{pendingConfirmation}, legacy_archive_only = 0, " +
+            "mcp_server_codes = COALESCE(#{mcpServerCodes}, mcp_server_codes), " +
+            "backup_error = NULL, backup_attempts = 0, update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId} AND state_version < #{stateVersion} " +
+            // runEpoch 为 null 时 PostgreSQL 无法从 "$n IS NULL" 推断参数类型，
+            // 必须显式声明 bigint。
+            "AND (#{runEpoch,jdbcType=BIGINT} IS NULL OR run_epoch = #{runEpoch,jdbcType=BIGINT})")
     int updateIfNewer(@Param("threadId") String threadId,
                       @Param("userId") Long userId,
                       @Param("stateVersion") long stateVersion,
@@ -90,7 +93,7 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * @return 当前世代；没有状态行时返回 null
      */
-    @Select("SELECT runEpoch FROM agent_run_state WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Select("SELECT run_epoch FROM agent_run_state WHERE thread_id = #{threadId} AND user_id = #{userId}")
     Long selectRunEpoch(@Param("threadId") String threadId, @Param("userId") Long userId);
 
     /**
@@ -101,8 +104,8 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * @return 1 表示本次推进成功，0 表示世代已被别的执行推进，需重读后重试
      */
-    @Update("UPDATE agent_run_state SET runEpoch = runEpoch + 1, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId} AND runEpoch = #{expectedEpoch}")
+    @Update("UPDATE agent_run_state SET run_epoch = run_epoch + 1, update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId} AND run_epoch = #{expectedEpoch}")
     int bumpRunEpoch(@Param("threadId") String threadId,
                      @Param("userId") Long userId,
                      @Param("expectedEpoch") long expectedEpoch);
@@ -122,14 +125,15 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      *
      * @return 1 表示本次认领成功，0 表示版本已推进或已有请求在执行
      */
-    @Update("UPDATE agent_run_state SET stateVersion = stateVersion + 1, runEpoch = runEpoch + 1, " +
-            "runStatus = #{runStatus}, " +
-            "resumeLease = #{leaseToken}, " +
-            "resumeLeaseUntil = DATE_ADD(NOW(), INTERVAL #{leaseSeconds} SECOND), " +
-            "updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId} " +
-            "AND stateVersion = #{expectedVersion} " +
-            "AND (resumeLease IS NULL OR resumeLeaseUntil IS NULL OR resumeLeaseUntil <= NOW())")
+    @Update("UPDATE agent_run_state SET state_version = state_version + 1, run_epoch = run_epoch + 1, " +
+            "run_status = #{runStatus}, " +
+            "resume_lease = #{leaseToken}, " +
+            "resume_lease_until = statement_timestamp() + (#{leaseSeconds} * interval '1 second'), " +
+            "update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId} " +
+            "AND state_version = #{expectedVersion} " +
+            "AND (resume_lease IS NULL OR resume_lease_until IS NULL " +
+            "OR resume_lease_until <= statement_timestamp())")
     int claimForResume(@Param("threadId") String threadId,
                        @Param("userId") Long userId,
                        @Param("expectedVersion") long expectedVersion,
@@ -140,8 +144,9 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
     /**
      * 释放续跑租约。只释放自己持有的那一份，不会解掉别人的。
      */
-    @Update("UPDATE agent_run_state SET resumeLease = NULL, resumeLeaseUntil = NULL, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId} AND resumeLease = #{leaseToken}")
+    @Update("UPDATE agent_run_state SET resume_lease = NULL, resume_lease_until = NULL, " +
+            "update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId} AND resume_lease = #{leaseToken}")
     int releaseResumeLease(@Param("threadId") String threadId,
                            @Param("userId") Long userId,
                            @Param("leaseToken") String leaseToken);
@@ -149,9 +154,9 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
     /**
      * 只更新运行状态与待确认信息，不动版本与载荷。
      */
-    @Update("UPDATE agent_run_state SET runStatus = #{runStatus}, " +
-            "pendingConfirmation = #{pendingConfirmation}, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Update("UPDATE agent_run_state SET run_status = #{runStatus}, " +
+            "pending_confirmation = #{pendingConfirmation}, update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId}")
     int updateStatus(@Param("threadId") String threadId,
                      @Param("userId") Long userId,
                      @Param("runStatus") String runStatus,
@@ -161,9 +166,9 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      * 记录一次备份失败：失败必须可见（backupError）且可重试（backupAttempts）。
      * 失败原因只保存异常类型与简短消息，调用方负责先脱敏。
      */
-    @Update("UPDATE agent_run_state SET backupError = #{backupError}, " +
-            "backupAttempts = backupAttempts + 1, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Update("UPDATE agent_run_state SET backup_error = #{backupError}, " +
+            "backup_attempts = backup_attempts + 1, update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId}")
     int recordBackupFailure(@Param("threadId") String threadId,
                             @Param("userId") Long userId,
                             @Param("backupError") String backupError);
@@ -171,9 +176,10 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
     /**
      * 把状态标记为「仅有旧轻量归档」：可查看历史，但不能当作完整恢复点。
      */
-    @Update("UPDATE agent_run_state SET legacyArchiveOnly = 1, runStatus = #{runStatus}, " +
-            "statePayload = NULL, checkpointId = NULL, nextNodeId = NULL, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Update("UPDATE agent_run_state SET legacy_archive_only = 1, run_status = #{runStatus}, " +
+            "state_payload = NULL, checkpoint_id = NULL, next_node_id = NULL, " +
+            "update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId}")
     int markLegacyArchiveOnly(@Param("threadId") String threadId,
                               @Param("userId") Long userId,
                               @Param("runStatus") String runStatus);
@@ -182,9 +188,10 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
      * 释放会话时清理状态行。运行计数（步骤计数等进程内资源）与状态行一起释放，
      * 避免无界增长；不属于该用户时影响 0 行。
      */
-    @Update("UPDATE agent_run_state SET runStatus = #{runStatus}, statePayload = NULL, " +
-            "checkpointId = NULL, nextNodeId = NULL, pendingConfirmation = NULL, updateTime = NOW() " +
-            "WHERE threadId = #{threadId} AND userId = #{userId}")
+    @Update("UPDATE agent_run_state SET run_status = #{runStatus}, state_payload = NULL, " +
+            "checkpoint_id = NULL, next_node_id = NULL, pending_confirmation = NULL, " +
+            "update_time = statement_timestamp() " +
+            "WHERE thread_id = #{threadId} AND user_id = #{userId}")
     int clearForRelease(@Param("threadId") String threadId,
                         @Param("userId") Long userId,
                         @Param("runStatus") String runStatus);

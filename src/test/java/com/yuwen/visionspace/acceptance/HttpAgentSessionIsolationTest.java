@@ -84,8 +84,8 @@ class HttpAgentSessionIsolationTest {
     @AfterEach
     void tearDown() {
         for (String threadId : threadIds) {
-            jdbc.update("DELETE FROM agent_message WHERE sessionId = ?", threadId);
-            jdbc.update("DELETE FROM agent_session WHERE sessionId = ?", threadId);
+            jdbc.update("DELETE FROM agent_message WHERE session_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_session WHERE session_id = ?", threadId);
         }
     }
 
@@ -114,8 +114,10 @@ class HttpAgentSessionIsolationTest {
     @Test
     void ownerStillReadsOwnHistory() throws Exception {
         String threadId = seedSession(ownerId, "owner thread");
-        jdbc.update("INSERT INTO agent_message (sessionId, role, subType, content, createdTime) " +
-                "VALUES (?, 'USER', NULL, 'hello', NOW())", threadId);
+        // PostgreSQL 的 agent_message 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO agent_message (id, session_id, role, sub_type, content, created_time) " +
+                "VALUES (?, ?, 'USER', NULL, 'hello', statement_timestamp())",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId);
 
         try (var owner = client()) {
             login(owner, ownerId);
@@ -205,7 +207,7 @@ class HttpAgentSessionIsolationTest {
             assertRejected(response);
             assertNoExecution(beforeCalls);
             assertEquals(ownerId, jdbc.queryForObject(
-                    "SELECT userId FROM agent_session WHERE sessionId = ?", Long.class, ownedThread),
+                    "SELECT user_id FROM agent_session WHERE session_id = ?", Long.class, ownedThread),
                     "forged userId must not change session ownership");
         }
 
@@ -218,7 +220,7 @@ class HttpAgentSessionIsolationTest {
                     "userId", String.valueOf(ownerId)));
             assertEquals(1, sessionCount(freshThread), "first use must create the session");
             assertEquals(strangerId, jdbc.queryForObject(
-                    "SELECT userId FROM agent_session WHERE sessionId = ?", Long.class, freshThread),
+                    "SELECT user_id FROM agent_session WHERE session_id = ?", Long.class, freshThread),
                     "session must belong to the logged-in user, not the forged body userId");
         }
     }
@@ -250,7 +252,7 @@ class HttpAgentSessionIsolationTest {
             assertEquals(1, sessionCount(threadId), "exactly one session row");
 
             Long boundOwner = jdbc.queryForObject(
-                    "SELECT userId FROM agent_session WHERE sessionId = ?", Long.class, threadId);
+                    "SELECT user_id FROM agent_session WHERE session_id = ?", Long.class, threadId);
             assertNotNull(boundOwner);
             assertEquals(first != null ? first : second, boundOwner,
                     "session must belong to the binding that succeeded");
@@ -271,7 +273,7 @@ class HttpAgentSessionIsolationTest {
     }
 
     private int sessionCount(String threadId) {
-        return jdbc.queryForObject("SELECT COUNT(*) FROM agent_session WHERE sessionId = ?",
+        return jdbc.queryForObject("SELECT COUNT(*) FROM agent_session WHERE session_id = ?",
                 Integer.class, threadId);
     }
 
@@ -316,10 +318,10 @@ class HttpAgentSessionIsolationTest {
     private String seedSession(long userId, String title) {
         String threadId = newThreadId();
         jdbc.update("""
-                INSERT INTO agent_session (sessionId, userId, title, status, lastMessage, messageCount,
-                                           createdTime, updatedTime, isDelete)
-                VALUES (?, ?, ?, 1, '', 0, NOW(), NOW(), 0)
-                """, threadId, userId, title);
+                INSERT INTO agent_session (id, session_id, user_id, title, status, last_message, message_count,
+                                           created_time, updated_time, is_delete)
+                VALUES (?, ?, ?, ?, 1, '', 0, statement_timestamp(), statement_timestamp(), 0)
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, userId, title);
         return threadId;
     }
 
@@ -334,12 +336,12 @@ class HttpAgentSessionIsolationTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

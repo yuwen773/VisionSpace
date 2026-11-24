@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Real TCP -> servlet filter -> JSON binding -> Sa-Token -> controller/service -> MySQL/Redis. */
+/** Real TCP -> servlet filter -> JSON binding -> Sa-Token -> controller/service -> PostgreSQL/Redis. */
 @IsolatedSpringBootTest
 class HttpBaselineTest {
     @LocalServerPort
@@ -44,14 +44,17 @@ class HttpBaselineTest {
     void fixture() {
         jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE_ID);
         jdbc.update("DELETE FROM space WHERE id = ?", SPACE_ID);
-        jdbc.update("INSERT INTO space (id, spaceName, userId, totalSize, totalCount) VALUES (?, 'unrelated', 87003, 999, 7)", SPACE_ID);
+        jdbc.update("INSERT INTO space (id, space_name, user_id, total_size, total_count) VALUES (?, 'unrelated', 87003, 999, 7)", SPACE_ID);
     }
 
     @Test
     void runtimeConnectionsUseTheVerifiedInstances() {
         var settings = IsolationSettings.from(System.getenv());
-        assertEquals(settings.database(), jdbc.queryForObject("SELECT DATABASE()", String.class));
-        assertEquals(settings.nonce(), jdbc.queryForObject("SELECT nonce FROM acceptance_instance", String.class));
+        assertEquals(settings.database(), jdbc.queryForObject("SELECT current_database()", String.class));
+        // 隔离库不再有标记表：nonce 由库注释承载
+        assertEquals(settings.nonce(), jdbc.queryForObject(
+                "SELECT shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = current_database()",
+                String.class));
         assertEquals(settings.nonce(), redis.opsForValue().get("acceptance:instance"));
     }
 
@@ -63,7 +66,7 @@ class HttpBaselineTest {
             int beforeCalls = recorder.calls().size();
 
             assertEquals(0, post(owner, "/picture/delete", "{\"id\":" + PICTURE_ID + "}").path("code").asInt());
-            assertEquals(1, jdbc.queryForObject("SELECT isDelete FROM picture WHERE id = ?", Integer.class, PICTURE_ID));
+            assertEquals(1, jdbc.queryForObject("SELECT is_delete FROM picture WHERE id = ?", Integer.class, PICTURE_ID));
             assertQuotaUnchanged();
             assertEquals(List.of(new ExternalCallRecorder.Call("POST", "/storage/delete", "acceptance-picture")),
                     recorder.calls().subList(beforeCalls, recorder.calls().size()));
@@ -105,18 +108,18 @@ class HttpBaselineTest {
     }
 
     private void seedPicture(long ownerId) {
-        jdbc.update("INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus) VALUES (?, 'acceptance-picture', 'public', ?, 123, NULL, 1)", PICTURE_ID, ownerId);
+        jdbc.update("INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status) VALUES (?, 'acceptance-picture', 'public', ?, 123, NULL, 1)", PICTURE_ID, ownerId);
     }
 
     private void assertRejectedWithoutSideEffects(int beforeCalls) {
-        assertEquals(0, jdbc.queryForObject("SELECT isDelete FROM picture WHERE id = ?", Integer.class, PICTURE_ID));
+        assertEquals(0, jdbc.queryForObject("SELECT is_delete FROM picture WHERE id = ?", Integer.class, PICTURE_ID));
         assertQuotaUnchanged();
         assertEquals(beforeCalls, recorder.calls().size(), "Rejected requests must not call storage or providers");
     }
 
     private void assertQuotaUnchanged() {
-        assertEquals(999L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?", Long.class, SPACE_ID));
-        assertEquals(7L, jdbc.queryForObject("SELECT totalCount FROM space WHERE id = ?", Long.class, SPACE_ID));
+        assertEquals(999L, jdbc.queryForObject("SELECT total_size FROM space WHERE id = ?", Long.class, SPACE_ID));
+        assertEquals(7L, jdbc.queryForObject("SELECT total_count FROM space WHERE id = ?", Long.class, SPACE_ID));
     }
 
     private long registerAndLogin(HttpClient client, String account) throws Exception {

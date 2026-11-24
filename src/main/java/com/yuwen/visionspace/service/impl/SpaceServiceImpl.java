@@ -260,7 +260,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 .map(SpaceUser::getSpaceId)
                 .toList();
         queryWrapper.and(wrapper -> {
-            wrapper.eq("userId", loginUser.getId());
+            wrapper.eq("user_id", loginUser.getId());
             if (!joinedSpaceIds.isEmpty()) {
                 wrapper.or().in("id", joinedSpaceIds);
             }
@@ -286,16 +286,17 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         String sortOrder = spaceQueryRequest.getSortOrder();
         // 拼接查询条件
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
-        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
-        queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
-        queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
-        queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
+        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "user_id", userId);
+        queryWrapper.apply(StrUtil.isNotBlank(spaceName), "space_name ILIKE {0}", "%" + spaceName + "%");
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "space_level", spaceLevel);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "space_type", spaceType);
         queryWrapper.eq(ObjUtil.isNotEmpty(status), "status", status);
         // 所有者关键字：先按用户名/账号解析出用户 id，再收敛空间范围。
         // 解析不到用户时用恒假条件返回空页，而不是忽略关键字返回全部空间。
         if (StrUtil.isNotBlank(userKeyword)) {
+            String kw = "%" + userKeyword + "%";
             List<Long> ownerIds = userService.lambdaQuery()
-                    .and(w -> w.like(User::getUserName, userKeyword).or().like(User::getUserAccount, userKeyword))
+                    .and(w -> w.apply("user_name ILIKE {0}", kw).or().apply("user_account ILIKE {0}", kw))
                     .list()
                     .stream()
                     .map(User::getId)
@@ -303,7 +304,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             if (ownerIds.isEmpty()) {
                 queryWrapper.apply("1 = 0");
             } else {
-                queryWrapper.in("userId", ownerIds);
+                queryWrapper.in("user_id", ownerIds);
             }
         }
         // 排序

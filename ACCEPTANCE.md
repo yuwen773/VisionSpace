@@ -9,7 +9,7 @@
 | 原报告发现 | 当前基线与验证入口 |
 | --- | --- |
 | A12 公开图片删除误扣空间额度 | `0c60261` 已修复空 spaceId 分支；`HttpBaselineTest` 用登录 Cookie 调真实删除入口，检查图片逻辑删除、无关空间额度不变及记录的文件删除。 |
-| A19 历史分页/会话游标不同源 | `9c46db9`、`9ceb073` 已纳入；保留 `ChatHistoryCursorIntegrationTest` 的六条真实 MySQL 回归，不以 Mockito 替代分页 SQL。 |
+| A19 历史分页/会话游标不同源 | `9c46db9`、`9ceb073` 已纳入；保留 `ChatHistoryCursorIntegrationTest` 的六条真实 PostgreSQL 回归，不以 Mockito 替代分页 SQL。 |
 | A31 前端请求实例与返回值 | `f5d646d` 及后续生成器适配已纳入；`frontend/src/__tests__/request.spec.ts` 通过真实 Axios 实例和传输适配器验证 Cookie 配置、请求数据、成功/业务错误响应及网络失败。HTTPS 同源、SSE、WebSocket 的生产链路仍属后续票。 |
 | 本地修复未进入 main、尚无自动化入口 | 当前 HEAD 已包含 PR #49 的测试/API 生成修复；本票提供统一脚本与最小 PR workflow，并已在 PR #50 上实际远程执行通过（见下）。分支保护仍须另行授权配置。 |
 
@@ -23,7 +23,7 @@
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1
 ```
 
-脚本每次创建仅绑定回环地址的 MySQL 8.0.36、Redis 7.2.4 容器及随机端口，不使用 compose、`.env` 或现有服务。数据目录一律挂命名卷（`vsvol-<run-id>-mysql` / `vsvol-<run-id>-redis`），容器与卷都带 `vs.owner` / `vs.run-id` / `vs.kind` 标签；退出时按本轮 run-id 删除容器和卷，并断言无残留。测试使用独立 `acceptance.yml`，不导入开发或生产配置。库名和凭据逐次生成，MySQL 限定专用账号及专用数据库，Redis 使用独立进程、密码及 DB 15。连接前校验两个实例的随机标记；缺少配置、错误 profile、默认端口或标记不匹配均拒绝启动。直接执行依赖 Spring 的 `mvn test` 而不经脚本，会报 `BLOCKED_ENV`，不会回退本地配置。
+脚本每次创建仅绑定回环地址的 PostgreSQL 18.7（`postgres:18.7`）、Redis 7.2.4 容器及随机端口，不使用 compose、`.env` 或现有服务。PostgreSQL 18 的数据目录已版本化（`PGDATA=/var/lib/postgresql/18/docker`），命名卷一律挂在 `/var/lib/postgresql`（`vsvol-<run-id>-postgres` / `vsvol-<run-id>-redis`），容器与卷都带 `vs.owner` / `vs.run-id` / `vs.kind` 标签；退出时按本轮 run-id 删除容器和卷，并断言无残留。业务表只有一个建表入口：Flyway（`org.flywaydb:flyway-maven-plugin:13.13.0`）以迁移角色 `vision_migrator` 执行 `src/main/resources/db/migration/V1__baseline.sql`；容器初始化脚本只建角色、建库、装 `pgcrypto` 扩展、写库级 UTC 时区与库注释，不建任何业务表。运行角色 `vision_app` 只拿到 DML 权限（`SELECT/INSERT/UPDATE/DELETE`）与序列 `USAGE`。测试使用独立 `acceptance.yml`，不导入开发或生产配置。库名和凭据逐次生成，PostgreSQL 限定专用账号及专用数据库，Redis 使用独立容器、密码及 DB 15。连接前校验两个实例的随机标记：PostgreSQL 用库级注释（`COMMENT ON DATABASE <db> IS '<nonce>'`）承载，Redis 用 `acceptance:instance` 键；缺少配置、错误 profile、默认端口或标记不匹配均拒绝启动。运行器环境变量为 `VS_ACCEPTANCE_NONCE`、`VS_ACCEPTANCE_PG_PORT`、`VS_ACCEPTANCE_REDIS_PORT`；口令只经 `PGPASSWORD` / `FLYWAY_PASSWORD` 环境变量传入，不写进命令行。直接执行依赖 Spring 的 `mvn test` 而不经脚本，会报 `BLOCKED_ENV`，不会回退本地配置。
 
 ### Docker 测试资源
 
@@ -36,19 +36,23 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/docker-test-resources.ps1           
 pwsh.exe -NoLogo -NoProfile -File ./scripts/docker-test-resources.ps1 -ApplySafe   # 只回收 SAFE_*
 ```
 
-审计器永不调用任何 prune，永不删除运行中容器、compose 开发服务或其他项目的资源；无标签历史残留归入 `REVIEW_*`，只报告不删除。`acceptance.ps1` 的 `runner-tests` 会执行 harness 与审计器的反例测试（`scripts/tests/test-docker-lifecycle.ps1`、`scripts/tests/test-docker-reaper.ps1`）；`-MySqlBin`/`-RedisBin` 的 native-explicit 模式按 `infrastructure=docker` 跳过这两项。PowerShell 的 `ProcessExit` 处理器在非 runspace 线程回调，无法可靠执行清理且会污染退出码，因此 harness 不使用它——正常退出依赖 `finally`，硬杀残留依赖审计器。
+审计器永不调用任何 prune，永不删除运行中容器、compose 开发服务或其他项目的资源；无标签历史残留归入 `REVIEW_*`，只报告不删除。`acceptance.ps1` 的 `runner-tests` 会执行 harness 与审计器的反例测试（`scripts/tests/test-docker-lifecycle.ps1`、`scripts/tests/test-docker-reaper.ps1`）。隔离服务一律走 Docker（`infrastructure=docker`）；原生二进制模式已随 PostgreSQL 18 迁移移除，不再有需要按基础设施类型跳过的分支。PowerShell 的 `ProcessExit` 处理器在非 runspace 线程回调，无法可靠执行清理且会污染退出码，因此 harness 不使用它——正常退出依赖 `finally`，硬杀残留依赖审计器。
 
-Docker 不可用的 Windows 主机可显式指定两个独立服务程序目录：
+### 隔离服务（PostgreSQL 18）
+
+隔离服务只提供 Docker 一条路径：容器镜像 `postgres:18.7` 与 `redis:7.2.4`，只绑定回环地址并挂本轮命名卷，库名与凭据逐次生成。原生的 `-MySqlBin`/`-RedisBin` 模式（本地起 `mysqld`/`redis-server.exe` 进程、靠 `SELECT @@datadir` 核对身份）已随迁移移除，不再保留：
 
 ```powershell
-pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin>' -RedisBin '<Redis bin>'
+# 与脚本内部同一条路径的手工检查：读库级隔离标记与已建出的表
+docker exec -e "PGPASSWORD=<nonce>" vs-acceptance-postgres-<nonce> \
+  psql --no-psqlrc -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'" -U vision_app -d vs_acceptance_<nonce>
 ```
 
-此模式在系统临时目录创建全新 MySQL 数据目录及 Redis 进程；不读取已有 MySQL/Redis 配置，不注册或修改系统服务，不连接 3306/3307/6379。执行建表之前先只读核对 `@@datadir` 与本轮目录一致，再创建专用账号、库和实例标记。版本以指定程序为准，必须与 Docker 验证分开报告。每轮只停止自己启动的进程，临时日志和隔离测试数据保留在结果中的 `logs` 路径，供失败排查。
+Docker 不可用时脚本直接判 `BLOCKED_ENV`，不会回退到本地已有服务、不会连接 3306/5432/6379 的既有实例，也不会读取本地数据库配置。容器与卷由脚本自建自删：每轮只清理自己按本轮 run-id 标签创建的资源，临时日志和隔离测试数据保留在结果中的 `logs` 路径，供失败排查。
 
 ## 真实链路与替身边界
 
-`HttpBaselineTest` 通过真实随机 TCP 端口访问 Spring Boot，经过 JSON 请求绑定、Sa-Token 拦截器、控制器和业务服务；注册/登录走 HTTP，Spring Session 与 Sa-Token 使用真实隔离 Redis，数据和事务使用真实隔离 MySQL。
+`HttpBaselineTest` 通过真实随机 TCP 端口访问 Spring Boot，经过 JSON 请求绑定、Sa-Token 拦截器、控制器和业务服务；注册/登录走 HTTP，Spring Session 与 Sa-Token 使用真实隔离 Redis，数据和事务使用真实隔离 PostgreSQL（Flyway 建的基线 schema）。
 
 公开作者删除成功、未登录删除拒绝、其他用户删除拒绝及登录/匿名业务查询均有回归。拒绝路径同时检查图片未删除、空间额度未变和外部调用数未增加。外部存储位于测试传输边界：替换 `PictureStorageService` 为发送到本机 HTTP 记录器的适配器；不会实际删除云对象。模型及可配置外部 HTTP 地址指向本机记录器，未知调用返回 503 并记录；没有模拟真实模型推理或云服务成功。硬编码 SDK/URL 等未执行路径不据此认定已受全面出站限制。
 
@@ -87,7 +91,21 @@ pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1 -MySqlBin '<MySQL bin
 
 `npm run type-check` 依次跑 `vue-tsc --build`（`src/`）与 `tsc -p tsconfig.e2e.json`（`frontend/e2e/**/*.mjs`）。e2e 是纯 `.mjs`，ESLint 无类型信息，漏 `await` 之类 Promise 误用只由后一个 `checkJs` 关卡拦截。
 
-## 本次验证记录
+## 验证记录
+
+本节分两段：**历史记录**是 2026-10-22 的 MySQL 8 与原生二进制时代的结论，只作历史基线保留，不能外推到 PostgreSQL 18 链路；**当前状态**描述迁移后（PostgreSQL 18）的验收契约，实测结论以迁移后重新运行产生的 `target/acceptance/summary.json` 为准。
+
+### 当前状态（PostgreSQL 18）
+
+| 验证项 | 当前契约 |
+| --- | --- |
+| 隔离服务 | Docker 里的 `postgres:18.7` + `redis:7.2.4`，只绑定回环地址、随机端口、随机库名与逐次凭据；数据目录卷挂在 `/var/lib/postgresql`。 |
+| 建表入口 | 只有 Flyway（迁移角色 `vision_migrator` 执行 `V1__baseline.sql`）；初始化脚本不建业务表。运行角色 `vision_app` 只有 DML 权限。 |
+| 隔离标记 | PostgreSQL 库级注释（`COMMENT ON DATABASE`）+ Redis `acceptance:instance` 键；标记不匹配即拒绝启动。 |
+| 原生二进制模式 | 已移除（`-MySqlBin`/`-RedisBin` 不再存在），Docker 不可用即 `BLOCKED_ENV`。 |
+| 密钥传递 | 只经 `PGPASSWORD` / `FLYWAY_PASSWORD` 环境变量，不进 argv。 |
+
+### 历史记录（2026-10-22，MySQL 8 与原生二进制时代）
 
 2026-10-22，Windows + JDK 21.0.7 / Maven 3.9.9 / Node 22.21.0 / npm 10.9.4。显式原生服务模式使用全新临时数据目录，实测 MySQL 8.0.26、Redis 3.2.100；没有使用现有系统服务。Docker engine 在本机不可用，不能把原生模式的结果等同于 MySQL 8.0.36 / Redis 7.2.4 容器实测。
 

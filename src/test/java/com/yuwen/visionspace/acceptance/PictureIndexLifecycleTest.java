@@ -78,9 +78,9 @@ class PictureIndexLifecycleTest {
 
     @BeforeEach
     void fixture() {
-        jdbc.update("DELETE FROM picture_index_task WHERE pictureId IN (?, ?, ?, ?)",
+        jdbc.update("DELETE FROM picture_index_task WHERE picture_id IN (?, ?, ?, ?)",
                 APPROVED_PICTURE, REJECTED_PICTURE, DELETED_PICTURE, QUARANTINED_PICTURE);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceType = 'picture' AND resourceId IN (?, ?, ?, ?)",
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_type = 'picture' AND resource_id IN (?, ?, ?, ?)",
                 APPROVED_PICTURE, REJECTED_PICTURE, DELETED_PICTURE, QUARANTINED_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?, ?)",
                 APPROVED_PICTURE, REJECTED_PICTURE, DELETED_PICTURE, QUARANTINED_PICTURE);
@@ -93,10 +93,10 @@ class PictureIndexLifecycleTest {
         seedPicture(DELETED_PICTURE, 1, "https://origin.invalid/deleted.jpg");
         seedPicture(QUARANTINED_PICTURE, 1, "https://origin.invalid/quarantined.jpg");
         // 已删除的图片：记录仍在，但逻辑删除标记已置位
-        jdbc.update("UPDATE picture SET isDelete = 1 WHERE id = ?", DELETED_PICTURE);
+        jdbc.update("UPDATE picture SET is_delete = 1 WHERE id = ?", DELETED_PICTURE);
         // 隔离中的图片：审核通过，但处置流程已把它隔离
         jdbc.update("""
-                INSERT INTO resource_isolation (resourceType, resourceId, status, activeKey, operatorId, reason)
+                INSERT INTO resource_isolation (resource_type, resource_id, status, active_key, operator_id, reason)
                 VALUES ('picture', ?, 1, ?, ?, 'index-acceptance')
                 """, QUARANTINED_PICTURE, "picture:" + QUARANTINED_PICTURE, adminId);
         reset(embeddings);
@@ -150,7 +150,7 @@ class PictureIndexLifecycleTest {
     private long insertUser(String account, String role) {
         long id = System.nanoTime() & 0x7fffffffL;
         jdbc.update("""
-                INSERT INTO user (id, userAccount, userPassword, userName, userRole, isDelete)
+                INSERT INTO app_user (id, user_account, user_password, user_name, user_role, is_delete)
                 VALUES (?, ?, 'acceptance-hash', ?, ?, 0)
                 """, id, account, account, role);
         return id;
@@ -158,7 +158,7 @@ class PictureIndexLifecycleTest {
 
     private void seedPicture(long id, int reviewStatus, String url) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, NULL, ?, 0)
                 """, id, url, "图片" + id, ownerId, reviewStatus);
     }

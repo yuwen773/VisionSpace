@@ -41,13 +41,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 受限恢复流程（#41）：全部经真实 HTTP 与真实 MySQL。
+ * 受限恢复流程（#41）：全部经真实 HTTP 与真实 PostgreSQL。
  *
  * <p>覆盖：恢复入口沿用会话归属（他人与平台管理员都不能续跑）；
  * 只有旧轻量归档时明确不可恢复；待核对动作阻止续跑；过期版本与重复恢复请求
  * 被拒绝；重复核对与过期核对不生效；双写者按版本 CAS 只有一个生效；
  * 备份失败可见可重试；释放会话后载荷与计数被清理；
- * 执行世代拒绝迟到旧载荷覆盖新进度（含真实 MySQL 时序交错）；
+ * 执行世代拒绝迟到旧载荷覆盖新进度（含真实 PostgreSQL 时序交错）；
  * RUNNING 失活判定区分活跃执行与硬崩溃遗留；工具环境与检查点同版本原子落库。
  *
  * <p>「已确认完成不重放」的执行边界由 {@code AgentActionInterceptorTest} 用受控
@@ -96,10 +96,10 @@ class HttpAgentRecoveryTest {
     @AfterEach
     void tearDown() {
         for (String threadId : threadIds) {
-            jdbc.update("DELETE FROM agent_action_record WHERE threadId = ?", threadId);
-            jdbc.update("DELETE FROM agent_run_state WHERE threadId = ?", threadId);
-            jdbc.update("DELETE FROM agent_message WHERE sessionId = ?", threadId);
-            jdbc.update("DELETE FROM agent_session WHERE sessionId = ?", threadId);
+            jdbc.update("DELETE FROM agent_action_record WHERE thread_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_run_state WHERE thread_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_message WHERE session_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_session WHERE session_id = ?", threadId);
         }
     }
 
@@ -133,7 +133,7 @@ class HttpAgentRecoveryTest {
             assertNoExternalCalls(before);
         }
         assertEquals("tool_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId),
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId),
                 "rejected resume must not modify the recovery point");
     }
 
@@ -242,7 +242,7 @@ class HttpAgentRecoveryTest {
         assertFalse(runStateStore.claimForResume(threadId, ownerId, 9L).isPresent(),
                 "a duplicate resume must lose the version race");
         assertEquals(10L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId),
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId),
                 "the claim advances the version so old requests expire");
     }
 
@@ -258,7 +258,7 @@ class HttpAgentRecoveryTest {
 
         assertTrue(runStateStore.claimForResume(threadId, ownerId, 9L).isPresent());
         long refreshed = jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId);
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId);
 
         assertFalse(runStateStore.claimForResume(threadId, ownerId, refreshed).isPresent(),
                 "a second resume must not run while the first still holds the lease");
@@ -273,7 +273,7 @@ class HttpAgentRecoveryTest {
         runStateStore.releaseResumeLease(threadId, ownerId, lease);
 
         long current = jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId);
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId);
         assertTrue(runStateStore.claimForResume(threadId, ownerId, current).isPresent(),
                 "after the lease is released the user must be able to resume again");
     }
@@ -292,7 +292,7 @@ class HttpAgentRecoveryTest {
             assertTrue(stale.path("message").asText().contains("过期"), stale.toString());
             assertNoExternalCalls(before);
             assertEquals(9L, jdbc.queryForObject(
-                    "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId),
+                    "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId),
                     "stale request must not touch the stored version");
         }
     }
@@ -311,16 +311,16 @@ class HttpAgentRecoveryTest {
         }
     }
 
-    // ---- 动作认领：真实 MySQL 的原子性 ----
+    // ---- 动作认领：真实 PostgreSQL 的原子性 ----
 
     /**
-     * 同一动作的并发认领在真实 MySQL 上只有一个赢家。
+     * 同一动作的并发认领在真实 PostgreSQL 上只有一个赢家。
      *
-     * <p>这条必须打真库：{@code INSERT ... ON DUPLICATE KEY UPDATE} 的赋值顺序语义
+     * <p>这条必须打真库：{@code INSERT ... ON CONFLICT DO UPDATE} 的赋值顺序语义
      * （后续表达式看到已更新的值）在内存替身里复现不出来。
      */
     @Test
-    void concurrentClaimsOnRealMySqlLetOnlyOneOwnerIn() throws Exception {
+    void concurrentClaimsOnRealPostgresLetOnlyOneOwnerIn() throws Exception {
         String threadId = seedSession(ownerId);
         String actionId = "action-" + UUID.randomUUID();
 
@@ -357,7 +357,7 @@ class HttpAgentRecoveryTest {
     /**
      * 明确失败的动作可以被重新认领，并且拿到**新的** token。
      *
-     * <p>这正是 {@code ON DUPLICATE KEY UPDATE} 赋值顺序的回归点：如果 status 先被改写，
+     * <p>这正是 {@code ON CONFLICT DO UPDATE} 赋值顺序的回归点：如果 status 先被改写，
      * 后面的条件全部失效，claimToken 会停留在旧值，原认领者仍能落结果。
      */
     @Test
@@ -425,9 +425,9 @@ class HttpAgentRecoveryTest {
         assertEquals(StateSaveResult.SUPERSEDED, applied,
                 "an older backup must not overwrite newer state, and must be reported as superseded");
         assertEquals("newer_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         assertEquals(20L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId));
     }
 
     @Test
@@ -456,10 +456,10 @@ class HttpAgentRecoveryTest {
             b.get(30, TimeUnit.SECONDS);
 
             assertEquals(101L, jdbc.queryForObject(
-                    "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId),
+                    "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId),
                     "the newest version must win regardless of arrival order");
             assertEquals("instance_b", jdbc.queryForObject(
-                    "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                    "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         } finally {
             pool.shutdownNow();
         }
@@ -484,9 +484,9 @@ class HttpAgentRecoveryTest {
         assertEquals(StateSaveResult.SAVED, result,
                 "a taking-over instance must be able to persist progress");
         assertEquals(501L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId));
         assertEquals("after_takeover", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     // ---- 执行世代：迟到旧载荷不能借重试覆盖新进度 ----
@@ -520,9 +520,9 @@ class HttpAgentRecoveryTest {
 
         // 最终恢复点仍是执行 B 的内容：版本与载荷一起核对，不只看版本递增
         assertEquals(3L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId));
         assertEquals("b1_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     @Test
@@ -539,7 +539,7 @@ class HttpAgentRecoveryTest {
         assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
                 epochB, null, checkpoint("b2_node"), "RUNNING", null));
         assertEquals("b2_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
 
         // 并发时序交错：两个执行同时发起写入，世代不一致的只会输掉归属，不是故障
         assertEquals(StateSaveResult.LOST_OWNERSHIP, runStateStore.saveFullState(threadId,
@@ -568,9 +568,9 @@ class HttpAgentRecoveryTest {
         String threadId = seedSession(ownerId);
         seedRunState(threadId, ownerId, 5L, "tool_node");
         // 模拟进程失活：硬崩溃不经过 catch，行永远停在 RUNNING 且不再推进。
-        // 夹具用固定远古时间戳，避免 MySQL 与 JVM 的时区差影响判定
-        jdbc.update("UPDATE agent_run_state SET updateTime = '2020-01-01 00:00:00' "
-                + "WHERE threadId = ?", threadId);
+        // 夹具用固定远古时间戳，避免 PostgreSQL 与 JVM 的时区差影响判定
+        jdbc.update("UPDATE agent_run_state SET update_time = '2020-01-01 00:00:00' "
+                + "WHERE thread_id = ?", threadId);
 
         try (var owner = client()) {
             login(owner, ownerId);
@@ -587,9 +587,9 @@ class HttpAgentRecoveryTest {
     void unexpiredLeaseKeepsTheRunActiveEvenWithoutRecentUpdates() throws Exception {
         String threadId = seedSession(ownerId);
         seedRunState(threadId, ownerId, 5L, "tool_node");
-        jdbc.update("UPDATE agent_run_state SET resumeLease = 'lease-tok', "
-                + "resumeLeaseUntil = '2099-01-01 00:00:00', "
-                + "updateTime = '2020-01-01 00:00:00' WHERE threadId = ?", threadId);
+        jdbc.update("UPDATE agent_run_state SET resume_lease = 'lease-tok', "
+                + "resume_lease_until = '2099-01-01 00:00:00', "
+                + "update_time = '2020-01-01 00:00:00' WHERE thread_id = ?", threadId);
 
         try (var owner = client()) {
             login(owner, ownerId);
@@ -612,19 +612,19 @@ class HttpAgentRecoveryTest {
 
         // 环境与载荷在同一条 UPDATE 里：同一版本、同一次写入
         assertEquals(2L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId));
         assertEquals("[\"remote-a\"]", jdbc.queryForObject(
-                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT mcp_server_codes FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         assertEquals("tool_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     @Test
     void newRequestBeforeItsFirstCheckpointLeavesTheOldEnvironmentIntact() throws Exception {
         String threadId = seedSession(ownerId);
         seedRunState(threadId, ownerId, 1L, "mcp_node");
-        jdbc.update("UPDATE agent_run_state SET mcpServerCodes = '[\"legacy-a\"]' "
-                + "WHERE threadId = ?", threadId);
+        jdbc.update("UPDATE agent_run_state SET mcp_server_codes = '[\"legacy-a\"]' "
+                + "WHERE thread_id = ?", threadId);
 
         // 新请求（内置工具）开始：只声明世代与环境，尚未提交任何新检查点就崩溃。
         // 旧实现会在这里提前直写 []，留下「旧载荷 + 内置环境」的错配。
@@ -633,19 +633,19 @@ class HttpAgentRecoveryTest {
 
         // 崩溃后：既有恢复点连同它的环境必须原样保留
         assertEquals(1L, jdbc.queryForObject(
-                "SELECT stateVersion FROM agent_run_state WHERE threadId = ?", Long.class, threadId));
+                "SELECT state_version FROM agent_run_state WHERE thread_id = ?", Long.class, threadId));
         assertEquals("[\"legacy-a\"]", jdbc.queryForObject(
-                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT mcp_server_codes FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         assertEquals("mcp_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     @Test
     void resumeExecutionKeepsTheRecordedEnvironmentPairedWithThePayload() throws Exception {
         String threadId = seedSession(ownerId);
         seedRunState(threadId, ownerId, 1L, "mcp_node");
-        jdbc.update("UPDATE agent_run_state SET mcpServerCodes = '[\"legacy-a\"]' "
-                + "WHERE threadId = ?", threadId);
+        jdbc.update("UPDATE agent_run_state SET mcp_server_codes = '[\"legacy-a\"]' "
+                + "WHERE thread_id = ?", threadId);
         long epoch = runStateStore.beginExecution(threadId, ownerId);
 
         // 续跑不声明新环境（null）：载荷推进到新版本，环境保持与恢复点配对
@@ -653,9 +653,9 @@ class HttpAgentRecoveryTest {
                 epoch, null, checkpoint("resumed_node"), "RUNNING", null));
 
         assertEquals("[\"legacy-a\"]", jdbc.queryForObject(
-                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT mcp_server_codes FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         assertEquals("resumed_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     @Test
@@ -677,9 +677,9 @@ class HttpAgentRecoveryTest {
 
         // 最终状态必须是 B 的配对：内置载荷 + 显式空环境，而不是 A 的环境
         assertEquals("[]", jdbc.queryForObject(
-                "SELECT mcpServerCodes FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT mcp_server_codes FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
         assertEquals("b_node", jdbc.queryForObject(
-                "SELECT nextNodeId FROM agent_run_state WHERE threadId = ?", String.class, threadId));
+                "SELECT next_node_id FROM agent_run_state WHERE thread_id = ?", String.class, threadId));
     }
 
     @Test
@@ -691,19 +691,19 @@ class HttpAgentRecoveryTest {
                 new IllegalStateException("disk full at /var/lib/secret-path"));
 
         Map<String, Object> failed = jdbc.queryForMap(
-                "SELECT backupError, backupAttempts FROM agent_run_state WHERE threadId = ?", threadId);
-        assertNotNull(failed.get("backupError"), "a failed backup must be visible");
-        assertEquals(1, ((Number) failed.get("backupAttempts")).intValue());
-        assertFalse(String.valueOf(failed.get("backupError")).contains("secret-path"),
-                "stored failure reason must not carry raw paths or content: " + failed.get("backupError"));
+                "SELECT backup_error, backup_attempts FROM agent_run_state WHERE thread_id = ?", threadId);
+        assertNotNull(failed.get("backup_error"), "a failed backup must be visible");
+        assertEquals(1, ((Number) failed.get("backup_attempts")).intValue());
+        assertFalse(String.valueOf(failed.get("backup_error")).contains("secret-path"),
+                "stored failure reason must not carry raw paths or content: " + failed.get("backup_error"));
 
         // 重试成功一次后，错误被清掉、次数归零
         assertEquals(StateSaveResult.SAVED, runStateStore.saveFullState(threadId, ownerId, 3L,
                 checkpoint("tool_node"), "RUNNING", null));
         Map<String, Object> recovered = jdbc.queryForMap(
-                "SELECT backupError, backupAttempts FROM agent_run_state WHERE threadId = ?", threadId);
-        assertNull(recovered.get("backupError"));
-        assertEquals(0, ((Number) recovered.get("backupAttempts")).intValue());
+                "SELECT backup_error, backup_attempts FROM agent_run_state WHERE thread_id = ?", threadId);
+        assertNull(recovered.get("backup_error"));
+        assertEquals(0, ((Number) recovered.get("backup_attempts")).intValue());
     }
 
     @Test
@@ -714,13 +714,13 @@ class HttpAgentRecoveryTest {
         runStateStore.clearForRelease(threadId, ownerId);
 
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT statePayload, checkpointId, nextNodeId, pendingConfirmation, runStatus " +
-                        "FROM agent_run_state WHERE threadId = ?", threadId);
-        assertNull(row.get("statePayload"));
-        assertNull(row.get("checkpointId"));
-        assertNull(row.get("nextNodeId"));
-        assertNull(row.get("pendingConfirmation"));
-        assertEquals("COMPLETED", row.get("runStatus"));
+                "SELECT state_payload, checkpoint_id, next_node_id, pending_confirmation, run_status " +
+                        "FROM agent_run_state WHERE thread_id = ?", threadId);
+        assertNull(row.get("state_payload"));
+        assertNull(row.get("checkpoint_id"));
+        assertNull(row.get("next_node_id"));
+        assertNull(row.get("pending_confirmation"));
+        assertEquals("COMPLETED", row.get("run_status"));
     }
 
     @Test
@@ -743,7 +743,7 @@ class HttpAgentRecoveryTest {
     // ---- helpers ----
 
     private int runStateStoreReconcile(String threadId) {
-        // 夹具用固定的远古时间戳，避免 MySQL 与 JVM 的时区/时钟差影响判定
+        // 夹具用固定的远古时间戳，避免 PostgreSQL 与 JVM 的时区/时钟差影响判定
         return ledger.reconcileStaleExecuting(threadId, ownerId,
                 Instant.now().minus(Duration.ofMinutes(10)));
     }
@@ -761,7 +761,7 @@ class HttpAgentRecoveryTest {
 
     private String statusOf(String threadId, String actionId) {
         return jdbc.queryForObject(
-                "SELECT status FROM agent_action_record WHERE threadId = ? AND actionId = ?",
+                "SELECT status FROM agent_action_record WHERE thread_id = ? AND action_id = ?",
                 String.class, threadId, actionId);
     }
 
@@ -789,10 +789,10 @@ class HttpAgentRecoveryTest {
     private String seedSession(long userId) {
         String threadId = newThreadId();
         jdbc.update("""
-                INSERT INTO agent_session (sessionId, userId, title, status, lastMessage, messageCount,
-                                           createdTime, updatedTime, isDelete)
-                VALUES (?, ?, 'recovery thread', 1, '', 0, NOW(), NOW(), 0)
-                """, threadId, userId);
+                INSERT INTO agent_session (id, session_id, user_id, title, status, last_message, message_count,
+                                           created_time, updated_time, is_delete)
+                VALUES (?, ?, ?, 'recovery thread', 1, '', 0, statement_timestamp(), statement_timestamp(), 0)
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, userId);
         return threadId;
     }
 
@@ -812,10 +812,11 @@ class HttpAgentRecoveryTest {
     private void seedLegacyArchiveOnly(String threadId, long userId) {
         // 模拟历史数据：只有轻量归档，没有完整载荷与恢复点
         jdbc.update("""
-                INSERT INTO agent_run_state (threadId, userId, stateVersion, stateFormat, statePayload,
-                                             runStatus, legacyArchiveOnly, backupAttempts, createTime, updateTime)
-                VALUES (?, ?, 1, 'v1-lightweight', NULL, 'PAUSED_UNRECOVERABLE', 1, 0, NOW(), NOW())
-                """, threadId, userId);
+                INSERT INTO agent_run_state (id, thread_id, user_id, state_version, state_format, state_payload,
+                                             run_status, legacy_archive_only, backup_attempts, create_time, update_time)
+                VALUES (?, ?, ?, 1, 'v1-lightweight', NULL, 'PAUSED_UNRECOVERABLE', 1, 0,
+                        statement_timestamp(), statement_timestamp())
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, userId);
     }
 
     @Test
@@ -827,10 +828,10 @@ class HttpAgentRecoveryTest {
                 checkpoint("tool_node"), "RUNNING", null));
 
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM agent_run_state WHERE threadId = ? AND userId = ?",
+                "SELECT COUNT(*) FROM agent_run_state WHERE thread_id = ? AND user_id = ?",
                 Integer.class, threadId, ownerId));
         assertNotNull(jdbc.queryForObject(
-                "SELECT statePayload FROM agent_run_state WHERE threadId = ?", byte[].class, threadId),
+                "SELECT state_payload FROM agent_run_state WHERE thread_id = ?", byte[].class, threadId),
                 "the full payload must actually be stored, not silently dropped");
     }
 
@@ -845,10 +846,11 @@ class HttpAgentRecoveryTest {
     private void seedAction(String threadId, long userId, String actionId, String toolName,
                             String status, String idempotency) {
         jdbc.update("""
-                INSERT INTO agent_action_record (threadId, userId, actionId, toolName, argumentsDigest,
-                                                 status, idempotency, claimToken, attempt, createTime, updateTime)
-                VALUES (?, ?, ?, ?, 'digest', ?, ?, 'seed-token', 1, '2020-01-01 00:00:00', '2020-01-01 00:00:00')
-                """, threadId, userId, actionId, toolName, status, idempotency);
+                INSERT INTO agent_action_record (id, thread_id, user_id, action_id, tool_name, arguments_digest,
+                                                 status, idempotency, claim_token, attempt, create_time, update_time)
+                VALUES (?, ?, ?, ?, ?, 'digest', ?, ?, 'seed-token', 1, '2020-01-01 00:00:00', '2020-01-01 00:00:00')
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, userId, actionId, toolName,
+                status, idempotency);
     }
 
     private long register(String account) throws Exception {
@@ -862,13 +864,13 @@ class HttpAgentRecoveryTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
         String account = jdbc.queryForObject(
-                "SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+                "SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

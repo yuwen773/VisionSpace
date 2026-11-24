@@ -45,7 +45,8 @@ class SortKeyWhitelistIntegrationTest {
     void fixture() {
         jdbc.update("DELETE FROM picture WHERE id BETWEEN 87210 AND 87213");
         jdbc.update("DELETE FROM space WHERE id = ?", SPACE_ID);
-        jdbc.update("INSERT INTO space (id, spaceName, userId, totalSize, totalCount) VALUES (?, 'sort space', 87202, 5, 5)", SPACE_ID);
+        jdbc.update("INSERT INTO space (id, space_name, user_id, total_size, total_count)"
+                + " VALUES (?, 'sort space', 87202, 5, 5)", SPACE_ID);
         // 名称顺序与体积顺序相反，便于区分实际生效的排序键
         insertPicture(87210, "alpha", 300);
         insertPicture(87211, "bravo", 200);
@@ -113,7 +114,7 @@ class SortKeyWhitelistIntegrationTest {
 
     private void insertPicture(long id, String name, long size) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status)
                 VALUES (?, ?, ?, 87202, ?, NULL, 1)
                 """, id, "sort-" + id, name, size);
     }

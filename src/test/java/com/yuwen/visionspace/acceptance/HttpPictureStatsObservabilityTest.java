@@ -49,16 +49,16 @@ class HttpPictureStatsObservabilityTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM user_picture_action WHERE pictureId = ?", PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE pictureId = ?", PICTURE);
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id = ?", PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id = ?", PICTURE);
         jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE);
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, 'observable', ?, 10, NULL, 1, 0)
                 """, PICTURE, "content-" + PICTURE, OWNER);
 
         adminId = register("stats_admin_" + System.nanoTime());
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", adminId);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", adminId);
     }
 
     @Test
@@ -135,7 +135,7 @@ class HttpPictureStatsObservabilityTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of(
                 "userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());

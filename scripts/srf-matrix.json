@@ -4,7 +4,9 @@
     {"path":"scripts/tests/test-container-verification.ps1", "infrastructure":"any"},
     {"path":"scripts/tests/test-isolated-services.ps1", "infrastructure":"docker"},
     {"path":"scripts/tests/test-docker-lifecycle.ps1", "infrastructure":"docker"},
-    {"path":"scripts/tests/test-docker-reaper.ps1", "infrastructure":"docker"}
+    {"path":"scripts/tests/test-docker-reaper.ps1", "infrastructure":"docker"},
+    {"path":"scripts/tests/test-postgres-persistence.ps1", "infrastructure":"docker"},
+    {"path":"scripts/tests/test-postgres-backup-restore.ps1", "infrastructure":"docker"}
   ],
   "entries": {
     "acceptance": {"script":"scripts/acceptance.ps1", "report":"acceptance"},

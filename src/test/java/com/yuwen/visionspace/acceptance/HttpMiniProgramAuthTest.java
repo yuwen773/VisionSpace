@@ -140,7 +140,7 @@ class HttpMiniProgramAuthTest {
         register(replacement);
         assertEquals(0, bind(code("openid-h"), account, PASSWORD).path("code").asInt());
         Long userId = jdbc.queryForObject(
-                "SELECT id FROM user WHERE userAccount = ?", Long.class, account);
+                "SELECT id FROM app_user WHERE lower(user_account) = lower(?)", Long.class, account);
 
         assertTrue(userService.deleteUser(userId), "删除账号必须成功");
 
@@ -370,7 +370,8 @@ class HttpMiniProgramAuthTest {
 
     private String boundOpenId(String account) {
         // 列本身允许 NULL：未绑定时必须原样返回 null，而不是伪造空串
-        return jdbc.queryForObject("SELECT wxOpenId FROM user WHERE userAccount = ?", String.class, account);
+        return jdbc.queryForObject("SELECT wx_open_id FROM app_user WHERE lower(user_account) = lower(?)",
+                String.class, account);
     }
 
     private JsonNode getWithToken(String path, String token) throws Exception {

@@ -72,7 +72,7 @@ public interface PictureMapper extends BaseMapper<Picture> {
      * @param id 图片标识
      * @return 图片存在时返回其标识，不存在时返回 null
      */
-    @Select("SELECT `id` FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
+    @Select("SELECT id FROM picture WHERE id = #{id} AND is_delete = 0 FOR UPDATE")
     Long selectIdForUpdate(@Param("id") Long id);
 
     /**
@@ -85,7 +85,7 @@ public interface PictureMapper extends BaseMapper<Picture> {
      * @param id 图片标识
      * @return 图片行；已删除或不存在时返回 null
      */
-    @Select("SELECT * FROM `picture` WHERE `id` = #{id} AND `isDelete` = 0 FOR UPDATE")
+    @Select("SELECT * FROM picture WHERE id = #{id} AND is_delete = 0 FOR UPDATE")
     Picture selectForUpdate(@Param("id") Long id);
 
     /**
@@ -98,8 +98,8 @@ public interface PictureMapper extends BaseMapper<Picture> {
      * @return 图片 id 列表
      */
     @Select("""
-            SELECT `id` FROM `picture`
-            WHERE `spaceId` IS NULL AND `isDelete` = 0 AND (`reviewStatus` IS NULL OR `reviewStatus` <> #{pass})
+            SELECT id FROM picture
+            WHERE space_id IS NULL AND is_delete = 0 AND (review_status IS NULL OR review_status <> #{pass})
             """)
     List<Long> selectNonApprovedPublicPictureIds(@Param("pass") int pass);
 
@@ -114,12 +114,12 @@ public interface PictureMapper extends BaseMapper<Picture> {
      * @return 图片 id 列表
      */
     @Select("""
-            SELECT p.`id` FROM `picture` p
-            JOIN `resource_isolation` ri
-              ON ri.`resourceId` = p.`id`
-             AND ri.`resourceType` = #{resourceType}
-             AND ri.`status` = #{quarantined}
-            WHERE p.`spaceId` IS NULL AND p.`isDelete` = 0 AND p.`reviewStatus` = #{pass}
+            SELECT p.id FROM picture p
+            JOIN resource_isolation ri
+              ON ri.resource_id = p.id
+             AND ri.resource_type = #{resourceType}
+             AND ri.status = #{quarantined}
+            WHERE p.space_id IS NULL AND p.is_delete = 0 AND p.review_status = #{pass}
             """)
     List<Long> selectQuarantinedApprovedPublicPictureIds(@Param("pass") int pass,
                                                          @Param("resourceType") String resourceType,

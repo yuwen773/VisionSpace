@@ -4,11 +4,11 @@ services:
   # Docker Desktop 不会为只连接 internal 网络的容器建立实际端口映射。
   # 覆盖栈额外给两个依赖各接一条独立桥接网络；这些网络允许容器出站，
   # 因此只在确需宿主访问时启用。默认栈仍只连接 internal 网络。
-  mysql:
+  postgres:
     ports:
-      - "127.0.0.1:${HOST_MYSQL_PORT:-13306}:3306"
+      - "127.0.0.1:${HOST_POSTGRES_PORT:-15432}:5432"
     networks:
-      - mysql-host-access
+      - postgres-host-access
   redis:
     ports:
       - "127.0.0.1:${HOST_REDIS_PORT:-16379}:6379"
@@ -16,5 +16,5 @@ services:
       - redis-host-access
 
 networks:
-  mysql-host-access: {}
+  postgres-host-access: {}
   redis-host-access: {}

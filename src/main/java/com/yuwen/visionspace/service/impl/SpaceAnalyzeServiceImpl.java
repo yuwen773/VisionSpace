@@ -52,7 +52,7 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
             checkSpaceAnalyzeAuth(spaceUsageAnalyzeRequest, loginUser);
             // 统计图库的使用空间
             QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-            queryWrapper.select("picSize");
+            queryWrapper.select("pic_size");
             // 补充查询范围
             fillAnalyzeQueryWrapper(spaceUsageAnalyzeRequest, queryWrapper);
             List<Object> pictureObjList = pictureService.getBaseMapper().selectObjs(queryWrapper);
@@ -103,7 +103,7 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         fillAnalyzeQueryWrapper(spaceCategoryAnalyzeRequest, queryWrapper);
 
         // 使用 MyBatis Plus 分组查询
-        queryWrapper.select("category", "count(*) as count", "sum(picSize) as totalSize")
+        queryWrapper.select("category", "count(*) as count", "sum(pic_size) as total_size")
                 .groupBy("category");
 
         // 查询并转换结果
@@ -159,7 +159,7 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         fillAnalyzeQueryWrapper(spaceSizeAnalyzeRequest, queryWrapper);
 
         // 查询所有符合条件的图片大小
-        queryWrapper.select("picSize");
+        queryWrapper.select("pic_size");
         // 100、120、1000
         List<Long> picSizeList = pictureService.getBaseMapper().selectObjs(queryWrapper)
                 .stream()
@@ -191,18 +191,19 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         fillAnalyzeQueryWrapper(spaceUserAnalyzeRequest, queryWrapper);
         // 补充用户 id 查询
         Long userId = spaceUserAnalyzeRequest.getUserId();
-        queryWrapper.eq(ObjUtil.isNotNull(userId), "userId", userId);
+        queryWrapper.eq(ObjUtil.isNotNull(userId), "user_id", userId);
         // 补充分析维度：每日、每周、每月
         String timeDimension = spaceUserAnalyzeRequest.getTimeDimension();
         switch (timeDimension) {
             case "day":
-                queryWrapper.select("DATE_FORMAT(createTime, '%Y-%m-%d') as period", "count(*) as count");
+                queryWrapper.select("to_char(create_time, 'YYYY-MM-DD') as period", "count(*) as count");
                 break;
             case "week":
-                queryWrapper.select("YEARWEEK(createTime) as period", "count(*) as count");
+                // PG 无 YEARWEEK：用 ISO 周年-周序（如 2026-47）作为周期标识，可排序且跨年不重复
+                queryWrapper.select("to_char(create_time, 'IYYY-IW') as period", "count(*) as count");
                 break;
             case "month":
-                queryWrapper.select("DATE_FORMAT(createTime, '%Y-%m') as period", "count(*) as count");
+                queryWrapper.select("to_char(create_time, 'YYYY-MM') as period", "count(*) as count");
                 break;
             default:
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的时间维度");
@@ -232,8 +233,8 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
         // 构造查询条件
         QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("id", "spaceName", "userId", "totalSize")
-                .orderByDesc("totalSize")
+        queryWrapper.select("id", "space_name", "user_id", "total_size")
+                .orderByDesc("total_size")
                 .last("limit " + spaceRankAnalyzeRequest.getTopN()); // 取前 N 名
 
         // 查询并封装结果
@@ -277,13 +278,13 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 公共图库
         boolean queryPublic = spaceAnalyzeRequest.isQueryPublic();
         if (queryPublic) {
-            queryWrapper.isNull("spaceId");
+            queryWrapper.isNull("space_id");
             return;
         }
         // 分析特定空间
         Long spaceId = spaceAnalyzeRequest.getSpaceId();
         if (spaceId != null) {
-            queryWrapper.eq("spaceId", spaceId);
+            queryWrapper.eq("space_id", spaceId);
             return;
         }
         throw new BusinessException(ErrorCode.PARAMS_ERROR, "未指定查询范围");

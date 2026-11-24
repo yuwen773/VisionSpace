@@ -165,37 +165,39 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 从多字段中搜索
         if (StrUtil.isNotBlank(searchText)) {
             // 需要拼接查询条件
-            // and (name like "%xxx%" or introduction like "%xxx%")
+            // and (name ilike "%xxx%" or introduction ilike "%xxx%")
+            // PG 的 LIKE 区分大小写，模糊搜索统一用 ILIKE 保持与 MySQL CI 排序规则一致的体验
+            String likeText = "%" + searchText + "%";
             queryWrapper.and(
-                    qw -> qw.like("name", searchText)
+                    qw -> qw.apply("name ILIKE {0}", likeText)
                             .or()
-                            .like("introduction", searchText)
+                            .apply("introduction ILIKE {0}", likeText)
             );
         }
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
-        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
-        queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "spaceId", spaceId);
-        queryWrapper.isNull(nullSpaceId, "spaceId");
-        queryWrapper.like(StrUtil.isNotBlank(name), "name", name);
-        queryWrapper.like(StrUtil.isNotBlank(introduction), "introduction", introduction);
-        queryWrapper.like(StrUtil.isNotBlank(picFormat), "picFormat", picFormat);
-        queryWrapper.like(StrUtil.isNotBlank(reviewMessage), "reviewMessage", reviewMessage);
+        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "user_id", userId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "space_id", spaceId);
+        queryWrapper.isNull(nullSpaceId, "space_id");
+        queryWrapper.apply(StrUtil.isNotBlank(name), "name ILIKE {0}", "%" + name + "%");
+        queryWrapper.apply(StrUtil.isNotBlank(introduction), "introduction ILIKE {0}", "%" + introduction + "%");
+        queryWrapper.apply(StrUtil.isNotBlank(picFormat), "pic_format ILIKE {0}", "%" + picFormat + "%");
+        queryWrapper.apply(StrUtil.isNotBlank(reviewMessage), "review_message ILIKE {0}", "%" + reviewMessage + "%");
         queryWrapper.eq(StrUtil.isNotBlank(category), "category", category);
-        queryWrapper.eq(ObjUtil.isNotEmpty(picWidth), "picWidth", picWidth);
-        queryWrapper.eq(ObjUtil.isNotEmpty(picHeight), "picHeight", picHeight);
-        queryWrapper.eq(ObjUtil.isNotEmpty(picSize), "picSize", picSize);
-        queryWrapper.eq(ObjUtil.isNotEmpty(picScale), "picScale", picScale);
-        queryWrapper.eq(ObjUtil.isNotEmpty(reviewStatus), "reviewStatus", reviewStatus);
-        queryWrapper.eq(ObjUtil.isNotEmpty(reviewerId), "reviewerId", reviewerId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(picWidth), "pic_width", picWidth);
+        queryWrapper.eq(ObjUtil.isNotEmpty(picHeight), "pic_height", picHeight);
+        queryWrapper.eq(ObjUtil.isNotEmpty(picSize), "pic_size", picSize);
+        queryWrapper.eq(ObjUtil.isNotEmpty(picScale), "pic_scale", picScale);
+        queryWrapper.eq(ObjUtil.isNotEmpty(reviewStatus), "review_status", reviewStatus);
+        queryWrapper.eq(ObjUtil.isNotEmpty(reviewerId), "reviewer_id", reviewerId);
         // >= startEditTime
-        queryWrapper.ge(ObjUtil.isNotEmpty(startEditTime), "editTime", startEditTime);
+        queryWrapper.ge(ObjUtil.isNotEmpty(startEditTime), "edit_time", startEditTime);
         // < endEditTime
-        queryWrapper.lt(ObjUtil.isNotEmpty(endEditTime), "editTime", endEditTime);
+        queryWrapper.lt(ObjUtil.isNotEmpty(endEditTime), "edit_time", endEditTime);
         // JSON 数组查询
         if (CollUtil.isNotEmpty(tags)) {
-            /* and (tag like "%\"Java\"%" and like "%\"Python\"%") */
+            /* and (tags ilike "%\"Java\"%" and tags ilike "%\"Python\"%") */
             for (String tag : tags) {
-                queryWrapper.like("tags", "\"" + tag + "\"");
+                queryWrapper.apply("tags ILIKE {0}", "%\"" + tag + "\"%");
             }
         }
         // 排序
@@ -394,8 +396,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return new ArrayList<>();
         }
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId)
-                .orderByDesc("createTime")
+        queryWrapper.eq("user_id", userId)
+                .orderByDesc("create_time")
                 .last("LIMIT " + count);
         List<Picture> pictures = this.list(queryWrapper);
         if (pictures == null || pictures.isEmpty()) {

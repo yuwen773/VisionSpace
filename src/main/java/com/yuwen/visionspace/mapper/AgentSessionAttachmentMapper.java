@@ -25,9 +25,10 @@ public interface AgentSessionAttachmentMapper extends BaseMapper<AgentSessionAtt
      * 因为再次提交同一个资源标识而复活。
      */
     @Insert("INSERT INTO agent_session_attachment " +
-            "(sessionId, resourceId, ownerUserId, status, legacy, createTime, updateTime) " +
-            "VALUES (#{sessionId}, #{resourceId}, #{ownerUserId}, 0, #{legacy}, NOW(), NOW()) " +
-            "ON DUPLICATE KEY UPDATE updateTime = updateTime")
+            "(session_id, resource_id, owner_user_id, status, legacy, create_time, update_time) " +
+            "VALUES (#{sessionId}, #{resourceId}, #{ownerUserId}, 0, #{legacy}, " +
+            "statement_timestamp(), statement_timestamp()) " +
+            "ON CONFLICT (session_id, resource_id) DO NOTHING")
     int insertIfAbsent(@Param("sessionId") String sessionId,
                        @Param("resourceId") Long resourceId,
                        @Param("ownerUserId") Long ownerUserId,
@@ -38,7 +39,7 @@ public interface AgentSessionAttachmentMapper extends BaseMapper<AgentSessionAtt
      * 「建立绑定」之间出现窗口。
      */
     @Select("SELECT * FROM agent_session_attachment " +
-            "WHERE sessionId = #{sessionId} AND resourceId = #{resourceId} FOR UPDATE")
+            "WHERE session_id = #{sessionId} AND resource_id = #{resourceId} FOR UPDATE")
     AgentSessionAttachment selectForUpdate(@Param("sessionId") String sessionId,
                                            @Param("resourceId") Long resourceId);
 
@@ -46,42 +47,42 @@ public interface AgentSessionAttachmentMapper extends BaseMapper<AgentSessionAtt
      * 该资源当前是否还有有效绑定。没有有效绑定时才可以清理对象。
      */
     @Select("SELECT COUNT(*) FROM agent_session_attachment " +
-            "WHERE resourceId = #{resourceId} AND status = 0")
+            "WHERE resource_id = #{resourceId} AND status = 0")
     int countActiveByResource(@Param("resourceId") Long resourceId);
 
     /**
      * 会话内某资源是否处于有效绑定状态。
      */
     @Select("SELECT COUNT(*) FROM agent_session_attachment " +
-            "WHERE sessionId = #{sessionId} AND resourceId = #{resourceId} AND status = 0")
+            "WHERE session_id = #{sessionId} AND resource_id = #{resourceId} AND status = 0")
     int countActive(@Param("sessionId") String sessionId,
                     @Param("resourceId") Long resourceId);
 
     /**
      * 解除资源的全部有效绑定。图片被明确删除时调用：先停访问，再清对象。
      */
-    @Update("UPDATE agent_session_attachment SET status = 1, updateTime = NOW() " +
-            "WHERE resourceId = #{resourceId} AND status = 0")
+    @Update("UPDATE agent_session_attachment SET status = 1, update_time = statement_timestamp() " +
+            "WHERE resource_id = #{resourceId} AND status = 0")
     int releaseByResource(@Param("resourceId") Long resourceId);
 
     /**
      * 解除会话的全部有效绑定。会话被明确删除时调用。
      */
-    @Update("UPDATE agent_session_attachment SET status = 1, updateTime = NOW() " +
-            "WHERE sessionId = #{sessionId} AND status = 0")
+    @Update("UPDATE agent_session_attachment SET status = 1, update_time = statement_timestamp() " +
+            "WHERE session_id = #{sessionId} AND status = 0")
     int releaseBySession(@Param("sessionId") String sessionId);
 
     /**
      * 会话当前的有效绑定，用于会话删除后清理没有其他引用的对象。
      */
     @Select("SELECT * FROM agent_session_attachment " +
-            "WHERE sessionId = #{sessionId} AND status = 0")
+            "WHERE session_id = #{sessionId} AND status = 0")
     List<AgentSessionAttachment> selectActiveBySession(@Param("sessionId") String sessionId);
 
     /**
      * 资源当前的有效绑定，用于「是否还有别人引用这个对象」的判定。
      */
     @Select("SELECT * FROM agent_session_attachment " +
-            "WHERE resourceId = #{resourceId} AND status = 0")
+            "WHERE resource_id = #{resourceId} AND status = 0")
     List<AgentSessionAttachment> selectActiveByResource(@Param("resourceId") Long resourceId);
 }

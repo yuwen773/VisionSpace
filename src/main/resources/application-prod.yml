@@ -6,13 +6,21 @@ spring:
   # 数据库配置；连接池启动窗口有限重试（30 秒）：依赖延迟时给启动留出缓冲，
   # 重试耗尽仍连不上则以明确异常快速失败（退出码非 0），而不是无限阻塞或带病启动。
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     url: ${SPRING_DATASOURCE_URL:}
     username: ${SPRING_DATASOURCE_USERNAME:}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     hikari:
       initialization-fail-timeout: 30000
       validation-timeout: 5000
+      # 2 vCPU / 1.7 GB 生产机：连接池上限收紧，避免 PG 连接内存叠加
+      maximum-pool-size: 5
+      minimum-idle: 1
+      # 与 MySQL 的 REPEATABLE READ 明确区分：统一 READ COMMITTED
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+  # Flyway 不在运行时依赖里；这里显式关闭，防止未来误引入 starter 后启动自动迁移
+  flyway:
+    enabled: false
   # Redis 配置
   data:
     redis:

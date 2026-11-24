@@ -32,16 +32,16 @@ public interface PictureIndexTaskMapper extends BaseMapper<PictureIndexTask> {
      */
     @Insert("""
             INSERT INTO picture_index_task
-                (pictureId, operation, status, attempts, lastError, nextRetryTime, createTime, updateTime)
-            VALUES (#{pictureId}, #{operation}, #{status}, #{attempts}, #{lastError}, #{nextRetryTime}, NOW(), NOW())
-            AS incoming
-            ON DUPLICATE KEY UPDATE
-                operation = incoming.operation,
-                status = incoming.status,
-                attempts = incoming.attempts,
-                lastError = incoming.lastError,
-                nextRetryTime = incoming.nextRetryTime,
-                updateTime = NOW()
+                (picture_id, operation, status, attempts, last_error, next_retry_time, create_time, update_time)
+            VALUES (#{pictureId}, #{operation}, #{status}, #{attempts}, #{lastError}, #{nextRetryTime},
+                    statement_timestamp(), statement_timestamp())
+            ON CONFLICT (picture_id) DO UPDATE SET
+                operation = EXCLUDED.operation,
+                status = EXCLUDED.status,
+                attempts = EXCLUDED.attempts,
+                last_error = EXCLUDED.last_error,
+                next_retry_time = EXCLUDED.next_retry_time,
+                update_time = statement_timestamp()
             """)
     int recordFailure(@Param("pictureId") Long pictureId,
                       @Param("operation") String operation,
@@ -58,10 +58,11 @@ public interface PictureIndexTaskMapper extends BaseMapper<PictureIndexTask> {
      * @return 到期的任务
      */
     @Select("""
-            SELECT id, pictureId, operation, status, attempts, lastError, nextRetryTime, createTime, updateTime
+            SELECT id, picture_id, operation, status, attempts, last_error, next_retry_time, create_time, update_time
             FROM picture_index_task
-            WHERE status = #{status} AND nextRetryTime IS NOT NULL AND nextRetryTime <= NOW()
-            ORDER BY nextRetryTime ASC
+            WHERE status = #{status} AND next_retry_time IS NOT NULL
+              AND next_retry_time <= statement_timestamp()
+            ORDER BY next_retry_time ASC
             LIMIT #{limit}
             """)
     List<PictureIndexTask> selectRetryable(@Param("status") Integer status, @Param("limit") int limit);
@@ -72,6 +73,6 @@ public interface PictureIndexTaskMapper extends BaseMapper<PictureIndexTask> {
      * @param pictureId 图片 id
      * @return 影响行数
      */
-    @Delete("DELETE FROM picture_index_task WHERE pictureId = #{pictureId}")
+    @Delete("DELETE FROM picture_index_task WHERE picture_id = #{pictureId}")
     int deleteByPictureId(@Param("pictureId") Long pictureId);
 }

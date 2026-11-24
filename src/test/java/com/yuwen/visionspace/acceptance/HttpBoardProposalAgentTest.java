@@ -68,7 +68,7 @@ class HttpBoardProposalAgentTest extends BoardProposalHttpFixture {
     }
 
     @Test void modelOutputCannotSpecifyIdentityToolsOrConfirmationAndSessionDeletionBlocksPlanning() throws Exception {
-        long messages=jdbc.queryForObject("SELECT COUNT(*) FROM agent_message WHERE sessionId=?",Long.class,thread);
+        long messages=jdbc.queryForObject("SELECT COUNT(*) FROM agent_message WHERE session_id=?",Long.class,thread);
         for(String malicious:List.of("{\"ownerId\":1,\"groups\":[],\"items\":[]}","{\"operationId\":\"fake\",\"decision\":\"CONFIRM\",\"groups\":[],\"items\":[]}",
                 "{\"groups\":[],\"items\":[{\"boardItemId\":\"foreign\",\"position\":0,\"selected\":true}]}","{\"tools\":[\"deletePicture\"],\"groups\":[],\"items\":[]}")) {
             model.output=malicious;
@@ -79,9 +79,9 @@ class HttpBoardProposalAgentTest extends BoardProposalHttpFixture {
             assertTrue(attempt.stream().allMatch(c->c.method().equals("MODEL")));
         }
         assertEquals(1,readBoard().path("revision").asInt());
-        assertEquals(messages,jdbc.queryForObject("SELECT COUNT(*) FROM agent_message WHERE sessionId=?",Long.class,thread));
+        assertEquals(messages,jdbc.queryForObject("SELECT COUNT(*) FROM agent_message WHERE session_id=?",Long.class,thread));
         int calls=recorder.calls().size();
-        jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?",thread);
+        jdbc.update("UPDATE agent_session SET is_delete=1 WHERE session_id=?",thread);
         assertEquals(40101,call("POST","/agent/board-proposals/plan",Map.of("proposalRequestId","deleted-session","threadId",thread,"boardId",board,"expectedRevision",1,"message","save")).path("code").asInt());
         assertEquals(calls,recorder.calls().size());
     }

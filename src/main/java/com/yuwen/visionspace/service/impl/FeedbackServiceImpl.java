@@ -103,7 +103,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         if (queryRequest.getStatus() != null) {
             queryWrapper.eq("status", queryRequest.getStatus());
         }
-        queryWrapper.orderByDesc("createTime");
+        queryWrapper.orderByDesc("create_time");
 
         Page<UserFeedback> feedbackPage = feedbackMapper.selectPage(page, queryWrapper);
         Page<FeedbackVO> voPage = new Page<>(current, pageSize, feedbackPage.getTotal());

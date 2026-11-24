@@ -11,13 +11,13 @@
     <update id="markUsed">
         UPDATE vip_redemption_code
         SET status = 1,
-            usedBy = #{userId},
-            usedTime = #{usedTime}
-        WHERE codeHash = #{codeHash}
+            used_by = #{userId},
+            used_time = #{usedTime}
+        WHERE code_hash = #{codeHash}
           AND status = 0
     </update>
 
     <select id="selectIdByHash" resultType="java.lang.Long">
-        SELECT id FROM vip_redemption_code WHERE codeHash = #{codeHash}
+        SELECT id FROM vip_redemption_code WHERE code_hash = #{codeHash}
     </select>
 </mapper>

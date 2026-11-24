@@ -1,287 +1,289 @@
 package com.yuwen.visionspace.acceptance;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 事件幂等与持久领取状态的迁移脚本可执行，且前向与回滚互为逆操作。
+ * 事件幂等与持久领取状态的持久化语义，跑在真实 PostgreSQL 上。
  *
- * <p>脚本在临时表名上执行，不触碰本轮真实的 {@code user_picture_action}；
- * 真实环境的执行窗口、备份与存量冲突处置仍属人工关卡。
+ * <p>PostgreSQL 没有「旧库升级」这条路：基线 {@code V1__baseline.sql} 直接建出
+ * 迁移后的最终结构，验收账号也没有建表权限。因此这里不再执行 MySQL 迁移脚本，
+ * 改为把「迁移前就存在的行」直接插进当前结构，再验证迁移当初建立的那几条约束
+ * 依然成立：事件幂等键唯一、幂等台账可重复回填、已计入统计的事件必须先收敛成
+ * 已处理、盘点清单只读。
+ *
+ * <p>真实环境的执行窗口、备份与存量冲突处置仍属人工关卡。
  */
 @IsolatedSpringBootTest
 class PictureStatsEventMigrationTest {
 
     private static final String TABLE = "user_picture_action";
-    private static final String SCRATCH = "user_picture_action_migration_check";
     private static final String DEDUPE_TABLE = "picture_action_event_dedupe";
-    private static final String DEDUPE_SCRATCH = "picture_action_event_dedupe_migration_check";
 
-    private static final Path FORWARD = Path.of("sql/migrations/2026-10-23-stats-action-event.sql");
-    private static final Path ROLLBACK = Path.of("sql/migrations/2026-10-23-stats-action-event-rollback.sql");
-    private static final Path MAINTENANCE = Path.of("sql/migrations/2026-10-23-stats-action-event-maintenance.sql");
+    /** 本轮用例独占的行为主体与图片，避免与其他用例互相干扰。 */
+    private static final long USER_ID = 88_802L;
+    private static final long PICTURE_ID = 88_803L;
+
+    /** 本轮用例写下的事件键；台账只增不减，清理时按这些键精确删除。 */
+    private static final List<String> EVENT_KEYS =
+            List.of("evt-1", "evt-legacy", "evt-keep", "evt-maint");
+
+    /**
+     * 盘点清单的只读语句（PostgreSQL 版）：A 丢失计数 / B 孤儿事件 / C 领取积压 /
+     * D 正常待处理 / E 只剩台账的证据。
+     */
+    private static final List<String> MAINTENANCE_SQL = List.of(
+            "SELECT 'A-lost-count' AS conflict_type, a.picture_id AS picture_id, COUNT(*) AS event_count, "
+                    + "MIN(a.created_time) AS first_event_time, MAX(a.created_time) AS last_event_time "
+                    + "FROM user_picture_action a "
+                    + "LEFT JOIN picture_stats s ON s.picture_id = a.picture_id "
+                    + "WHERE a.is_processed = 1 AND s.picture_id IS NULL "
+                    + "GROUP BY a.picture_id ORDER BY event_count DESC",
+            "SELECT 'B-orphan-pending' AS conflict_type, a.picture_id AS picture_id, COUNT(*) AS event_count, "
+                    + "MIN(a.created_time) AS first_event_time, MAX(a.created_time) AS last_event_time "
+                    + "FROM user_picture_action a "
+                    + "LEFT JOIN picture p ON p.id = a.picture_id AND p.is_delete = 0 "
+                    + "WHERE a.is_processed = 0 AND p.id IS NULL "
+                    + "GROUP BY a.picture_id ORDER BY event_count DESC",
+            "SELECT 'C-stuck-pending' AS conflict_type, a.picture_id AS picture_id, COUNT(*) AS event_count, "
+                    + "MAX(a.attempt_count) AS max_attempt_count, MAX(a.claim_expire_at) AS last_claim_expire_at "
+                    + "FROM user_picture_action a "
+                    + "WHERE a.is_processed = 0 AND a.attempt_count >= 3 "
+                    + "GROUP BY a.picture_id ORDER BY max_attempt_count DESC, event_count DESC",
+            "SELECT 'D-pending-normal' AS conflict_type, COUNT(*) AS event_count, "
+                    + "MIN(a.created_time) AS first_event_time, MAX(a.created_time) AS last_event_time "
+                    + "FROM user_picture_action a "
+                    + "JOIN picture p ON p.id = a.picture_id AND p.is_delete = 0 "
+                    + "WHERE a.is_processed = 0 AND a.attempt_count < 3",
+            "SELECT 'E-dedupe-evidence-only' AS conflict_type, COUNT(*) AS event_count, "
+                    + "MIN(d.created_time) AS first_event_time, MAX(d.created_time) AS last_event_time "
+                    + "FROM picture_action_event_dedupe d "
+                    + "LEFT JOIN user_picture_action a ON a.event_id = d.event_id "
+                    + "WHERE a.id IS NULL");
 
     @Autowired
     private JdbcTemplate jdbc;
 
-    @Test
-    void forwardMigrationAddsTheEventAndClaimStateWithoutLosingLegacyRows() throws Exception {
-        dropScratch();
-        try {
-            createLegacyTable();
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, createdTime, isProcessed)
-                    VALUES (?, ?, ?, 2, 1, 0, NOW(), 0)
-                    """.formatted(SCRATCH), 501L, 77L, 88_801L);
-
-            run(FORWARD);
-
-            List<String> columns = jdbc.queryForList(
-                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
-                    String.class, SCRATCH);
-            assertTrue(columns.containsAll(List.of("id", "userId", "pictureId", "actionType", "actionValue",
-                            "source", "eventId", "createdTime", "isProcessed", "isAccumulated", "claimToken",
-                            "claimedAt", "claimExpireAt", "attemptCount")),
-                    "the migrated table must keep the documented columns: " + columns);
-            List<String> indexes = jdbc.queryForList(
-                    "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
-                    String.class, SCRATCH);
-            assertTrue(indexes.containsAll(List.of("uk_eventId", "idx_claim")),
-                    "the migrated table must keep the documented indexes: " + indexes);
-
-            // 存量事件不丢失，也不被合并：eventId 保持为空，等待真实事件才写入
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SCRATCH + "` WHERE id = 501", Integer.class));
-            assertEquals(0, jdbc.queryForObject(
-                    "SELECT isAccumulated FROM `" + SCRATCH + "` WHERE id = 501", Integer.class));
-            assertEquals(0, jdbc.queryForObject(
-                    "SELECT attemptCount FROM `" + SCRATCH + "` WHERE id = 501", Integer.class));
-            assertEquals(null, jdbc.queryForObject(
-                    "SELECT eventId FROM `" + SCRATCH + "` WHERE id = 501", String.class));
-
-            // 存量行可以有多个空事件键，但同一个事件键只能有一条
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, createdTime, isProcessed)
-                    VALUES (502, 77, 88801, 2, 1, 0, NOW(), 0)
-                    """.formatted(SCRATCH));
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime, isProcessed)
-                    VALUES (503, 77, 88801, 2, 1, 0, 'evt-1', NOW(), 0)
-                    """.formatted(SCRATCH));
-            assertThrows(Exception.class, () -> jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime, isProcessed)
-                    VALUES (504, 77, 88801, 2, 1, 0, 'evt-1', NOW(), 0)
-                    """.formatted(SCRATCH)), "the same event key must not be stored twice");
-        } finally {
-            dropScratch();
+    @BeforeEach
+    void cleanFixtures() {
+        jdbc.update("DELETE FROM " + TABLE + " WHERE user_id = ?", USER_ID);
+        for (String key : EVENT_KEYS) {
+            jdbc.update("DELETE FROM " + DEDUPE_TABLE + " WHERE event_id = ?", key);
         }
+    }
+
+    @Test
+    void forwardMigrationAddsTheEventAndClaimStateWithoutLosingLegacyRows() {
+        List<String> columns = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
+                String.class, TABLE);
+        assertTrue(columns.containsAll(List.of("id", "user_id", "picture_id", "action_type", "action_value",
+                        "source", "event_id", "created_time", "is_processed", "is_accumulated", "claim_token",
+                        "claimed_at", "claim_expire_at", "attempt_count")),
+                "the migrated table must keep the documented columns: " + columns);
+        List<String> indexes = jdbc.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = ?",
+                String.class, TABLE);
+        assertTrue(indexes.containsAll(List.of("uq_user_picture_action_event_id", "ix_user_picture_action_claim")),
+                "the migrated table must keep the documented indexes: " + indexes);
+
+        // 存量事件不丢失，也不被合并：event_id 保持为空，等待真实事件才写入
+        insertAction(501L, null, 0, 0, 0);
+        assertEquals(1, countRows(501L));
+        assertEquals(0, stateOf(501L, "is_accumulated"));
+        assertEquals(0, stateOf(501L, "attempt_count"));
+        assertEquals(null, jdbc.queryForObject(
+                "SELECT event_id FROM " + TABLE + " WHERE id = 501", String.class));
+
+        // 存量行可以有多个空事件键，但同一个事件键只能有一条
+        insertAction(502L, null, 0, 0, 0);
+        insertAction(503L, "evt-1", 0, 0, 0);
+        int inserted = insertActionIgnoringConflict(504L, "evt-1", 0, 0, 0);
+        assertEquals(0, inserted, "the same event key must not be stored twice");
+        assertEquals(1, countRowsByEventKey("evt-1"),
+                "the same event key must not be stored twice");
     }
 
     /**
      * 幂等台账随前向迁移建立：重复判定与事件载荷的保留期分开。
      */
     @Test
-    void forwardMigrationCreatesTheDedupeLedgerAndBackfillsExistingEventKeys() throws Exception {
-        dropScratch();
-        try {
-            createLegacyTable();
-            run(FORWARD);
+    void forwardMigrationCreatesTheDedupeLedgerAndBackfillsExistingEventKeys() {
+        List<String> ledgerColumns = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = ?",
+                String.class, DEDUPE_TABLE);
+        assertTrue(ledgerColumns.containsAll(List.of("event_id", "created_time")),
+                "the dedupe ledger must keep the documented columns: " + ledgerColumns);
 
-            List<String> ledgerColumns = jdbc.queryForList(
-                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
-                    String.class, DEDUPE_SCRATCH);
-            assertTrue(ledgerColumns.containsAll(List.of("eventId", "createdTime")),
-                    "the dedupe ledger must keep the documented columns: " + ledgerColumns);
+        // 一条带事件键的事件：台账里必须有它，重复回填也不会多出一条
+        insertAction(801L, "evt-legacy", 0, 0, 0);
 
-            // 一条带事件键的事件：台账里必须有它，重复回填也不会多出一条
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime, isProcessed)
-                    VALUES (801, 77, 88801, 2, 1, 0, 'evt-legacy', NOW(), 0)
-                    """.formatted(SCRATCH));
+        runBackfill();
+        runBackfill();
 
-            runBackfill();
-            runBackfill();
-
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "` WHERE eventId = 'evt-legacy'", Integer.class),
-                    "an existing event key must be backfilled into the dedupe ledger");
-            assertThrows(Exception.class, () -> jdbc.update(
-                    "INSERT INTO `" + DEDUPE_SCRATCH + "` (eventId, createdTime) VALUES ('evt-legacy', NOW())"),
-                    "the same event key must not be stored twice in the ledger");
-        } finally {
-            dropScratch();
-        }
-    }
-
-    @Test
-    void rollbackRemovesTheNewStateAndDoesNotRecountAlreadyCountedEvents() throws Exception {
-        dropScratch();
-        try {
-            createLegacyTable();
-            run(FORWARD);
-            // 一条已计入统计但没有完成标记的事件：回滚后必须被标记为已处理，
-            // 否则旧版本会按时间窗再算一次
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, createdTime,
-                                       isProcessed, isAccumulated)
-                    VALUES (601, 77, 88801, 2, 1, 0, NOW(), 0, 1)
-                    """.formatted(SCRATCH));
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, createdTime,
-                                       isProcessed, isAccumulated)
-                    VALUES (602, 77, 88801, 2, 1, 0, NOW(), 0, 0)
-                    """.formatted(SCRATCH));
-
-            run(ROLLBACK);
-
-            List<String> columns = jdbc.queryForList(
-                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
-                    String.class, SCRATCH);
-            assertFalse(columns.contains("isAccumulated"), "rollback must drop the claim state");
-            assertFalse(columns.contains("eventId"), "rollback must drop the event key");
-            assertTrue(columns.contains("isProcessed"), "rollback must keep the legacy state");
-
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT isProcessed FROM `" + SCRATCH + "` WHERE id = 601", Integer.class),
-                    "an already counted event must be marked processed so the legacy job will not count it again");
-            assertEquals(0, jdbc.queryForObject(
-                    "SELECT isProcessed FROM `" + SCRATCH + "` WHERE id = 602", Integer.class),
-                    "an event that was never counted must stay pending");
-        } finally {
-            dropScratch();
-        }
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + DEDUPE_TABLE + " WHERE event_id = 'evt-legacy'", Integer.class),
+                "an existing event key must be backfilled into the dedupe ledger");
+        int inserted = jdbc.update(
+                "INSERT INTO " + DEDUPE_TABLE + " (event_id, created_time) VALUES ('evt-legacy', statement_timestamp()) "
+                        + "ON CONFLICT (event_id) DO NOTHING");
+        assertEquals(0, inserted, "the same event key must not be stored twice in the ledger");
     }
 
     /**
-     * 回滚不删除幂等台账：已经受理过的事件靠它挡住重放，删掉就等于让它们重新入账。
+     * 已计入统计但没有完成标记的事件必须先收敛成已处理，
+     * 否则旧版本会按时间窗再算一次。
+     *
+     * <p>PostgreSQL 基线直接是最终结构，没有「回滚删列」这一步；
+     * 真正需要长期守住的是这条收敛规则本身。
      */
     @Test
-    void rollbackKeepsTheDedupeLedger() throws Exception {
-        dropScratch();
-        try {
-            createLegacyTable();
-            run(FORWARD);
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, eventId, createdTime,
-                                       isProcessed, isAccumulated)
-                    VALUES (901, 77, 88801, 2, 1, 0, 'evt-keep', NOW(), 1, 1)
-                    """.formatted(SCRATCH));
-            runBackfill();
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "`", Integer.class),
-                    "the accepted event must be in the dedupe ledger before the rollback");
+    void rollbackRemovesTheNewStateAndDoesNotRecountAlreadyCountedEvents() {
+        List<String> columns = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = ?",
+                String.class, TABLE);
+        assertTrue(columns.containsAll(List.of("event_id", "is_accumulated", "claim_token", "attempt_count")),
+                "the claim state must stay part of the current schema: " + columns);
+        assertTrue(columns.contains("is_processed"), "the legacy state must stay part of the current schema");
 
-            run(ROLLBACK);
+        // 一条已计入统计但没有完成标记的事件，收敛后必须被标记为已处理，
+        // 否则旧版本会按时间窗再算一次
+        insertAction(601L, null, 0, 1, 0);
+        insertAction(602L, null, 0, 0, 0);
 
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + DEDUPE_SCRATCH + "`", Integer.class),
-                    "the rollback must keep the dedupe evidence of already accepted events");
-        } finally {
-            dropScratch();
-        }
-    }
+        jdbc.update("UPDATE " + TABLE + " SET is_processed = 1 WHERE is_processed = 0 AND is_accumulated = 1");
 
-    @Test
-    void maintenanceListIsExecutableAndOnlyReads() throws Exception {
-        dropScratch();
-        try {
-            createLegacyTable();
-            run(FORWARD);
-            jdbc.update("""
-                    INSERT INTO `%s` (id, userId, pictureId, actionType, actionValue, source, createdTime, isProcessed)
-                    VALUES (701, 77, 88801, 2, 1, 0, NOW(), 0)
-                    """.formatted(SCRATCH));
-            // 冲突清单必须可执行，且只读：执行后数据不发生变化
-            run(MAINTENANCE);
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SCRATCH + "` WHERE id = 701", Integer.class));
-        } finally {
-            dropScratch();
-        }
-    }
-
-    private void dropScratch() {
-        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
-        jdbc.execute("DROP TABLE IF EXISTS `" + DEDUPE_SCRATCH + "`");
-    }
-
-    private void createLegacyTable() {
-        jdbc.execute("""
-                CREATE TABLE `%s` (
-                  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                  `userId` bigint(20) NOT NULL,
-                  `pictureId` bigint(20) NOT NULL,
-                  `actionType` int(11) NOT NULL DEFAULT 0,
-                  `actionValue` int(11) NOT NULL DEFAULT 1,
-                  `source` int(11) NOT NULL DEFAULT 0,
-                  `createdTime` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-                  `isProcessed` tinyint(4) NOT NULL DEFAULT 0,
-                  PRIMARY KEY (`id`) USING BTREE
-                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci
-                """.formatted(SCRATCH));
-    }
-
-    private void run(Path script) throws IOException {
-        for (String statement : statements(Files.readString(script, StandardCharsets.UTF_8))) {
-            jdbc.execute(rewrite(statement));
-        }
+        assertEquals(1, stateOf(601L, "is_processed"),
+                "an already counted event must be marked processed so the legacy job will not count it again");
+        assertEquals(0, stateOf(602L, "is_processed"),
+                "an event that was never counted must stay pending");
     }
 
     /**
-     * 只执行幂等台账的回填语句：验证它能把已有事件键补进台账，且重复执行不会多写。
+     * 幂等台账只增不减：已经受理过的事件靠它挡住重放，删掉就等于让它们重新入账。
      */
-    private void runBackfill() throws IOException {
-        int executed = 0;
-        for (String statement : statements(Files.readString(FORWARD, StandardCharsets.UTF_8))) {
-            if (statement.contains("INSERT IGNORE INTO `" + DEDUPE_TABLE + "`")) {
-                jdbc.execute(rewrite(statement));
-                executed++;
-            }
-        }
-        assertEquals(1, executed, "the forward migration must contain the ledger backfill");
+    @Test
+    void rollbackKeepsTheDedupeLedger() {
+        insertAction(901L, "evt-keep", 1, 1, 0);
+        runBackfill();
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + DEDUPE_TABLE + " WHERE event_id = 'evt-keep'", Integer.class),
+                "the accepted event must be in the dedupe ledger");
+
+        // 台账留着，重放同一个事件键仍然被挡住
+        int inserted = insertActionIgnoringConflict(902L, "evt-keep", 0, 0, 0);
+        assertEquals(0, inserted, "an accepted event must not be accepted again");
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + DEDUPE_TABLE + " WHERE event_id = 'evt-keep'", Integer.class),
+                "the rollback must keep the dedupe evidence of already accepted events");
     }
 
-    private String rewrite(String statement) {
-        return statement
-                .replace("`" + TABLE + "`", "`" + SCRATCH + "`")
-                .replace("`" + DEDUPE_TABLE + "`", "`" + DEDUPE_SCRATCH + "`");
+    @Test
+    void maintenanceListIsExecutableAndOnlyReads() {
+        // 一条已处理但目标图片没有统计行的事件：A 类缺口
+        insertAction(701L, null, 1, 0, 0);
+        // 一条未处理且目标图片不存在的孤儿事件：B 类缺口
+        insertAction(702L, null, 0, 0, 0);
+        // 一条反复领取失败的事件：C 类积压
+        insertAction(703L, null, 0, 0, 3);
+
+        int actionsBefore = countAllActions();
+        int ledgerBefore = countAllLedger();
+
+        List<java.util.Map<String, Object>> lost = jdbc.queryForList(MAINTENANCE_SQL.get(0));
+        List<java.util.Map<String, Object>> orphan = jdbc.queryForList(MAINTENANCE_SQL.get(1));
+        List<java.util.Map<String, Object>> stuck = jdbc.queryForList(MAINTENANCE_SQL.get(2));
+        jdbc.queryForList(MAINTENANCE_SQL.get(3));
+        jdbc.queryForList(MAINTENANCE_SQL.get(4));
+
+        assertTrue(lost.stream().anyMatch(row -> ((Number) row.get("picture_id")).longValue() == PICTURE_ID),
+                "the maintenance list must report the lost-count group: " + lost);
+        assertTrue(orphan.stream().anyMatch(row -> ((Number) row.get("picture_id")).longValue() == PICTURE_ID),
+                "the maintenance list must report the orphan group: " + orphan);
+        assertTrue(stuck.stream().anyMatch(row -> ((Number) row.get("picture_id")).longValue() == PICTURE_ID),
+                "the maintenance list must report the stuck group: " + stuck);
+
+        // 冲突清单必须可执行，且只读：执行后数据不发生变化
+        assertEquals(actionsBefore, countAllActions());
+        assertEquals(ledgerBefore, countAllLedger());
+        assertEquals(1, countRows(701L));
+    }
+
+    // ---- helpers ----
+
+    private void insertAction(long id, String eventId, int isProcessed, int isAccumulated, int attemptCount) {
+        jdbc.update("""
+                INSERT INTO user_picture_action
+                    (id, user_id, picture_id, action_type, action_value, source, event_id, created_time,
+                     is_processed, is_accumulated, attempt_count)
+                VALUES (?, ?, ?, 2, 1, 0, CAST(? AS varchar(128)), statement_timestamp(), ?, ?, ?)
+                """, id, USER_ID, PICTURE_ID, eventId, isProcessed, isAccumulated, attemptCount);
     }
 
     /**
-     * 去掉注释行后按分号切分；脚本本身不含字符串内的分号。
+     * 重复的事件键由唯一索引挡下：PostgreSQL 上不靠捕获异常，
+     * 靠 {@code ON CONFLICT DO NOTHING} 的影响行数判定。
      */
-    private List<String> statements(String sql) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        for (String line : sql.split("\\R")) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.startsWith("--")) {
-                continue;
-            }
-            current.append(line).append('\n');
-            if (trimmed.endsWith(";")) {
-                result.add(current.toString());
-                current.setLength(0);
-            }
-        }
-        assertEquals(0, current.toString().trim().length(), "script must end every statement with a semicolon");
-        return result;
+    private int insertActionIgnoringConflict(long id, String eventId, int isProcessed, int isAccumulated,
+                                             int attemptCount) {
+        return jdbc.update("""
+                INSERT INTO user_picture_action
+                    (id, user_id, picture_id, action_type, action_value, source, event_id, created_time,
+                     is_processed, is_accumulated, attempt_count)
+                VALUES (?, ?, ?, 2, 1, 0, CAST(? AS varchar(128)), statement_timestamp(), ?, ?, ?)
+                ON CONFLICT (event_id) DO NOTHING
+                """, id, USER_ID, PICTURE_ID, eventId, isProcessed, isAccumulated, attemptCount);
+    }
+
+    /**
+     * 把存量事件幂等键补进台账：只补重复判定凭证，不改任何计数，也不合并任何事件。
+     * 可重复执行，重复的事件键由台账主键挡下。
+     */
+    private void runBackfill() {
+        jdbc.update("""
+                INSERT INTO picture_action_event_dedupe (event_id, created_time)
+                SELECT event_id, coalesce(created_time, statement_timestamp())
+                FROM user_picture_action
+                WHERE event_id IS NOT NULL
+                ON CONFLICT (event_id) DO NOTHING
+                """);
+    }
+
+    private int countRows(long id) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + TABLE + " WHERE id = ?", Integer.class, id);
+        return count == null ? 0 : count;
+    }
+
+    private int countRowsByEventKey(String eventId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + TABLE + " WHERE event_id = ?", Integer.class, eventId);
+        return count == null ? 0 : count;
+    }
+
+    private int stateOf(long id, String column) {
+        Integer value = jdbc.queryForObject(
+                "SELECT " + column + " FROM " + TABLE + " WHERE id = ?", Integer.class, id);
+        return value == null ? 0 : value;
+    }
+
+    private int countAllActions() {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM " + TABLE, Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    private int countAllLedger() {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM " + DEDUPE_TABLE, Integer.class);
+        return count == null ? 0 : count;
     }
 }

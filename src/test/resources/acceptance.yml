@@ -18,9 +18,10 @@ spring:
   application:
     name: visionspace-acceptance
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 5000
+      transaction-isolation: TRANSACTION_READ_COMMITTED
   session:
     store-type: redis
     timeout: 300
@@ -52,7 +53,7 @@ spring:
         enabled: false
 mybatis-plus:
   configuration:
-    map-underscore-to-camel-case: false
+    map-underscore-to-camel-case: true
   global-config:
     db-config:
       logic-delete-field: isDelete

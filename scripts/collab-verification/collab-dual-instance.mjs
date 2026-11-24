@@ -1,9 +1,9 @@
 // 工单 44 双实例协作稳定性验收驱动。
 //
 // 由 scripts/collab-verification/collab-dual-instance.ps1 启动两个真实后端进程
-// （共享同一个隔离 MySQL/Redis），然后运行本脚本：
+// （共享同一个隔离 PostgreSQL/Redis），然后运行本脚本：
 //   VS44_PORT_A / VS44_PORT_B  两个后端实例的端口
-//   VS44_MYSQL_PORT / VS44_REDIS_PORT / VS44_NONCE  隔离实例
+//   VS44_PG_PORT / VS44_REDIS_PORT / VS44_NONCE  隔离实例
 //   VS44_ARTIFACTS             证据输出目录
 //
 // 覆盖：跨实例抢租约、续期、过期接管、同用户多标签、旧连接迟到事件、
@@ -22,14 +22,14 @@ const { WebSocket } = require('ws')
 
 const PORT_A = Number(process.env.VS44_PORT_A)
 const PORT_B = Number(process.env.VS44_PORT_B)
-const MYSQL_PORT = Number(process.env.VS44_MYSQL_PORT)
+const PG_PORT = Number(process.env.VS44_PG_PORT)
 const REDIS_PORT = Number(process.env.VS44_REDIS_PORT)
 const NONCE = process.env.VS44_NONCE
 const ARTIFACTS = process.env.VS44_ARTIFACTS || 'collab-artifacts-44'
 const PASSWORD = 'acceptance-password'
 
-if (!PORT_A || !PORT_B || !MYSQL_PORT || !REDIS_PORT || !NONCE) {
-  console.error('BLOCKED_ENV: VS44_PORT_A/B, VS44_MYSQL_PORT, VS44_REDIS_PORT, VS44_NONCE are required')
+if (!PORT_A || !PORT_B || !PG_PORT || !REDIS_PORT || !NONCE) {
+  console.error('BLOCKED_ENV: VS44_PORT_A/B, VS44_PG_PORT, VS44_REDIS_PORT, VS44_NONCE are required')
   process.exit(2)
 }
 fs.mkdirSync(ARTIFACTS, { recursive: true })
@@ -140,8 +140,8 @@ function connect(port, pictureId, cookieJar) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// ---- fixtures via MySQL JDBC not available in node; seed through acceptance SQL ----
-// Seeding happens in the PS driver via mysql.exe before this script runs.
+// ---- 没有可用的 JDBC 驱动，夹具由 PS 驱动用 psql 预先写入 ----
+// Seeding happens in the PS driver via psql before this script runs.
 // Environment: VS44_FIXTURE_JSON holds {users, spaceId, pictureId}.
 
 async function main() {
@@ -350,7 +350,7 @@ async function main() {
   if (wsD && !wsD.handshakeError) wsD.close()
 
   evidence.finalData = {
-    note: '最终数据结果由 PS 驱动在断言后查询 MySQL：picture 行保持 name=original，space 配额不变。',
+    note: '最终数据结果由 PS 驱动在断言后查询 PostgreSQL：picture 行保持 name=original，space 配额不变。',
   }
   fs.writeFileSync(path.join(ARTIFACTS, 'protocol-results.json'), JSON.stringify(evidence, null, 2))
 

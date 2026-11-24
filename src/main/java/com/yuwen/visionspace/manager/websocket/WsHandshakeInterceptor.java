@@ -58,9 +58,18 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
         if (request instanceof ServletServerHttpRequest) {
             HttpServletRequest httpServletRequest = ((ServletServerHttpRequest) request).getServletRequest();
             // 从请求中获取参数
-            String pictureId = httpServletRequest.getParameter("pictureId");
-            if (StrUtil.isBlank(pictureId)) {
+            String pictureIdParam = httpServletRequest.getParameter("pictureId");
+            if (StrUtil.isBlank(pictureIdParam)) {
                 log.error("缺少图片参数，拒绝握手");
+                return false;
+            }
+            // 主键是 bigint：必须先解析再查库。PostgreSQL 不做隐式转换，
+            // 直接拿字符串绑定会报 operator does not exist: bigint = character varying。
+            long pictureId;
+            try {
+                pictureId = Long.parseLong(pictureIdParam);
+            } catch (NumberFormatException e) {
+                log.error("图片参数不是合法的 id，拒绝握手");
                 return false;
             }
             // 获取当前登录用户
@@ -101,7 +110,7 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
             // 设置用户登录信息等属性到 WebSocket 会话中
             attributes.put("user", loginUser);
             attributes.put("userId", loginUser.getId());
-            attributes.put("pictureId", Long.valueOf(pictureId)); // 记得转换为 Long 类型
+            attributes.put("pictureId", pictureId);
             // 记录 HTTP 会话 id：每条消息复核登录态时用它定位 Redis 会话，
             // 注销（会话失效）后即使 WebSocket 连接还在也不能继续编辑
             attributes.put("httpSessionId", httpServletRequest.getSession().getId());

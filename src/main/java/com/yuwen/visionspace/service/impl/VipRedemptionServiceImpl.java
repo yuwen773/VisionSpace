@@ -70,7 +70,7 @@ public class VipRedemptionServiceImpl extends ServiceImpl<VipRedemptionCodeMappe
         if (claimed == 0) {
             // 没抢到：区分已用与无效，向用户表达明确状态
             VipRedemptionCode existing = codeMapper.selectOne(
-                    new QueryWrapper<VipRedemptionCode>().eq("codeHash", codeHash));
+                    new QueryWrapper<VipRedemptionCode>().eq("code_hash", codeHash));
             if (existing != null && existing.getStatus() != null
                     && existing.getStatus() == VipRedemptionCode.STATUS_USED) {
                 log.info("vip code already redeemed, userId={}, codeHash={}", user.getId(), shortHash(codeHash));

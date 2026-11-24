@@ -73,15 +73,15 @@ class HttpAgentAttachmentLifecycleTest {
     @AfterEach
     void tearDown() {
         for (String threadId : threadIds) {
-            jdbc.update("DELETE FROM agent_session_attachment WHERE sessionId = ?", threadId);
-            jdbc.update("DELETE FROM agent_message WHERE sessionId = ?", threadId);
-            jdbc.update("DELETE FROM agent_session WHERE sessionId = ?", threadId);
+            jdbc.update("DELETE FROM agent_session_attachment WHERE session_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_message WHERE session_id = ?", threadId);
+            jdbc.update("DELETE FROM agent_session WHERE session_id = ?", threadId);
         }
         // 附件删除未确认时也会登记统一的清理任务：按本人资源记录的对象键清理，
         // 否则任务会留到别的用例里被当成自己的残留
         jdbc.update("DELETE FROM storage_cleanup_task WHERE reason = '附件对象删除未确认' "
-                + "AND objectKey LIKE 'https://acceptance.invalid/agent-chat/%'");
-        jdbc.update("DELETE FROM picture_file WHERE purpose = 'agent-chat' AND ownerUserId IN (?, ?)",
+                + "AND object_key LIKE 'https://acceptance.invalid/agent-chat/%'");
+        jdbc.update("DELETE FROM picture_file WHERE purpose = 'agent-chat' AND owner_user_id IN (?, ?)",
                 ownerId, strangerId);
     }
 
@@ -187,8 +187,10 @@ class HttpAgentAttachmentLifecycleTest {
         String threadId = seedSession(ownerId, "own thread");
         long resourceId = seedAgentResource(ownerId, "https://acceptance.invalid/agent-chat/o/g.png");
         agentAttachmentService.bind(threadId, ownerId, List.of(resourceId));
-        jdbc.update("INSERT INTO agent_message (sessionId, role, subType, content, attachmentIds, createdTime) " +
-                "VALUES (?, 'USER', NULL, '看看这张图', ?, NOW())", threadId, String.valueOf(resourceId));
+        // PostgreSQL 的 agent_message 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO agent_message (id, session_id, role, sub_type, content, attachment_ids, created_time) " +
+                "VALUES (?, ?, 'USER', NULL, '看看这张图', ?, statement_timestamp())",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, String.valueOf(resourceId));
 
         try (var owner = client()) {
             login(owner, ownerId);
@@ -213,7 +215,8 @@ class HttpAgentAttachmentLifecycleTest {
     @Test
     void unboundTemporaryImagesAreReclaimedAfterTheRetentionWindow() throws Exception {
         long expired = seedAgentResource(ownerId, "https://acceptance.invalid/agent-chat/o/expired.png");
-        jdbc.update("UPDATE picture_file SET createTime = DATE_SUB(NOW(), INTERVAL 25 HOUR) WHERE id = ?", expired);
+        jdbc.update("UPDATE picture_file SET create_time = statement_timestamp() - (25 * interval '1 hour') "
+                + "WHERE id = ?", expired);
         long fresh = seedAgentResource(ownerId, "https://acceptance.invalid/agent-chat/o/fresh.png");
 
         int before = recorder.calls().size();
@@ -237,7 +240,8 @@ class HttpAgentAttachmentLifecycleTest {
         String threadId = seedSession(ownerId, "own thread");
         long resourceId = seedAgentResource(ownerId, "https://acceptance.invalid/agent-chat/o/bound.png");
         agentAttachmentService.bind(threadId, ownerId, List.of(resourceId));
-        jdbc.update("UPDATE picture_file SET createTime = DATE_SUB(NOW(), INTERVAL 48 HOUR) WHERE id = ?", resourceId);
+        jdbc.update("UPDATE picture_file SET create_time = statement_timestamp() - (48 * interval '1 hour') "
+                + "WHERE id = ?", resourceId);
 
         int before = recorder.calls().size();
         assertFalse(agentAttachmentService.reclaimOne(resourceId), "a bound image must not be reclaimed");
@@ -324,12 +328,12 @@ class HttpAgentAttachmentLifecycleTest {
         assertEquals(1, deleteState(resourceId), "the deletion must be kept as retryable");
         assertEquals(1, deleteRetryCount(resourceId));
         assertNotNull(jdbc.queryForObject(
-                "SELECT deleteNextRetryTime FROM picture_file WHERE id = ?", Date.class, resourceId),
+                "SELECT delete_next_retry_time FROM picture_file WHERE id = ?", Date.class, resourceId),
                 "a retryable deletion must have a next retry time");
 
         // 重试成功后状态收敛
-        jdbc.update("UPDATE picture_file SET deleteNextRetryTime = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?",
-                resourceId);
+        jdbc.update("UPDATE picture_file SET delete_next_retry_time = statement_timestamp() - (1 * interval '1 minute') "
+                + "WHERE id = ?", resourceId);
         assertTrue(agentAttachmentService.retryDeleteOne(resourceId));
         assertEquals(2, resourceStatus(resourceId), "a confirmed deletion marks the resource deleted");
         assertEquals(2, deleteState(resourceId));
@@ -356,7 +360,7 @@ class HttpAgentAttachmentLifecycleTest {
 
     private int bindingCount(long resourceId) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM agent_session_attachment WHERE resourceId = ? AND status = 0",
+                "SELECT COUNT(*) FROM agent_session_attachment WHERE resource_id = ? AND status = 0",
                 Integer.class, resourceId);
         return count == null ? 0 : count;
     }
@@ -366,11 +370,11 @@ class HttpAgentAttachmentLifecycleTest {
     }
 
     private int deleteState(long resourceId) {
-        return jdbc.queryForObject("SELECT deleteState FROM picture_file WHERE id = ?", Integer.class, resourceId);
+        return jdbc.queryForObject("SELECT delete_state FROM picture_file WHERE id = ?", Integer.class, resourceId);
     }
 
     private int deleteRetryCount(long resourceId) {
-        return jdbc.queryForObject("SELECT deleteRetryCount FROM picture_file WHERE id = ?", Integer.class, resourceId);
+        return jdbc.queryForObject("SELECT delete_retry_count FROM picture_file WHERE id = ?", Integer.class, resourceId);
     }
 
     private boolean isRejected(JsonNode response) {
@@ -388,19 +392,21 @@ class HttpAgentAttachmentLifecycleTest {
         String threadId = "it-attach-" + UUID.randomUUID();
         threadIds.add(threadId);
         jdbc.update("""
-                INSERT INTO agent_session (sessionId, userId, title, status, lastMessage, messageCount,
-                                           createdTime, updatedTime, isDelete)
-                VALUES (?, ?, ?, 1, '', 0, NOW(), NOW(), 0)
-                """, threadId, userId, title);
+                INSERT INTO agent_session (id, session_id, user_id, title, status, last_message, message_count,
+                                           created_time, updated_time, is_delete)
+                VALUES (?, ?, ?, ?, 1, '', 0, statement_timestamp(), statement_timestamp(), 0)
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), threadId, userId, title);
         return threadId;
     }
 
     private long seedAgentResource(long userId, String url) {
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform, objectKey,
-                                          url, fileSize, status, deleteState, deleteRetryCount, createTime, updateTime)
-                VALUES (?, NULL, NULL, 'agent-chat', 'original', ?, ?, ?, 128, 0, 0, 0, NOW(), NOW())
-                """, userId, RecordingStorageConfiguration.PLATFORM, url, url);
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform, object_key,
+                                          url, file_size, status, delete_state, delete_retry_count, create_time, update_time)
+                VALUES (?, ?, NULL, NULL, 'agent-chat', 'original', ?, ?, ?, 128, 0, 0, 0,
+                        statement_timestamp(), statement_timestamp())
+                """, com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), userId,
+                RecordingStorageConfiguration.PLATFORM, url, url);
         Long id = jdbc.queryForObject("SELECT MAX(id) FROM picture_file WHERE url = ?", Long.class, url);
         assertNotNull(id);
         return id;
@@ -416,7 +422,7 @@ class HttpAgentAttachmentLifecycleTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

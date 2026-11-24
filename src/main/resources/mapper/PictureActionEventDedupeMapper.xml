@@ -3,13 +3,15 @@
 <mapper namespace="com.yuwen.visionspace.mapper.PictureActionEventDedupeMapper">
 
     <!--
-      登记一次事件受理。事件幂等键是主键，键冲突时抛唯一约束异常：
-      调用方据此判定为同一事件重放，不再写事件载荷，也就不会二次入账。
-      核对与盘点走只读维护清单（sql/migrations/…-maintenance.sql），不在这里另开查询口。
+      登记一次事件受理。事件幂等键是唯一键，冲突时 DO NOTHING：
+      影响行数 1 表示首次受理，0 表示同一事件重放。
+      用 ON CONFLICT 而不是捕获唯一约束异常：PostgreSQL 中任何语句报错都会
+      把当前事务置为 aborted，捕获后继续写库会得到 25P02。
     -->
     <insert id="insertEvidence">
-        INSERT INTO picture_action_event_dedupe (eventId, createdTime)
-        VALUES (#{eventId}, NOW())
+        INSERT INTO picture_action_event_dedupe (event_id, created_time)
+        VALUES (#{eventId}, statement_timestamp())
+        ON CONFLICT (event_id) DO NOTHING
     </insert>
 
 </mapper>

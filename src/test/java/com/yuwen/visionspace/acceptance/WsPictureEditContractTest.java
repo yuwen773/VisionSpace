@@ -66,7 +66,7 @@ class WsPictureEditContractTest {
         fixtureSeq = FIXTURE_SEQUENCE.incrementAndGet();
         jdbc.update("DELETE FROM picture WHERE id >= ? AND id < ?", BASE, BASE + 10_000_000);
         jdbc.update("DELETE FROM space WHERE id >= ? AND id < ?", BASE, BASE + 10_000_000);
-        jdbc.update("DELETE FROM space_user WHERE spaceId >= ? AND spaceId < ?", BASE, BASE + 10_000_000);
+        jdbc.update("DELETE FROM space_user WHERE space_id >= ? AND space_id < ?", BASE, BASE + 10_000_000);
     }
 
     @AfterEach
@@ -205,7 +205,8 @@ class WsPictureEditContractTest {
         assertTrue(editor.awaitType("ENTER_EDIT", 5).isPresent(), "editor must acquire lease");
 
         // 降权为 viewer
-        jdbc.update("UPDATE space_user SET spaceRole = 'viewer' WHERE spaceId = ? AND userId = ?", spaceId, editorId);
+        jdbc.update("UPDATE space_user SET space_role = 'viewer' WHERE space_id = ? AND user_id = ?",
+                spaceId, editorId);
 
         editor.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
         var denied = editor.awaitType("ERROR", 5);
@@ -233,7 +234,7 @@ class WsPictureEditContractTest {
              WsClient witness = connect(ownerId, pictureId)) {
             owner.send(Map.of("type", "ENTER_EDIT"));
             assertTrue(owner.awaitType("ENTER_EDIT", 5).isPresent());
-            jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", spaceId, observerId);
+            jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", spaceId, observerId);
             int before = observer.count("EDIT_ACTION");
             owner.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
             assertTrue(witness.awaitType("EDIT_ACTION", 5).isPresent(), "the authorized observer must receive the action");
@@ -254,7 +255,8 @@ class WsPictureEditContractTest {
         try (WsClient observer = connect(observerId, pictureId); WsClient owner = connect(ownerId, pictureId)) {
             owner.send(Map.of("type", "ENTER_EDIT"));
             assertTrue(owner.awaitType("ENTER_EDIT", 5).isPresent());
-            jdbc.update("UPDATE space_user SET spaceRole = 'viewer' WHERE spaceId = ? AND userId = ?", spaceId, observerId);
+            jdbc.update("UPDATE space_user SET space_role = 'viewer' WHERE space_id = ? AND user_id = ?",
+                    spaceId, observerId);
             owner.send(Map.of("type", "EDIT_ACTION", "editAction", "ZOOM_IN"));
             assertTrue(observer.awaitType("EDIT_ACTION", 5).isPresent(),
                     "a viewer retains permission to observe collaboration");
@@ -270,7 +272,8 @@ class WsPictureEditContractTest {
         try (WsClient old = connect(ownerId, pictureId); WsClient successor = connect(ownerId, pictureId)) {
             var withoutLease = uploadReplacement(old.http(), pictureId, "");
             assertNotEquals(0, withoutLease.path("code").asInt(), "team replacement must require a lease");
-            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file WHERE ownerUserId = ?", Integer.class, ownerId),
+            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM picture_file WHERE owner_user_id = ?",
+                    Integer.class, ownerId),
                     "an unauthorized replacement must not register uploaded resources");
             old.send(Map.of("type", "ENTER_EDIT"));
             assertTrue(old.awaitType("ENTER_EDIT", 5).isPresent());
@@ -580,19 +583,19 @@ class WsPictureEditContractTest {
 
     private void seedTeamSpaceWithPicture(long spaceId, long pictureId, long ownerId) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'team space', ?, 1, 1, 1000, 1000, 0, 1, 0)
                 """, spaceId, ownerId);
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'team-picture', 'original', ?, 10, ?, 1, 0)
                 """, pictureId, ownerId, spaceId);
         joinTeam(spaceId, ownerId, "admin");
     }
 
     private void joinTeam(long spaceId, long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 spaceId, userId, role);
     }
 
@@ -632,7 +635,8 @@ class WsPictureEditContractTest {
                 "userAccount", account + suffix + fixtureSeq, "userPassword", PASSWORD, "checkPassword", PASSWORD));
         assertEquals(0, registration.path("code").asInt(), registration.toString());
         if (admin) {
-            jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", registration.path("data").asLong());
+            jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?",
+                    registration.path("data").asLong());
         }
         var login = post(client, "/user/login", Map.of(
                 "userAccount", account + suffix + fixtureSeq, "userPassword", PASSWORD));

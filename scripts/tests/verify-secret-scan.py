@@ -62,6 +62,12 @@ def main():
         (key + " = '" + literal + "'", True),
         (key + ": " + bare, True),
     ]
+    # 插值引用不是字面量：shell 的 "$VAR" 与 psql 的 :'var' 都必须放过，
+    # 否则每次写初始化脚本都要绕开扫描器。
+    cases += [
+        (key + " :'migrator_" + "pw'", False),
+        (key + " = '${DB_" + "PASSWORD}'", False),
+    ]
     # 提供方前缀大小写固定：base64 图片里的小写串不是 AccessKey，大写前缀仍须命中。
     # 同样在运行时拼装，避免本文件被自己扫出。
     cases += [

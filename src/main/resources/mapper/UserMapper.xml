@@ -8,7 +8,7 @@
       后提交者基于先提交者写下的到期时间继续累加，不丢加时。
     -->
     <select id="selectVipExpireTimeForUpdate" resultType="java.util.Date">
-        SELECT vipExpireTime FROM user WHERE id = #{userId} FOR UPDATE
+        SELECT vip_expire_time FROM app_user WHERE id = #{userId} FOR UPDATE
     </select>
 
     <!--
@@ -16,9 +16,9 @@
       这里永不触碰角色列（#39：管理员兑换不得改变管理角色）。
     -->
     <update id="updateVipExpireTime">
-        UPDATE user
-        SET vipExpireTime = #{expireTime}
+        UPDATE app_user
+        SET vip_expire_time = #{expireTime}
         WHERE id = #{userId}
-          AND isDelete = 0
+          AND is_delete = 0
     </update>
 </mapper>

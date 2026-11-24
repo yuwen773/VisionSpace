@@ -11,8 +11,8 @@
       零曝光或零点击时 ctr 为 0，空值按 0 参与计算。
     -->
     <insert id="upsertIncrement">
-        INSERT INTO picture_stats (pictureId, viewCount, likeCount, collectCount, downloadCount,
-                                   shareCount, impressionCount, clickCount, ctr, createTime, updateTime)
+        INSERT INTO picture_stats (picture_id, view_count, like_count, collect_count, download_count,
+                                   share_count, impression_count, click_count, ctr, create_time, update_time)
         VALUES (#{stats.pictureId},
                 COALESCE(#{stats.viewCount}, 0),
                 COALESCE(#{stats.likeCount}, 0),
@@ -22,20 +22,26 @@
                 COALESCE(#{stats.impressionCount}, 0),
                 COALESCE(#{stats.clickCount}, 0),
                 CASE WHEN COALESCE(#{stats.impressionCount}, 0) > 0
-                     THEN COALESCE(#{stats.clickCount}, 0) / COALESCE(#{stats.impressionCount}, 0)
+                     THEN COALESCE(#{stats.clickCount}, 0)::numeric
+                          / COALESCE(#{stats.impressionCount}, 0)::numeric
                      ELSE 0.000000 END,
-                NOW(),
-                NOW())
-        ON DUPLICATE KEY UPDATE
-            viewCount = viewCount + COALESCE(#{stats.viewCount}, 0),
-            likeCount = likeCount + COALESCE(#{stats.likeCount}, 0),
-            collectCount = collectCount + COALESCE(#{stats.collectCount}, 0),
-            downloadCount = downloadCount + COALESCE(#{stats.downloadCount}, 0),
-            shareCount = shareCount + COALESCE(#{stats.shareCount}, 0),
-            impressionCount = impressionCount + COALESCE(#{stats.impressionCount}, 0),
-            clickCount = clickCount + COALESCE(#{stats.clickCount}, 0),
-            ctr = CASE WHEN impressionCount > 0 THEN clickCount / impressionCount ELSE 0.000000 END,
-            updateTime = NOW()
+                statement_timestamp(),
+                statement_timestamp())
+        ON CONFLICT (picture_id) DO UPDATE
+        SET view_count = picture_stats.view_count + EXCLUDED.view_count,
+            like_count = picture_stats.like_count + EXCLUDED.like_count,
+            collect_count = picture_stats.collect_count + EXCLUDED.collect_count,
+            download_count = picture_stats.download_count + EXCLUDED.download_count,
+            share_count = picture_stats.share_count + EXCLUDED.share_count,
+            impression_count = picture_stats.impression_count + EXCLUDED.impression_count,
+            click_count = picture_stats.click_count + EXCLUDED.click_count,
+            -- PostgreSQL 的 SET 右侧全部看到旧行；ctr 必须显式用「旧值 + EXCLUDED」重算，
+            -- 不能像 MySQL 那样依赖从左到右的赋值顺序。
+            ctr = CASE WHEN picture_stats.impression_count + EXCLUDED.impression_count > 0
+                       THEN (picture_stats.click_count + EXCLUDED.click_count)::numeric
+                            / (picture_stats.impression_count + EXCLUDED.impression_count)
+                       ELSE 0.000000 END,
+            update_time = statement_timestamp()
     </insert>
 
 </mapper>

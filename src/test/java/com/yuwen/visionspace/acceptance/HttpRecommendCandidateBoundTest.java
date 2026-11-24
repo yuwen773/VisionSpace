@@ -46,12 +46,12 @@ class HttpRecommendCandidateBoundTest {
 
     @BeforeEach
     void fixture() {
-        jdbc.update("DELETE FROM picture WHERE reviewStatus = 1 AND spaceId IS NULL");
-        jdbc.update("DELETE FROM picture_stats WHERE pictureId >= ?", FIRST_PICTURE);
+        jdbc.update("DELETE FROM picture WHERE review_status = 1 AND space_id IS NULL");
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id >= ?", FIRST_PICTURE);
         for (int i = 0; i < PUBLIC_PICTURE_COUNT; i++) {
             long id = FIRST_PICTURE + i;
             jdbc.update("""
-                    INSERT INTO picture (id, url, name, userId, picSize, picWidth, picHeight, spaceId, reviewStatus, isDelete)
+                    INSERT INTO picture (id, url, name, user_id, pic_size, pic_width, pic_height, space_id, review_status, is_delete)
                     VALUES (?, ?, ?, ?, 10, 1920, 1080, NULL, 1, 0)
                     """, id, "content-" + id, "bounded-" + i, OWNER + i);
         }
@@ -103,7 +103,7 @@ class HttpRecommendCandidateBoundTest {
     @Test
     void thePublicLibraryStillHasMorePicturesThanTheCandidatePool() throws Exception {
         long eligible = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture WHERE reviewStatus = 1 AND spaceId IS NULL AND isDelete = 0",
+                "SELECT COUNT(*) FROM picture WHERE review_status = 1 AND space_id IS NULL AND is_delete = 0",
                 Long.class);
         assertTrue(eligible > 4, "the fixture must have more pictures than the candidate pool: " + eligible);
     }

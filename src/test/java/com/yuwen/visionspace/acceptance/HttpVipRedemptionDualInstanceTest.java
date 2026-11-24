@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * #39 双实例同码原子性：实例 A 是本测试进程，实例 B 是脚本启动的真实第二 JVM
  * （见 {@link VipSecondInstanceMain}，端口经系统属性注入）。
  *
- * <p>两实例共享同一隔离 MySQL；同一码从两侧并发兑换，必须恰好成功一次。
+ * <p>两实例共享同一隔离 PostgreSQL；同一码从两侧并发兑换，必须恰好成功一次。
  * 环境缺少第二实例端口时测试显式标记 BLOCKED_ENV，不静默跳过、也不冒充通过。
  */
 @IsolatedSpringBootTest
@@ -73,12 +73,12 @@ class HttpVipRedemptionDualInstanceTest {
             assertTrue(statuses.contains("already_used"), "落败侧必须明确收到已用状态: " + statuses);
             // 恰好一条流水；核销状态为已用
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM vip_redemption_record WHERE codeId = "
-                            + "(SELECT id FROM vip_redemption_code WHERE codeHash = ?)",
+                    "SELECT COUNT(*) FROM vip_redemption_record WHERE code_id = "
+                            + "(SELECT id FROM vip_redemption_code WHERE code_hash = ?)",
                     Integer.class, VipTestHashes.sha256(code)));
             long winner = "success".equals(resultA.path("data").path("status").asText()) ? a.id : b.id;
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM vip_redemption_record WHERE userId = ?", Integer.class, winner));
+                    "SELECT COUNT(*) FROM vip_redemption_record WHERE user_id = ?", Integer.class, winner));
         }
     }
 
@@ -90,7 +90,7 @@ class HttpVipRedemptionDualInstanceTest {
         try (Session primary = newSession(port)) {
             // 同一账号在第二实例的独立会话：模拟同一用户在两个实例上的并发请求
             String account = jdbc.queryForObject(
-                    "SELECT userAccount FROM user WHERE id = ?", String.class, primary.id);
+                    "SELECT user_account FROM app_user WHERE id = ?", String.class, primary.id);
             try (Session mirror = loginOn(secondPort, account)) {
                 CountDownLatch start = new CountDownLatch(1);
                 ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -112,14 +112,14 @@ class HttpVipRedemptionDualInstanceTest {
                 assertEquals("success", r2.path("data").path("status").asText(), r2.toString());
                 // 同一用户两个不同码并发：两次加时都生效（无既有权益 → 现在 + 24 个月）
                 java.sql.Timestamp expiry = jdbc.queryForObject(
-                        "SELECT vipExpireTime FROM user WHERE id = ?", java.sql.Timestamp.class, primary.id);
+                        "SELECT vip_expire_time FROM app_user WHERE id = ?", java.sql.Timestamp.class, primary.id);
                 LocalDate expectedLow = LocalDate.now().plusMonths(24).minusDays(2);
                 LocalDate expectedHigh = LocalDate.now().plusMonths(24).plusDays(2);
                 LocalDate actual = expiry.toLocalDateTime().toLocalDate();
                 assertTrue(!actual.isBefore(expectedLow) && !actual.isAfter(expectedHigh),
                         "双码并发必须各自完整加时（共 24 个月），实际 " + actual);
                 assertEquals(2, jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM vip_redemption_record WHERE userId = ?",
+                        "SELECT COUNT(*) FROM vip_redemption_record WHERE user_id = ?",
                         Integer.class, primary.id));
             }
         }
@@ -149,7 +149,8 @@ class HttpVipRedemptionDualInstanceTest {
                 Map.of("userAccount", account, "userPassword", PASSWORD, "checkPassword", PASSWORD));
         assertEquals(0, post(client, targetPort, "/user/register", body).path("code").asInt());
         assertEquals(0, post(client, targetPort, "/user/login", body).path("code").asInt());
-        long id = jdbc.queryForObject("SELECT id FROM user WHERE userAccount = ?", Long.class, account);
+        long id = jdbc.queryForObject("SELECT id FROM app_user WHERE lower(user_account) = lower(?)",
+                Long.class, account);
         return new Session(client, id, targetPort);
     }
 
@@ -158,7 +159,8 @@ class HttpVipRedemptionDualInstanceTest {
         String body = json.writeValueAsString(
                 Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, post(client, targetPort, "/user/login", body).path("code").asInt());
-        long id = jdbc.queryForObject("SELECT id FROM user WHERE userAccount = ?", Long.class, account);
+        long id = jdbc.queryForObject("SELECT id FROM app_user WHERE lower(user_account) = lower(?)",
+                Long.class, account);
         return new Session(client, id, targetPort);
     }
 
@@ -181,7 +183,7 @@ class HttpVipRedemptionDualInstanceTest {
 
     private String insertAvailableCode() {
         String code = "TEST" + Long.toHexString(System.nanoTime()) + "CODE";
-        jdbc.update("INSERT INTO vip_redemption_code (codeHash, status) VALUES (?, ?)",
+        jdbc.update("INSERT INTO vip_redemption_code (code_hash, status) VALUES (?, ?)",
                 VipTestHashes.sha256(code), 0);
         return code;
     }

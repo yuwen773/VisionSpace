@@ -8,6 +8,6 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface AssetSearchSnapshotMapper extends BaseMapper<AssetSearchSnapshot> {
-    @Select("SELECT id, ownerId, spaceId, threadId, payload FROM asset_search_snapshot WHERE id = #{id} AND ownerId = #{ownerId}")
+    @Select("SELECT id, owner_id, space_id, thread_id, payload FROM asset_search_snapshot WHERE id = #{id} AND owner_id = #{ownerId}")
     AssetSearchSnapshot selectOwned(@Param("id") String id, @Param("ownerId") Long ownerId);
 }

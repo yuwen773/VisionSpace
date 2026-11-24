@@ -34,6 +34,9 @@ class HttpFeedbackProtectionTest {
 
     private static final String PASSWORD = "acceptance-password";
     private static final long LEGACY_FEEDBACK = 87601;
+    // PostgreSQL 的业务表没有自增列，附件标识由测试显式给定
+    private static final long LEGACY_ATTACHMENT = 87611;
+    private static final long VERIFIED_LEGACY_ATTACHMENT = 87612;
 
     @LocalServerPort
     private int port;
@@ -52,10 +55,10 @@ class HttpFeedbackProtectionTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM feedback_attachment WHERE feedbackId = ? OR legacyUrlHash IS NOT NULL",
+        jdbc.update("DELETE FROM feedback_attachment WHERE feedback_id = ? OR legacy_url_hash IS NOT NULL",
                 LEGACY_FEEDBACK);
         jdbc.update("DELETE FROM user_feedback WHERE id = ?", LEGACY_FEEDBACK);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceType = 'feedback-attachment'");
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_type = 'feedback-attachment'");
         creatorId = register("feedback_creator_" + System.nanoTime());
         strangerId = register("feedback_stranger_" + System.nanoTime());
     }
@@ -163,7 +166,7 @@ class HttpFeedbackProtectionTest {
             assertRejected(response);
         }
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND feedbackId IS NOT NULL",
+                "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND feedback_id IS NOT NULL",
                 Integer.class, attachment[0]), "rejected bind must not attach the record");
     }
 
@@ -186,17 +189,18 @@ class HttpFeedbackProtectionTest {
     void legacyAttachmentWithUnconfirmedOwnershipIsBlockedAndNotPublic() throws Exception {
         // 旧附件：只存在于 pictureUrls，无法从可信记录确认归属
         jdbc.update("""
-                INSERT INTO user_feedback (id, userId, type, title, content, pictureUrls, status, isDelete)
+                INSERT INTO user_feedback (id, user_id, type, title, content, picture_urls, status, is_delete)
                 VALUES (?, ?, 2, '旧反馈', '旧正文', ?, 0, 0)
                 """, LEGACY_FEEDBACK, creatorId, "[\"https://acceptance.invalid/legacy/attachment.png\"]");
         jdbc.update("""
-                INSERT INTO feedback_attachment (ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash)
-                VALUES (?, ?, 'legacy', 'https://acceptance.invalid/legacy/attachment.png',
-                        'https://acceptance.invalid/legacy/attachment.png', 3, SHA2('https://acceptance.invalid/legacy/attachment.png', 256))
-                """, creatorId, LEGACY_FEEDBACK);
+                INSERT INTO feedback_attachment (id, owner_user_id, feedback_id, platform, object_key, url, status, legacy_url_hash)
+                VALUES (?, ?, ?, 'legacy', 'https://acceptance.invalid/legacy/attachment.png',
+                        'https://acceptance.invalid/legacy/attachment.png', 3,
+                        encode(digest('https://acceptance.invalid/legacy/attachment.png', 'sha256'), 'hex'))
+                """, LEGACY_ATTACHMENT, creatorId, LEGACY_FEEDBACK);
 
         Long attachmentId = jdbc.queryForObject(
-                "SELECT id FROM feedback_attachment WHERE legacyUrlHash = SHA2(?, 256)",
+                "SELECT id FROM feedback_attachment WHERE legacy_url_hash = encode(digest(?, 'sha256'), 'hex')",
                 Long.class, "https://acceptance.invalid/legacy/attachment.png");
         try (var creator = client()) {
             login(creator, creatorId);
@@ -215,7 +219,7 @@ class HttpFeedbackProtectionTest {
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_feedback WHERE id = ?", Integer.class, LEGACY_FEEDBACK));
         assertEquals("https://acceptance.invalid/legacy/attachment.png", jdbc.queryForObject(
-                "SELECT objectKey FROM feedback_attachment WHERE id = ?", String.class, attachmentId));
+                "SELECT object_key FROM feedback_attachment WHERE id = ?", String.class, attachmentId));
     }
 
     @Test
@@ -223,16 +227,16 @@ class HttpFeedbackProtectionTest {
         // 归属已核对的旧附件：迁移按服务端写入的 /temp/{提交者}/ 前缀登记为 LEGACY_VERIFIED
         String legacyUrl = "/temp/" + creatorId + "/verified.png";
         jdbc.update("""
-                INSERT INTO user_feedback (id, userId, type, title, content, pictureUrls, status, isDelete)
+                INSERT INTO user_feedback (id, user_id, type, title, content, picture_urls, status, is_delete)
                 VALUES (?, ?, 2, '旧反馈', '旧正文', ?, 0, 0)
                 """, LEGACY_FEEDBACK, creatorId, "[\"" + legacyUrl + "\"]");
         jdbc.update("""
-                INSERT INTO feedback_attachment (ownerUserId, feedbackId, platform, objectKey, url, status, legacyUrlHash)
-                VALUES (?, ?, 'legacy', ?, ?, 2, SHA2(?, 256))
-                """, creatorId, LEGACY_FEEDBACK, legacyUrl, legacyUrl, legacyUrl);
+                INSERT INTO feedback_attachment (id, owner_user_id, feedback_id, platform, object_key, url, status, legacy_url_hash)
+                VALUES (?, ?, ?, 'legacy', ?, ?, 2, encode(digest(?, 'sha256'), 'hex'))
+                """, VERIFIED_LEGACY_ATTACHMENT, creatorId, LEGACY_FEEDBACK, legacyUrl, legacyUrl, legacyUrl);
 
         Long attachmentId = jdbc.queryForObject(
-                "SELECT id FROM feedback_attachment WHERE legacyUrlHash = SHA2(?, 256)",
+                "SELECT id FROM feedback_attachment WHERE legacy_url_hash = encode(digest(?, 'sha256'), 'hex')",
                 Long.class, legacyUrl);
         try (var creator = client()) {
             login(creator, creatorId);
@@ -256,7 +260,7 @@ class HttpFeedbackProtectionTest {
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_feedback WHERE id = ?", Integer.class, LEGACY_FEEDBACK));
         assertEquals(legacyUrl, jdbc.queryForObject(
-                "SELECT objectKey FROM feedback_attachment WHERE id = ?", String.class, attachmentId));
+                "SELECT object_key FROM feedback_attachment WHERE id = ?", String.class, attachmentId));
     }
 
     @Test
@@ -316,7 +320,7 @@ class HttpFeedbackProtectionTest {
                     "attachmentIds", List.of(String.valueOf(attachmentId), "not-a-number")));
             assertEquals(40000, response.path("code").asInt(), response.toString());
             assertEquals(0, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND feedbackId IS NOT NULL",
+                    "SELECT COUNT(*) FROM feedback_attachment WHERE id = ? AND feedback_id IS NOT NULL",
                     Integer.class, attachmentId), "rejected submission must not bind any attachment");
         }
     }
@@ -349,7 +353,7 @@ class HttpFeedbackProtectionTest {
 
     private long attachmentIdOf(long feedbackId) {
         return jdbc.queryForObject(
-                "SELECT id FROM feedback_attachment WHERE feedbackId = ?", Long.class, feedbackId);
+                "SELECT id FROM feedback_attachment WHERE feedback_id = ?", Long.class, feedbackId);
     }
 
     private void assertContent(HttpClient client, String path) throws Exception {
@@ -389,18 +393,18 @@ class HttpFeedbackProtectionTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private long registerModerator(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'moderator' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'moderator' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

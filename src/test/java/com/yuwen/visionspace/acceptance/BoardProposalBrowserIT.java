@@ -36,8 +36,9 @@ class BoardProposalBrowserIT extends BoardProposalHttpFixture {
     }
     @Override void seedContent() {
         objectKey="/proposal-browser/"+picture+".png";
-        jdbc.update("UPDATE user SET userRole='moderator' WHERE id=?",user);
-        jdbc.update("INSERT INTO picture_file (ownerUserId,spaceId,pictureId,purpose,kind,platform,objectKey,url,fileSize,status) VALUES (?,?,?,'gallery','original',?,?,'https://acceptance.invalid/proposal.png',10,1)",user+1,space,picture,RecordingStorageConfiguration.PLATFORM,objectKey);
+        jdbc.update("UPDATE app_user SET user_role='moderator' WHERE id=?",user);
+        // PostgreSQL 的 picture_file 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO picture_file (id,owner_user_id,space_id,picture_id,purpose,kind,platform,object_key,url,file_size,status) VALUES (?,?,?,?,'gallery','original',?,?,'https://acceptance.invalid/proposal.png',10,1)",com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(),user+1,space,picture,RecordingStorageConfiguration.PLATFORM,objectKey);
         RecordingStorageConfiguration.SEEDED_CONTENT.put(objectKey,Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
     }
     @Test void browserReviewsDecidesAndRecoversLostResponseAndRevokedReferences() throws Exception {
@@ -51,7 +52,7 @@ class BoardProposalBrowserIT extends BoardProposalHttpFixture {
             var recorded=recorder.calls().subList(calls,recorder.calls().size());
             assertTrue(recorded.stream().anyMatch(c->c.method().equals("MODEL")));
             assertTrue(recorded.stream().allMatch(c->Set.of("READ","MODEL").contains(c.method())),"No external tool or storage mutation is permitted");
-            assertEquals(10L,jdbc.queryForObject("SELECT totalSize FROM space WHERE id=?",Long.class,space));
+            assertEquals(10L,jdbc.queryForObject("SELECT total_size FROM space WHERE id=?",Long.class,space));
         } finally {process.destroyForcibly();RecordingStorageConfiguration.SEEDED_CONTENT.remove(objectKey);}
     }
 }

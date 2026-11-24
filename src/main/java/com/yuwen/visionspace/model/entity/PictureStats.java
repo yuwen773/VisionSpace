@@ -30,9 +30,9 @@ public class PictureStats {
 
     private BigDecimal ctr;
 
-    @TableField(fill = FieldFill.INSERT)
+    // 项目没有注册 MetaObjectHandler：fill 注解只会把未赋值的时间字段写成 NULL，
+    // 绕过库里的默认值与更新时间触发器。时间列交给数据库维护。
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

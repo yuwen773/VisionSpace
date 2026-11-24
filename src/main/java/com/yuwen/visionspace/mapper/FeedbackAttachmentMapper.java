@@ -20,6 +20,6 @@ public interface FeedbackAttachmentMapper extends BaseMapper<FeedbackAttachment>
      * @param id 附件标识
      * @return 附件存在时返回其标识，不存在时返回 null
      */
-    @Select("SELECT `id` FROM `feedback_attachment` WHERE `id` = #{id} FOR UPDATE")
+    @Select("SELECT id FROM feedback_attachment WHERE id = #{id} FOR UPDATE")
     Long selectIdForUpdate(@Param("id") Long id);
 }

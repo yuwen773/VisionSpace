@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$env:MYSQL_ROOT_PASSWORD = 'fixture-root'
-$env:MYSQL_DATABASE = 'fixture'
+$env:POSTGRES_SUPERUSER_PASSWORD = 'fixture-root'
+$env:POSTGRES_MIGRATOR_PASSWORD = 'fixture-migrator'
+$env:POSTGRES_DB = 'fixture'
 $env:SPRING_DATASOURCE_PASSWORD = 'fixture-db'
 $env:REDIS_PASSWORD = 'fixture-redis'
 $env:SPRING_AI_DASHSCOPE_API_KEY = 'fixture-dashscope'

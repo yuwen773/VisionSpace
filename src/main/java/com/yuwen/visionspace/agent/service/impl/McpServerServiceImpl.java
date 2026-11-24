@@ -123,7 +123,8 @@ public class McpServerServiceImpl implements McpServerService {
             .orderByDesc(McpServer::getGmtCreate);
 
         if (StringUtils.hasText(name)) {
-            wrapper.like(McpServer::getName, name);
+            // PG 的 LIKE 区分大小写，模糊搜索用 ILIKE 保持原 MySQL 排序规则下的体验
+            wrapper.apply("name ILIKE {0}", "%" + name + "%");
         }
 
         IPage<McpServer> entityPage = mcpServerMapper.selectPage(page, wrapper);

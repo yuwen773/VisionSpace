@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.yuwen.visionspace.exception.BusinessException;
 import com.yuwen.visionspace.exception.ErrorCode;
 import com.yuwen.visionspace.manager.auth.PictureContentAuthManager;
@@ -17,7 +18,6 @@ import com.yuwen.visionspace.service.PictureActionService;
 import com.yuwen.visionspace.utils.HashUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -150,6 +150,7 @@ public class PictureActionServiceImpl implements PictureActionService {
             return false;
         }
         UserPictureAction action = new UserPictureAction();
+        action.setId(IdWorker.getId());
         action.setUserId(anonymous ? 0L : command.getActorUserId());
         action.setPictureId(command.getPictureId());
         action.setActionType(actionType.getValue());
@@ -159,10 +160,9 @@ public class PictureActionServiceImpl implements PictureActionService {
         action.setIsProcessed(0);
         action.setIsAccumulated(0);
         action.setAttemptCount(0);
-        try {
-            actionMapper.insert(action);
-        } catch (DuplicateKeyException e) {
-            // 载荷上的唯一索引是最后一道防线：台账之外仍有重复时同样不入账
+        // 载荷上的唯一索引是最后一道防线：台账之外仍有重复时同样不入账。
+        // 冲突即忽略（影响行数 0），不捕获唯一约束异常——PG 下异常会让事务 aborted。
+        if (actionMapper.insertIgnoreDuplicate(action) == 0) {
             rateLimiter.countDuplicate();
             log.info("行为事件重复上报已忽略: pictureId={}, actionType={}, source={}",
                     command.getPictureId(), actionType.getValue(), source.getValue());
@@ -182,16 +182,14 @@ public class PictureActionServiceImpl implements PictureActionService {
     /**
      * 登记一次事件受理。
      *
+     * <p>{@code ON CONFLICT DO NOTHING} 的影响行数就是判定依据：1 表示首次受理，
+     * 0 表示同一事件已经受理过。不捕获唯一约束异常——PG 下异常会让当前事务 aborted。
+     *
      * @param eventId 事件幂等键
      * @return true 表示这是第一次受理；false 表示同一事件已经受理过
      */
     private boolean registerEvent(String eventId) {
-        try {
-            dedupeMapper.insertEvidence(eventId);
-            return true;
-        } catch (DuplicateKeyException e) {
-            return false;
-        }
+        return dedupeMapper.insertEvidence(eventId) > 0;
     }
 
     /**

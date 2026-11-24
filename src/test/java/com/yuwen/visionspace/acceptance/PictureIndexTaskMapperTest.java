@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 索引失败待办的持久化语义，跑在真实 MySQL 上。
+ * 索引失败待办的持久化语义，跑在真实 PostgreSQL 上。
  *
  * <p>失败记录是「写入失败之后还能恢复」的唯一凭据，它的 SQL 不能用替身验证：
  * 同一张图片反复失败必须收敛成一行，到期查询必须真的按时钟过滤。
@@ -33,7 +33,7 @@ class PictureIndexTaskMapperTest {
 
     @BeforeEach
     void clean() {
-        jdbc.update("DELETE FROM picture_index_task WHERE pictureId = ?", PICTURE_ID);
+        jdbc.update("DELETE FROM picture_index_task WHERE picture_id = ?", PICTURE_ID);
     }
 
     @Test
@@ -65,7 +65,7 @@ class PictureIndexTaskMapperTest {
             assertTrue(ready.stream().noneMatch(task -> task.getPictureId() == PICTURE_ID + 1),
                     "没到退避时间的不能提前重试");
         } finally {
-            jdbc.update("DELETE FROM picture_index_task WHERE pictureId = ?", PICTURE_ID + 1);
+            jdbc.update("DELETE FROM picture_index_task WHERE picture_id = ?", PICTURE_ID + 1);
         }
     }
 

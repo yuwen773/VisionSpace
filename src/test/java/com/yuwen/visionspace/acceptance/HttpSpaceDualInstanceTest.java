@@ -26,11 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * 空间唯一性的双实例验收：实例 A 是本测试进程，实例 B 是脚本启动的真实第二 JVM
- * （见 {@link VipSecondInstanceMain}，端口经系统属性注入），两实例共享同一隔离 MySQL。
+ * （见 {@link VipSecondInstanceMain}，端口经系统属性注入），两实例共享同一隔离 PostgreSQL。
  *
  * <p>同一用户在两个实例上同时创建同类型空间，必须恰好成功一次，失败方拿到明确的
  * 业务结果（50001）而不是系统错误或重复数据。唯一性由数据库的
- * {@code uk_space_active_key} 决定，不依赖任何进程内锁。
+ * {@code uq_space_active_key} 决定，不依赖任何进程内锁。
  *
  * <p>环境缺少第二实例端口时显式标记 BLOCKED_ENV，不静默跳过、也不冒充通过。
  */
@@ -91,18 +91,18 @@ class HttpSpaceDualInstanceTest {
         }
         // 恰好一条有效空间，且创建者成员记录与空间一致提交
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM space WHERE userId = ? AND spaceType = 1 AND isDelete = 0",
+                "SELECT COUNT(*) FROM space WHERE user_id = ? AND space_type = 1 AND is_delete = 0",
                 Integer.class, userId), "双实例并发只能留下一条有效团队空间");
         Long spaceId = jdbc.queryForObject(
-                "SELECT id FROM space WHERE userId = ? AND spaceType = 1 AND isDelete = 0",
+                "SELECT id FROM space WHERE user_id = ? AND space_type = 1 AND is_delete = 0",
                 Long.class, userId);
         assertEquals("admin", jdbc.queryForObject(
-                "SELECT spaceRole FROM space_user WHERE spaceId = ? AND userId = ?",
+                "SELECT space_role FROM space_user WHERE space_id = ? AND user_id = ?",
                 String.class, spaceId, userId), "创建者的团队管理员成员记录必须一并提交");
 
         // 清理：本用例注册的用户只有这一条空间
-        jdbc.update("DELETE FROM space_user WHERE userId = ?", userId);
-        jdbc.update("DELETE FROM space WHERE userId = ?", userId);
+        jdbc.update("DELETE FROM space_user WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM space WHERE user_id = ?", userId);
     }
 
     @Test
@@ -133,11 +133,11 @@ class HttpSpaceDualInstanceTest {
                     "重建必须是一条新记录，不是复用了已删除的那条");
         }
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM space WHERE userId = ? AND spaceType = 1 AND isDelete = 0",
+                "SELECT COUNT(*) FROM space WHERE user_id = ? AND space_type = 1 AND is_delete = 0",
                 Integer.class, userId), "删除后重建只应留下一条有效空间");
 
-        jdbc.update("DELETE FROM space_user WHERE userId = ?", userId);
-        jdbc.update("DELETE FROM space WHERE userId = ?", userId);
+        jdbc.update("DELETE FROM space_user WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM space WHERE user_id = ?", userId);
     }
 
     // ---- helpers ----

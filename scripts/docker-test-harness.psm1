@@ -4,7 +4,7 @@
 #   * 本 harness 创建的 container / volume / network 一律带标签：
 #       vs.owner=vision-space / vs.run-id=<本轮唯一 id> / vs.kind=test
 #   * 数据卷一律命名（vsvol-<run-id>-<suffix>），不使用匿名卷；
-#     mysql:8.0.36 与 redis:7.2.4 都声明了 VOLUME，任何未显式挂载的路径
+#     postgres:18.7 与 redis:7.2.4 都声明了 VOLUME，任何未显式挂载的路径
 #     都会让 Docker 自动配一个匿名卷，硬杀后无法归属。
 #   * Complete-VsDockerRun 只删除带本轮 run-id 的资源：先按标签扫，
 #     再用运行登记文件兜底（标签写入失败时）。永不调用任何 prune，
@@ -20,8 +20,8 @@
 # 用法（入口脚本）：
 #   Import-Module (Join-Path $PSScriptRoot 'docker-test-harness.psm1') -Force
 #   Initialize-VsDockerRun -RunId $runId
-#   $volume = New-VsVolume -Suffix 'mysql'
-#   Start-VsDockerContainer -Name $name -Arguments @('-v', "${volume}:/var/lib/mysql", 'mysql:8.0.36') -LogPath $log
+#   $volume = New-VsVolume -Suffix 'postgres'
+#   Start-VsDockerContainer -Name $name -Arguments @('-v', "${volume}:/var/lib/postgresql", 'postgres:18.7') -LogPath $log
 #   Complete-VsDockerRun -LogDirectory $logDir   # finally 中调用，返回是否干净
 
 $ErrorActionPreference = 'Stop'

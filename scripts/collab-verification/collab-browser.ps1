@@ -7,11 +7,12 @@
 #   - 竞争用户被拒、持有者注销后写入被拒
 #   - seed 团队空间/图片供协作使用
 #
+# 隔离服务全部走 Docker：postgres:18.7 + redis:7.2.4（原生二进制模式已移除）。
+# 业务表只由 Flyway 以迁移角色 vision_migrator 创建，脚本不再执行 DDL。
+#
 # 退出码：0 通过；1 断言失败；2 BLOCKED_ENV。
 [CmdletBinding()]
 param(
-    [string]$MySqlBin,
-    [string]$RedisBin,
     [switch]$SkipInstall
 )
 $ErrorActionPreference = 'Stop'
@@ -35,13 +36,23 @@ function Free-Port {
     $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     $l.Start(); try { return $l.LocalEndpoint.Port } finally { $l.Stop() }
 }
-function Wait-Port([int]$Port) {
-    $deadline = [DateTime]::UtcNow.AddSeconds(90)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $c = [Net.Sockets.TcpClient]::new()
-        try { $c.Connect('127.0.0.1', $Port); $c.Dispose(); return } catch { Start-Sleep -Milliseconds 500 } finally { $c.Dispose() }
+# psql 裸值读取：口令经 PGPASSWORD 环境变量传入（不进 argv），SQL 走 stdin
+# （避免 Windows 参数转义吃掉引号），输出用 -tA（tuples-only + unaligned）：
+# 每行一个裸值，多列用 | 分隔。
+function Invoke-PsqlRows {
+    param(
+        [string]$Container,
+        [string]$Database,
+        [string]$Password,
+        [string]$Sql,
+        [string]$LogPath
+    )
+    $output = $Sql | & docker exec -i -e "PGPASSWORD=$Password" $Container psql --no-psqlrc -tA -v ON_ERROR_STOP=1 -f - -U vision_app -d $Database 2> $LogPath
+    if ($LASTEXITCODE -ne 0) {
+        $detail = Get-Content -Raw -LiteralPath $LogPath -ErrorAction SilentlyContinue
+        throw "psql failed (exit $LASTEXITCODE): $Sql`n$detail"
     }
-    throw "BLOCKED_ENV: isolated service did not open port $Port"
+    return @($output | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' })
 }
 function Resolve-Java {
     $candidates = @()
@@ -55,7 +66,7 @@ function Resolve-Java {
         $p = Start-Process @processWindow -FilePath $candidate -ArgumentList @('-version') -PassThru -RedirectStandardOutput ($probe + '.out') -RedirectStandardError ($probe + '.err')
         if ($p.WaitForExit(30000) -and $p.ExitCode -eq 0) { return $candidate }
     }
-    throw "BLOCKED_ENV: no working Java runtime found"
+    throw 'BLOCKED_ENV: no working Java runtime found'
 }
 
 New-Item -ItemType Directory -Path $runDir | Out-Null
@@ -79,47 +90,11 @@ try {
         -addext 'subjectAltName=IP:127.0.0.1' -keyout $keyPath -out $certPath *> (Join-Path $runDir 'cert.log')
     if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: openssl unavailable' }
 
-    Write-Host "== isolated MySQL/Redis =="
-    if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both native binary directories, or neither.' }
-    if (-not $MySqlBin) {
-        $database = $database
-        $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
-        $mysqlPort = $services.MySqlPort
-        $redisPort = $services.RedisPort
-        $mysql = 'Invoke-AcceptanceMySql'
-    } else {
-    $mysqlPort = Free-Port; $redisPort = Free-Port
-    while ($redisPort -eq $mysqlPort -or $mysqlPort -lt 10000 -or $redisPort -lt 10000) { $mysqlPort = Free-Port; $redisPort = Free-Port }
-    $mysqld = Join-Path $MySqlBin 'mysqld.exe'; $mysql = Join-Path $MySqlBin 'mysql.exe'
-    $redisServer = Join-Path $RedisBin 'redis-server.exe'; $redisCli = Join-Path $RedisBin 'redis-cli.exe'
-    foreach ($f in @($mysqld, $mysql, $redisServer, $redisCli)) { if (-not (Test-Path $f)) { throw "missing executable: $f" } }
-    $dataDir = Join-Path $runDir 'mysql'
-    & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
-    if ($LASTEXITCODE -ne 0) { throw 'mysql init failed' }
-    $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
-    $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', "$redisPort", '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
-    Wait-Port $mysqlPort; Wait-Port $redisPort
-    $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
-    $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
-    if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) { throw 'FAIL: schema extraction incomplete; review bootstrap.' }
-    $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
-    $bootstrap = @"
-CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'vs_acceptance'@'%' IDENTIFIED BY '$nonce';
-GRANT ALL ON $database.* TO 'vs_acceptance'@'%';
-USE $database;
-CREATE TABLE acceptance_instance (nonce varchar(32) NOT NULL);
-INSERT INTO acceptance_instance VALUES ('$nonce');
-$ddl
-"@
-    $bootstrapPath = Join-Path $runDir 'bootstrap.sql'
-    [IO.File]::WriteAllText($bootstrapPath, $bootstrap, [Text.UTF8Encoding]::new($false))
-    $env:MYSQL_PWD = ''
-    $bootstrap | & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --default-character-set=utf8mb4 *> (Join-Path $runDir 'bootstrap.log')
-    if ($LASTEXITCODE -ne 0) { throw 'isolated schema bootstrap failed' }
-    & $redisCli -h 127.0.0.1 -p $redisPort -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
-    }
+    Write-Host "== isolated PostgreSQL/Redis =="
+    # 业务表只由 Flyway（迁移角色 vision_migrator）创建，脚本不再执行 DDL。
+    $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
+    $postgresPort = $services.PostgresPort
+    $redisPort = $services.RedisPort
     $results['isolation'] = 'PASS'
 
     Write-Host "== backend jar =="
@@ -141,7 +116,7 @@ $ddl
         # 协作用短租约与快续期
         '--vision-space.websocket.lease-ttl-seconds=5',
         '--vision-space.websocket.lease-renew-interval-ms=1500'
-    ) + @(Get-AcceptanceApplicationArguments $mysqlPort $redisPort $database $nonce)
+    ) + @(Get-AcceptanceApplicationArguments $postgresPort $redisPort $database $nonce)
     $java = Resolve-Java
     $backendProcess = Start-Process @processWindow -FilePath $java -ArgumentList $backendArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
     $ownedProcesses += $backendProcess
@@ -181,23 +156,23 @@ $ddl
     } finally { Pop-Location }
     $accounts = Get-Content -Raw (Join-Path $runDir 'artifacts' 'accounts.json') | ConvertFrom-Json
     $ownerAccount = $accounts.owner
-    $idOwner = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$ownerAccount';"
-    $idEditor = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$($accounts.editor)';"
-    $idViewer = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT id FROM user WHERE userAccount='$($accounts.viewer)';"
+    $idOwner = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql "SELECT id FROM app_user WHERE user_account='$ownerAccount';" -LogPath (Join-Path $runDir 'user-lookup.log'))[0]
+    $idEditor = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql "SELECT id FROM app_user WHERE user_account='$($accounts.editor)';" -LogPath (Join-Path $runDir 'user-lookup.log'))[0]
+    $idViewer = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql "SELECT id FROM app_user WHERE user_account='$($accounts.viewer)';" -LogPath (Join-Path $runDir 'user-lookup.log'))[0]
     if (-not $idOwner -or -not $idEditor -or -not $idViewer) { throw 'account registration produced no rows' }
     $seedPath = Join-Path $runDir 'seed.sql'
     [IO.File]::WriteAllText($seedPath, @"
-USE $database;
-INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount, totalSize, totalCount, isDelete)
+INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count, total_size, total_count, is_delete)
  VALUES (9441001, 'collab-team', $idOwner, 1, 1, 1000, 1000, 0, 1, 0);
-INSERT INTO space_user (spaceId, userId, spaceRole) VALUES
+INSERT INTO space_user (space_id, user_id, space_role) VALUES
  (9441001, $idOwner, 'admin'), (9441001, $idEditor, 'editor'), (9441001, $idViewer, 'viewer');
-INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
  VALUES (9442001, 'collab-picture', 'original', $idOwner, 10, 9441001, 1, 0);
 "@, [Text.UTF8Encoding]::new($false))
-    # 管道输入 + --binary-mode：避免 mysql 把 SQL 里的反斜杠当转义命令（\V 等）
-    Get-Content -Raw $seedPath | & $mysql --no-defaults --binary-mode --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" --default-character-set=utf8mb4 *> (Join-Path $runDir 'seed.log')
-    if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
+    # 走 stdin：psql 逐条执行，ON_ERROR_STOP 让第一条失败即停（PostgreSQL 不会在
+    # 失败后继续同事务语句），错误明细留在 seed.log。
+    $seedRows = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql (Get-Content -Raw -LiteralPath $seedPath) -LogPath (Join-Path $runDir 'seed.log'))
+    $seedRows | Set-Content (Join-Path $runDir 'seed-output.log')
     @{ spaceId = 9441001; pictureId = 9442001; ownerAccount = $ownerAccount } | ConvertTo-Json | Set-Content $fixturePath
 
     Write-Host "== browser scenarios =="
@@ -215,10 +190,15 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     } finally { Pop-Location }
 
     Write-Host "== final data =="
-    $final = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=vs_acceptance "--password=$nonce" $database --batch --skip-column-names -e "SELECT name FROM picture WHERE id=9442001; SELECT totalSize, totalCount FROM space WHERE id=9441001;" 2> (Join-Path $runDir 'final-query-error.log')
+    $finalQueries = @"
+SELECT name FROM picture WHERE id=9442001;
+SELECT total_size, total_count FROM space WHERE id=9441001;
+"@
+    $final = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql $finalQueries -LogPath (Join-Path $runDir 'final-query-error.log'))
     $final | Set-Content (Join-Path $runDir 'artifacts' 'final-data.txt')
     Write-Host $final
-    if ($LASTEXITCODE -ne 0 -or $final.Count -ne 2 -or $final[0] -ne 'original' -or $final[1] -ne "0`t1") {
+    # psql -tA 的多列输出用 | 分隔（MySQL 的 batch 输出用制表符）。
+    if ($final.Count -ne 2 -or $final[0] -ne 'original' -or $final[1] -ne '0|1') {
         throw 'FAIL: picture row or space quota was modified'
     }
     $results['final-data'] = 'PASS'
@@ -236,12 +216,7 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
             if (-not $ownedProcess.WaitForExit(10000)) { throw 'Owned process did not exit.' }
         } catch { $cleanup = 'FAIL' }
     }
-    if ($MySqlBin -and $ownedProcesses.Count -gt 0 -and $dataDir) {
-        try {
-            $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
-            foreach ($server in $servers) { Stop-Process -Id $server.ProcessId -Force -ErrorAction Stop; Wait-Process -Id $server.ProcessId -Timeout 10 -ErrorAction Stop }
-        } catch { $cleanup = 'FAIL' }
-    }
+    # 隔离容器与命名卷都在本轮自建自删（Stop-AcceptanceDockerServices 负责卷）。
     if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $cleanup = 'FAIL' } }
     foreach ($entry in @(Get-ChildItem Env:)) {
         if (-not $savedEnvironment.ContainsKey($entry.Name)) { [Environment]::SetEnvironmentVariable($entry.Name, $null) }
@@ -253,7 +228,7 @@ INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDe
     $results | ConvertTo-Json | Write-Host
     $report = Join-Path $repo 'target/collab-browser'
     New-Item -ItemType Directory -Force $report | Out-Null
-    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = $(if ($services) { 'docker' } else { 'native-explicit' }); results = $results; productionAcceptance = 'NOT_RUN' } |
+    @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $report 'summary.json')
     if (Test-Path (Join-Path $runDir 'artifacts/browser-results.json')) {
         Copy-Item (Join-Path $runDir 'artifacts/browser-results.json') $report

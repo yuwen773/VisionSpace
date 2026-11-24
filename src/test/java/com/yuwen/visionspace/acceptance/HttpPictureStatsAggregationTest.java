@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,6 +58,12 @@ class HttpPictureStatsAggregationTest {
     private static final int CLICK = 1;
     private static final int VIEW = 2;
 
+    /**
+     * user_picture_action 的主键在 PostgreSQL 基线里没有默认值（由应用侧的雪花标识分配），
+     * 种子行自己给出不与其它用例冲突的主键。
+     */
+    private final AtomicLong eventIds = new AtomicLong(88_790_000L);
+
     @LocalServerPort
     private int port;
 
@@ -74,9 +81,9 @@ class HttpPictureStatsAggregationTest {
 
     @BeforeEach
     void fixture() {
-        jdbc.update("DELETE FROM user_picture_action WHERE pictureId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
                 PICTURE, OTHER_PICTURE, MISSING_PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE pictureId IN (?, ?)", PICTURE, OTHER_PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id IN (?, ?)", PICTURE, OTHER_PICTURE);
         jdbc.update("DELETE FROM picture_stats WHERE id IN (?, ?)", STATS_ID, OTHER_STATS_ID);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", PICTURE, OTHER_PICTURE);
 
@@ -106,7 +113,7 @@ class HttpPictureStatsAggregationTest {
 
         assertEquals(6L, viewCount(PICTURE), "existing stats must be updated, not treated as a new row");
         Integer rows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture_stats WHERE pictureId = ?", Integer.class, PICTURE);
+                "SELECT COUNT(*) FROM picture_stats WHERE picture_id = ?", Integer.class, PICTURE);
         assertEquals(1, rows, "the stats row must be unique per picture");
         // 另一张图的统计不受影响
         assertEquals(100L, viewCount(OTHER_PICTURE), "aggregation must not touch another picture's stats");
@@ -129,8 +136,9 @@ class HttpPictureStatsAggregationTest {
         insertEvent(PICTURE, 2, 1, "claimed-event");
         jdbc.update("""
                 UPDATE user_picture_action
-                SET claimToken = 'other-instance', claimedAt = NOW(), claimExpireAt = DATE_ADD(NOW(), INTERVAL 60 SECOND)
-                WHERE eventId LIKE ?
+                SET claim_token = 'other-instance', claimed_at = statement_timestamp(),
+                    claim_expire_at = statement_timestamp() + (60 * interval '1 second')
+                WHERE event_id LIKE ?
                 """, suffix("claimed-event"));
 
         aggregateService.aggregateActionStats();
@@ -139,8 +147,8 @@ class HttpPictureStatsAggregationTest {
 
         // 租约到期后可以被重新领取，且只入账一次
         jdbc.update("""
-                UPDATE user_picture_action SET claimExpireAt = DATE_SUB(NOW(), INTERVAL 1 SECOND)
-                WHERE eventId LIKE ?
+                UPDATE user_picture_action SET claim_expire_at = statement_timestamp() - (1 * interval '1 second')
+                WHERE event_id LIKE ?
                 """, suffix("claimed-event"));
 
         aggregateService.aggregateActionStats();
@@ -153,7 +161,7 @@ class HttpPictureStatsAggregationTest {
         // 累计之后、完成之前崩溃留下的状态：已计入统计但没有完成标记
         seedStats(STATS_ID, PICTURE, 1, 0, 0, 0, 0, 0, 0);
         insertEvent(PICTURE, 2, 1, "accumulated-event");
-        jdbc.update("UPDATE user_picture_action SET isAccumulated = 1 WHERE eventId LIKE ?",
+        jdbc.update("UPDATE user_picture_action SET is_accumulated = 1 WHERE event_id LIKE ?",
                 suffix("accumulated-event"));
 
         aggregateService.aggregateActionStats();
@@ -199,17 +207,17 @@ class HttpPictureStatsAggregationTest {
         // 目标图片不存在的事件不会被聚合消费，因此仍是待处理状态
         insertEvent(MISSING_PICTURE, 2, 1, "pending-old", longAgo);
         insertEvent(PICTURE, 2, 1, "processed-old", longAgo);
-        jdbc.update("UPDATE user_picture_action SET isProcessed = 1, isAccumulated = 1 WHERE eventId LIKE ?",
+        jdbc.update("UPDATE user_picture_action SET is_processed = 1, is_accumulated = 1 WHERE event_id LIKE ?",
                 suffix("processed-old"));
 
         aggregateService.aggregateActionStats();
 
         Integer pendingRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE eventId LIKE ?",
+                "SELECT COUNT(*) FROM user_picture_action WHERE event_id LIKE ?",
                 Integer.class, suffix("pending-old"));
         assertEquals(1, pendingRows, "pending events must not be dropped by the cleanup");
         Integer processedRows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE eventId LIKE ?",
+                "SELECT COUNT(*) FROM user_picture_action WHERE event_id LIKE ?",
                 Integer.class, suffix("processed-old"));
         assertEquals(0, processedRows, "processed events beyond the retention window are cleaned up");
     }
@@ -221,11 +229,11 @@ class HttpPictureStatsAggregationTest {
         aggregateService.aggregateActionStats();
 
         Integer rows = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE eventId LIKE ?",
+                "SELECT COUNT(*) FROM user_picture_action WHERE event_id LIKE ?",
                 Integer.class, suffix("orphan-event"));
         assertEquals(1, rows, "conflict events must not be silently dropped");
         Integer processed = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE eventId LIKE ? AND isProcessed = 1",
+                "SELECT COUNT(*) FROM user_picture_action WHERE event_id LIKE ? AND is_processed = 1",
                 Integer.class, suffix("orphan-event"));
         assertEquals(0, processed, "an event without a target must not be marked as counted");
         assertTrue(aggregateService.getBacklog().getOrphanCount() >= 1,
@@ -343,8 +351,8 @@ class HttpPictureStatsAggregationTest {
         assertEquals(1L, viewCount(PICTURE), "the reported event must reach the final statistics");
 
         // 载荷过了保留期，被清理任务删掉
-        jdbc.update("UPDATE user_picture_action SET createdTime = DATE_SUB(NOW(), INTERVAL 30 DAY) "
-                + "WHERE pictureId = ?", PICTURE);
+        jdbc.update("UPDATE user_picture_action SET created_time = statement_timestamp() - (30 * interval '1 day') "
+                + "WHERE picture_id = ?", PICTURE);
         aggregateService.aggregateActionStats();
         assertEquals(0, payloadCount(PICTURE), "the payload must be cleaned up");
         assertEquals(1, dedupeEvidenceCount(eventId),
@@ -369,7 +377,7 @@ class HttpPictureStatsAggregationTest {
 
     private void seedPicture(long id, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, NULL, 1, 0)
                 """, id, "content-" + id, name, OWNER);
     }
@@ -377,8 +385,8 @@ class HttpPictureStatsAggregationTest {
     private void seedStats(long id, long pictureId, long view, long like, long collect,
                            long download, long share, long impression, long click) {
         jdbc.update("""
-                INSERT INTO picture_stats (id, pictureId, viewCount, likeCount, collectCount,
-                                           downloadCount, shareCount, impressionCount, clickCount, ctr)
+                INSERT INTO picture_stats (id, picture_id, view_count, like_count, collect_count,
+                                           download_count, share_count, impression_count, click_count, ctr)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.000000)
                 """, id, pictureId, view, like, collect, download, share, impression, click);
     }
@@ -390,10 +398,11 @@ class HttpPictureStatsAggregationTest {
     private void insertEvent(long pictureId, int actionType, int actionValue, String eventId,
                               LocalDateTime createdTime) {
         jdbc.update("""
-                INSERT INTO user_picture_action (userId, pictureId, actionType, actionValue, source,
-                                                 eventId, createdTime, isProcessed, isAccumulated, attemptCount)
-                VALUES (0, ?, ?, ?, 0, ?, ?, 0, 0, 0)
-                """, pictureId, actionType, actionValue, scopedEventId(eventId), createdTime);
+                INSERT INTO user_picture_action (id, user_id, picture_id, action_type, action_value, source,
+                                                 event_id, created_time, is_processed, is_accumulated, attempt_count)
+                VALUES (?, 0, ?, ?, ?, 0, ?, ?, 0, 0, 0)
+                """, eventIds.incrementAndGet(), pictureId, actionType, actionValue,
+                scopedEventId(eventId), createdTime);
     }
 
     /**
@@ -409,28 +418,28 @@ class HttpPictureStatsAggregationTest {
 
     private long viewCount(long pictureId) {
         Long value = jdbc.queryForObject(
-                "SELECT COALESCE((SELECT viewCount FROM picture_stats WHERE pictureId = ?), 0)",
+                "SELECT COALESCE((SELECT view_count FROM picture_stats WHERE picture_id = ?), 0)",
                 Long.class, pictureId);
         return value == null ? 0L : value;
     }
 
     private long impressionCount(long pictureId) {
         Long value = jdbc.queryForObject(
-                "SELECT COALESCE((SELECT impressionCount FROM picture_stats WHERE pictureId = ?), 0)",
+                "SELECT COALESCE((SELECT impression_count FROM picture_stats WHERE picture_id = ?), 0)",
                 Long.class, pictureId);
         return value == null ? 0L : value;
     }
 
     private long clickCount(long pictureId) {
         Long value = jdbc.queryForObject(
-                "SELECT COALESCE((SELECT clickCount FROM picture_stats WHERE pictureId = ?), 0)",
+                "SELECT COALESCE((SELECT click_count FROM picture_stats WHERE picture_id = ?), 0)",
                 Long.class, pictureId);
         return value == null ? 0L : value;
     }
 
     private BigDecimal ctr(long pictureId) {
         BigDecimal value = jdbc.queryForObject(
-                "SELECT ctr FROM picture_stats WHERE pictureId = ?", BigDecimal.class, pictureId);
+                "SELECT ctr FROM picture_stats WHERE picture_id = ?", BigDecimal.class, pictureId);
         return value == null ? BigDecimal.ZERO : value;
     }
 
@@ -439,7 +448,7 @@ class HttpPictureStatsAggregationTest {
      */
     private int payloadCount(long pictureId) {
         return jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, pictureId);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, pictureId);
     }
 
     /**
@@ -447,7 +456,7 @@ class HttpPictureStatsAggregationTest {
      */
     private int dedupeEvidenceCount(String eventId) {
         return jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture_action_event_dedupe WHERE eventId LIKE ?",
+                "SELECT COUNT(*) FROM picture_action_event_dedupe WHERE event_id LIKE ?",
                 Integer.class, "%:" + eventId);
     }
 
@@ -461,7 +470,7 @@ class HttpPictureStatsAggregationTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of(
                 "userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
@@ -469,7 +478,7 @@ class HttpPictureStatsAggregationTest {
 
     private int processedCount(long pictureId) {
         return jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ? AND isProcessed = 1",
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ? AND is_processed = 1",
                 Integer.class, pictureId);
     }
 

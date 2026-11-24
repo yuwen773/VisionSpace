@@ -42,7 +42,7 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         stats.setSpaceCount(spaceService.count());
         // 一条 SQL 同时获取图片总数和总大小
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("count(*) as cnt", "ifnull(sum(picSize), 0) as totalSize");
+        queryWrapper.select("count(*) as cnt", "coalesce(sum(pic_size), 0) as total_size");
         Map<String, Object> result = pictureService.getBaseMapper().selectMaps(queryWrapper).get(0);
         stats.setPictureCount(((Number) result.get("cnt")).longValue());
         stats.setUsedSize(((Number) result.get("totalSize")).longValue());
@@ -54,16 +54,16 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         // 今日曝光量 (source=0 HOME_RECOMMEND, actionType=0 impression)
         QueryWrapper<UserPictureAction> impressionWrapper = new QueryWrapper<>();
         impressionWrapper.eq("source", 0)
-                .eq("actionType", 0)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 0)
+                .between("create_time", todayStart, todayEnd);
         Long todayImpression = userPictureActionMapper.selectCount(impressionWrapper);
         stats.setTodayImpressionCount(todayImpression);
 
         // 今日点击量 (source=0 HOME_RECOMMEND, actionType=1 click)
         QueryWrapper<UserPictureAction> clickWrapper = new QueryWrapper<>();
         clickWrapper.eq("source", 0)
-                .eq("actionType", 1)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 1)
+                .between("create_time", todayStart, todayEnd);
         Long todayClick = userPictureActionMapper.selectCount(clickWrapper);
         stats.setTodayClickCount(todayClick);
 
@@ -78,8 +78,8 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         // 今日收藏量 (source=0 HOME_RECOMMEND, actionType=4 collect)
         QueryWrapper<UserPictureAction> collectWrapper = new QueryWrapper<>();
         collectWrapper.eq("source", 0)
-                .eq("actionType", 4)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 4)
+                .between("create_time", todayStart, todayEnd);
         Long todayCollect = userPictureActionMapper.selectCount(collectWrapper);
         stats.setTodayCollectCount(todayCollect);
 

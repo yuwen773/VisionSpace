@@ -137,13 +137,13 @@ public class PictureRecommendServiceImpl implements PictureRecommendService {
         // 公开推荐只包含公共图库：空间图片不进入匿名可见的推荐流
         queryWrapper.lambda().eq(Picture::getReviewStatus, 1).isNull(Picture::getSpaceId);
         if ("quality".equals(type)) {
-            queryWrapper.apply("picWidth * picHeight > " + qualityMinPixels);
-            queryWrapper.orderByDesc("picWidth", "picHeight");
+            queryWrapper.apply("pic_width * pic_height > " + qualityMinPixels);
+            queryWrapper.orderByDesc("pic_width", "pic_height");
         } else {
-            queryWrapper.orderByDesc("createTime");
+            queryWrapper.orderByDesc("create_time");
         }
         long offset = (long) (page - 1) * size;
-        queryWrapper.last("LIMIT " + offset + ", " + size);
+        queryWrapper.last("LIMIT " + size + " OFFSET " + offset);
         return pictureMapper.selectList(queryWrapper).stream().map(Picture::getId).collect(Collectors.toList());
     }
 
