@@ -92,7 +92,8 @@ Page({
   },
 
   onPasswordInput(event: WechatMiniprogram.Input) {
-    this.setData({ password: event.detail.value })
+    const value = event.detail.value
+    this.setData({ password: value })
   },
 
   onRetry() {
