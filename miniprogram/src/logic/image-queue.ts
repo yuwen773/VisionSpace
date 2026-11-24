@@ -44,7 +44,18 @@ export class ImageQueue {
   /** 排队等待的任务。 */
   private readonly waiting: WaitingTask[] = []
 
+  /** 正在下载中的任务，key 是 URL；清空时用来把它们的 Promise 一起结算掉。 */
+  private readonly running = new Map<string, WaitingTask>()
+
   private active = 0
+
+  /**
+   * 清空的代数。
+   *
+   * 清空时还在飞的下载没法真正取消（wx.downloadFile 没有取消句柄），
+   * 它们落地后会晚到一步：不带代数判断就会把上一个账号的本地路径写回缓存。
+   */
+  private generation = 0
 
   constructor(options: ImageQueueOptions) {
     this.fetch = options.fetch
@@ -94,12 +105,21 @@ export class ImageQueue {
     })
   }
 
-  /** 清空缓存与排队状态；登出时调用，避免把上一个账号的私有图片留在内存里。 */
+  /**
+   * 清空缓存与排队状态；登出时调用，避免把上一个账号的私有图片留在内存里。
+   *
+   * 排队中与下载中的任务都会被拒绝，调用方不会拿到永远不落地的 Promise；
+   * 已发出的下载仍会跑完，但结果会被代数判断丢掉。
+   */
   clear(): void {
+    this.generation += 1
+    const cancelled = [...this.running.values(), ...this.waiting]
+    this.running.clear()
+    this.waiting.length = 0
     this.resolved.clear()
     this.inflight.clear()
-    this.waiting.length = 0
     this.active = 0
+    cancelled.forEach((task) => task.reject(new Error('图片下载已取消')))
   }
 
   private pump(): void {
@@ -108,18 +128,29 @@ export class ImageQueue {
       if (task === undefined) {
         return
       }
+      const generation = this.generation
       this.active += 1
+      this.running.set(task.url, task)
       this.fetch(task.url)
         .then((path) => {
-          this.resolved.set(task.url, path)
-          this.onSettled?.(task.url, path)
+          if (generation === this.generation) {
+            this.resolved.set(task.url, path)
+            this.onSettled?.(task.url, path)
+          }
           task.resolve(path)
         })
         .catch((error: unknown) => {
-          this.onSettled?.(task.url, null)
+          if (generation === this.generation) {
+            this.onSettled?.(task.url, null)
+          }
           task.reject(error instanceof Error ? error : new Error(String(error)))
         })
         .finally(() => {
+          // 清空之后 running/inflight/active 都已经重置，这一代的结果不能再改它们
+          if (generation !== this.generation) {
+            return
+          }
+          this.running.delete(task.url)
           this.inflight.delete(task.url)
           this.active -= 1
           this.pump()

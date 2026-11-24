@@ -110,4 +110,37 @@ describe('ImageQueue', () => {
     expect(queue.cached('a')).toBe('')
     expect(queue.pendingCount).toBe(0)
   })
+
+  it('settles queued and in-flight requests when cleared', async () => {
+    const fetcher = createFetcher()
+    const queue = new ImageQueue({ maxConcurrency: 1, fetch: fetcher.fetch })
+
+    const running = queue.request('running')
+    const queued = queue.request('queued')
+    queue.clear()
+
+    // 登出不能留下永远不落地的 Promise：两个请求都必须被拒绝
+    await expect(running).rejects.toThrow('图片下载已取消')
+    await expect(queued).rejects.toThrow('图片下载已取消')
+    expect(queue.pendingCount).toBe(0)
+    expect(fetcher.started).toEqual(['running'])
+  })
+
+  it('does not let a download that finishes after clear repopulate the cache', async () => {
+    const fetcher = createFetcher()
+    const settled: Array<[string, string | null]> = []
+    const queue = new ImageQueue({
+      fetch: fetcher.fetch,
+      onSettled: (url, path) => settled.push([url, path]),
+    })
+
+    queue.request('late').catch(() => undefined)
+    queue.clear()
+    fetcher.resolvers.get('late')?.('/tmp/late')
+    await flush()
+
+    // 上一个账号的下载晚到一步，不能写回缓存，也不该再回调页面
+    expect(queue.cached('late')).toBe('')
+    expect(settled).toEqual([])
+  })
 })

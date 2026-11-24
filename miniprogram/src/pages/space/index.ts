@@ -2,7 +2,7 @@ import { ApiError } from '../../services/http'
 import { createSpace, fetchMyMemberships, fetchMySpaces, hasSpaceOfType } from '../../services/space'
 import { getStoredUser, getToken } from '../../services/session'
 import { openLogin } from '../../services/navigation'
-import { errorMessage, isLoginExpired } from '../../logic/errors'
+import { CODE_OPERATION_FAILED, errorMessage, isLoginExpired } from '../../logic/errors'
 import { isValidId } from '../../logic/long'
 import {
   canUploadToSpace,
@@ -105,7 +105,7 @@ Page({
     try {
       await createSpace(defaultPersonalSpaceName(this.data.userName), PERSONAL_SPACE_TYPE)
     } catch (error) {
-      if (!(error instanceof ApiError && error.code === 50001)) {
+      if (!(error instanceof ApiError && error.code === CODE_OPERATION_FAILED)) {
         throw error
       }
     }

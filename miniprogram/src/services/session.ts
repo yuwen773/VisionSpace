@@ -10,25 +10,34 @@ import { toStoredProfile, type ProfileLike, type StoredProfile } from '../logic/
 const TOKEN_STORAGE_KEY = 'vs_satoken'
 const TOKEN_NAME_KEY = 'vs_token_name'
 const USER_STORAGE_KEY = 'vs_user'
-const DEFAULT_TOKEN_NAME = 'satoken'
 
 export function getToken(): string {
   try {
     const token = wx.getStorageSync(TOKEN_STORAGE_KEY)
-    return typeof token === 'string' ? token : ''
+    if (typeof token !== 'string' || token === '') {
+      return ''
+    }
+    // 没有字段名就拼不出鉴权头，等同于未登录
+    return getTokenName() === '' ? '' : token
   } catch (error) {
     console.warn('读取登录令牌失败', error)
     return ''
   }
 }
 
-/** 令牌字段名由服务端下发（`tokenName`），默认 satoken。 */
+/**
+ * 令牌字段名由服务端下发（`tokenName`），客户端不写死。
+ *
+ * 服务端的头名是可配置的，写死 `satoken` 一旦和部署配置不一致，请求会带着
+ * 服务端不认的头静默变成匿名请求。
+ */
 export function getTokenName(): string {
   try {
     const name = wx.getStorageSync(TOKEN_NAME_KEY)
-    return typeof name === 'string' && name !== '' ? name : DEFAULT_TOKEN_NAME
+    return typeof name === 'string' ? name : ''
   } catch (error) {
-    return DEFAULT_TOKEN_NAME
+    console.warn('读取令牌字段名失败', error)
+    return ''
   }
 }
 
@@ -48,11 +57,13 @@ export function getStoredUser(): StoredProfile | null {
 
 /** 登录/绑定成功后一次性写入令牌、令牌名与脱敏用户。 */
 export function saveSession(token: string, tokenName: string, user: StoredProfile): void {
-  if (token === '') {
+  if (token === '' || tokenName === '') {
+    // 缺字段名的登录态发不出鉴权头，存下来只会让后续请求处处 401
+    console.warn('登录响应缺少令牌或字段名，未保存登录态')
     return
   }
   wx.setStorageSync(TOKEN_STORAGE_KEY, token)
-  wx.setStorageSync(TOKEN_NAME_KEY, tokenName || DEFAULT_TOKEN_NAME)
+  wx.setStorageSync(TOKEN_NAME_KEY, tokenName)
   wx.setStorageSync(USER_STORAGE_KEY, user)
 }
 

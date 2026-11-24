@@ -29,6 +29,13 @@ describe('describeError', () => {
     expect(describeError(40000, '账号或密码错误').message).toBe('账号或密码错误')
   })
 
+  it('prefers the server message for 40103, which covers two different causes', () => {
+    // 同一个码既可能是「微信已绑别的账号」，也可能是「账号已绑别的微信」，
+    // 服务端文案才说得清是哪一种
+    expect(describeError(40103, '该账号已绑定其他微信').message).toBe('该账号已绑定其他微信')
+    expect(describeError(40103).message).toBe('该微信已绑定其他账号')
+  })
+
   it('falls back for unknown codes instead of leaking the raw code', () => {
     const error = describeError(49999)
     expect(error.retryable).toBe(true)

@@ -5,6 +5,8 @@
 export const NETWORK_ERROR_CODE = -1
 export const CODE_NOT_LOGIN = 40100
 export const CODE_NO_AUTH = 40101
+/** 通用业务失败：建空间重复、上传超配额等都用它，具体原因看服务端文案。 */
+export const CODE_OPERATION_FAILED = 50001
 
 /** 令牌缺失或过期；后端已据此清理本地令牌。 */
 export function isLoginExpired(code: number): boolean {
@@ -41,14 +43,15 @@ export function describeError(code: number, message?: string | null): ClientErro
     case 40102:
       return { code, message: '该微信尚未绑定账号', retryable: false, loginRequired: true }
     case 40103:
-      return { code, message: '该微信已绑定其他账号', retryable: false, loginRequired: true }
+      // 同一个码有两种原因（微信已绑别的账号 / 账号已绑别的微信），服务端文案更准确
+      return { code, message: serverMessage || '该微信已绑定其他账号', retryable: false, loginRequired: true }
     case 40300:
       return { code, message: '没有访问权限', retryable: false, loginRequired: false }
     case 40400:
       return { code, message: '内容不存在或已下线', retryable: false, loginRequired: false }
     case 50000:
       return { code, message: '服务暂时不可用，请稍后再试', retryable: true, loginRequired: false }
-    case 50001:
+    case CODE_OPERATION_FAILED:
       // OPERATION_ERROR 被多处以 50001 返回（建空间重复、上传超配额等），
       // 具体原因以服务端文案为准，不能在这里写死成上传额度
       return { code, message: serverMessage || '操作失败，请稍后再试', retryable: false, loginRequired: false }

@@ -4,6 +4,7 @@ import { isLoginExpired } from '../../logic/errors'
 import { fetchLoginUser, logout } from '../../services/auth'
 import { resolveContentUrl } from '../../services/content'
 import { ApiError } from '../../services/http'
+import { clearDownloadedImages } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { clearSession, getStoredUser, getToken, saveUser } from '../../services/session'
 
@@ -39,13 +40,23 @@ Page({
       }
     } catch (error) {
       if (error instanceof ApiError && isLoginExpired(error.code)) {
-        clearSession()
+        this.forgetSession()
         this.setData({ loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: '' })
         return
       }
       // 网络类错误保留本地缓存展示
       console.warn('刷新用户信息失败', error)
     }
+  },
+
+  /**
+   * 清掉这个账号留在设备上的一切：本地登录态与已下载的私有图片路径。
+   *
+   * 只清令牌不丢图片缓存，下个账号进空间会直接命中上一个账号的本地路径。
+   */
+  forgetSession(): void {
+    clearSession()
+    clearDownloadedImages()
   },
 
   applyUser(id: string, userName: string, userAvatar: string): void {
@@ -90,7 +101,7 @@ Page({
       // 令牌已失效时后端返回“未登录”，本地照常清理即可
       console.warn('退出登录请求失败，继续清理本地状态', error)
     } finally {
-      clearSession()
+      this.forgetSession()
       this.setData({ busy: false, loggedIn: false, displayName: '', avatarUrl: '', initial: '', userId: '' })
       wx.showToast({ title: '已退出登录', icon: 'none' })
     }
