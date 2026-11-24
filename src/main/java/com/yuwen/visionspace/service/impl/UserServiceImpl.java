@@ -145,6 +145,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return user;
     }
 
+    @Override
+    public boolean deleteUser(long id) {
+        // 先释放微信绑定：逻辑删除只改 isDelete，行还在，唯一索引仍占着这个 openid。
+        // 不清空的话，该微信下次登录查不到已删账号（40102），
+        // 换绑新账号又撞唯一索引（40103），两头都走不通。
+        this.lambdaUpdate()
+                .set(User::getWxOpenId, null)
+                .eq(User::getId, id)
+                .update();
+        return this.removeById(id);
+    }
+
     /**
      * 登录成功后把旧摘要升级为当前算法。
      *

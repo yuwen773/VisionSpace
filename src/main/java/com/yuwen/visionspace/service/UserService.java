@@ -48,6 +48,17 @@ public interface UserService extends IService<User> {
      */
     User authenticateForPassword(String userAccount, String userPassword);
 
+    /**
+     * 删除用户（逻辑删除），并释放该账号占用的微信 openid。
+     *
+     * <p>唯一索引对软删行同样生效，只标记 isDelete 不清空 openid 会让这个微信
+     * 既登不进来（已删用户查不到）也绑不上新账号（唯一索引冲突），只能人工改库。
+     *
+     * @param id 用户 id
+     * @return 是否删除成功
+     */
+    boolean deleteUser(long id);
+
 
     /**
      * 获取加密后的密码

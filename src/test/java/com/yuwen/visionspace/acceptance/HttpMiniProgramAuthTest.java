@@ -2,6 +2,7 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuwen.visionspace.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 小程序登录：openid 绑定、令牌鉴权与 CSRF 分流。
@@ -45,6 +47,9 @@ class HttpMiniProgramAuthTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private UserService userService;
 
     private HttpClient anonymous;
 
@@ -122,6 +127,26 @@ class HttpMiniProgramAuthTest {
         var override = bind(code("openid-e"), account, PASSWORD);
         assertEquals(40103, override.path("code").asInt(), override.toString());
         assertEquals("openid-d", boundOpenId(account), "账号已有绑定时不能被第二个微信覆盖");
+    }
+
+    @Test
+    void deletingUserReleasesTheWeChatBinding() throws Exception {
+        String account = account();
+        String replacement = account();
+        register(account);
+        register(replacement);
+        assertEquals(0, bind(code("openid-h"), account, PASSWORD).path("code").asInt());
+        Long userId = jdbc.queryForObject(
+                "SELECT id FROM user WHERE userAccount = ?", Long.class, account);
+
+        assertTrue(userService.deleteUser(userId), "删除账号必须成功");
+
+        // 软删行仍然占着唯一索引：openid 必须随删除一起置空。
+        // 否则这个微信登录只会拿到 40102，换绑新账号又撞 40103，只能人工改库。
+        assertNull(boundOpenId(account), "账号删除后必须释放 openid");
+        var rebind = bind(code("openid-h"), replacement, PASSWORD);
+        assertEquals(0, rebind.path("code").asInt(), rebind.toString());
+        assertEquals("openid-h", boundOpenId(replacement), "openid 必须能绑到新账号");
     }
 
     @Test
