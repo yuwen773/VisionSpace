@@ -609,6 +609,59 @@ python -I scripts/drill-isolated-run.py --full
 ### B.6 仍未完成（不阻塞合并，但上线前要闭）
 
 - M4 低资源排练（§5.9）：本机按 2 vCPU / 1700 MB 参数做一次冷启动 + 备份恢复演练；阿里云实机（`121.199.77.168`）需授权后执行。§7 门禁第 8 条因此未满足。
-- §5.7 的「错误口令启动 → readiness DOWN/503」负例没有单独用例：验收上下文里 `IsolatedApplicationInitializer` 会先因库级 nonce 校验失败而中止启动，readiness 根本不可达；现有证据是 `test-container-verification.ps1` 的依赖后到/停库场景断言 readiness 不 UP。
+- §5.7 的「错误口令启动 → readiness DOWN/503」按计划写法不成立，已实测改判：口令错误时 Hikari 在启动期 `checkFailFast` 直接抛 `FATAL: password authentication failed`，应用拒绝启动、管理端口根本不监听（C.4）。依赖在**运行中**消失才表现为 readiness 不 UP，这条由 `test-container-verification.ps1` 的停库/后到场景覆盖。
 - §5.2 的「同一索引插一对只差大小写的值」行为矩阵只覆盖账号、openid、兑换码哈希三类；其余文本唯一键靠 `PostgresUniqueCaseSemanticsTest` 的索引清单（名称 + 覆盖表达式逐条钉住）结构性保证。
 - 合并、打 1.1.0、部署生产：均需显式授权，未执行。
+
+## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
+
+目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；没有 1 小时 soak，也没有 swap 观测。
+
+### C.1 参数
+
+| 组件 | 实际值 |
+|---|---|
+| PostgreSQL | `postgres:18.7`，`shared_buffers=128MB`（16384×8kB）、`work_mem=2MB`、`maintenance_work_mem=32MB`、`max_connections=20`、`timezone=Asia/Shanghai` |
+| Redis | `redis:7.2.4`，`--maxmemory 64mb`、`--maxmemory-policy noeviction` |
+| JVM | `-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -Duser.timezone=Asia/Shanghai` |
+| Hikari | `maximum-pool-size=5`、`minimum-idle=1` |
+| 角色 | Flyway 以 `vision_migrator` 建库；应用与查询一律 `vision_app` |
+
+### C.2 冷启动与内存
+
+| 指标 | 实测 |
+|---|---|
+| Flyway migrate（全新空库） | 成功，31 张业务表 + 种子 + 授权；`flyway_schema_history` 1 行，`installed_by=vision_migrator` |
+| 最小权限抽查 | `vision_app` 读种子行 OK；`CREATE TABLE` 报 `permission denied for schema public` |
+| 启动到 readiness UP | 约 7 秒（`/actuator/health/readiness` = `{"status":"UP"}`） |
+| JVM 常驻 RSS（空闲） | 460 MB |
+| PostgreSQL RSS（空闲） | 60.6 MB |
+| Redis RSS | 3.4 MB |
+
+### C.3 20 并发 60 秒
+
+`POST /api/picture/list/page/vo`，20 并发线程持续 60 秒：
+
+| 指标 | 实测 |
+|---|---|
+| 请求数 / 错误率 | 99,235 / **0.00%**（全部 200） |
+| p50 / p95 / p99 / max | 11 ms / 19 ms / 27 ms / 463 ms |
+| 负载后 JVM RSS | 544 MB |
+| 负载后 PG / Redis RSS | 60.9 MB / 3.6 MB |
+| PG 连接数 | 应用 5 条（等于 Hikari 上限），`max_connections=20` 有余量 |
+
+合计 应用 544 + PG 61 + Redis 4 ≈ **609 MB**，给 OS/Nginx 留出约 1.1 GB，1.7 GB 机型有余量；这是本机数字，实机还要看磁盘 IO 与云厂商的 CPU 配额。
+
+### C.4 备份恢复演练（§5.10 阶段 B 的最小闭环）
+
+1. `pg_dump -Fc`：183 KB；
+2. 建 `vision_space_restore`（owner `vision_migrator`）并 `pg_restore` 成功；
+3. 恢复库结构与权限核对：32 张表（31 业务 + flyway 历史）、22 个触发器、24 个唯一索引，`vision_app` 可读；
+4. 应用改连恢复库 → readiness 2 秒内 UP，`/api/picture/list/page/vo` 返回 `code: 0`；
+5. 顺带实测了「错误口令」：Hikari `checkFailFast` 在启动期直接失败（`FATAL: password authentication failed`），应用不监听任何端口——所以 §5.7 的 readiness 负例在启动期不存在，运行期断库才是 readiness 场景（`test-container-verification.ps1` 覆盖）。
+
+### C.5 未覆盖
+
+- 阿里云 ECS `121.199.77.168` 上的同参数实跑（待授权）；
+- 1 小时 soak、JVM GC 曲线、swap 使用率、OOM 计数；
+- 真正 2 vCPU 上限下的 CPU 饱和测试（本机核数远多于 2）。
