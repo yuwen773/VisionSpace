@@ -75,8 +75,11 @@
 - `UserServiceImpl.getLoginUser` 增加回退：**显式令牌优先**（请求头或查询参数带有效
   `satoken` 时按该令牌解析 userId），否则用浏览器会话；两者共用 `StpKit.SPACE` 存储。
 - 内容接口 `/picture/content/**` 因此可直接用 `?satoken=` 被 `<image>` 加载。
-- **风险**：令牌进入 nginx access_log。M1 同步给出 nginx 脱敏方案（对 `satoken` 参数打码），
+- **风险**：令牌进入 nginx access_log。M1 同步给出 nginx 脱敏方案（按参数名打码），
   并保留后续改为短时 ticket 的接口位置。
+- **M5 起已调整**：小程序的私有图片改为 `wx.downloadFile` 带鉴权头下载，
+  客户端不再把令牌放进 URL；服务端的查询参数鉴权保留为无头客户端的兼容路径，
+  nginx 脱敏随之改为按「参数名里带 token」打码（见 §15）。
 
 ### 4.4 CSRF 分流
 
@@ -112,8 +115,9 @@ miniprogram/
 
 ### 5.2 关键交互
 
-- 图片加载：`<image src="{base}/api/picture/content/{id}/thumbnail?satoken={token}">`；
-  公开图库不带令牌。
+- 图片加载：公开图库直接 `<image src="{base}/api/picture/content/{id}/thumbnail">`；
+  空间（私有）图片用 `wx.downloadFile` 带令牌头下载到本地再展示，令牌不进 URL
+  （M5 起；本章描述的是 M2 时的做法）。
 - 违规/无权限：`quarantined=true` 或 URL 为空 → 占位卡，不显示破图。
 - 无空间：首次进空间 tab 查不到 `spaceType=0` 时，调 `POST /space/add` 建默认空间（需幂等处理）。
 - 上传：`wx.chooseMedia` ≤9 → 逐张 `wx.compressImage`/质量压缩到 <2MB →
@@ -128,6 +132,7 @@ miniprogram/
 | M2 公开图库 | 发现 tab：榜单/关键词/分类、详情、分享、匿名埋点 | 真机清单 + 逻辑层单测 |
 | M3 空间浏览 | 登录/绑定、空间列表、网格、详情、颜色检索 | 真机清单 + 逻辑层单测 |
 | M4 上传 | 选图/压缩/串行上传/配额错误提示 | 真机清单 + 逻辑层单测 |
+| M5 私有图片 | `wx.downloadFile` 带鉴权头下载、队列限流去重、令牌不进 URL | 逻辑层单测 + 真机清单 |
 
 每刀一个 PR，不做长期驻留的大分支。
 
@@ -378,3 +383,42 @@ miniprogram/
   安全模型。
 - Agent 的 SSE 接入层（开流前用 401/403/404/429 状态码、流内错误事件、
   增量 UTF-8 解码）尚未开始，属第 2 期。
+
+## 15. 全面审查修正（M1–M5 合并后）
+
+两轴（Standards / Spec）对 `origin/main...HEAD` 整体复审（M5 完成后）后修正：
+
+- **删号不释放 openid（阻塞级）**：`uk_user_wxOpenId` 对逻辑删除的行同样生效，
+  而 `POST /user/delete` 只标记 `isDelete`。被删账号的 openid 会一直占着索引：
+  该微信登录只得到 40102（查不到已删用户），换绑新账号又撞 40103，只能人工改库。
+  改为 `UserService.deleteUser`：先把 `wxOpenId` 置 `NULL` 再逻辑删除；
+  验收测试新增「删号后原 openid 能绑到新账号」。
+- **登出不丢图片缓存**：`clearDownloadedImages()` 没有调用方，下个账号进空间会直接
+  命中上一个账号的本地路径。改为「我的」页统一走 `forgetSession()`
+  （清登录态 + 清图片缓存），登录过期的兜底路径同样清理。
+- **`ImageQueue.clear()` 的悬空 Promise**：清空只丢引用不结算，等待中的调用方永远
+  不落地；已发出的下载落地后还会把上一个账号的路径写回缓存。改为清空时拒绝排队中
+  与下载中的任务，并用「代数」丢弃晚到的结果。
+- **令牌字段名写死**：`session.ts` 仍有 `DEFAULT_TOKEN_NAME = 'satoken'` 兜底，与服务端
+  可配置的头名冲突（README 约定也禁止）。改为只认服务端下发的 `tokenName`，缺失时
+  按未登录处理；`saveSession` 不再保存缺字段名的登录态。
+- **40103 文案**：同一个码有两种原因，客户端写死成「该微信已绑定其他账号」，
+  把服务端的「该账号已绑定其他微信」盖掉了。改为优先服务端文案。
+- **50001 常量**：`pages/space` 里的裸字面量 50001 改为 `CODE_OPERATION_FAILED`。
+- **nginx 脱敏只认 `satoken`**：令牌参数名可配置，两处配置不同时脱敏静默失效。
+  三个入口改为按「参数名里带 token」打码；用 `nginx:alpine` 实测：
+  `satoken` / `vs_token` / `access_token` 都打码，`q=token=abc` 这类值不误伤。
+- **文档**：§6 里程碑表补 M5；§4.3 / §5.2 标注「M5 起改为鉴权下载，查询参数鉴权仅作兼容」。
+
+判断后不做的：
+
+- **分页编排重复**（`pages/discover` 与 `pages/space-detail`）：两页收尾不同
+  （颜色模式、needsLogin 分流），抽公共 helper 只会把差异变成一串参数；
+  分页状态机已在 `logic/feed.ts` 共享，暂不抽。
+- **`contentUrl` / `openLogin` 薄封装**：保留为页面与路由的接缝。
+- **服务端查询参数令牌未删除**：作为无头客户端的兼容路径保留，nginx 已兜底；
+  若第 2 期确认没有消费者再摘掉。
+- **上传页空间选择器**：§2 的「默认个人空间可选团队」仍未做，取舍见 §12。
+
+验证：`npm run type-check` 通过；`npm test` 10 个文件 119 项全通过；
+`HttpMiniProgramAuthTest` 10 项全通过（隔离 MySQL 8.0.36 + Redis 7.2.4）；真机清单仍未执行。
