@@ -203,7 +203,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public User getLoginUser(HttpServletRequest request) {
-        // 小程序等非浏览器客户端：请求头或查询参数携带令牌，不依赖 Cookie 会话。
+        // 小程序等非浏览器客户端：请求头携带令牌，不依赖 Cookie 会话。
         // 先判令牌再判会话，令牌客户端因此不会顺带创建空 Session。
         Long tokenUserId = tokenAuthenticationSupport.resolveUserId(request);
         if (tokenUserId != null) {
@@ -308,7 +308,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         //      保留「Web 退出即全端退出」的既有语义。
         // 撤销失败必须让调用方看到，不能吞掉异常后返回「已注销」：
         // 那样会话被清掉、令牌却还活着，用户以为退出了而空间鉴权仍然通过。
-        if (explicitToken != null && tokenLoggedIn && userObj == null) {
+        if (tokenLoggedIn && userObj == null) {
             StpKit.SPACE.logoutByTokenValue(explicitToken);
         } else if (spaceLoggedIn) {
             StpKit.SPACE.logout(SaLogoutParameter.create()

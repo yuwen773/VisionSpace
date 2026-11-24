@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 微信小程序登录入口。
  *
  * <p>登录态载体与 Web 不同：小程序拿不到可靠的 Cookie，改为由服务端签发 Sa-Token 令牌，
- * 客户端在后续请求的 {@code satoken} 头（或加载图片时的查询参数）里带回。
+ * 客户端在后续请求的 {@code satoken} 头里带回（只认请求头，不接受查询参数）。
  * 账号、空间与权限模型与 Web 完全共用。
  */
 @RestController
