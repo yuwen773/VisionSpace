@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>编辑成册 · VisionSpace 小程序 · 方向二</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  html, body { margin: 0; background: #F4F0E6; }
+  * { -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+<script>const IMG = /*__IMG__*/{};</script>
+
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+/*__FRAME__*/
+
+/* ============================================================
+   方向二 · 编辑成册  —— 把散落的照片编成一册
+   ============================================================ */
+const P = {
+  paper: '#F4F0E6',
+  paper2: '#EAE4D6',
+  ink: '#1A1712',
+  sub: '#6B6455',
+  faint: '#6F6757',
+  rule: '#D6CDBA',
+  spot: '#A83E1B',
+  spot2: '#2C4A6E',
+  serif: '"Songti SC", "Noto Serif SC", "Source Han Serif SC", serif',
+  sans: '-apple-system, "PingFang SC", "Noto Sans SC", sans-serif',
+};
+
+const WORKS = [
+  { id: 1, key: 'brooklyn', plate: '014', title: '布鲁克林餐车', author: 'Frank Schulenburg', place: '纽约', year: '2024', size: '1600 × 900', tag: '街拍', lic: 'CC BY-SA 4.0',
+    caption: '霓虹灯牌把整条街染成洋红，自行车停在窗口下面，门里没有人。' },
+  { id: 2, key: 'montreal', plate: '015', title: '蒙特利尔街头', author: 'Wilfredor', place: '蒙特利尔', year: '2023', size: '1200 × 1406', tag: '街拍', lic: 'CC0',
+    caption: '正午的硬光，人流在斑马线上被切成几段。' },
+  { id: 3, key: 'mountains', plate: '016', title: '三姐妹峰', author: 'Dietmar Rabich', place: '蓝山', year: '2019', size: '1600 × 1877', tag: '风景', lic: 'CC BY-SA 4.0',
+    caption: '雾从谷底升上来，三块岩柱只剩轮廓。' },
+  { id: 4, key: 'glacier', plate: '017', title: '冰川航线', author: 'Steve Hillebrand', place: '阿拉斯加', year: '2016', size: '1600 × 1065', tag: '风景', lic: 'Public domain',
+    caption: '航拍高度约两千米，冰裂缝像铅笔划过的痕迹。' },
+  { id: 5, key: 'arch', plate: '018', title: '驿站穹顶', author: 'Mostafameraji', place: '库姆', year: '2021', size: '1600 × 1065', tag: '建筑', lic: 'CC BY-SA 4.0',
+    caption: '砖砌的穹顶把光线收进中心，四周是黑的。' },
+  { id: 6, key: 'still', plate: '019', title: '报春花与石榴', author: 'Henri Fantin-Latour', place: '巴黎', year: '1866', size: '1600 × 1952', tag: '静物', lic: 'Public domain',
+    caption: '桌面只有两种颜色：花白的、果子暗的。' },
+  { id: 7, key: 'still1857', plate: '020', title: '花与葡萄', author: 'Amalie Kaercher', place: '德累斯顿', year: '1857', size: '1600 × 2101', tag: '静物', lic: 'Public domain',
+    caption: '画了整整一年，花瓣的边缘已经干得发脆。' },
+  { id: 8, key: 'portrait', plate: '021', title: '锡安·阿米尔', author: 'Arielinson', place: '特拉维夫', year: '2022', size: '1600 × 1200', tag: '人像', lic: 'CC BY-SA 4.0',
+    caption: '背景被压成一整块暗灰，人物只剩侧脸的光。' },
+  { id: 9, key: 'portrait2', plate: '022', title: '让-米歇尔·雅尔', author: 'A.Savin', place: '柏林', year: '2016', size: '1600 × 2400', tag: '人像', lic: 'FAL',
+    caption: '舞台侧光，脸上的影子比表情更清楚。' },
+];
+
+function Rule({ mt = 0, mb = 0, color = P.rule }) {
+  return <div style={{ height: 0.5, background: color, marginTop: mt, marginBottom: mb }} />;
+}
+
+function Caption({ w, align = 'left' }) {
+  return (
+    <div style={{ marginTop: 6, textAlign: align }}>
+      <div style={{ fontFamily: P.serif, fontSize: 12, color: P.ink, lineHeight: 1.5 }}>
+        <span style={{ color: P.spot, fontVariantNumeric: 'tabular-nums' }}>{w.plate}</span>　{w.title}
+      </div>
+      <div style={{ fontSize: 12, color: P.sub, marginTop: 2 }}>{w.author}，{w.year}</div>
+    </div>
+  );
+}
+
+function Tab({ tab, onTab }) {
+  return { list: [{ text: '发现' }, { text: '空间' }, { text: '我的' }], color: P.faint, selectedColor: P.spot, backgroundColor: P.paper, borderColor: P.rule, active: tab, onChange: onTab };
+}
+
+/* —— 刊首页 —— */
+function DiscoverScreen({ onTab, onOpen, tab }) {
+  const a = WORKS[0], b = WORKS[1], c = WORKS[2];
+  return (
+    <WechatFrame page="pages/discover/index" nav="custom" navText="black" background={P.paper} tab={tab} onTabChange={onTab}
+      tabBar={{ ...Tab({ tab, onTab }), active: tab }}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div style={{ padding: '6px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span style={{ fontFamily: P.serif, fontSize: 13, letterSpacing: '0.06em' }}>VisionSpace 作品集</span>
+          <span style={{ fontSize: 12, color: P.sub }}>第 04 期 · 2026 冬</span>
+        </div>
+        <Rule mt={10} />
+
+        <div style={{ padding: '18px 20px 0' }}>
+          <div style={{ fontFamily: P.serif, fontSize: 34, lineHeight: 1.15, color: P.ink }}>夜里的城市</div>
+          <div style={{ fontSize: 13, color: P.sub, marginTop: 8 }}>本期收录 18 张照片，来自 4 位摄影师。</div>
+        </div>
+
+        <div style={{ padding: '16px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ gridColumn: 'span 2' }} onClick={() => onOpen(a)}>
+            <div style={{ height: 176, overflow: 'hidden', cursor: 'pointer' }}>
+              <img src={IMG[a.key]} alt={a.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <Caption w={a} />
+          </div>
+          <div>
+            <div style={{ height: 108, overflow: 'hidden' }}>
+              <img src={IMG[b.key]} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <Caption w={b} />
+          </div>
+          <div>
+            <div style={{ height: 108, overflow: 'hidden' }}>
+              <img src={IMG[c.key]} alt={c.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <Caption w={c} />
+          </div>
+        </div>
+
+        <Rule mt={16} />
+
+        <div style={{ padding: '12px 20px 0' }}>
+          <div style={{ fontSize: 12, color: P.sub, marginBottom: 6 }}>本期目录</div>
+          <div style={{ fontFamily: P.serif, fontSize: 14, lineHeight: 1.9, color: P.ink }}>
+            风景 <span style={{ color: P.sub, fontSize: 12 }}>017–018 · 12</span>　街拍 <span style={{ color: P.sub, fontSize: 12 }}>014–015 · 9</span>　人像 <span style={{ color: P.sub, fontSize: 12 }}>021–022 · 6</span>
+            <br />静物 <span style={{ color: P.sub, fontSize: 12 }}>019–020 · 4</span>　建筑 <span style={{ color: P.sub, fontSize: 12 }}>018 · 3</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 12, color: P.faint, marginTop: 14, fontVariantNumeric: 'tabular-nums' }}>014</div>
+        </div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 图版页 —— */
+function DetailScreen({ onTab, onBack, tab }) {
+  const w = WORKS[0];
+  return (
+    <WechatFrame page="pages/picture/index" nav="custom" navText="black" background={P.paper}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div onClick={onBack} style={{ padding: '4px 20px 10px', fontSize: 13, color: P.sub, cursor: 'pointer' }}>← 回到本期</div>
+        <div style={{ height: 248, overflow: 'hidden', margin: '0 0 0' }}>
+          <img src={IMG[w.key]} alt={w.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, color: P.spot, fontVariantNumeric: 'tabular-nums' }}>图版 {w.plate}</span>
+            <span style={{ fontSize: 12, color: P.sub }}>{w.tag} · {w.place}</span>
+          </div>
+          <div style={{ fontFamily: P.serif, fontSize: 26, marginTop: 8 }}>{w.title}</div>
+          <div style={{ fontFamily: P.serif, fontSize: 14, lineHeight: 1.85, color: P.sub, marginTop: 10 }}>{w.caption}</div>
+          <Rule mt={14} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 12, color: P.sub }}>
+            <span>{w.author}</span><span>{w.year} · {w.size}</span>
+          </div>
+          <Rule />
+          <div style={{ display: 'flex', gap: 22, padding: '14px 0 0', fontSize: 14 }}>
+            {['收藏', '下载', '同空间'].map((a, i) => (
+              <span key={a} style={{ color: i === 0 ? P.spot : P.ink, cursor: 'pointer', borderBottom: `0.5px solid ${i === 0 ? P.spot : P.rule}`, paddingBottom: 2 }}>{a}</span>
+            ))}
+          </div>
+          <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderTop: `0.5px solid ${P.rule}`, borderBottom: `0.5px solid ${P.rule}` }}>
+            <span style={{ fontSize: 12, color: P.sub }}>同一空间</span>
+            <span style={{ fontFamily: P.serif, fontSize: 14 }}>夜里的城市</span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, color: P.sub }}>18 张 · 查看</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 12 }}>
+            {WORKS.slice(1, 4).map(x => (
+              <div key={x.id}>
+                <div style={{ height: 56, overflow: 'hidden' }}>
+                  <img src={IMG[x.key]} alt={x.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div style={{ fontFamily: P.serif, fontSize: 12, color: P.sub, marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{x.plate}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: P.faint, lineHeight: 1.8, marginTop: 16 }}>许可 {w.lic} · 图版 {w.plate} / 022</div>
+        </div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 专辑页 —— */
+function SpaceScreen({ onTab, tab }) {
+  return (
+    <WechatFrame page="pages/space-detail/index" nav="custom" navText="black" background={P.paper}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div style={{ padding: '6px 20px 0' }}>
+          <div style={{ fontSize: 12, color: P.sub }}>个人空间 · 第 03 辑</div>
+          <div style={{ fontFamily: P.serif, fontSize: 28, marginTop: 6 }}>夜里的城市</div>
+          <Rule mt={12} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: P.sub, padding: '8px 0' }}>
+            <span>18 张 · 128.4 MB</span><span>上限 1.0 GB · 已用 12%</span>
+          </div>
+          <div style={{ height: 3, background: P.paper2 }}>
+            <div style={{ width: '12%', height: 3, background: P.spot2 }} />
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {WORKS.slice(0, 5).map((w, i) => (
+            <div key={w.id} style={{ gridColumn: i === 0 ? 'span 2' : 'span 1' }}>
+              <div style={{ height: i === 0 ? 136 : 96, overflow: 'hidden' }}>
+                <img src={IMG[w.key]} alt={w.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <Caption w={w} />
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'right', padding: '10px 20px 0', fontSize: 12, color: P.faint }}>018</div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 投稿登记页 —— */
+function UploadScreen({ onTab, tab }) {
+  return (
+    <WechatFrame page="pages/upload/index" nav="custom" navText="black" background={P.paper}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div style={{ padding: '6px 20px 0' }}>
+          <div style={{ fontFamily: P.serif, fontSize: 24 }}>登记一张新图版</div>
+          <div style={{ fontSize: 12, color: P.sub, marginTop: 6 }}>放进空间后进入审核，通过后进入公开图库。</div>
+        </div>
+
+        <div style={{ margin: '16px 20px 0', height: 118, border: `0.5px dashed ${P.faint}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(255,255,255,0.35)' }}>
+          <div style={{ fontFamily: P.serif, fontSize: 15, color: P.ink }}>从相册选择</div>
+          <div style={{ fontSize: 12, color: P.sub }}>JPG / PNG · 单张 10 MB · 一次 9 张</div>
+        </div>
+
+        <div style={{ padding: '16px 20px 0' }}>
+          {WORKS.slice(0, 2).map((w, i) => (
+            <div key={w.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: `0.5px solid ${P.rule}` }}>
+              <div style={{ width: 46, height: 46, overflow: 'hidden' }}>
+                <img src={IMG[w.key]} alt={w.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: P.serif, fontSize: 14 }}>{w.title}.jpg</div>
+                <div style={{ fontSize: 12, color: P.sub, marginTop: 2 }}>{(1.2 + i * 0.4).toFixed(1)} MB</div>
+              </div>
+              <div style={{ fontSize: 12, color: i === 0 ? P.spot : P.faint }}>{i === 0 ? '上传中 64%' : '待上传'}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: '18px 20px 0' }}>
+          <div style={{ fontSize: 12, color: P.sub }}>去向</div>
+          {[['夜里的城市', '18 张 · 128.4 MB', true], ['街拍档案', '42 张 · 806 MB', false]].map(([n, m, on]) => (
+            <div key={n} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `0.5px solid ${P.rule}` }}>
+              <div>
+                <div style={{ fontFamily: P.serif, fontSize: 15, color: on ? P.ink : P.sub }}>{n}</div>
+                <div style={{ fontSize: 12, color: P.faint, marginTop: 2 }}>{m}</div>
+              </div>
+              <div style={{ width: 14, height: 14, borderRadius: 999, border: `1px solid ${on ? P.spot : P.faint}`, background: on ? P.spot : 'transparent' }} />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ margin: '18px 20px 0', height: 44, background: P.ink, color: P.paper, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: P.serif, fontSize: 16 }}>上传 3 张</div>
+        <div style={{ margin: '14px 20px 0', fontSize: 13, color: P.sub, lineHeight: 1.8 }}>上传后进入审核，通常在 2 小时内完成；未通过的作品只留在你的空间里。</div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 编者页 —— */
+function MeScreen({ onTab, tab }) {
+  return (
+    <WechatFrame page="pages/me/index" nav="custom" navText="black" background={P.paper} tab={tab} onTabChange={onTab}
+      tabBar={{ ...Tab({ tab, onTab }) }}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div style={{ padding: '8px 20px 0' }}>
+          <div style={{ width: 58, height: 58, overflow: 'hidden' }}>
+            <img src={IMG.portrait} alt="头像" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+          <div style={{ fontFamily: P.serif, fontSize: 24, marginTop: 12 }}>林一舟</div>
+          <div style={{ fontSize: 12, color: P.sub, marginTop: 4 }}>会员至 2027-06 · ID 2125136479681667074</div>
+        </div>
+
+        <Rule mt={18} />
+        <div style={{ display: 'flex', padding: '14px 20px 0', gap: 0 }}>
+          {[['12', '作品'], ['8', '收藏'], ['2', '空间'], ['18', '本月上传']].map(([n, l], i) => (
+            <div key={l} style={{ flex: 1, borderLeft: i === 0 ? 'none' : `0.5px solid ${P.rule}`, paddingLeft: i === 0 ? 0 : 12 }}>
+              <div style={{ fontFamily: P.serif, fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>{n}</div>
+              <div style={{ fontSize: 12, color: P.sub, marginTop: 2 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <Rule mt={14} />
+
+        <div style={{ padding: '6px 20px 0' }}>
+          {[['我的空间', '2 个'], ['我的作品', '12 张'], ['收藏夹', '8 张'], ['上传设置', '默认空间 · 自动压缩']].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 0', borderBottom: `0.5px solid ${P.rule}` }}>
+              <span style={{ fontFamily: P.serif, fontSize: 15 }}>{k}</span>
+              <span style={{ fontSize: 12, color: P.sub }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 13, color: P.spot, padding: '18px 0' }}>退出登录</div>
+        </div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 登录页 —— */
+function LoginScreen() {
+  return (
+    <WechatFrame page="pages/login/index" nav="custom" navText="black" background={P.paper}>
+      <div style={{ paddingTop: 96, paddingBottom: 40, fontFamily: P.sans }}>
+        <div style={{ padding: '0 24px' }}>
+          <div style={{ fontFamily: P.serif, fontSize: 12, letterSpacing: '0.1em', color: P.sub }}>VisionSpace 作品集</div>
+          <div style={{ fontFamily: P.serif, fontSize: 30, lineHeight: 1.3, marginTop: 14 }}>把照片<br />编进你的空间</div>
+          <div style={{ fontSize: 14, lineHeight: 1.8, color: P.sub, marginTop: 12 }}>登录后可以收藏图版、给空间补图，也可以在编辑页里管理你自己的小刊物。</div>
+        </div>
+
+        <div style={{ margin: '30px 24px 0', height: 46, background: P.ink, color: P.paper, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill={P.paper}><path d="M9 3C4.9 3 1.6 5.8 1.6 9.2c0 2 1.1 3.7 2.8 4.9l-.7 2.1 2.4-1.2c.7.2 1.5.4 2.3.4h.6a5.5 5.5 0 0 1-.2-1.5c0-3.1 3-5.6 6.7-5.6h.6C15.5 5.3 12.6 3 9 3zm-2.6 3.2a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm5.2 0a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8z" /><path d="M22.4 14c0-2.8-2.8-5.1-6.2-5.1s-6.2 2.3-6.2 5.1 2.8 5.1 6.2 5.1c.7 0 1.4-.1 2-.3l2 1-.6-1.8c1.7-1 2.8-2.5 2.8-4zm-8.2-1.5a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6zm4 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6z" /></svg>
+          <span style={{ fontFamily: P.serif, fontSize: 16 }}>微信一键登录</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '26px 24px 0' }}>
+          <div style={{ flex: 1, height: 0.5, background: P.rule }} />
+          <span style={{ fontSize: 12, color: P.faint }}>还没有账号？绑定已有账号</span>
+          <div style={{ flex: 1, height: 0.5, background: P.rule }} />
+        </div>
+
+        <div style={{ padding: '10px 24px 0' }}>
+          {[['账号', 'user@visionspace'], ['密码', '••••••••']].map(([l, v]) => (
+            <div key={l} style={{ borderBottom: `0.5px solid ${P.rule}`, padding: '14px 0 10px', display: 'flex', gap: 14 }}>
+              <span style={{ fontSize: 13, color: P.sub, width: 40 }}>{l}</span>
+              <span style={{ fontSize: 14, color: P.ink, flex: 1 }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ marginTop: 20, height: 42, border: `0.5px solid ${P.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: P.serif, fontSize: 15 }}>绑定并登录</div>
+          <div style={{ fontSize: 13, color: P.sub, lineHeight: 1.7, marginTop: 18 }}>登录即表示同意《用户协议》与《隐私政策》。账号仅用于本作品集，不做其他用途。</div>
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 42, textAlign: 'center', fontFamily: P.serif, fontSize: 12, color: P.faint }}>VisionSpace 作品集 · 第 04 期</div>
+        </div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+/* —— 空间索引页 —— */
+function SpaceListScreen({ onTab, tab }) {
+  const rows = [
+    ['01', '夜里的城市', '个人', '18 张', '128.4 MB', 12],
+    ['02', '街拍档案', '团队 · 4 人', '42 张', '806 MB', 78],
+    ['03', '静物与花', '个人', '6 张', '34.1 MB', 3],
+  ];
+  return (
+    <WechatFrame page="pages/space/index" nav="custom" navText="black" background={P.paper} tab={tab} onTabChange={onTab}
+      tabBar={{ ...Tab({ tab, onTab }) }}>
+      <div style={{ paddingTop: 84, paddingBottom: 90, fontFamily: P.sans }}>
+        <div style={{ padding: '6px 20px 0' }}>
+          <div style={{ fontFamily: P.serif, fontSize: 26 }}>我的空间</div>
+          <div style={{ fontSize: 12, color: P.sub, marginTop: 6 }}>3 个空间 · 已用 968.5 MB / 3.0 GB</div>
+        </div>
+        <Rule mt={14} />
+
+        <div style={{ padding: '4px 20px 0' }}>
+          {rows.map(([n, name, type, count, size, used], i) => (
+            <div key={n} style={{ padding: '14px 0 12px', borderBottom: `0.5px solid ${P.rule}` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ fontFamily: P.serif, fontSize: 12, color: P.spot, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                <span style={{ fontFamily: P.serif, fontSize: 17, flex: 1 }}>{name}</span>
+                <span style={{ fontSize: 12, color: P.sub }}>{type}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: P.sub }}>{count} · {size}</span>
+                <span style={{ fontSize: 12, color: P.faint, fontVariantNumeric: 'tabular-nums' }}>已用 {used}%</span>
+              </div>
+              <div style={{ height: 2, background: P.paper2, marginTop: 6 }}>
+                <div style={{ width: `${used}%`, height: 2, background: P.spot2 }} />
+              </div>
+            </div>
+          ))}
+
+          <div style={{ marginTop: 18, height: 46, border: `0.5px dashed ${P.faint}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: P.serif, fontSize: 15, color: P.sub }}>新建一个空间</div>
+          <div style={{ fontSize: 12, color: P.faint, lineHeight: 1.7, marginTop: 14 }}>空间可以私有，也可以邀请同伴一起编。</div>
+        </div>
+      </div>
+    </WechatFrame>
+  );
+}
+
+function Phone({ initialTab = '发现', initialDetail = false, initialScreen = null }) {
+  const [tab, setTab] = React.useState(initialTab);
+  const [detail, setDetail] = React.useState(initialDetail);
+  const [screen, setScreen] = React.useState(initialScreen);
+  if (screen === 'upload') return <UploadScreen tab={tab} onTab={(v) => { setScreen(null); setTab(v); }} />;
+  if (screen === 'login') return <LoginScreen />;
+  if (screen === 'spaces') return <SpaceListScreen tab={tab} onTab={setTab} />;
+  if (detail) return <DetailScreen tab={tab} onTab={setTab} onBack={() => setDetail(false)} />;
+  if (tab === '空间') return <SpaceScreen tab={tab} onTab={setTab} />;
+  if (tab === '我的') return <MeScreen tab={tab} onTab={setTab} />;
+  return <DiscoverScreen tab={tab} onTab={setTab} onOpen={() => setDetail(true)} />;
+}
+
+function App() {
+  const theme = { bg: '#E7E0CF', fg: P.ink, muted: '#5E5749', accent: P.spot, font: P.sans };
+  return (
+    <Showboard
+      layout="flow"
+      titleFont={P.serif}
+      theme={theme}
+      kicker="方向二 · 编辑成册"
+      title="一册一册地看"
+      lede="从 Irma Boom 的编辑方法出发：平台的本职不是把图堆成流，而是把它们编成一期。刊头、图版号、图注、页码都真的排出来。"
+      screens={[
+        { label: '刊首页', note: '刊头 + 两张主图 + 本期目录', main: true, row: 0, node: <Phone initialTab="发现" /> },
+        { label: '图版页', note: '图版号、图注、作者与尺寸', via: '点一张图', row: 0, node: <Phone initialTab="发现" initialDetail /> },
+        { label: '专辑页', note: '空间即一辑，跨栏大图 + 编号小图', via: 'tab：空间', row: 0, node: <Phone initialTab="空间" /> },
+        { label: '登录页', note: '微信登录与账号绑定排成扉页', via: '未登录时', row: 0, node: <Phone initialScreen="login" /> },
+        { label: '登记页', note: '上传被做成「登记一张图版」', via: '空间 → 登记', row: 1, node: <Phone initialTab="空间" initialScreen="upload" /> },
+        { label: '空间索引页', note: '每个空间是一条带用量刻度的刊行', via: 'tab：空间', row: 1, node: <Phone initialTab="空间" initialScreen="spaces" /> },
+        { label: '编者页', note: '账号页排成版权页的样子', via: 'tab：我的', row: 1, node: <Phone initialTab="我的" /> },
+      ]}
+      aside={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <WechatShareCard appName="VisionSpace" title="第 04 期：夜里的城市，18 张"
+            icon={<img src={IMG.brooklyn} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}>
+            <img src={IMG.brooklyn} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </WechatShareCard>
+          <div style={{ color: '#5E5749', fontSize: 12, lineHeight: 1.7, maxWidth: 300 }}>
+            借的机制：跨页节奏、图版编号、图注行（Irma Boom 的书）。
+            <br />不借：她的荧光专色与超厚书体；这里只有暖纸、墨黑和一处朱红。
+          </div>
+        </div>
+      }
+      footnote="字体：Songti SC 排版、PingFang 排小字 · 朱红只给图版号与当前态"
+    />
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

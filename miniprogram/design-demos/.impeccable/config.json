@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "D:/develop-worktree-t3/VisionSpace/t3-e85ff7a3-0b2d60ae6df4cde1/miniprogram/design-demos/src/dir-2.src.html"
+        ],
+        "createdAt": "2026-11-24T09:17:23.495Z",
+        "reason": "方向稿有意用纸白底色（Irma Boom 编辑体的纸色），仅作三方向存档；当前定稿 final 已换成紫漾/极光 token，不含奶油色"
+      }
+    ]
+  }
+}
