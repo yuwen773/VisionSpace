@@ -446,8 +446,11 @@ miniprogram/
 - `AuthTokenProperties` 去掉 `queryName`，只留 `headerName`。
 - `TokenAuthenticationSupport` 只读请求头，删除 `queryToken()` 与 URL 解码分支。
 - `WxLoginVO` 去掉 `tokenQueryName`；`MiniProgramAuthServiceImpl` 同步不再下发。
-- OpenAPI 契约重生成：`frontend/src/api/typings.d.ts` 的唯一差异就是删掉该字段，
-  CI 的 `frontend-api-contract` 仍按字节比对通过。
+- OpenAPI 客户端按契约重生成（不是手改 `frontend/src/api`）：验收导出
+  `target/openapi-contract.json` 后，在 `frontend/` 跑
+  `OPENAPI_SCHEMA_PATH=... OPENAPI_SERVERS_PATH=src node scripts/openapi-check.mjs`，
+  `typings.d.ts` 的唯一差异就是删掉该字段；CI 的 `frontend-api-contract` 门禁
+  对生成结果做字节比对。
 - 原「查询参数可登录」的成功断言改为拒绝断言 `queryTokenIsRejected`：
   `GET /user/get/login?satoken=<有效令牌>` → 40100；`POST /user/logout?satoken=<有效>`
   → 50001「未登录」；随后请求头访问仍正常。
@@ -487,15 +490,23 @@ Sa-Token 自身是否还接受 URL 凭据：**默认会**。`is-read-body` 允�
   非 http(s) 协议、相对路径、空 base 全部拒绝。`fetchImageFile` 在**读取令牌之前**
   做这个判断，令牌不会被发给第三方域名。
 - **缓存容量**：上限 60 条（微信临时文件总量约 10MB），按写入顺序淘汰最早的。
-- **过期与撤权**：TTL 5 分钟。缓存的只是本地临时文件路径，不是权限证明；过期后
-  重新鉴权下载，撤权最多 5 分钟后生效。
+- **文件清理**：登出、换账号、单条作废（403）时，除了丢引用还把本地文件
+  `unlink` 掉；清空之后才落地的下载也当场删除，不把上一个账号的私有图片留在磁盘上。
+  按容量淘汰与 TTL 过期不删文件——卡片里可能还渲染着那个路径，删掉就是破图。
+- **过期与撤权**：TTL 5 分钟。缓存的只是本地临时文件路径，不是权限证明。
+  两个页面的 `onShow` 还会复核一次：卡片/大图引用的缓存已过期（或换了账号）就复位成
+  「下载中」，重新走一遍鉴权下载，所以撤权最晚在一个 TTL 之后生效，而不是一直显示旧图。
 - **账号隔离**：条目记录 owner（`getStoredUser()?.id`），与当前账号不一致立即失效。
-- **失败分流**：401 → 清空缓存并引导重新登录；403 → `invalidate(url)`，下次重新鉴权。
+- **失败分流**：内容接口只在完全没带登录态时回 401；令牌过期更常见的是 403
+  （服务端按匿名身份判定无权读取）。两者在客户端看起来一样、处理却相反，所以
+  403 且本地还有令牌时用一次 `/user/get/login` 探活（结论按令牌与时间缓存 30 秒）
+  区分：登录态没了 → 清缓存并引导重新登录；登录态还在 → 只作废这一张的缓存。
+  没有这层判断，令牌过期时整页只会显示「图片暂不可用」，用户等不到登录引导。
 - **取消正确性**：`clear()` 拒绝排队中与在飞任务（不留悬空 Promise），并用代数丢弃
   清空后才落地的结果；`forget()` 移到 resolve 之前，否则调用方 await 回来后立刻重试
   同一 URL 会拿到上一次已完成的 Promise。
-- 新增 `tests/image-url.test.ts`（5 项）与 4 项队列用例（TTL / 账号隔离 / 容量 /
-  invalidate）。
+- 新增 `tests/image-url.test.ts`（5 项）、4 项队列用例（TTL / 账号隔离 / 容量 /
+  invalidate）与 3 项文件清理用例（作废、清空、清空后晚到）。
 
 ### 16.4 任务四：删号与 openid 原子性
 
@@ -509,15 +520,25 @@ Sa-Token 自身是否还接受 URL 凭据：**默认会**。`is-read-body` 允�
 ### 16.5 任务五：保持不变
 
 原生 TypeScript 小程序架构、雪花 ID 字符串契约、上传流程、M1–M5 全部功能均未改动。
-`miniprogram/src` 只动了私有图片下载相关的 `logic/image-queue.ts`、`logic/image-url.ts`
-（新）、`services/image-download.ts` 与两个页面的失败分支。
+`miniprogram/src` 只动了私有图片下载相关文件：`logic/image-queue.ts`、
+`logic/image-url.ts`（新）、`logic/gallery.ts`（加 `withPendingDownload`）、
+`services/image-download.ts`，以及两个页面里的图片失败分支与 `onShow` 复核。
 
 ### 16.6 验证矩阵
 
-详见交付报告；本地复现：
+| 门禁 | 覆盖 | 结果 |
+|---|---|---|
+| 后端全量验收 | 846 项（隔离 MySQL 8.0.36 + Redis 7.2.4 + 真实第二 JVM 实例） | 846 通过，0 失败 / 0 错误 / 0 跳过 |
+| 小程序鉴权验收 | `HttpMiniProgramAuthTest` 15 项（真实 HTTP + Redis、真实 CSRF） | 15 通过 |
+| 契约 | `OpenApiContractTest` + `frontend-api-contract` 字节比对 | 契约重生成后无差异 |
+| 小程序类型检查 | `npm run type-check`（src + tests 两套 tsconfig） | 通过 |
+| 小程序单测 | `npm test` | 11 个文件 132 项通过 |
+| SRF | 容器 / 浏览器 / 证据 / 合并门禁 | 见推送后的 CI |
+
+本地复现：
 
 ```bash
-# 后端全量验收（隔离 MySQL 8.0.36 + Redis 7.2.4 + 真实第二 JVM 实例）
+# 后端全量验收（会自建隔离 MySQL/Redis 与第二实例）
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1
 # 小程序
 cd miniprogram && npm run type-check && npm test
@@ -525,9 +546,12 @@ cd miniprogram && npm run type-check && npm test
 
 ### 16.7 剩余风险
 
-- **本地临时文件删不掉**：`wx.downloadFile` 没有删除 API，缓存只保证「不再引用」，
-  文件由微信自行回收。撤权后旧文件最多可用 5 分钟（TTL），要更强保证需上短期签名 URL
-  （属第 2 期，本轮不动服务端私有图片安全模型）。
+- **淘汰不删文件**：按容量淘汰与 TTL 过期的条目只丢引用，不删本地文件（可能还渲染在
+  卡片上）；这部分交给微信的临时文件回收。真正的安全相关清理（登出、换账号、撤权）
+  已经会 `unlink`。
+- **撤权生效有延迟上界**：一个 TTL（5 分钟）加上页面重新可见的时机。会话中途一直
+  停在原地不会主动重试；要更强保证需短期签名 URL（属第 2 期，本轮不动服务端私有图片
+  安全模型）。
 - **nginx 脱敏保留**：服务端已不接受 URL 令牌，脱敏规则退化为日志兜底，防止客户端
   误传时把凭据写进 access_log。
 - **真机清单未执行**：无真机与开发者工具自动化，清单见 `miniprogram/README.md`。
