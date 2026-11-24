@@ -5,6 +5,7 @@ import {
   toPrivateCard,
   withDownloadFailure,
   withLocalPath,
+  withPendingDownload,
   type GalleryCard,
 } from '../../logic/gallery'
 import { isValidId } from '../../logic/long'
@@ -12,7 +13,7 @@ import { spaceTypeLabel } from '../../logic/spaces'
 import { resolveContentUrl } from '../../services/content'
 import { searchByColor, searchPictures } from '../../services/gallery'
 import { pickImageColor } from '../../services/image-color'
-import { ImageDownloadError, clearDownloadedImages, imageQueue } from '../../services/image-download'
+import { imageQueue, resolveImageFailure } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { ApiError } from '../../services/http'
@@ -77,7 +78,9 @@ Page({
     }
     if (consumeSpaceUploaded(this.data.id)) {
       this.load()
+      return
     }
+    this.revalidateImages()
   },
 
   onPullDownRefresh() {
@@ -208,20 +211,37 @@ Page({
       imageQueue.request(card.imageUrl).then(
         (path) => this.patchCard(field, card.id, withLocalPath(card, path)),
         (error: unknown) => {
-          if (error instanceof ImageDownloadError) {
-            if (error.statusCode === 401) {
-              // 令牌过期时整页都该退回登录引导，否则用户只看到一堆「暂不可用」。
-              // 顺带清空缓存：重新登录后这些图必须重新鉴权，不能命中旧文件。
-              clearDownloadedImages()
+          // 401/403 的分流（令牌过期 vs 单张撤权）在服务里统一判断
+          resolveImageFailure(card.imageUrl, error).then((action) => {
+            if (action.needsLogin) {
               this.setData({ needsLogin: true })
-            } else if (error.statusCode === 403) {
-              // 撤权：单张缓存作废，下次展示重新走鉴权
-              imageQueue.invalidate(card.imageUrl)
             }
-          }
-          this.patchCard(field, card.id, withDownloadFailure(card))
+            this.patchCard(field, card.id, withDownloadFailure(card))
+          }, () => this.patchCard(field, card.id, withDownloadFailure(card)))
         },
       )
+    })
+  },
+
+  /**
+   * 复核已展示的私有图片：缓存过期或换了账号就重新鉴权。
+   *
+   * 队列的 TTL 只在读取缓存时生效，页面停着不动时卡片里仍留着旧本地路径。
+   * 这里在页面重新可见时把过期的那几张复位成「下载中」，走同一条鉴权下载路径；
+   * 撤权因此最晚在一个 TTL 之后生效，而不是一直显示旧图。
+   */
+  revalidateImages(): void {
+    const fields: Array<'cards' | 'colorCards'> = ['cards', 'colorCards']
+    fields.forEach((field) => {
+      const list = this.data[field] as GalleryCard[]
+      const stale = list
+        .filter((card) => card.localPath !== '' && imageQueue.cached(card.imageUrl) === '')
+        .map(withPendingDownload)
+      if (stale.length === 0) {
+        return
+      }
+      stale.forEach((card) => this.patchCard(field, card.id, card))
+      this.loadPrivateImages(stale, field)
     })
   },
 

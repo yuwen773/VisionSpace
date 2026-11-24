@@ -5,7 +5,7 @@ import { ACTION_VIEW, createReportGate } from '../../logic/telemetry'
 import { resolveContentUrl } from '../../services/content'
 import { fetchPicture } from '../../services/gallery'
 import { ApiError } from '../../services/http'
-import { ImageDownloadError, clearDownloadedImages, imageQueue } from '../../services/image-download'
+import { imageQueue, resolveImageFailure } from '../../services/image-download'
 import { openLogin } from '../../services/navigation'
 import { getToken } from '../../services/session'
 import { reportOnce } from '../../services/telemetry'
@@ -55,7 +55,28 @@ Page({
     // 从登录页返回后自动重试一次，避免用户停在无权限页
     if (this.data.needsLogin && getToken() !== '') {
       this.load()
+      return
     }
+    this.revalidateImage()
+  },
+
+  /**
+   * 复核已展示的私有大图：缓存过期（撤权）或换了账号就重新鉴权下载。
+   *
+   * 队列 TTL 只在读缓存时生效，页面停着不动时仍显示旧本地文件；这里在页面重新
+   * 可见时补一次判定，撤权最晚在一个 TTL 之后生效。
+   */
+  revalidateImage(): void {
+    const picture = this.data.picture
+    if (picture === null || this.data.imageUrl === '') {
+      return
+    }
+    const remoteUrl = resolveContentUrl(picture.previewUrl || picture.url || picture.thumbnailUrl)
+    if (remoteUrl === '' || imageQueue.cached(remoteUrl) !== '') {
+      return
+    }
+    this.setData({ imagePending: true, imageError: false })
+    this.loadPrivateImage(remoteUrl)
   },
 
   async load(): Promise<void> {
@@ -126,16 +147,13 @@ Page({
     imageQueue.request(remoteUrl).then(
       (path) => this.setData({ imageUrl: path, imagePending: false }),
       (error: unknown) => {
-        if (error instanceof ImageDownloadError) {
-          if (error.statusCode === 401) {
-            // 令牌过期：清掉缓存，重新登录后必须重新鉴权
-            clearDownloadedImages()
+        // 401/403 的分流（令牌过期 vs 单张撤权）在服务里统一判断
+        resolveImageFailure(remoteUrl, error).then((action) => {
+          if (action.needsLogin) {
             this.setData({ needsLogin: true })
-          } else if (error.statusCode === 403) {
-            imageQueue.invalidate(remoteUrl)
           }
-        }
-        this.setData({ imagePending: false, imageError: true })
+          this.setData({ imagePending: false, imageError: true })
+        }, () => this.setData({ imagePending: false, imageError: true }))
       },
     )
   },

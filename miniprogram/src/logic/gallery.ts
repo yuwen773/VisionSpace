@@ -114,6 +114,15 @@ export function withDownloadFailure(card: GalleryCard): GalleryCard {
   return { ...card, src: '', pending: false, broken: true }
 }
 
+/**
+ * 缓存过期或换了账号：退回「下载中」，等重新鉴权的结果。
+ *
+ * 页面重新可见时用它把卡片复位，再由下载队列重新鉴权——撤权不会再一直显示旧图。
+ */
+export function withPendingDownload(card: GalleryCard): GalleryCard {
+  return { ...card, localPath: '', src: '', pending: true, broken: false }
+}
+
 /** 优先用后端算好的 picScale，缺失时退回宽高，仍缺失则给一个接近方形的默认值。 */
 export function resolveAspect(source: Pick<GallerySource, 'picWidth' | 'picHeight' | 'picScale'>): number {
   const scale = source.picScale

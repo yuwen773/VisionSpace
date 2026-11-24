@@ -205,4 +205,57 @@ describe('ImageQueue', () => {
     queue.request('a').catch(() => undefined)
     expect(fetcher.started).toEqual(['a', 'a'])
   })
+
+  it('deletes the local files it no longer references', async () => {
+    const fetcher = createFetcher()
+    const disposed: string[] = []
+    const queue = new ImageQueue({ fetch: fetcher.fetch, dispose: (path) => disposed.push(path) })
+
+    for (const url of ['a', 'b']) {
+      const pending = queue.request(url)
+      fetcher.resolvers.get(url)?.(`/tmp/${url}`)
+      await pending
+    }
+
+    // 单条作废要删文件，否则撤权后旧图还留在磁盘上
+    queue.invalidate('a')
+    expect(disposed).toEqual(['/tmp/a'])
+
+    // 登出清空时把剩下的也删掉
+    queue.clear()
+    expect(disposed).toEqual(['/tmp/a', '/tmp/b'])
+  })
+
+  it('deletes a file whose download lands after clear', async () => {
+    const fetcher = createFetcher()
+    const disposed: string[] = []
+    const queue = new ImageQueue({ fetch: fetcher.fetch, dispose: (path) => disposed.push(path) })
+
+    queue.request('late').catch(() => undefined)
+    queue.clear()
+    fetcher.resolvers.get('late')?.('/tmp/late')
+    await flush()
+
+    expect(queue.cached('late')).toBe('')
+    expect(disposed).toEqual(['/tmp/late'])
+  })
+
+  it('keeps evicted files: a rendered card may still point at them', async () => {
+    const fetcher = createFetcher()
+    const disposed: string[] = []
+    const queue = new ImageQueue({
+      fetch: fetcher.fetch,
+      maxCached: 1,
+      dispose: (path) => disposed.push(path),
+    })
+
+    for (const url of ['a', 'b']) {
+      const pending = queue.request(url)
+      fetcher.resolvers.get(url)?.(`/tmp/${url}`)
+      await pending
+    }
+
+    expect(queue.cached('a')).toBe('')
+    expect(disposed).toEqual([])
+  })
 })

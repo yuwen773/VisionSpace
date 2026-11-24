@@ -26,6 +26,13 @@ export interface ImageQueueOptions {
   owner?: () => string
   /** 当前时间来源，测试可注入。 */
   now?: () => number
+  /**
+   * 删除一条不再需要的本地文件（小程序里是 `wx.getFileSystemManager().unlink`）。
+   *
+   * 只在「确定不再使用」时调用（登出、换账号、单条作废）。按容量淘汰与 TTL 过期
+   * 不删文件：卡片里可能还渲染着这个路径，删掉会变成破图；微信自己会回收临时文件。
+   */
+  dispose?: (path: string) => void
 }
 
 interface WaitingTask {
@@ -60,6 +67,8 @@ export class ImageQueue {
 
   private readonly now: () => number
 
+  private readonly dispose: (path: string) => void
+
   /** 已下载完成的本地路径，带归属与时间。 */
   private readonly resolved = new Map<string, CacheEntry>()
 
@@ -90,6 +99,7 @@ export class ImageQueue {
     this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_TTL_MS)
     this.owner = options.owner ?? (() => '')
     this.now = options.now ?? (() => Date.now())
+    this.dispose = options.dispose ?? (() => undefined)
   }
 
   /**
@@ -112,7 +122,11 @@ export class ImageQueue {
 
   /** 撤掉一条缓存；下载返回 401/403 时调用，下一次请求会重新鉴权。 */
   invalidate(url: string): void {
+    const entry = this.resolved.get(url)
     this.resolved.delete(url)
+    if (entry !== undefined) {
+      this.dispose(entry.path)
+    }
   }
 
   /** 尚未完成的下载数量（含排队中的）。 */
@@ -156,13 +170,15 @@ export class ImageQueue {
    * 清空缓存与排队状态；登出时调用，避免把上一个账号的私有图片留在内存里。
    *
    * 排队中与下载中的任务都会被拒绝，调用方不会拿到永远不落地的 Promise；
-   * 已发出的下载仍会跑完，但结果会被代数判断丢掉。
+   * 已发出的下载仍会跑完，但结果会被代数判断丢掉、文件当场删除。
+   * 已下载的文件同时从本地删除：只丢引用的话，上一个账号的私有图片还留在磁盘上。
    */
   clear(): void {
     this.generation += 1
     const cancelled = [...this.running.values(), ...this.waiting]
     this.running.clear()
     this.waiting.length = 0
+    this.resolved.forEach((entry) => this.dispose(entry.path))
     this.resolved.clear()
     this.inflight.clear()
     this.active = 0
@@ -181,7 +197,7 @@ export class ImageQueue {
     while (this.resolved.size > this.maxCached) {
       const oldest = this.resolved.keys().next()
       if (oldest.done === true) {
-        return
+        break
       }
       this.resolved.delete(oldest.value)
     }
@@ -202,6 +218,9 @@ export class ImageQueue {
             if (generation === this.generation) {
               this.remember(task.url, path)
               this.onSettled?.(task.url, path)
+            } else {
+              // 这一代已被清空：结果没人要了，文件也当场删掉，不留在磁盘上
+              this.dispose(path)
             }
             // 先摘掉 inflight 再兑现：调用方 await 回来后立刻重试同一 URL 时，
             // 不能拿到上一次已经完成的 Promise

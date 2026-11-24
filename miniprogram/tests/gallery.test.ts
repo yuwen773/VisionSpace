@@ -10,6 +10,7 @@ import {
   toPrivateCard,
   withDownloadFailure,
   withLocalPath,
+  withPendingDownload,
 } from '../src/logic/gallery'
 import { toNumberOrNull } from '../src/logic/long'
 
@@ -111,6 +112,17 @@ describe('toPrivateCard', () => {
     expect(failed.src).toBe('')
     expect(failed.pending).toBe(false)
     expect(failed.broken).toBe(true)
+  })
+
+  it('resets an expired card back to pending so it is re-authorised', () => {
+    const card = withLocalPath(toPrivateCard({ id: 7, thumbnailUrl: '/x' }, resolve), '/tmp/7')
+    const stale = withPendingDownload(withDownloadFailure(card))
+    // 换账号或缓存过期后不能再显示旧本地文件，要退回「下载中」重新鉴权
+    expect(stale.src).toBe('')
+    expect(stale.localPath).toBe('')
+    expect(stale.pending).toBe(true)
+    expect(stale.broken).toBe(false)
+    expect(stale.imageUrl).toBe(card.imageUrl)
   })
 })
 
