@@ -27,7 +27,7 @@
   flex-direction: column;
   align-items: center;
   margin-top: 24rpx;
-  padding: 52rpx 0;
+  padding: 52rpx 24rpx;
   border: 2rpx dashed var(--vs-rule);
   border-radius: 16rpx;
 }

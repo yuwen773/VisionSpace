@@ -31,7 +31,7 @@ page {
   --vs-radius-xl: 32rpx;
   --vs-shadow-card: 0 8rpx 40rpx rgba(139, 92, 246, 0.08);
   --vs-shadow-float: 0 12rpx 48rpx rgba(139, 92, 246, 0.16);
-  --vs-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --vs-font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
 }
 
 @media (prefers-color-scheme: dark) {
