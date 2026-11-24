@@ -23,7 +23,20 @@
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1
 ```
 
-脚本每次创建仅绑定回环地址的 MySQL 8.0.36、Redis 7.2.4 容器及随机端口，不使用 compose、`.env` 或现有服务；退出时只删除本次创建的容器。测试使用独立 `acceptance.yml`，不导入开发或生产配置。库名和凭据逐次生成，MySQL 限定专用账号及专用数据库，Redis 使用独立进程、密码及 DB 15。连接前校验两个实例的随机标记；缺少配置、错误 profile、默认端口或标记不匹配均拒绝启动。直接执行依赖 Spring 的 `mvn test` 而不经脚本，会报 `BLOCKED_ENV`，不会回退本地配置。
+脚本每次创建仅绑定回环地址的 MySQL 8.0.36、Redis 7.2.4 容器及随机端口，不使用 compose、`.env` 或现有服务。数据目录一律挂命名卷（`vsvol-<run-id>-mysql` / `vsvol-<run-id>-redis`），容器与卷都带 `vs.owner` / `vs.run-id` / `vs.kind` 标签；退出时按本轮 run-id 删除容器和卷，并断言无残留。测试使用独立 `acceptance.yml`，不导入开发或生产配置。库名和凭据逐次生成，MySQL 限定专用账号及专用数据库，Redis 使用独立进程、密码及 DB 15。连接前校验两个实例的随机标记；缺少配置、错误 profile、默认端口或标记不匹配均拒绝启动。直接执行依赖 Spring 的 `mvn test` 而不经脚本，会报 `BLOCKED_ENV`，不会回退本地配置。
+
+### Docker 测试资源
+
+`scripts/docker-test-harness.psm1` 是所有 Docker 测试资源的唯一入口：命名卷、`vs.*` 标签、按 run-id 的 teardown 与 `Assert-VsClean`。新增测试不得裸 `docker run` 起服务；脚本外的任何手工 `docker run` 必须显式挂命名卷，并打上 `vs.owner=vision-space` 与 `vs.run-id=<id>` 标签。
+
+硬杀（关终端、超时终止、`wsl --shutdown`、关机）会让 `finally` 失效，残留由审计器兜底：
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -File ./scripts/docker-test-resources.ps1             # 只读盘点
+pwsh.exe -NoLogo -NoProfile -File ./scripts/docker-test-resources.ps1 -ApplySafe   # 只回收 SAFE_*
+```
+
+审计器永不调用任何 prune，永不删除运行中容器、compose 开发服务或其他项目的资源；无标签历史残留归入 `REVIEW_*`，只报告不删除。`acceptance.ps1` 的 `runner-tests` 会执行 harness 与审计器的反例测试（`scripts/tests/test-docker-lifecycle.ps1`、`scripts/tests/test-docker-reaper.ps1`）；`-MySqlBin`/`-RedisBin` 的 native-explicit 模式按 `infrastructure=docker` 跳过这两项。PowerShell 的 `ProcessExit` 处理器在非 runspace 线程回调，无法可靠执行清理且会污染退出码，因此 harness 不使用它——正常退出依赖 `finally`，硬杀残留依赖审计器。
 
 Docker 不可用的 Windows 主机可显式指定两个独立服务程序目录：
 
