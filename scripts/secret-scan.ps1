@@ -18,11 +18,14 @@ $PSNativeCommandUseErrorActionPreference = $false
 # 口令分两条：带引号的字面量（最常见泄漏形态），以及不带引号但必须是字面量、
 # 不能是变量/常量/cmdlet/属性访问等表达式。
 $placeholder = 'your_|example|placeholder|xxx|changeme|acceptance|test'
+# 提供方前缀大小写固定（Aliyun LTAI、AWS AKIA/ASIA、OpenAI sk-、PEM 头），
+# 用 (?-i:) 关掉 PowerShell -match 默认的大小写不敏感，否则 base64 图片里的
+# 偶然串（如 ltaiInH…）会被当成 AccessKey 误报。
 $rules = @(
-    @{ Name = 'private-key-block'; Pattern = '-----BEGIN [A-Z ]*PRIVATE KEY-----' },
-    @{ Name = 'aliyun-access-key-id'; Pattern = 'LTAI[0-9A-Za-z]{12,}' },
-    @{ Name = 'aws-access-key-id'; Pattern = '(AKIA|ASIA)[0-9A-Z]{16}' },
-    @{ Name = 'dashscope-or-openai-key'; Pattern = 'sk-[A-Za-z0-9_.-]{24,}' },
+    @{ Name = 'private-key-block'; Pattern = '(?-i:-----BEGIN [A-Z ]*PRIVATE KEY-----)' },
+    @{ Name = 'aliyun-access-key-id'; Pattern = '(?-i:LTAI)[0-9A-Za-z]{12,}' },
+    @{ Name = 'aws-access-key-id'; Pattern = '(?-i:(AKIA|ASIA)[0-9A-Z]{16})' },
+    @{ Name = 'dashscope-or-openai-key'; Pattern = '(?-i:sk-)[A-Za-z0-9_.-]{24,}' },
     @{ Name = 'hardcoded-password-quoted'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*[""'](?!(?:$placeholder))[^""'\s]{8,}[""']" },
     @{ Name = 'hardcoded-password-bare'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*(?!\$\{|[""']|\$|(?-i:[A-Z_]{2,})\b|Get-|Set-|New-|Read-|Write-|ConvertTo-|ConvertFrom-|Select-|Where-|ForEach-|Invoke-|env\.|process\.|System\.|require\(|import\s|$placeholder)[^\s""'#,;{}()\[\]]{8,}" },
     @{ Name = 'hardcoded-api-key'; Pattern = '(?i)\b(api[-_]?key|secret[-_]?key|access[-_]?key)\s*[:=]\s*["'']?(?!\$\{|your_|example|placeholder|xxx|changeme|acceptance|test)[^\s"''#]{16,}' }
