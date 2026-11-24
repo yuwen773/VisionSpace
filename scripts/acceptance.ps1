@@ -9,12 +9,16 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = Split-Path $PSScriptRoot -Parent
 Import-Module (Join-Path $PSScriptRoot 'acceptance-results.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'docker-test-harness.psm1') -Force
 $nonce = [Guid]::NewGuid().ToString('N')
 $runDir = Join-Path ([IO.Path]::GetTempPath()) "visionspace-acceptance-$nonce"
+# Docker 资源身份：CI 用证据 run-id，本地用本轮 nonce。同一个值既打标签又写进
+# summary.json，硬杀之后可以从 `docker ps` 直接回到报告目录。
+$runId = if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { $nonce }
+$dockerResources = [ordered]@{ containers = @(); volumes = @() }
 $database = "vs_acceptance_$nonce"
 $results = [ordered]@{}
 $ownedProcesses = @()
-$ownedContainers = @()
 $mysql = $null
 $savedEnvironment = @{}
 $environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD', 'JAVA_TOOL_OPTIONS')
@@ -151,14 +155,25 @@ $ddl
         } else {
             & docker info *> (Join-Path $runDir 'docker-info.log')
             if ($LASTEXITCODE -ne 0) { throw 'Docker engine unavailable. On Windows, explicit MySqlBin/RedisBin may be used.' }
+            $runId = Initialize-VsDockerRun -RunId $runId
             $mysqlContainer = "vs-acceptance-mysql-$nonce"
             $redisContainer = "vs-acceptance-redis-$nonce"
-            $ownedContainers += $mysqlContainer
-            & docker run -d --name $mysqlContainer -p "127.0.0.1:${mysqlPort}:3306" -e "MYSQL_ROOT_PASSWORD=$nonce" --mount "type=bind,source=$bootstrapPath,target=/docker-entrypoint-initdb.d/acceptance.sql,readonly" mysql:8.0.36 *> (Join-Path $runDir 'mysql-container.log')
-            if ($LASTEXITCODE -ne 0) { throw 'MySQL container startup failed.' }
-            $ownedContainers += $redisContainer
-            & docker run -d --name $redisContainer -p "127.0.0.1:${redisPort}:6379" redis:7.2.4 redis-server --requirepass $nonce *> (Join-Path $runDir 'redis-container.log')
-            if ($LASTEXITCODE -ne 0) { throw 'Redis container startup failed.' }
+            # mysql:8.0.36 与 redis:7.2.4 都声明了 VOLUME；显式挂命名卷，避免 Docker
+            # 自动配匿名卷（硬杀后无法归属，是历史残留的来源）。标签由 harness 统一添加。
+            $mysqlVolume = New-VsVolume -Suffix 'mysql'
+            $mysqlStarted = Start-VsDockerContainer -Name $mysqlContainer -LogPath (Join-Path $runDir 'mysql-container.log') -Arguments @(
+                '-p', "127.0.0.1:${mysqlPort}:3306",
+                '-e', "MYSQL_ROOT_PASSWORD=$nonce",
+                '--mount', "type=bind,source=$bootstrapPath,target=/docker-entrypoint-initdb.d/acceptance.sql,readonly",
+                '-v', "${mysqlVolume}:/var/lib/mysql",
+                'mysql:8.0.36')
+            if (-not $mysqlStarted) { throw 'MySQL container startup failed.' }
+            $redisVolume = New-VsVolume -Suffix 'redis'
+            $redisStarted = Start-VsDockerContainer -Name $redisContainer -LogPath (Join-Path $runDir 'redis-container.log') -Arguments @(
+                '-p', "127.0.0.1:${redisPort}:6379",
+                '-v', "${redisVolume}:/data",
+                'redis:7.2.4', 'redis-server', '--requirepass', $nonce)
+            if (-not $redisStarted) { throw 'Redis container startup failed.' }
             Wait-Port $mysqlPort
             Wait-Port $redisPort
             # MySQL opens its final TCP socket only after entrypoint SQL is applied.
@@ -358,16 +373,30 @@ $ddl
             $_ | Out-String | Add-Content (Join-Path $runDir 'process-cleanup.log')
         }
     }
-    foreach ($container in $ownedContainers) {
-        & docker logs $container *> (Join-Path $runDir "$container-server.log")
-        & docker rm -f -v $container *> $null
-        if ($LASTEXITCODE -ne 0) { $results['cleanup'] = 'FAIL' }
+    # Docker 资源：先快照本轮身份再清理，summary 才能指向容器/卷（失败时同样要留）。
+    # Complete-VsDockerRun 按 run-id 标签删除容器、命名卷，并在最后断言无残留；
+    # native-explicit 模式没有登记资源，跳过全部 Docker 调用。
+    if (-not $MySqlBin) {
+        try {
+            $dockerSnapshot = Get-VsDockerRunResources -RunId $runId
+            $dockerResources.containers = @($dockerSnapshot.ContainerNames)
+            $dockerResources.volumes = @($dockerSnapshot.Volumes)
+            $logNames = @(@($mysqlContainer, $redisContainer) | Where-Object { $_ })
+            if (-not (Complete-VsDockerRun -RunId $runId -LogDirectory $runDir -LogNames $logNames)) {
+                $results['cleanup'] = 'FAIL'
+            }
+        } catch {
+            $results['cleanup'] = 'FAIL'
+            $_ | Out-String | Add-Content (Join-Path $runDir 'docker-cleanup.log')
+        }
     }
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
-        runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') })
+        runId = $runId
+        nonce = $nonce
         infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
+        docker = $dockerResources
         results = $results
         logs = $runDir
         # A failure remains FAIL until baseline comparison establishes it was pre-existing.
