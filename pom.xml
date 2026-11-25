@@ -25,9 +25,11 @@
              基线使用 PG 18，必须显式提升。运行时不引用 Flyway，只用插件/CLI
              在部署时显式迁移，因此与 Boot 的自动配置无耦合。 -->
         <flyway.version>13.13.0</flyway.version>
-        <!-- Spring Boot 3.5.16 管理的 PostgreSQL 驱动是 42.7.11，命中 CVE-2026-54291
-             （安全门禁按依赖扫描判定为 HIGH）。固定版本由 Redgate 给出为 42.7.12，
-             这里显式覆盖 Boot BOM 的 postgresql.version。 -->
+        <!-- PostgreSQL 驱动版本。Spring Boot 3.5.16 管理的 42.7.11 命中 CVE-2026-54291
+             （安全门禁按依赖扫描判定为 HIGH），修复版本是 42.7.12。
+             注意：spring-boot-dependencies 是 import 进来的 BOM，它内部的同名属性在
+             本 POM 的 <properties> 里覆盖不掉，真正生效的是下面 dependencyManagement
+             里那条显式声明。 -->
         <postgresql.version>42.7.12</postgresql.version>
         <acceptance.reportsDirectory>${project.build.directory}/surefire-reports</acceptance.reportsDirectory>
     </properties>
@@ -50,6 +52,18 @@
                 <groupId>org.apache.tomcat.embed</groupId>
                 <artifactId>tomcat-embed-el</artifactId>
                 <version>${tomcat.version}</version>
+            </dependency>
+            <!--
+              PostgreSQL 驱动的版本必须在这里显式钉住：spring-boot-dependencies 是以
+              import 方式引入的 BOM，它内部定义的 postgresql.version 属性在导入方的
+              <properties> 里覆盖不掉（BOM 的属性在自己的上下文里解析）。只在
+              <properties> 写同名属性会「看起来改了、实际没改」，安全扫描仍会按
+              Boot 管理的旧版本报 CVE。
+            -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tomcat.embed</groupId>
