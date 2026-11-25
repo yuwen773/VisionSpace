@@ -634,7 +634,7 @@ CI 复现前提也记在这里：**Linux CI 与 Windows 本机的用例顺序不
 
 ## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
 
-目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；没有 1 小时 soak，也没有 swap 观测。
+目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；CPU 没有被限制到 2 核；swap 只有整机页面文件读数，不是 Linux swap。1 小时 soak 已在本机跑过（C.5），实机仍需重跑。
 
 ### C.1 参数
 
@@ -679,8 +679,29 @@ CI 复现前提也记在这里：**Linux CI 与 Windows 本机的用例顺序不
 4. 应用改连恢复库 → readiness 2 秒内 UP，`/api/picture/list/page/vo` 返回 `code: 0`；
 5. 顺带实测了「错误口令」：Hikari `checkFailFast` 在启动期直接失败（`FATAL: password authentication failed`），应用不监听任何端口——所以 §5.7 的 readiness 负例在启动期不存在，运行期断库才是 readiness 场景（`test-container-verification.ps1` 覆盖）。
 
-### C.5 未覆盖
+### C.5 1 小时 soak（§5.9 步骤 4）
+
+脚本 `%TEMP%/m4-soak.sh`（本机临时脚本，不入库），参数与 C.1 完全一致；容器/卷都带 `vs.owner=vision-space` / `vs.run-id=<本轮 nonce>` / `vs.kind=m4-soak` 标签并使用每轮唯一的名字（`vs-m4-pg-<nonce8>` 等），避免并排运行时互相 `docker rm -f` 对方的实例。20 个 worker 持续 `POST /api/picture/list/page/vo`，每 60 秒采样一次，共 51 个采样点、3651 秒。
+
+| 指标 | 实测 |
+|---|---|
+| 请求数 / 错误率 | 208,612 / **0.00%**（`non200=0`、`http5xx=0`，即 0 个非 200） |
+| 吞吐 | ≈ 57 req/s（20 并发、单条 JSON 列表查询） |
+| p50 / p95 / p99 / max | 5.0 ms / 6.9 ms / 11.8 ms / 2,079 ms |
+| readiness | 51/51 个采样点全部 `200`，全程 UP，无重启 |
+| JVM RSS | 302–605 MB（均值 489 MB），呈典型 GC 锯齿，结束时 422 MB |
+| PostgreSQL RSS | 63–75 MiB（结束时 66 MiB；`docker stats` 收尾读数 71.2 MiB），**全程无增长趋势** |
+| Redis RSS | 5–6 MiB，全程平坦 |
+| PG 连接数 | 3–6（Hikari 上限 5，外加采样用的 psql 连接），`max_connections=20` 未触顶 |
+| 冷启动到 readiness UP | 12 秒（含 Flyway 已完成的库；C.2 的 7 秒是同参数的另一轮读数） |
+
+p99 与 p50 只差 2 倍，说明没有排队；max 2.08 秒是单个离群值（本机杀毒/GC 抖动），不是持续劣化。内存三条曲线（JVM 锯齿、PG 平坦、Redis 平坦）都没有 1 小时内的单调上升，看不出泄漏迹象。
+
+诚实边界：页面文件这一列（3050–3526 MB）是**整机** Windows 页面文件占用，不是本进程的 swap，因此不能用来回答 §5.9 的「swap 使用 < 50%」；OOM 计数本机也没有独立采集，只能由「readiness 全程 UP + 进程未被重启 + RSS 未爆炸」间接推断。
+
+### C.6 未覆盖
 
 - 阿里云 ECS `121.199.77.168` 上的同参数实跑（待授权）；
-- 1 小时 soak、JVM GC 曲线、swap 使用率、OOM 计数；
+- 真正的 Linux swap 使用率与内核 OOM killer 计数（本机是 Windows，只有整机页面文件）；
+- JVM GC 的 pause 分布（只有 RSS 采样，没有 `-Xlog:gc`）；
 - 真正 2 vCPU 上限下的 CPU 饱和测试（本机核数远多于 2）。
