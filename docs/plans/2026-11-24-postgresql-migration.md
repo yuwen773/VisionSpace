@@ -610,8 +610,23 @@ python -I scripts/drill-isolated-run.py --full
 
 - M4 低资源排练（§5.9）：本机按 2 vCPU / 1700 MB 参数做一次冷启动 + 备份恢复演练；阿里云实机（`121.199.77.168`）需授权后执行。§7 门禁第 8 条因此未满足。
 - §5.7 的「错误口令启动 → readiness DOWN/503」按计划写法不成立，已实测改判：口令错误时 Hikari 在启动期 `checkFailFast` 直接抛 `FATAL: password authentication failed`，应用拒绝启动、管理端口根本不监听（C.4）。依赖在**运行中**消失才表现为 readiness 不 UP，这条由 `test-container-verification.ps1` 的停库/后到场景覆盖。
-- §5.2 的「同一索引插一对只差大小写的值」行为矩阵只覆盖账号、openid、兑换码哈希三类；其余文本唯一键靠 `PostgresUniqueCaseSemanticsTest` 的索引清单（名称 + 覆盖表达式逐条钉住）结构性保证。
+- ~~§5.2 的行为矩阵只覆盖三类~~ **已闭**：`PostgresUniqueCaseBehaviorTest` 对清单里全部 19 条文本唯一键逐条插入一对只差大小写的行——CI 键（账号）必须冲突，CS 键必须共存。插值必需的列由 information_schema 推出，复合索引的兄弟列两行取同值，保证只有被测的那条唯一键会碰撞。两个方向都做过证伪：把账号索引从 `lower(user_account)` 改成 `user_account`，用例会失败；把兑换码哈希索引改成 `lower(code_hash)`，用例同样失败。
 - 合并、打 1.1.0、部署生产：均需显式授权，未执行。
+
+### B.7 PR #166 CI 红灯的四条根因（run `45460745387`，2026-11-24）
+
+本地三轮验收全绿、CI 却红，原因是四件只在 CI 暴露的事，逐条查证后都修了：
+
+| 作业 | 现象 | 根因 | 处置 |
+|---|---|---|---|
+| `security / dependencies` | trivy 报 1 条 HIGH：`org.postgresql:postgresql 42.7.11`，CVE-2026-54291，修复版本 42.7.12 | Boot 3.5.16 的 BOM 锁死 42.7.11；PG 迁移把驱动换进来才命中 | `pom.xml` 覆盖 `postgresql.version=42.7.12`（flyway 插件里的驱动同步改用该属性） |
+| `acceptance / runner-tests` | 门禁直接 FAIL | 覆盖对照脚本 `scripts/tests/test-pg-test-coverage-map.py` 要读基线提交 `7545610` 的测试类清单；CI 的 `actions/checkout` 默认浅克隆（depth=1），基线提交不在本地，`git ls-tree` 失败即判 FAIL | `acceptance.yml` 的 checkout 加 `fetch-depth: 0` |
+| `browser / https-browser` + `collab-browser` | 9 条断言里 7 条挂在 `registerAndLogin`：`POST /api/user/register` 返回 `{"code":50000,"message":"系统错误"}`，后续登录再报 40100 | `e2e/application-browser.yml` 还留着 MySQL 时代的 `mybatis-plus.configuration.map-underscore-to-camel-case: false`。PG 基线列名是 snake_case，映射不回 camelCase 属性，写接口直接 500 | 改成 `true`，与 `application.yml` / `acceptance.yml` 一致；ADR §2 补上「所有 profile 一律 true」的契约 |
+| `acceptance / backend` | `HttpPictureStatsAggregationTest.backlogCountsPendingWork` 失败 | 该用例断言的是**全库**待处理积压归零。CI 的用例执行顺序是 ext4 的目录哈希序（不是字母序），`PictureStatsEventMigrationTest` 排在它前面；而那个类故意造「目标图片不存在的孤儿待处理事件」且用例结束后不清理 → 全库积压不为 0。本机是 NTFS 字母序，`Http…` 排在 `Picture…` 前面，所以本地三轮全绿 | 两处都改：`PictureStatsEventMigrationTest` 增加 `@AfterEach` 清理，不再往共享库里留事件；`backlogCountsPendingWork` 改为断言「本用例造的那条事件不再待处理 / 不再处于已计入未完成」，并保留「全局积压变小」这一条，不再依赖别的用例的执行顺序 |
+
+`evidence` 与 `SRF merge gate` 是下游汇总，随上面四条一起转绿；`container / container` 当时就是绿的，说明 compose 与镜像本身没问题。
+
+CI 复现前提也记在这里：**Linux CI 与 Windows 本机的用例顺序不同**（ext4 目录哈希序 vs NTFS 字母序），共享一个库的用例之间必须互相清理干净，不能依赖执行顺序。
 
 ## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
 
