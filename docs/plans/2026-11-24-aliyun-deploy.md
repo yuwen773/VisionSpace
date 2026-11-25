@@ -72,12 +72,14 @@ java -version   # 21.x
 
 ### 3.3 PostgreSQL 18
 
-Ubuntu 自带源通常不是 18，用 PGDG 官方仓库（与验收/CI 的 `postgres:18.7` 对齐到同一主版本）：
+2026-11-25 实机只读预检（计划附录 D）实测：这台机器是 Ubuntu **26.04**，自带源已有 `postgresql-18`，但只有 **18.6**；验收与 CI 用的是 `postgres:18.7`。下面仍走 PGDG 官方仓库，把实机补丁版与 CI 对齐到 18.7：
 
 ```bash
 /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-18
-psql --version   # 18.x
+psql --version   # 18.x（应为 18.7；只有 18.6 时见下）
+
+> PGDG 不可达时的退路：`apt-get install -y postgresql-18` 直接用 Ubuntu 26.04 自带源的 **18.6**。同一主版本，本基线用到的特性没有差异，但要在计划附录 D.3 登记「实机 18.6 / CI 18.7」这条补丁版差异，别让后来的人以为两边完全同版。
 
 # 1.7G 内存的低资源参数（对应计划 §5.9）
 cat >>/etc/postgresql/18/main/postgresql.conf <<'EOF'
@@ -386,7 +388,7 @@ sudo -u postgres pg_restore -d vision_space_restore /opt/visionspace/backup/<fil
 | 风险 | 处理 |
 |---|---|
 | 1.7G 内存 | PG 128M shared_buffers + JVM 384M 堆 + Redis + nginx ≈ 1.2G，靠 2G swap 兜底；按计划 §5.9 做低资源实测，不足再升 4G |
-| PG 18 装不上 | Ubuntu 默认源版本偏旧，必须走 PGDG 仓库（3.3）；与验收/CI 的 `postgres:18.7` 对齐主版本 |
+| PG 18 装不上 | 2026-11-25 预检：Ubuntu 26.04 自带源已有 `postgresql-18`（18.6），PGDG 给 18.7；PGDG 不可达就退到 18.6 并登记补丁版差异（计划附录 D.3） |
 | 角色配错 | 应用必须连 `vision_app`；`vision_app` 执行 DDL 会被 42501 拒绝（验收有负例）。部署后用 `SELECT current_user` 复核 |
 | 时区错位 | 库、JVM（`TZ` / `-Duser.timezone`）、JDBC 会话统一 `Asia/Shanghai`；`timestamp(0)` 不带时区，跨区会整体偏移 |
 | 大陆未备案 | 80/443 可能被阻断；上线前确认备案 |
@@ -399,6 +401,8 @@ sudo -u postgres pg_restore -d vision_space_restore /opt/visionspace/backup/<fil
 
 在 2 vCPU / 1.7 GB 的阿里云 ECS 上，按 §3.3 的原生方式装好后，逐条执行并记录数字。
 **不要占用 8081 与 nginx**：验收用临时端口，测完停掉测试实例并删测试库。
+
+> 2026-11-25 已做过一次**只读**预检（无安装、无写入），机器状态、apt 可得版本、缺失前置条件记在计划附录 D。当时 swap 尚未创建，`.1` 之前先执行 §3.1。安全组与 ICP 备案本机测不出来（代理与 DNS 劫持），仍需在控制台确认。
 
 ### 8.1 前置记录
 
