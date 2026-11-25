@@ -632,6 +632,44 @@ python -I scripts/drill-isolated-run.py --full
 
 CI 复现前提也记在这里：**Linux CI 与 Windows 本机的用例顺序不同**（ext4 目录哈希序 vs NTFS 字母序），共享一个库的用例之间必须互相清理干净，不能依赖执行顺序。
 
+### B.8 迁移后期 CI 连续五红：两次真缺陷、三次环境抖动（2026-11-25）
+
+`035be36` 全绿之后，接连五个 run 红灯，而且**每次红的关卡都不一样**——这正是不能靠“再跑一次看看”处理的情形。逐条查证：
+
+| run | 提交 | 红的关卡 | 根因 | 性质 |
+|---|---|---|---|---|
+| `45552543681` | `2f98ed6` | `browser / https-browser` → `evidence` → `SRF merge gate` | 该子门禁只跑了 19 秒就失败（正常一轮要几分钟），是启动期失败而不是断言失败；其余三个浏览器子门禁（collab-protocol / collab-browser / diagram-browser）同轮全绿。**原始浏览器日志被证据投影挡在仓库外**，无法再往下定位 | 环境抖动，未复现 |
+| `45583049933`（attempt 1） | `8a98443` | `acceptance / frontend-build` | 同一份前端代码在本地 `npm run build-only` 68 秒通过、CI 失败；`frontend-typecheck` / `frontend-tests` 同轮通过 | 环境抖动，未复现 |
+| `45583049933`（attempt 2） | `8a98443` | `acceptance / runner-tests` | 失败脚本是 `scripts/tests/test-postgres-persistence.ps1` | **真缺陷**，见下 |
+| `45593299941` | `040351e` | `acceptance / runner-tests` + `acceptance / secret-scan` → `security / secret-scan` | 前者同上；后者是我新加的测试夹具里写了 `password=xxx`，正好撞上 `secret-scan` 的 `hardcoded-password-bare` 规则 | **真缺陷**（自己引入），已修 |
+| `45593814968` | `028a3a9` | `acceptance / runner-tests` | 失败脚本是 `scripts/tests/test-postgres-persistence.ps1` | **真缺陷**，与上一条同源 |
+
+#### B.8.1 真缺陷一：持久化用例里的 `pg_isready` 竞态
+
+PG 18 镜像初始化时先起一个**只监听 unix socket 的临时服务器**，此时 `pg_isready` 已经返回 0；临时服务器退出、正式服务器起来的间隙里，第一次真实查询会失败。CI 机器负载高时这个窗口必被撞上。
+
+本地复现：并发跑四份 `test-postgres-persistence.ps1`，约四分之一概率失败，报 `psql failed: SHOW data_directory`；串行跑三份全绿——所以“本地跑一次绿了”证明不了什么。
+
+处置（`25b8295`）：等一次真实 `SELECT 1` 成功再继续，探针再带三次重试。修后并发六份全绿。
+
+#### B.8.2 真缺陷二：测试夹具里的 `password=` 被秘密扫描当成口令
+
+新加的失败原因用例用 `password=leaked-value` 举例“带值形态的原因”，`secret-scan` 的 `hardcoded-password-bare` 规则直接命中，CI 安全关卡变红。处置：换成 `credential=`，被验证的行为（原因里含 `=` 就整条丢弃）与关键字无关。
+
+#### B.8.3 顺带补上的东西：红灯要能定位
+
+这轮排查最大的成本不是修缺陷，而是**定位**：验收脚本把每个关卡的输出写进本地日志，CI 只回显退出码，原始日志又被证据投影（`publish-evidence.py`）挡在仓库外，于是“`runner-tests` FAIL”这句话里没有任何可用的信息。
+
+处置（`040351e`）：验收把失败关卡的**结构化原因**（脚本路径 + 退出码这类短句）写进 summary 的 `gateFailures`，证据投影与 SRF 报告带上它。允许的字符集里**没有 `=`**，任何“键=值”形态的口令、令牌、连接串会被整条丢弃——这比逐字段脱敏更可靠，也不破坏“原始诊断不出仓库”的既定边界。
+
+效果立竿见影：`45593814968` 的证据里直接写着 `scripts/tests/test-postgres-persistence.ps1 exited 1`，不用再翻日志。
+
+#### B.8.4 结论
+
+- 修完两个真缺陷后，`25b8295` 与 `028a3a9` 的重跑都是**六个作业全绿**。
+- 剩下的两次（`frontend-build`、`https-browser`）是环境抖动：同样的代码在后续 run 里自然通过，没有改任何相关代码。复现不了就不硬编根因，记在这里备查。
+- 一条方法论：**同一个关卡连续绿过一次，不能证明它不 flaky**。这三个 run 各红在不同关卡，说明 CI 的抖动面比想象中宽；定位手段（结构化失败原因）比“再跑一次”更值得投入。
+
 ## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
 
 目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；CPU 没有被限制到 2 核；swap 只有整机页面文件读数，不是 Linux swap。1 小时 soak 已在本机跑过（C.5），实机仍需重跑。
