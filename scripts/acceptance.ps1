@@ -332,19 +332,27 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
     # Docker 资源：先快照本轮身份再清理，summary 才能指向容器/卷（失败时同样要留）。
     # Complete-VsDockerRun 按 run-id 标签删除容器、命名卷，并在最后断言无残留；
     # 本轮一步不跳过：隔离服务与验收实例全部是 Docker 资源。
-    {
-        try {
-            $dockerSnapshot = Get-VsDockerRunResources -RunId $runId
-            $dockerResources.containers = @($dockerSnapshot.ContainerNames)
-            $dockerResources.volumes = @($dockerSnapshot.Volumes)
-            $logNames = @(@($postgresContainer, $redisContainer) | Where-Object { $_ })
-            if (-not (Complete-VsDockerRun -RunId $runId -LogDirectory $runDir -LogNames $logNames)) {
-                $results['cleanup'] = 'FAIL'
-            }
-        } catch {
+    # 注意这里不能写成裸 `{ ... }`：PowerShell 里那是 scriptblock 字面量，不会执行，
+    # 只会把源码打到输出里——之前正是这个原因让 docker 清理整段被跳过，
+    # 报告显示 cleanup=PASS，容器却一直留在机器上。
+    try {
+        $dockerSnapshot = Get-VsDockerRunResources -RunId $runId
+        $dockerResources.containers = @($dockerSnapshot.ContainerNames)
+        $dockerResources.volumes = @($dockerSnapshot.Volumes)
+        $logNames = @(@($postgresContainer, $redisContainer) | Where-Object { $_ })
+        if (-not (Complete-VsDockerRun -RunId $runId -LogDirectory $runDir -LogNames $logNames)) {
             $results['cleanup'] = 'FAIL'
-            $_ | Out-String | Add-Content (Join-Path $runDir 'docker-cleanup.log')
         }
+        # Complete 的返回值不能代替一次独立核对：这一步以前被省掉，结果出现过
+        # 「报告 cleanup=PASS、docker ps 里容器还在跑」的静默残留。清理后必须再数一遍。
+        $afterCleanup = Get-VsDockerRunResources -RunId $runId
+        $leaked = $afterCleanup.ContainerNames.Count + $afterCleanup.Volumes.Count
+        "runId=$runId leaked=$leaked containers=$($afterCleanup.ContainerNames -join ',') volumes=$($afterCleanup.Volumes -join ',')" |
+            Add-Content (Join-Path $runDir 'docker-cleanup.log')
+        if ($leaked -gt 0) { $results['cleanup'] = 'FAIL' }
+    } catch {
+        $results['cleanup'] = 'FAIL'
+        $_ | Out-String | Add-Content (Join-Path $runDir 'docker-cleanup.log')
     }
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
     $summary = [ordered]@{

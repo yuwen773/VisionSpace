@@ -195,7 +195,19 @@ function Complete-VsDockerRun {
         [string]$LogDirectory,
         [string[]]$LogNames = @()
     )
-    if ($script:VsTeardownDone -and $RunId -eq $script:VsRunId) { return $true }
+    if ($script:VsTeardownDone -and $RunId -eq $script:VsRunId) {
+        # 已经拆过一轮：只能认为「干净」的前提是此刻确实没有残留。
+        # 早退不校验会让「拆完又被重新拉起」或「重复调用」的情况静默判 PASS，
+        # 资源就留在机器上（验收报告显示 cleanup=PASS，docker ps 里却还有容器）。
+        $leftover = Get-VsDockerRunResources -RunId $RunId
+        $leaked = $leftover.ContainerIds.Count + $leftover.Volumes.Count + $leftover.Networks.Count
+        if ($leaked -gt 0) {
+            Write-Warning ("LEAK after repeated teardown: run {0} containers={1} volumes={2} networks={3}" -f
+                $RunId, $leftover.ContainerIds.Count, $leftover.Volumes.Count, $leftover.Networks.Count)
+            return $false
+        }
+        return $true
+    }
 
     $registryEntries = @(Get-VsDockerRegistryEntries)
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
