@@ -49,6 +49,9 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         stats.setUsedSize(((Number) result.get("total_size")).longValue());
 
         // 今日推荐统计
+        // user_picture_action 的时间列是 created_time（不是多数表用的 create_time）；
+        // 这里写错列名在编译期和类型上都没有提示，只会在调用接口时以 SQL 报错 500 暴露，
+        // 因此由 HttpPictureStatsObservabilityTest 走真实 HTTP 覆盖该接口。
         LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
         LocalDateTime todayEnd = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
 
@@ -56,7 +59,7 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         QueryWrapper<UserPictureAction> impressionWrapper = new QueryWrapper<>();
         impressionWrapper.eq("source", 0)
                 .eq("action_type", 0)
-                .between("create_time", todayStart, todayEnd);
+                .between("created_time", todayStart, todayEnd);
         Long todayImpression = userPictureActionMapper.selectCount(impressionWrapper);
         stats.setTodayImpressionCount(todayImpression);
 
@@ -64,7 +67,7 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         QueryWrapper<UserPictureAction> clickWrapper = new QueryWrapper<>();
         clickWrapper.eq("source", 0)
                 .eq("action_type", 1)
-                .between("create_time", todayStart, todayEnd);
+                .between("created_time", todayStart, todayEnd);
         Long todayClick = userPictureActionMapper.selectCount(clickWrapper);
         stats.setTodayClickCount(todayClick);
 
@@ -80,7 +83,7 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         QueryWrapper<UserPictureAction> collectWrapper = new QueryWrapper<>();
         collectWrapper.eq("source", 0)
                 .eq("action_type", 4)
-                .between("create_time", todayStart, todayEnd);
+                .between("created_time", todayStart, todayEnd);
         Long todayCollect = userPictureActionMapper.selectCount(collectWrapper);
         stats.setTodayCollectCount(todayCollect);
 

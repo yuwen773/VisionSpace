@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuwen.visionspace.mapper.PictureStatsMapper;
 import com.yuwen.visionspace.model.dto.PictureActionStatsDTO;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,16 +82,31 @@ class HttpPictureStatsAggregationTest {
 
     @BeforeEach
     void fixture() {
-        jdbc.update("DELETE FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
-                PICTURE, OTHER_PICTURE, MISSING_PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE picture_id IN (?, ?)", PICTURE, OTHER_PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE id IN (?, ?)", STATS_ID, OTHER_STATS_ID);
-        jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", PICTURE, OTHER_PICTURE);
+        cleanFixtures();
 
         seedPicture(PICTURE, "aggregated");
         seedPicture(OTHER_PICTURE, "other");
         // 另一张图的统计行，行键与本图统计行的行键相邻但不交叉
         seedStats(OTHER_STATS_ID, OTHER_PICTURE, 100, 0, 0, 0, 0, 0, 0);
+    }
+
+    /**
+     * 用例跑完也要清干净。
+     *
+     * <p>整轮验收共用一个库：本类故意造孤儿图片 id（MISSING_PICTURE）与固定 id 的事件行，
+     * 留在库里会让后面读全库口径的用例（积压看板、仪表盘统计）看到别人家的数据。
+     */
+    @AfterEach
+    void removeFixtures() {
+        cleanFixtures();
+    }
+
+    private void cleanFixtures() {
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
+                PICTURE, OTHER_PICTURE, MISSING_PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id IN (?, ?)", PICTURE, OTHER_PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE id IN (?, ?)", STATS_ID, OTHER_STATS_ID);
+        jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", PICTURE, OTHER_PICTURE);
     }
 
     @Test
