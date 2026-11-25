@@ -691,7 +691,7 @@ PG 18 镜像初始化时先起一个**只监听 unix socket 的临时服务器**
 
 ## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
 
-目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；CPU 没有被限制到 2 核；swap 只有整机页面文件读数，不是 Linux swap。1 小时 soak 已在本机跑过（C.5），实机仍需重跑。
+目的：在等实机授权前，先按 §5.9 的参数把「小内存能不能跑起来、能不能扛住、能不能恢复」跑一遍，留下可复核的数字。**这不是实机验收**：资源约束靠 JVM/PG/Redis 参数模拟，不是 cgroup 限制；CPU 没有被限制到 2 核；swap 只有整机页面文件读数，不是 Linux swap。1 小时 soak 已在本机跑过（C.5），实机仍需重跑。**这三处缺口已由附录 E 的第二轮补上**（cgroup v2 真限内存/swap/CPU，并采集 OOM 与限流计数）；C 保留为第一轮的记录，两轮数字不可直接比较，原因见 E.4。
 
 ### C.1 参数
 
@@ -810,3 +810,47 @@ p99 与 p50 只差 2 倍，说明没有排队；max 2.08 秒是单个离群值�
 ### D.5 结论
 
 机器状态与手册假设一致：干净的 Ubuntu 26.04、2 核 1.7 G、31 G 可用磁盘、时区与时钟正确、没有任何抢端口的服务。**实机验收（§5.9 四项 + 1 小时 soak + 备份恢复演练）仍未执行**，它要装软件、建库、占端口，属于写操作，已按授权边界停下；§7 门禁 8 因此保持未闭合。
+
+## 附录 E：M4 低资源 soak 第二轮（cgroup v2 真限，2026-11-25）
+
+### E.1 为什么再跑一次
+
+C.5 那轮的限制只落在 JVM/PG/Redis 参数上：swap 只有 Windows 整机页面文件读数，OOM 计数没有采集，CPU 也没有被限到 2 核的量级。§5.9 要回答的三个问题——**会不会用 swap、会不会被 OOM kill、CPU 配额顶住时还稳不稳**——那一轮答不了。这一轮把预算真正压到容器上：Docker cgroup v2 的 `memory.max` / `memory.swap.max` / `cpu.max`，每 30 秒读一次 `memory.current`、`memory.swap.current`、`memory.peak`、`memory.events`（`oom`/`oom_kill`）与 `cpu.stat`（`nr_throttled`/`throttled_usec`）。
+
+### E.2 参数（按 §5.9 的整机预算分摊到各容器）
+
+| 容器 | 内存上限 | swap 上限 | CPU 上限 | 其它 |
+|---|---|---|---|---|
+| 应用（`eclipse-temurin:21-jre`） | 700 MiB | 1000 MiB | 1.0 核 | `-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m`；Hikari 5 连接 |
+| PostgreSQL 18.7 | 320 MiB | 576 MiB | 0.5 核 | `shared_buffers=128MB`、`work_mem=2MB`、`maintenance_work_mem=32MB`、`max_connections=20` |
+| Redis 7.2.4 | 128 MiB | 256 MiB | 0.1 核 | `maxmemory 64mb`、`noeviction` |
+| 压测客户端（python:3.12-alpine） | 256 MiB | 384 MiB | 0.4 核 | 20 线程持续 `POST /api/picture/list/page/vo` |
+
+swap 上限合计 812 MB，比实机的 2 GB 更苛刻——这一轮不是更宽松。业务表仍只由 Flyway 以 `vision_migrator` 建，应用以 `vision_app` 连接；RAG/向量库在本轮关闭。
+
+### E.3 实测（3540 秒，106 个采样点）
+
+| 指标 | 实测 |
+|---|---|
+| 请求数 / 错误 | **1,068,579 / 0**（全部 HTTP 200，`non200=0`） |
+| 吞吐 | ≈302 req/s（20 并发） |
+| p50 / p95 / p99 / max | 85.2 ms / 100.6 ms / 194.9 ms / 4.92 s |
+| readiness | **106/106 采样点 200**，全程 UP，无重启 |
+| 应用内存 | 均值 518 MiB、峰值 **522.6 MiB**（`memory.peak` 548,077,568 B，占 700 MiB 上限 75%），曲线平稳无单调增长 |
+| 应用 swap | **0**（全程） |
+| 应用 OOM | `oom 0`、`oom_kill 0` |
+| 应用 CPU 限流 | `nr_throttled 1039` 个周期、`throttled_usec 171.9 s` → 占墙钟 **4.9%**，没有长期顶格 |
+| PostgreSQL 内存 | 143–168 MiB（均值 154 MiB），峰值 170.9 MiB，占 320 MiB 上限 53% |
+| PostgreSQL swap | **4 KiB**（单个页），`oom_kill 0` |
+| Redis 内存 | 17–19.5 MiB，峰值 21.3 MiB，`oom_kill 0` |
+| 压测客户端 | 内存 46–48 MB，退出码 0 |
+| PG 连接数 | 恒为 6（Hikari 上限 5 + 采样连接），`max_connections=20` 未触顶 |
+
+按 §5.9 的通过标准：**无 OOM、无重启**（满足）；**readiness 全程 UP**（满足）；**swap 使用 < 50%**——应用 0、PG 4 KiB，远低于（满足）；**p95 记录为基线**——本轮 p95 100.6 ms，见 E.4 的口径说明。
+
+### E.4 诚实边界
+
+- **延迟口径不同，不能与 C.5 直接比较**。这一轮压测客户端与被测服务同机、且自身被限到 0.4 核，20 个 Python 线程还要抢 GIL：p50 从 C.5 的 5.0 ms 涨到 85 ms，主要是**客户端挨饿**，不是服务变慢（同期吞吐反而从 57 涨到 302 req/s，说明瓶颈在客户端单线程处理而不是服务）。这一轮的价值在内存/swap/OOM/限流的真读数和「资源被真限住时零失败」；服务侧的延迟基线仍需实机或在无约束客户端上测。
+- 仍是 Windows 上的 Docker Desktop（WSL2 cgroup v2），不是 2 vCPU 物理机：CPU 配额是模拟的，宿主机核数远多于 2，调度与缓存行为与阿里云不同。
+- 期间 Docker Desktop 引擎重启过一次（第一轮 soak 在 t≈1736 s 被杀）。这一轮用唯一容器/卷名 + 每次采样判活规避，未再中断；同机其它会话的容器会互相挤资源，这属于本机噪声，不写进实机结论。
+- **实机 soak 仍未做**：§7 门禁 8 依旧未闭合，需授权后在 `121.199.77.168` 上安装、建库并重跑。
