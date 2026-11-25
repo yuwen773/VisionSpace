@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+Import-Module (Join-Path $repo 'scripts/docker-test-harness.psm1') -Force
+# 命名卷 + vs.* 标签 + run-id 回收：postgres:18 镜像声明了 VOLUME /var/lib/postgresql，
+# 不显式挂命名卷就会留下无人认领的匿名卷。
+$runId = Initialize-VsDockerRun -RunId ('vs-pg-init-' + [Guid]::NewGuid().ToString('N'))
+$volume = New-VsVolume -Suffix 'pgdata'
 $dir = Join-Path ([IO.Path]::GetTempPath()) ('vs45-postgres-init-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'docker/postgres/init/01-roles.sh') -Destination (Join-Path $dir 'init.sh')
@@ -19,7 +24,12 @@ try {
         # 两种调用方式都要成立：镜像 entrypoint 走 bash，运维手工 source 也常见。
         $runner = if ($mode -eq 'source') { '. /fixture/init.sh' } else { 'bash /fixture/init.sh' }
         $command = 'chmod +x /fixture/psql; export PATH="/fixture:$PATH"; ' + $runner
-        docker run --rm --network none --mount "type=bind,source=$dir,target=/fixture" `
+        # --user root：桩脚本要 chmod 执行位并往挂载目录里写文件。显式指定 root，
+        # 不依赖镜像的默认用户（官方镜像的 entrypoint 以 root 起步，再自行降权跑 postgres）。
+        $labelArguments = @(Get-VsDockerLabelArguments)
+        docker run --rm --network none --user root @labelArguments `
+            --mount "type=volume,source=$volume,target=/var/lib/postgresql" `
+            --mount "type=bind,source=$dir,target=/fixture" `
             -e POSTGRES_USER=postgres -e POSTGRES_DB=fixture `
             -e POSTGRES_MIGRATOR_PASSWORD=migrator-fixture -e POSTGRES_APP_PASSWORD=app-fixture `
             postgres:18.7 bash -c $command *> (Join-Path $dir "$mode.log")
@@ -73,5 +83,8 @@ try {
 } finally {
     Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue | Remove-Item -Force
     Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+    # 命名卷由 harness 按 run-id 回收；容器是 --rm，退出即消失。
+    Complete-VsDockerRun -RunId $runId | Out-Null
 }
+Assert-VsClean -RunId $runId | Out-Null
 exit 0

@@ -251,9 +251,32 @@ class HttpPictureStatsAggregationTest {
         aggregateService.aggregateActionStats();
 
         var after = aggregateService.getBacklog();
-        assertEquals(0L, after.getPendingCount(), "the backlog must shrink after a successful aggregation");
-        assertEquals(0L, after.getAccumulatedPendingCount(),
+        // 积压看板是全库口径：别的用例可能还留着自己的待处理事件（例如故意造的孤儿事件），
+        // 所以这里断言「本用例造的那条事件不再待处理」，而不是要求全库积压清零——
+        // 后者会让本用例的成败取决于其它用例的执行顺序。
+        assertEquals(0, pendingEventsOf(PICTURE),
+                "the backlog must shrink after a successful aggregation");
+        assertEquals(0, accumulatedPendingEventsOf(PICTURE),
                 "no event may stay in the accumulated-but-not-completed state");
+        assertTrue(after.getPendingCount() < backlog.getPendingCount(),
+                "the global backlog must shrink after a successful aggregation: "
+                        + backlog.getPendingCount() + " -> " + after.getPendingCount());
+    }
+
+    /** 本图仍然待处理（未完成、未计入）的事件数。 */
+    private int pendingEventsOf(long pictureId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_picture_action "
+                        + "WHERE picture_id = ? AND is_processed = 0 AND is_accumulated = 0",
+                Integer.class, pictureId);
+    }
+
+    /** 本图已计入但未完成的事件数。 */
+    private int accumulatedPendingEventsOf(long pictureId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_picture_action "
+                        + "WHERE picture_id = ? AND is_processed = 0 AND is_accumulated = 1",
+                Integer.class, pictureId);
     }
 
     @Test

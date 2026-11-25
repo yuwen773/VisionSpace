@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.acceptance;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,6 +74,21 @@ class PictureStatsEventMigrationTest {
 
     @BeforeEach
     void cleanFixtures() {
+        deleteFixtures();
+    }
+
+    /**
+     * 用例跑完也要清干净。
+     *
+     * <p>本类故意造「目标图片不存在的孤儿待处理事件」；这些行留在共享库里会让
+     * 后面用例看到全局积压不为 0，测试之间互相污染（用例执行顺序一变就变红）。
+     */
+    @AfterEach
+    void removeFixtures() {
+        deleteFixtures();
+    }
+
+    private void deleteFixtures() {
         jdbc.update("DELETE FROM " + TABLE + " WHERE user_id = ?", USER_ID);
         for (String key : EVENT_KEYS) {
             jdbc.update("DELETE FROM " + DEDUPE_TABLE + " WHERE event_id = ?", key);

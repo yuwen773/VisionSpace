@@ -25,6 +25,10 @@
              基线使用 PG 18，必须显式提升。运行时不引用 Flyway，只用插件/CLI
              在部署时显式迁移，因此与 Boot 的自动配置无耦合。 -->
         <flyway.version>13.13.0</flyway.version>
+        <!-- Spring Boot 3.5.16 管理的 PostgreSQL 驱动是 42.7.11，命中 CVE-2026-54291
+             （安全门禁按依赖扫描判定为 HIGH）。固定版本由 Redgate 给出为 42.7.12，
+             这里显式覆盖 Boot BOM 的 postgresql.version。 -->
+        <postgresql.version>42.7.12</postgresql.version>
         <acceptance.reportsDirectory>${project.build.directory}/surefire-reports</acceptance.reportsDirectory>
     </properties>
 
@@ -481,7 +485,7 @@
                     <dependency>
                         <groupId>org.postgresql</groupId>
                         <artifactId>postgresql</artifactId>
-                        <version>42.7.11</version>
+                        <version>${postgresql.version}</version>
                     </dependency>
                 </dependencies>
             </plugin>

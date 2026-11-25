@@ -87,6 +87,23 @@ def findings():
                     yield (f"{java.relative_to(ROOT)}:{lineno}: selectMaps 的键是 SQL 别名，"
                            f"不会 camel 化：读取 \"{key}\" 应为 \"{snake}\"")
 
+    # PostgreSQL 基线的列名是 snake_case：任何 profile 把 map-underscore-to-camel-case 留在 false，
+    # 查询结果就映射不回 camelCase 属性，写接口会以「系统错误」500 的形式炸在业务代码之外
+    # （e2e/application-browser.yml 曾这样漏过，浏览器验收整片红）。这里钉死为 true。
+    camel_case_setting = re.compile(r"map-underscore-to-camel-case\s*:\s*(true|false)", re.I)
+    for base in (ROOT / "src" / "main" / "resources", ROOT / "src" / "test" / "resources",
+                 ROOT / "e2e", ROOT / "config"):
+        if not base.is_dir():
+            continue
+        for config in sorted(list(base.rglob("*.yml")) + list(base.rglob("*.yaml"))):
+            text = config.read_text(encoding="utf-8", errors="replace")
+            for lineno, line in enumerate(text.splitlines(), 1):
+                match = camel_case_setting.search(line)
+                if match and match.group(1).lower() == "false":
+                    yield (f"{config.relative_to(ROOT)}:{lineno}: "
+                           "map-underscore-to-camel-case 必须为 true：PostgreSQL 基线列名是 "
+                           "snake_case，关掉映射会让查询结果映射不回属性")
+
     # 配额偏差口径在 #37 清单、#46 明细、#46 BLOCKING 汇总里各写一份：靠人工同步会漂移。
     # 抽取每份 WHERE 谓词（明细以 ORDER BY 收尾，汇总以 )) d) 收尾），按空白归一化后
     # 要求全部一致，且必须把可空的 stored 列先 COALESCE 成 0，避免 NULL 静默漏报。

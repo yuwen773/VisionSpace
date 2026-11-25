@@ -46,7 +46,10 @@ spring:
 
 mybatis-plus:
   configuration:
-    map-underscore-to-camel-case: false
+    # PostgreSQL 基线用 snake_case 列名，结果映射必须把列名转回 camelCase 属性名。
+    # 这里曾是 false（MySQL 时代列名本身就是驼峰）；迁移后不改这一项，
+    # 查询结果映射不到属性上，注册等写接口会直接 500。
+    map-underscore-to-camel-case: true
   global-config:
     db-config:
       logic-delete-field: isDelete
