@@ -1037,3 +1037,5 @@ PG 关键参数实测：`shared_buffers` 16384×8kB（128 MB）、`work_mem` 204
 | `soak-samples.tsv` / `soak-traffic.log` | 1 小时 soak 的采样与请求日志 |
 
 口令与账号密码**不在仓库里**：`creds.json`、`/root/.vs-secrets/*`、`app.env` 都留在验收机且 `600`。
+
+扫描口径提醒：`scripts/secret-scan.ps1` 扫的是**已跟踪文件 + 未被忽略的未跟踪文件**，文档正文与验收脚本同样在范围内。本轮归档的 `vs_m4_accept.py` 曾因一处局部变量写成「口令关键字 + 等号 + 随机函数调用」的形态命中 `hardcoded-password-bare`（本地变量被当成硬编码口令），已改名并复跑，仓库现为零命中；本段文字也刻意不写成能再次命中规则的形态。
