@@ -107,6 +107,10 @@ services:
       - "127.0.0.1:${BACKEND_PORT:-8081}:8081"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # 库、JDBC 会话、JVM 三者必须同区（ADR-0004 §3）：postgres 与库时区都是
+      # Asia/Shanghai，容器里不设 TZ 的话 JVM 默认 UTC，pgjdbc 会把会话时区也设成 UTC，
+      # 墙钟时间就差 8 小时。这里显式给 JVM 同一个区。
+      TZ: ${TZ:-Asia/Shanghai}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?ApplicationName=vision-space
       SPRING_DATASOURCE_USERNAME: vision_app
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
@@ -124,9 +128,11 @@ services:
       VISION_SPACE_WX_APPID: ${VISION_SPACE_WX_APPID:-}
       VISION_SPACE_WX_SECRET: ${VISION_SPACE_WX_SECRET:-}
       VISION_SPACE_DEFAULT_PASSWORD: ${VISION_SPACE_DEFAULT_PASSWORD:?required in prod}
-      # 站内图片检索（RAG）默认开启，连下面的 chromadb 服务。
-      # 不跑向量库的部署同时置 SPRING_AI_MODEL_EMBEDDING_TEXT=none 与
-      # SPRING_AI_VECTORSTORE_TYPE=none，整条链路就不装配了。
+      # 站内图片检索（RAG）：chromadb 只在 rag profile 里，默认编排**不起**向量库，
+      # 所以这里默认把整条链路关掉，避免默认栈指向一个不存在的服务。
+      # 要开 RAG：docker compose --profile rag up，并把下面两项设为 dashscope / chroma。
+      SPRING_AI_MODEL_EMBEDDING_TEXT: ${SPRING_AI_MODEL_EMBEDDING_TEXT:-none}
+      SPRING_AI_VECTORSTORE_TYPE: ${SPRING_AI_VECTORSTORE_TYPE:-none}
       VISION_SPACE_CHROMA_HOST: ${VISION_SPACE_CHROMA_HOST:-http://chromadb}
       VISION_SPACE_CHROMA_PORT: ${VISION_SPACE_CHROMA_PORT:-8000}
     depends_on:
