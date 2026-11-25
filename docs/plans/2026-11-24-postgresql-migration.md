@@ -854,3 +854,186 @@ swap 上限合计 812 MB，比实机的 2 GB 更苛刻——这一轮不是更�
 - 仍是 Windows 上的 Docker Desktop（WSL2 cgroup v2），不是 2 vCPU 物理机：CPU 配额是模拟的，宿主机核数远多于 2，调度与缓存行为与阿里云不同。
 - 期间 Docker Desktop 引擎重启过一次（第一轮 soak 在 t≈1736 s 被杀）。这一轮用唯一容器/卷名 + 每次采样判活规避，未再中断；同机其它会话的容器会互相挤资源，这属于本机噪声，不写进实机结论。
 - **实机 soak 仍未做**：§7 门禁 8 依旧未闭合，需授权后在 `121.199.77.168` 上安装、建库并重跑。
+
+## 附录 F：M4 实机验收（阿里云 `121.199.77.168`，2026-11-25）
+
+### F.1 范围、授权与「改了什么」
+
+M4 实机写入验收，是首次在真实云主机上把 **安装 → 建库 → 迁移 → 部署 → 业务 → 压力 → soak → 备份恢复** 整条链跑一遍。所有动作都在该轮的用户显式授权内；共同依据只有本计划与 `docs/adr/0004-postgresql-schema-and-time-contract.md`。**未合并 main、未打 1.1.0、未发布 GitHub Release、未放生产流量。**
+
+**仓库代码零改动**：候选提交 `427414a`，`git diff main --stat` 在本轮验收期间始终为空。改动只发生在验收机的部署配置上，逐条在 F.10 出现的地方说明处置。
+
+本附录同时**闭合 §7 门禁 8**（「实机低资源验收记录归档」）：§5.9 的四项、1 小时真机 soak、备份恢复演练都在实机跑过并留证；其余七项门禁以 CI 与本地验收为准（见 B）。
+
+### F.2 环境（原生部署，不用 Docker、不在服务器上编译）
+
+| 项 | 实测 |
+|---|---|
+| OS / 内核 | Ubuntu 26.04.1 LTS / 7.0.0-31-generic |
+| 规格 | 2 vCPU、1735 MB 内存、2047 MB swap、40 G 磁盘（可用 28 G）|
+| JDK | OpenJDK 21.0.13.1 LTS（apt）|
+| PostgreSQL | **18.7**（`18.7-1.pgdg26.04+5`，PGDG 源换成 `mirrors.aliyun.com` 后安装），集群 `/var/lib/postgresql/18/main` |
+| Redis | 8.0.5（`requirepass`、`bind 127.0.0.1 -::1`、`maxmemory 64mb`、`maxmemory-policy noeviction`、`appendonly no`）|
+| Flyway | **CLI 13.13.0**（GitHub 发行包剥掉自带 JRE、把非 PostgreSQL 插件挪进 `plugins-disabled/`，39.5 MB）|
+| Nginx | 1.28.3，`:80` 静态站、`127.0.0.1:18443` TLS（自签，CN=`visionspace.space`，30 天）|
+| 应用 | systemd `visionspace.service`：`User=visionspace`、`EnvironmentFile=/opt/visionspace/app.env`、`-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -Duser.timezone=Asia/Shanghai` |
+| 对象存储 | 验收期用 moto 5.2.6 顶 S3（MinIO 发行包当时取不到）；soak 前已停，生产是外部 COS/OSS |
+
+PG 关键参数实测：`shared_buffers` 16384×8kB（128 MB）、`work_mem` 2048 kB、`maintenance_work_mem` 32768 kB、`max_connections` 20、`TimeZone` `Asia/Shanghai`；应用会话 `SHOW transaction_isolation` = `read committed`。
+
+### F.3 建库、迁移与最小权限
+
+| 项 | 实测 |
+|---|---|
+| `flyway migrate`（空库一次到位）| 成功，`flyway_schema_history` 1 行，`installed_by` = `vision_migrator` |
+| 库对象计数 | 32 张表（31 业务 + Flyway 历史）、22 个非内部触发器、56 个唯一/主键索引 |
+| 角色 | `vision_migrator`（DDL/owner）、`vision_app`（`No inheritance`，只有 DML）|
+| DDL 负例 | `vision_app` 执行 `CREATE TABLE` → `42501 permission denied for schema public`；`DROP TABLE picture` → `must be owner of table` |
+| 运行身份 | 应用、验收脚本、readiness 的 `db` 组一律 `vision_app` |
+| 口令落盘 | `/root/.vs-secrets/*.pw`、`/opt/visionspace/app.env`、`/opt/visionspace/flyway.conf` 全部 `600 root:root`；产品进程 argv 里只有 JVM 参数与 jar 路径，没有任何口令 |
+
+### F.4 冷启动
+
+| 场景 | 实测 |
+|---|---|
+| 首次冷启动到 readiness `UP` | **24 秒** |
+| 改数据源后重启（恢复演练里的两次）| 24 秒 / 23 秒 |
+| 空闲 RSS | JVM 431 MB、PostgreSQL 158 MB、Redis 15 MB、Nginx 31 MB、moto 82 MB（后停）|
+
+冷启动比本机排练的 7–12 秒长，差在真机要读 39.5 MB 的 fat jar 与首次建 Hikari 连接；仍在 30 秒量级内。
+
+### F.5 业务功能验收（真实 HTTPS，CSRF 双提交 + Secure Cookie）
+
+驱动脚本 `docs/plans/evidence/2026-11-25-m4/vs_m4_accept.py`，共 23 步，**0 失败**，1 步记 SKIP：
+
+| 组 | 步骤与结果 |
+|---|---|
+| 账号 | `vs_m4_admin` / `u1` / `u2` / `u3` 注册 + 登录成功（口令随机生成，落 `/root/m4/creds.json` 600，不进仓库）|
+| 空间 | 建空间；同一用户第二次建空间被业务规则拒绝（每用户一个）→ 复用 |
+| 上传 | 5 张彩色 PNG（multipart），颜色提取各出不同主色（如 `#DC10C2C`）|
+| 对象存储侧效 | `acceptance/` 前缀下列出 **72** 个对象，原图与 `.min.jpg` 缩略图成对 |
+| 列表/检索 | 分页 `total=34`；按颜色检索命中 12 条 |
+| 审核 | 管理员审核通过；私有空间图片匿名检索被拒（`40101`）；管理员公开上传免审、匿名可读 `200` |
+| 编辑/详情 | 标签写入后详情回读 `["m4","acceptance"]` |
+| 授权 | 新建 7 天限时授权 → 授权列表 `canManage=true` → 被授权方 `/picture/grant/mine` 可见 → 撤销 |
+| 统计 | 上传数 / 通过数 / 通过率；最近图片 6 条 |
+| 删除 | 删除后分页 `total` 34 → 33 |
+| SKIP | 以图搜图：本轮 `vectorstore=none`，向量链路本就没开，不是迁移引入 |
+
+### F.6 20 并发 10 分钟压测（§5.9-2）
+
+目标 `POST /api/picture/list/page/vo`，20 条独立登录会话，600 秒；同机每 10 秒采样整机：
+
+| 指标 | 实测 |
+|---|---|
+| 请求数 / 错误率 | **168,884 / 0.00%**（全部 200）|
+| 吞吐 | **281.5 req/s** |
+| p50 / p95 / p99 / max | **65 ms / 131 ms / 199 ms / 939 ms** |
+| readiness | 采样 60/60 全部 `UP`，`NRestarts` 0 → 0 |
+| JVM RSS | 422 → **522 MB**（结束值即峰值，未越过 `-Xmx384m` + metaspace 的合理上限）|
+| PostgreSQL RSS | 146 → **220 MB** |
+| Redis / Nginx | 15 MB / 31 MB，全程平坦 |
+| PG 连接数 | 2 → **5**（等于 Hikari `maximum-pool-size`，`max_connections=20` 留有余量）|
+| swap | **全程 0** |
+| `oom_kill` | 1 → 1（见 F.10 第 7 条：验收前就有的历史计数，本轮未新增）|
+| 整机 load1 | 0 → 15 → 6.6（**压测客户端与被测服务同机**，这个数包含 20 个 Python 线程本身，不能当服务端负载看）|
+
+延迟比本机排练（C.3：p95 19 ms）高一个量级，主因同 E.4：客户端在 2 核机上和服务抢 CPU。服务端余量看 PG 连接数（5/20）、JVM 堆（未顶格）与零错误更可信。
+
+### F.7 备份恢复演练（§5.10 阶段 B 的最小闭环）
+
+| 步骤 | 实测 |
+|---|---|
+| `pg_dump -Fc`（`vision_migrator`）| 248,622 B，权限 `600`，落 `/opt/visionspace/backup/` |
+| 建 `vision_space_restore`（owner `vision_migrator`）+ `pg_restore` | **1 秒**，保留 ACL（`vision_app` 授权随 dump 恢复）|
+| 行数逐表比对（8 张关键表）| `app_user` 4/4、`space` 1/1、`picture` 38/38、`user_picture_action` 0/0、`picture_stats` 0/0、`storage_config` 1/1、`agent_session` 10/10、`flyway_schema_history` 1/1 —— **全部一致** |
+| 应用临时指向恢复库 | readiness **24 秒** UP；真实登录 `200`、列表 `code=0` |
+| 切回生产库 | **23 秒** readiness UP，`app.env` 权限仍 `600` |
+
+结论：备份可恢复、恢复库可直接承载应用、回切干净。生产侧还需补「每日备份 + 保留 7 天 + 异地」，本轮只演练了手工一次。
+
+### F.8 1 小时 soak（§5.9-4）
+
+整机采样 30 秒一次（`sample.sh`），同时跑常压低速业务流量——每 5 秒一次列表查询（`soak-traffic.py`）。目的不是压吞吐，而是看长时间运行下 RSS / swap / 连接数 / readiness 会不会漂移。
+
+| 指标 | 实测 |
+|---|---|
+| 采样窗口 | **3592 秒**（23:07:49 → 00:07:41），**120 个采样点** |
+| 流量窗口 | 3241 秒（23:11:42 → 00:05:43）|
+| readiness | **120/120 全部 `UP`**；`NRestarts` 0 → 0，`MainPID` 全程未变 → **无重启** |
+| 业务请求 | **646 次，全部 HTTP 200**（`ok=646 fail=0`），零超时零异常 |
+| 延迟 p50 / p95 / p99 / max | 14 ms / 26 ms / 34 ms / 207 ms |
+| JVM RSS | 431–485 MB（均值 470），**无单调增长**（结束值 485 比压测后的 522 还低）|
+| PostgreSQL RSS | 137–184 MB（均值 159），平坦 |
+| Redis / Nginx RSS | 15 MB / 31 MB，整段一条直线 |
+| swap 使用 | **全程 0**（2 GB swap 一点没用上）|
+| `oom_kill` | 1 → 1，**无新增** |
+| PG 连接数 | 1–3（`max_connections=20`）|
+| 可用内存 | 664–731 MB |
+| 整机 load1 | ≤ 1.0（没有压测客户端抢 CPU 的真空闲形态）|
+
+按 §5.9 的通过标准：**无 OOM、无重启**（满足）；**readiness 全程 UP**（满足）；**swap 使用 < 50%**（0，满足）；**p95 记为基线**（26 ms，单客户端低速）。
+
+诚实边界：这 1 小时是「低负载长跑」，高负载那一半由 F.6 的 20 并发 10 分钟覆盖，两者合起来才回答稳定性——同机压测会让延迟口径失真（见 E.4），所以 soak 刻意选了低速。soak 期间 moto 已停（对象存储在生产是外部服务），也没有持续调用模型（配额耗尽），因此这一轮**不覆盖**「缩略图/预览生成」「模型调用」这两条外呼链路的长时间行为。
+
+
+### F.9 部署安全实测
+
+| 项 | 实测 |
+|---|---|
+| 对外监听面 | 仅 `22`、`80`（nginx）；PG `5432`、Redis `6379`、TLS 站 `18443`、管理口 `9081` **全部只绑 127.0.0.1** |
+| 应用 8081 | 绑的是 `*:8081`（见 F.10 第 6 条）。实测外网直连 `000`（同机经公网 IP 也不通，公网入口只放行 `80`/`22` 这类白名单端口），因此当前不构成暴露，但属纵深防御缺口 |
+| TLS | 自签 30 天证书；生产必须换公网域名 + certbot（计划 §3.9）|
+| 口令 | 只存在于 `600` 文件与 `EnvironmentFile`；不在 argv、不在日志（日志里只出现属性名）|
+| 安全守卫 | `ProductionSecretsGuard` 在启动期拦下 dev 回退值与占位符，报错只给键名 |
+| CSRF | 有会话的写请求必须带 `X-CSRF-Token`（与 `VS_CSRF` cookie 双提交）；无 Origin 的非浏览器客户端按设计放行 |
+| 应用账号权限 | `vision_app` 无 CREATE/owner；`TRUNCATE`/`DROP` 均 `42501` |
+
+### F.10 实机发现的 7 个问题
+
+1. **运行手册的 `app.env` 少了模型端点键**（真缺陷，涉及手册/模板，不涉及代码）。少了 `SPRING_AI_OPENAI_BASE_URL` 时，Agent 走 OpenAI 客户端默认打 `api.openai.com`——大陆不可达，同步调用挂到超时，SSE 一个字节都回不来。补上 `SPRING_AI_OPENAI_BASE_URL`（DashScope 兼容模式）与 `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=qwen-plus` 后，请求 1.5 秒内得到明确失败。**处置**：两键写进计划 §3.6 的 `app.env` 清单。
+2. **DashScope 免费额度耗尽**（`403 AllocationQuota.FreeTierOnly`），兼容模式与原生端点同样 403；服务端直接 `curl` 复现。与迁移无关，属账号侧阻塞，是 RELEASE / PRODUCTION 判定的外部前置。
+3. **SSE 首帧 28–30 秒，与 MVC 默认 30 秒异步超时正面撞车**。换用可用供应商实测：`first_frame=30.2s / 28.1s`，另一个时段 65.6s；同一供应商 `curl -N` 直连 1.5 秒出首包，说明这 28–30 秒耗在应用内、模型调用之前的阶段（同期日志只有 `Agent 流式对话请求` 一行，没有工具/节点级日志可归因）。默认 30 秒下会话在首帧前被 `AsyncRequestTimeoutException` 掐断，客户端拿不到任何帧。**处置**：`app.env` 显式 `SPRING_MVC_ASYNC_REQUEST_TIMEOUT=300000` 并写进手册；首帧延迟本身列为待查性能项（F.11）。
+4. **模型失败发生在首帧之前时，客户端收到 500 空体**，而不是 SSE 的 `error` 帧。日志同时出现 `AgentController` 的「流式对话错误」（`onErrorResume` 生效）与 `GlobalExceptionHandler` 的 `HttpMessageNotWritableException: ... preset Content-Type 'text/event-stream'`。`AgentController` 与 `GlobalExceptionHandler` 在本分支相对 `main` **没有任何改动**（`git diff --stat main` 为空）→ 既有行为，不是迁移引入；建议单开 issue 让「首帧前失败」也走 SSE 错误帧。
+5. **存储配置缺 `domain` 会产出 `null` 前缀 URL**（实测 `nullacceptance//space/...`），预览随之失败；补 `domain` 后刷新即恢复。**处置**：`domain` 列为部署必填项写进手册（生产是 COS/OSS 的公开域名）。
+6. **应用绑 `0.0.0.0:8081`**。当前靠安全组挡住（外网直连实测 `000`），但一旦安全组放开或换机器就会直接暴露明文 HTTP。**处置**：建议生产加 `SERVER_ADDRESS=127.0.0.1`（或安全组显式白名单），列入上线清单。
+7. **`oom_kill` 基线是 1**：验收机在本轮之前已发生过一次整机 OOM kill（装包阶段 apt/dpkg 与 unattended-upgrade 抢内存）。本轮压测与 soak 全程该计数不变，说明验收期间没有新的 OOM；报告里所有「无 OOM」结论都以「计数不增长」为准，而非「计数为 0」。
+
+### F.11 未覆盖与上线前置
+
+| 项 | 状态 |
+|---|---|
+| 微信登录 | 未测：`app.env` 里没有 `VISION_SPACE_WX_APPID` / `VISION_SPACE_WX_SECRET`（`.env.example` 有、验收机没有），小程序侧登录链路本轮绕开 |
+| 以图搜图 / 向量检索 | 未测：`SPRING_AI_VECTORSTORE_TYPE=none`，pgvector 是下一轮 |
+| Agent 真实模型对话 | 供应商配额耗尽，只验证了「链路能被正确调到供应商并失败」与「换可用供应商时 SSE 能完整跑通」（`agent-turn1/2.txt`：31 / 23 帧，末帧 `done`）|
+| 首帧 28–30 秒的归因 | 未定位到具体阶段（应用内、模型调用之前），只有实测数字 |
+| 对象存储 | 用 moto 替身，没有连真实 COS/OSS；生产要验真实域名下的预览与迁移 |
+| 公网域名 / 证书 | 自签 30 天；certbot 需要域名解析到位后才能做 |
+| 定时备份 / 监控告警 | 未配；本轮只有手工一次备份恢复演练 |
+| `.env.example` 与原生部署的键名 | 不一致（`BACKEND_PORT`/`POSTGRES_*`/`REDIS_PASSWORD` 是 compose 口径；原生用 `SPRING_DATASOURCE_*`/`SPRING_DATA_REDIS_PASSWORD`）。建议手册附录写一张对照表 |
+
+### F.12 三条判定
+
+| 判定 | 结论 | 依据与条件 |
+|---|---|---|
+| **MERGE_READY** | **是** | 仓库代码相对 `main` 未变（验收期间 `git diff --stat main` 为空），PR #166 在 `427414a` 上六个作业全绿（`security`/`browser`/`container`/`acceptance`/`evidence`/`SRF merge gate`），mergeable；实机验收没有发现任何「必须改代码才能上线」的问题。合并仍需用户显式授权 |
+| **RELEASE_READY** | **有条件** | 迁移本体能在 1.7 GB 机型上稳定运行（F.5–F.8 全绿）。条件：① DashScope 额度或换 key；② `SPRING_AI_OPENAI_BASE_URL` + `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL` + `SPRING_MVC_ASYNC_REQUEST_TIMEOUT` 进 `app.env` 模板；③ 存储配置 `domain` 必填。打 `1.1.0` 需另行授权 |
+| **PRODUCTION_READY** | **否（当前）** | 除上面三条外还差：公网域名 + 正式证书；真实 COS/OSS 域名下验证预览；微信登录凭据（若首发就要）；`8081` 绑回环；定时备份与基线监控。放生产流量需另行授权 |
+
+口径说明：**MERGE_READY** 说的是「这份代码可以并进 main」，不包含任何部署承诺；**RELEASE_READY** 说的是「按手册部署到这台机器能正常提供服务」，条件是三条外部/配置项；**PRODUCTION_READY** 说的是「可以对外接真实用户」，它需要域名、证书、真实存储、账号额度与运维手段都到位。三者互不替代。
+
+### F.13 证据文件（`docs/plans/evidence/2026-11-25-m4/`）
+
+| 文件 | 内容 |
+|---|---|
+| `vs_m4_accept.py` | 验收驱动：`users` / `storage` / `business` / `agent` / `load` 五个子命令 |
+| `users.json` / `storage.json` / `business.json` / `agent.json` | 各阶段逐步结果（`ok` / `detail`）|
+| `agent-turn1.txt` / `agent-turn2.txt` | 两轮完整 SSE 帧（可用供应商下的真实对话）|
+| `stream.raw` / `stream2.raw` | 同上，原始字节流 |
+| `agent-events.txt` | 排查首帧延迟期间的服务端事件时间线 |
+| `load.json` / `load-samples.tsv` | 20 并发 10 分钟的汇总结论与 60 个整机采样点 |
+| `restore-drill.sh` | 备份恢复演练脚本（dump → 新库 → 行数比对 → 应用改连 → 回切）|
+| `sample.sh` / `soak.sh` / `soak-traffic.py` | 整机采样、soak 编排、低速业务流量 |
+| `soak-samples.tsv` / `soak-traffic.log` | 1 小时 soak 的采样与请求日志 |
+
+口令与账号密码**不在仓库里**：`creds.json`、`/root/.vs-secrets/*`、`app.env` 都留在验收机且 `600`。

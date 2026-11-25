@@ -1,0 +1,36 @@
+{
+  "results": [
+    {
+      "step": "register+login vs_m4_admin",
+      "ok": true,
+      "detail": {
+        "id": "2125597887010775041",
+        "role": "user"
+      }
+    },
+    {
+      "step": "register+login vs_m4_u1",
+      "ok": true,
+      "detail": {
+        "id": "2125597891674841090",
+        "role": "user"
+      }
+    },
+    {
+      "step": "register+login vs_m4_u2",
+      "ok": true,
+      "detail": {
+        "id": "2125597894619242497",
+        "role": "user"
+      }
+    },
+    {
+      "step": "register+login vs_m4_u3",
+      "ok": true,
+      "detail": {
+        "id": "2125597897597198337",
+        "role": "user"
+      }
+    }
+  ]
+}
