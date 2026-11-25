@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 统计记录按图片关联键读写（原 18.1 / 18.4）。
  *
- * <p>数据集故意让 {@code picture_stats.id} 与 {@code pictureId} 不同，并且两者互相交叉，
+ * <p>数据集故意让 {@code picture_stats.id} 与 {@code picture_id} 不同，并且两者互相交叉，
  * 以便把"按主键批量查询"误用暴露成可见的错值：按主键取会把别人的统计贴到本图，
  * 取不到则显示为 0。
  */
@@ -115,21 +115,21 @@ class HttpPictureStatsAssociationTest {
     void pictureStatsFollowPictureIdNotTheirOwnRowKey() {
         // 前提断言：数据集本身不能让统计行的行键恰好等于图片 ID，掩盖关联错误
         List<Long> ids = jdbc.queryForList(
-                "SELECT id FROM picture_stats WHERE pictureId IN (?, ?, ?) ORDER BY id",
+                "SELECT id FROM picture_stats WHERE picture_id IN (?, ?, ?) ORDER BY id",
                 Long.class, FIRST_PICTURE, SECOND_PICTURE, THIRD_PICTURE);
         List<Long> pictureIds = jdbc.queryForList(
-                "SELECT pictureId FROM picture_stats WHERE pictureId IN (?, ?, ?) ORDER BY id",
+                "SELECT picture_id FROM picture_stats WHERE picture_id IN (?, ?, ?) ORDER BY id",
                 Long.class, FIRST_PICTURE, SECOND_PICTURE, THIRD_PICTURE);
         assertEquals(List.of(FIRST_STATS_ID, SECOND_STATS_ID, THIRD_STATS_ID), ids);
         assertEquals(List.of(FIRST_PICTURE, SECOND_PICTURE, THIRD_PICTURE), pictureIds);
         for (int i = 0; i < ids.size(); i++) {
-            assertNotEquals(ids.get(i), pictureIds.get(i), "fixture must keep stats id and pictureId distinct");
+            assertNotEquals(ids.get(i), pictureIds.get(i), "fixture must keep stats id and picture_id distinct");
         }
     }
 
     private void seedPicture(long id, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, picWidth, picHeight, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, pic_width, pic_height, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, 1920, 1080, NULL, 1, 0)
                 """, id, "content-" + id, name, OWNER);
     }
@@ -137,8 +137,8 @@ class HttpPictureStatsAssociationTest {
     private void seedStats(long id, long pictureId, long view, long like, long collect,
                            long download, long share, long impression, long click) {
         jdbc.update("""
-                INSERT INTO picture_stats (id, pictureId, viewCount, likeCount, collectCount,
-                                           downloadCount, shareCount, impressionCount, clickCount, ctr)
+                INSERT INTO picture_stats (id, picture_id, view_count, like_count, collect_count,
+                                           download_count, share_count, impression_count, click_count, ctr)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.000000)
                 """, id, pictureId, view, like, collect, download, share, impression, click);
     }

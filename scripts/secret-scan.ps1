@@ -26,7 +26,9 @@ $rules = @(
     @{ Name = 'aliyun-access-key-id'; Pattern = '(?-i:LTAI)[0-9A-Za-z]{12,}' },
     @{ Name = 'aws-access-key-id'; Pattern = '(?-i:(AKIA|ASIA)[0-9A-Z]{16})' },
     @{ Name = 'dashscope-or-openai-key'; Pattern = '(?-i:sk-)[A-Za-z0-9_.-]{24,}' },
-    @{ Name = 'hardcoded-password-quoted'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*[""'](?!(?:$placeholder))[^""'\s]{8,}[""']" },
+    # 两种形态不是字面量：psql 的 :'var'（冒号紧贴引号，无空格）与 shell 的 "$VAR"。
+    # YAML/属性文件的 `password: "..."` 中间有空格，仍然照常命中。
+    @{ Name = 'hardcoded-password-quoted'; Pattern = "(?i)\b(password|passwd)\s*[:=](?!['""])\s*[""'](?!(?:\$|$placeholder))[^""'\s]{8,}[""']" },
     @{ Name = 'hardcoded-password-bare'; Pattern = "(?i)\b(password|passwd)\s*[:=]\s*(?!\$\{|[""']|\$|(?-i:[A-Z_]{2,})\b|Get-|Set-|New-|Read-|Write-|ConvertTo-|ConvertFrom-|Select-|Where-|ForEach-|Invoke-|env\.|process\.|System\.|require\(|import\s|$placeholder)[^\s""'#,;{}()\[\]]{8,}" },
     @{ Name = 'hardcoded-api-key'; Pattern = '(?i)\b(api[-_]?key|secret[-_]?key|access[-_]?key)\s*[:=]\s*["'']?(?!\$\{|your_|example|placeholder|xxx|changeme|acceptance|test)[^\s"''#]{16,}' }
 )

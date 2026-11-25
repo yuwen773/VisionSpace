@@ -82,6 +82,32 @@ class EvidenceTest(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(report["gates"]["acceptance"], "BLOCKED")
 
+    def test_failed_gate_reports_its_structured_reason(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            self.fixture(directory)
+            path = directory / "acceptance/summary.json"
+            summary = json.loads(path.read_text())
+            summary["results"]["frontend-build"] = "FAIL"
+            summary["gateFailures"] = {"frontend-build": "scripts/tests/test-postgres-persistence.ps1 exited 1"}
+            path.write_text(json.dumps(summary))
+            result, report = self.run_report(directory)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(report["failures"]["acceptance.frontend-build"], "scripts/tests/test-postgres-persistence.ps1 exited 1")
+
+    def test_failure_reason_carrying_a_value_is_dropped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            self.fixture(directory)
+            path = directory / "acceptance/summary.json"
+            summary = json.loads(path.read_text())
+            summary["results"]["frontend-build"] = "FAIL"
+            summary["gateFailures"] = {"frontend-build": "credential=super-secret-value"}
+            path.write_text(json.dumps(summary))
+            result, report = self.run_report(directory)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(report["failures"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

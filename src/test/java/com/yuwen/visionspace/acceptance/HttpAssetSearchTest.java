@@ -49,16 +49,16 @@ class HttpAssetSearchTest {
     @BeforeEach
     void fixture() throws Exception {
         model.output = new AssistantMessage("{\"orientation\":\"LANDSCAPE\"}");
-        jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", PICTURE);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceId = ?", PICTURE);
-        jdbc.update("DELETE FROM resource_access_grant WHERE resourceId = ?", PICTURE);
-        jdbc.update("DELETE FROM picture WHERE spaceId = ?", SPACE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ?", SPACE);
+        jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", PICTURE);
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id = ?", PICTURE);
+        jdbc.update("DELETE FROM resource_access_grant WHERE resource_id = ?", PICTURE);
+        jdbc.update("DELETE FROM picture WHERE space_id = ?", SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ?", SPACE);
         jdbc.update("DELETE FROM space WHERE id = ?", SPACE);
         owner = register();
         viewer = register();
-        jdbc.update("INSERT INTO space (id, spaceName, userId, spaceType, totalSize, totalCount) VALUES (?, 'asset-test', ?, 1, 10, 1)", SPACE, owner);
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'viewer')", SPACE, viewer);
+        jdbc.update("INSERT INTO space (id, space_name, user_id, space_type, total_size, total_count) VALUES (?, 'asset-test', ?, 1, 10, 1)", SPACE, owner);
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'viewer')", SPACE, viewer);
         seed(PICTURE, 1920, 1080, "#0000FF");
         client = newClient();
         login(client, viewer);
@@ -91,7 +91,7 @@ class HttpAssetSearchTest {
     void oldSnapshotKeepsItsFactsButHidesReplacedOrQuarantinedContent() throws Exception {
         var original = search(client, Map.of("orientation", "LANDSCAPE")).path("data");
         String path = "/agent/asset-results/" + original.path("resultId").asText();
-        jdbc.update("UPDATE picture SET picWidth = 2000 WHERE id = ?", PICTURE);
+        jdbc.update("UPDATE picture SET pic_width = 2000 WHERE id = ?", PICTURE);
         var stale = get(client, path).path("data").path("items").get(0);
         assertEquals("STALE", stale.path("status").asText());
         assertEquals(1920, stale.path("verifiedFacts").path("width").asInt());
@@ -105,8 +105,10 @@ class HttpAssetSearchTest {
 
     @Test
     void previewUsesCurrentSnapshotAndContentPermissionsOnEveryRequest() throws Exception {
-        jdbc.update("INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform, objectKey, url, fileSize, status) VALUES (?, ?, ?, 'gallery', 'original', ?, '/asset/original.jpg', 'https://acceptance.invalid/asset.jpg', 10, 1)",
-                owner, SPACE, PICTURE, RecordingStorageConfiguration.PLATFORM);
+        // PostgreSQL 的 picture_file 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform, object_key, url, file_size, status) VALUES (?, ?, ?, ?, 'gallery', 'original', ?, '/asset/original.jpg', 'https://acceptance.invalid/asset.jpg', 10, 1)",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), owner, SPACE, PICTURE,
+                RecordingStorageConfiguration.PLATFORM);
         var result = search(client, Map.of("orientation", "LANDSCAPE")).path("data");
         String contentRef = result.path("items").get(0).path("display").path("contentRef").asText();
         assertTrue(contentRef.startsWith("/agent/asset-results/"), contentRef);
@@ -114,13 +116,13 @@ class HttpAssetSearchTest {
         assertEquals("acceptance-image-bytes", content.body());
         assertTrue(content.headers().firstValue("Cache-Control").orElse("").contains("no-store"));
         int calls = recorder.calls().size();
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", SPACE, viewer);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", SPACE, viewer);
         assertNotEquals(0, get(client, "/agent/asset-results/" + result.path("resultId").asText()).path("code").asInt());
         var denied = client.send(HttpRequest.newBuilder(uri(contentRef)).GET().build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(403, denied.statusCode());
         assertEquals(calls, recorder.calls().size());
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'viewer')", SPACE, viewer);
-        jdbc.update("UPDATE picture_file SET objectKey = '/asset/replaced.jpg' WHERE pictureId = ?", PICTURE);
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'viewer')", SPACE, viewer);
+        jdbc.update("UPDATE picture_file SET object_key = '/asset/replaced.jpg' WHERE picture_id = ?", PICTURE);
         var replaced = client.send(HttpRequest.newBuilder(uri(contentRef)).GET().build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(403, replaced.statusCode());
         assertEquals(calls, recorder.calls().size());
@@ -129,8 +131,12 @@ class HttpAssetSearchTest {
     @Test
     void oldPendingExecutionCannotEnterReadOnlySearch() throws Exception {
         String thread = "asset-pending-" + System.nanoTime();
-        jdbc.update("INSERT INTO agent_session (sessionId, userId, title) VALUES (?, ?, 'pending')", thread, viewer);
-        jdbc.update("INSERT INTO agent_run_state (threadId, userId, stateVersion, stateFormat, runStatus) VALUES (?, ?, 1, 'v2-full', 'AWAITING_CONFIRMATION')", thread, viewer);
+        // PostgreSQL 的 agent_session / agent_run_state 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO agent_session (id, session_id, user_id, title) VALUES (?, ?, ?, 'pending')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), thread, viewer);
+        jdbc.update("INSERT INTO agent_run_state (id, thread_id, user_id, state_version, state_format, run_status) "
+                + "VALUES (?, ?, ?, 1, 'v2-full', 'AWAITING_CONFIRMATION')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), thread, viewer);
         long snapshots = count("asset_search_snapshot");
         int calls = recorder.calls().size();
         var denied = post(client, "/agent/asset-search", Map.of("spaceId", String.valueOf(SPACE),
@@ -202,7 +208,7 @@ class HttpAssetSearchTest {
         assertEquals(1, history.size());
         assertEquals("asset-result", history.get(0).path("subType").asText());
         assertEquals(resultId, history.get(0).path("content").asText());
-        jdbc.update("UPDATE agent_session SET isDelete = 1 WHERE sessionId = ?", thread);
+        jdbc.update("UPDATE agent_session SET is_delete = 1 WHERE session_id = ?", thread);
         assertEquals(40101, get(client, "/agent/asset-results/" + resultId).path("code").asInt());
     }
 
@@ -217,7 +223,7 @@ class HttpAssetSearchTest {
             long outsider = register();
             login(stranger, outsider);
             assertRejected(search(stranger, Map.of("orientation", "LANDSCAPE")));
-            jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", outsider);
+            jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", outsider);
             assertRejected(search(stranger, Map.of("orientation", "LANDSCAPE")));
         }
         for (Object criteria : List.of(Map.of(), Map.of("orientation", "PORTRAIT"), Map.of("orientation", true),
@@ -233,7 +239,8 @@ class HttpAssetSearchTest {
                     "criteria", Map.of("orientation", "LANDSCAPE"), field, "forged")));
         }
         String foreign = "asset-foreign-" + System.nanoTime();
-        jdbc.update("INSERT INTO agent_session (sessionId, userId, title) VALUES (?, ?, 'foreign')", foreign, owner);
+        jdbc.update("INSERT INTO agent_session (id, session_id, user_id, title) VALUES (?, ?, ?, 'foreign')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), foreign, owner);
         assertRejected(post(client, "/agent/asset-search", Map.of("spaceId", String.valueOf(SPACE),
                 "criteria", Map.of("orientation", "LANDSCAPE"), "threadId", foreign)));
         assertEquals(snapshots, count("asset_search_snapshot"));
@@ -272,7 +279,7 @@ class HttpAssetSearchTest {
 
     @Test
     void dimensionsAreHardConditionsBeforeLimitAndIdsSortNumericallyWithoutPrecisionLoss() throws Exception {
-        jdbc.update("DELETE FROM picture WHERE spaceId = ?", SPACE);
+        jdbc.update("DELETE FROM picture WHERE space_id = ?", SPACE);
         seed(2, 1920, 1080, null);
         seed(10, 1920, 1080, null);
         seed(PICTURE, 1920, 1080, null);
@@ -288,7 +295,7 @@ class HttpAssetSearchTest {
         var limited = post(client, "/agent/asset-search", Map.of("spaceId", String.valueOf(SPACE),
                 "criteria", Map.of("orientation", "LANDSCAPE"), "limit", 1)).path("data");
         assertEquals("2", limited.path("items").get(0).path("assetRef").path("pictureId").asText());
-        jdbc.update("UPDATE picture SET picWidth = 1 WHERE spaceId = ?", SPACE);
+        jdbc.update("UPDATE picture SET pic_width = 1 WHERE space_id = ?", SPACE);
         var empty = search(client, Map.of("orientation", "LANDSCAPE")).path("data");
         assertTrue(empty.path("items").isArray());
         assertEquals(0, empty.path("items").size());
@@ -326,31 +333,37 @@ class HttpAssetSearchTest {
 
     @Test
     void platformRoleDoesNotEraseAnExplicitTeamMembershipOrCreateOne() throws Exception {
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", viewer);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", viewer);
         login(client, viewer);
         var result = search(client, Map.of("orientation", "LANDSCAPE"));
         assertEquals(1, result.path("data").path("items").size(), result.toString());
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", SPACE, viewer);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", SPACE, viewer);
         assertRejected(search(client, Map.of("orientation", "LANDSCAPE")));
     }
 
     @Test
     void isolationAndSingleResourceGrantsCannotTurnSnapshotsIntoSpaceAuthorization() throws Exception {
-        jdbc.update("INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform, objectKey, url, fileSize, status) VALUES (?, ?, ?, 'gallery', 'original', ?, '/asset/grant.jpg', 'https://acceptance.invalid/grant.jpg', 10, 1)",
-                owner, SPACE, PICTURE, RecordingStorageConfiguration.PLATFORM);
+        // PostgreSQL 的 picture_file 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform, object_key, url, file_size, status) VALUES (?, ?, ?, ?, 'gallery', 'original', ?, '/asset/grant.jpg', 'https://acceptance.invalid/grant.jpg', 10, 1)",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), owner, SPACE, PICTURE,
+                RecordingStorageConfiguration.PLATFORM);
         var result = search(client, Map.of("orientation", "LANDSCAPE")).path("data");
         String path = "/agent/asset-results/" + result.path("resultId").asText();
         String content = result.path("items").get(0).path("display").path("contentRef").asText();
-        jdbc.update("INSERT INTO resource_isolation (resourceType, resourceId, status, activeKey, operatorId, reason) VALUES ('picture', ?, 1, ?, ?, 'test')", PICTURE, "picture:" + PICTURE, owner);
+        jdbc.update("INSERT INTO resource_isolation (id, resource_type, resource_id, status, active_key, operator_id, reason) "
+                + "VALUES (?, 'picture', ?, 1, ?, ?, 'test')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), PICTURE, "picture:" + PICTURE, owner);
         int calls = recorder.calls().size();
         assertEquals(json.readTree("{\"position\":0,\"status\":\"UNAVAILABLE\"}"), get(client, path).path("data").path("items").get(0));
         assertEquals(0, search(client, Map.of("orientation", "LANDSCAPE")).path("data").path("items").size());
         assertEquals(403, client.send(HttpRequest.newBuilder(uri(content)).GET().build(), HttpResponse.BodyHandlers.ofString()).statusCode());
         assertEquals(calls, recorder.calls().size());
-        jdbc.update("UPDATE resource_isolation SET status = 2, activeKey = NULL WHERE resourceId = ?", PICTURE);
+        jdbc.update("UPDATE resource_isolation SET status = 2, active_key = NULL WHERE resource_id = ?", PICTURE);
         assertEquals("AVAILABLE", get(client, path).path("data").path("items").get(0).path("status").asText());
-        jdbc.update("INSERT INTO resource_access_grant (resourceType, resourceId, granteeUserId, grantedByUserId, expiresTime, status) VALUES ('picture', ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR), 1)", PICTURE, viewer, owner);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", SPACE, viewer);
+        jdbc.update("INSERT INTO resource_access_grant (id, resource_type, resource_id, grantee_user_id, granted_by_user_id, expires_time, status) "
+                + "VALUES (?, 'picture', ?, ?, ?, statement_timestamp() + (1 * interval '1 hour'), 1)",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), PICTURE, viewer, owner);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", SPACE, viewer);
         assertRejected(search(client, Map.of("orientation", "LANDSCAPE")));
         assertRejected(get(client, path));
         assertEquals("acceptance-image-bytes", client.send(HttpRequest.newBuilder(uri("/picture/content/" + PICTURE + "/preview")).GET().build(), HttpResponse.BodyHandlers.ofString()).body());
@@ -383,18 +396,18 @@ class HttpAssetSearchTest {
     @Test
     void everyTeamRoleReadsOnlyThisSpaceAndSearchLeavesExistingResourcesUnchanged() throws Exception {
         seed(95452, 1920, 1080, "#0000FF");
-        jdbc.update("UPDATE picture SET spaceId = ? WHERE id = 95452", SPACE + 1);
+        jdbc.update("UPDATE picture SET space_id = ? WHERE id = 95452", SPACE + 1);
         var before = get(client, "/picture/get/vo?id=" + PICTURE);
         assertEquals(0, before.path("code").asInt(), before.toString());
         int calls = recorder.calls().size();
         for (String role : List.of("viewer", "editor", "admin")) {
-            jdbc.update("UPDATE space_user SET spaceRole = ? WHERE spaceId = ? AND userId = ?", role, SPACE, viewer);
+            jdbc.update("UPDATE space_user SET space_role = ? WHERE space_id = ? AND user_id = ?", role, SPACE, viewer);
             var result = search(client, Map.of("orientation", "LANDSCAPE")).path("data");
             assertEquals(1, result.path("items").size());
             assertEquals(String.valueOf(PICTURE), result.path("items").get(0).path("assetRef").path("pictureId").asText());
             assertFalse(result.toString().contains("origin.invalid"));
         }
-        jdbc.update("UPDATE space_user SET spaceRole = 'viewer' WHERE spaceId = ? AND userId = ?", SPACE, viewer);
+        jdbc.update("UPDATE space_user SET space_role = 'viewer' WHERE space_id = ? AND user_id = ?", SPACE, viewer);
         assertEquals(before, get(client, "/picture/get/vo?id=" + PICTURE));
         assertEquals(calls, recorder.calls().size());
         jdbc.update("DELETE FROM picture WHERE id = 95452");
@@ -405,7 +418,7 @@ class HttpAssetSearchTest {
     }
 
     private void seed(long id, Integer width, Integer height, String color) {
-        jdbc.update("INSERT INTO picture (id, url, name, userId, spaceId, picSize, picWidth, picHeight, picColor, isDelete) VALUES (?, ?, 'asset', ?, ?, 10, ?, ?, ?, 0)",
+        jdbc.update("INSERT INTO picture (id, url, name, user_id, space_id, pic_size, pic_width, pic_height, pic_color, is_delete) VALUES (?, ?, 'asset', ?, ?, 10, ?, ?, ?, 0)",
                 id, "https://origin.invalid/" + id, owner, SPACE, width, height, color);
     }
 
@@ -419,7 +432,7 @@ class HttpAssetSearchTest {
     }
 
     private void login(HttpClient browser, long id) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, id);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, id);
         assertEquals(0, post(browser, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD)).path("code").asInt());
     }
 

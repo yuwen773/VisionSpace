@@ -1,8 +1,5 @@
 [CmdletBinding()]
 param(
-    # Optional Windows binaries; omit both to use dedicated Docker containers.
-    [string]$MySqlBin,
-    [string]$RedisBin,
     # Skip `npm ci` when the worktree already has node_modules.
     [switch]$SkipInstall
 )
@@ -14,6 +11,10 @@ param(
 #   - `npm run build-only` 的生产构建产物由本地同源入口提供
 #   - 自签证书，使页面运行在 https 下，验证 wss 与 Secure Cookie
 #   - playwright-core 驱动真实 Chromium，观察请求、Cookie 与最终结果
+#
+# 隔离服务全部走 Docker：postgres:18.7 + redis:7.2.4（原生二进制模式已移除）。
+# 业务表只由 Flyway 以迁移角色 vision_migrator 创建，脚本不再自行执行 DDL；
+# PostgreSQL 18 的数据目录版本化，卷挂在 /var/lib/postgresql。
 #
 # 退出码：0 通过；1 断言失败；2 BLOCKED_ENV（缺依赖/浏览器/隔离服务）。
 
@@ -32,7 +33,7 @@ $database = "vs_browser_$nonce"
 $results = [ordered]@{}
 $ownedProcesses = @()
 $environmentNames = @(
-    'VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_MYSQL_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'MYSQL_PWD',
+    'VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_PG_PORT', 'VS_ACCEPTANCE_REDIS_PORT',
     'VS_E2E_API_TARGET', 'VS_E2E_HTTPS_CERT', 'VS_E2E_HTTPS_KEY', 'VS_E2E_ARTIFACTS'
 )
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -43,13 +44,23 @@ function Free-Port {
     try { return $listener.LocalEndpoint.Port } finally { $listener.Stop() }
 }
 
-function Wait-Port([int]$Port) {
-    $deadline = [DateTime]::UtcNow.AddSeconds(90)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $client = [Net.Sockets.TcpClient]::new()
-        try { $client.Connect('127.0.0.1', $Port); return } catch { Start-Sleep -Milliseconds 500 } finally { $client.Dispose() }
+# psql 裸值读取：口令经 PGPASSWORD 环境变量传入（不进 argv），SQL 走 stdin
+# （避免 Windows 参数转义吃掉引号），输出用 -tA（tuples-only + unaligned），
+# 每行一个裸值，多列用 | 分隔。
+function Invoke-PsqlRows {
+    param(
+        [string]$Container,
+        [string]$Database,
+        [string]$Password,
+        [string]$Sql,
+        [string]$LogPath
+    )
+    $output = $Sql | & docker exec -i -e "PGPASSWORD=$Password" $Container psql --no-psqlrc -tA -v ON_ERROR_STOP=1 -f - -U vision_app -d $Database 2> $LogPath
+    if ($LASTEXITCODE -ne 0) {
+        $detail = Get-Content -Raw -LiteralPath $LogPath -ErrorAction SilentlyContinue
+        throw "psql failed (exit $LASTEXITCODE): $Sql`n$detail"
     }
-    throw "BLOCKED_ENV: isolated service did not open port $Port"
+    return @($output | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' })
 }
 
 # PATH 上的 java 可能是收尾不完整的转发器（例如 Oracle javapath 在没有注册表项时
@@ -93,8 +104,6 @@ New-Item -ItemType Directory -Path $runDir | Out-Null
 Push-Location $repo
 $failed = $false
 try {
-    if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both MySqlBin and RedisBin, or neither.' }
-
     # 生产构建产物与自签证书
     Push-Location (Join-Path $repo 'frontend')
     try {
@@ -116,61 +125,22 @@ try {
         -addext 'subjectAltName=IP:127.0.0.1' -keyout $keyPath -out $certPath *> (Join-Path $runDir 'cert.log')
     if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: openssl unavailable for a local TLS certificate' }
 
-    if ([bool]$MySqlBin -ne [bool]$RedisBin) { throw 'Specify both native binary directories, or neither.' }
-    if (-not $MySqlBin) {
-        $database = $database
-        $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
-        $mysqlPort = $services.MySqlPort
-        $redisPort = $services.RedisPort
-        $mysql = 'Invoke-AcceptanceMySql'
-    } else {
-    # 隔离 MySQL 与 Redis
-    $mysqlPort = Free-Port
-    $redisPort = Free-Port
-    while ($redisPort -eq $mysqlPort -or $mysqlPort -lt 10000 -or $redisPort -lt 10000) {
-        $mysqlPort = Free-Port
-        $redisPort = Free-Port
-    }
-    $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
-    $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    # 表数量变化必须人工复核：#38 新增幂等台账 picture_action_event_dedupe，
-    # #41 新增 agent_run_state / agent_action_record，
-    # #35 新增 agent_session_attachment / agent_legacy_attachment，表数由 12 变为 17。
-    # #36 新增 feedback_attachment / resource_access_grant / resource_isolation，表数由 17 变为 20。
-    # #39 新增 vip_redemption_code / vip_redemption_record，表数由 20 变为 22。
-    if ($tables.Count -eq 0 -or $tables.Count -ne [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count) { throw 'FAIL: schema changed; review acceptance bootstrap before running.' }
-    $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
-    $bootstrap = @"
-CREATE DATABASE $database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'vs_acceptance'@'%' IDENTIFIED BY '$nonce';
-GRANT ALL ON $database.* TO 'vs_acceptance'@'%';
-USE $database;
-CREATE TABLE acceptance_instance (nonce varchar(32) NOT NULL);
-INSERT INTO acceptance_instance VALUES ('$nonce');
-$ddl
-"@
-    $bootstrapPath = Join-Path $runDir 'bootstrap.sql'
-    [IO.File]::WriteAllText($bootstrapPath, $bootstrap, [Text.UTF8Encoding]::new($false))
-        if (-not $IsWindows) { throw 'Native binaries mode requires Windows.' }
-        $mysqld = Join-Path $MySqlBin 'mysqld.exe'
-        $mysql = Join-Path $MySqlBin 'mysql.exe'
-        $redisServer = Join-Path $RedisBin 'redis-server.exe'
-        $redisCli = Join-Path $RedisBin 'redis-cli.exe'
-        foreach ($file in @($mysqld, $mysql, $redisServer, $redisCli)) {
-            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing executable: $file" }
-        }
-        $dataDir = Join-Path $runDir 'mysql'
-        & $mysqld --no-defaults --initialize-insecure "--datadir=$dataDir" --console *> (Join-Path $runDir 'mysql-init.log')
-        if ($LASTEXITCODE -ne 0) { throw 'Isolated MySQL initialization failed.' }
-        $ownedProcesses += Start-Process @processWindow -FilePath $mysqld -ArgumentList @('--no-defaults', "--datadir=`"$dataDir`"", '--bind-address=127.0.0.1', "--port=$mysqlPort", '--mysqlx=OFF', '--default-time-zone=+00:00', '--console') -PassThru -RedirectStandardOutput (Join-Path $runDir 'mysql-out.log') -RedirectStandardError (Join-Path $runDir 'mysql-error.log')
-        $ownedProcesses += Start-Process @processWindow -FilePath $redisServer -ArgumentList @('--bind', '127.0.0.1', '--port', $redisPort, '--requirepass', $nonce, '--save', '""', '--appendonly', 'no', '--dir', "`"$runDir`"") -PassThru -RedirectStandardOutput (Join-Path $runDir 'redis-out.log') -RedirectStandardError (Join-Path $runDir 'redis-error.log')
-        Wait-Port $mysqlPort
-        Wait-Port $redisPort
-        $env:MYSQL_PWD = ''
-        $bootstrap | & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --default-character-set=utf8mb4 *> (Join-Path $runDir 'bootstrap.log')
-        if ($LASTEXITCODE -ne 0) { throw 'FAIL: isolated schema bootstrap failed.' }
-        & $redisCli -h 127.0.0.1 -p $redisPort -a $nonce -n 15 SET acceptance:instance $nonce *> (Join-Path $runDir 'redis-marker.log')
-        if ($LASTEXITCODE -ne 0) { throw 'Redis marker creation failed.' }
+    # 隔离服务：postgres:18.7 + redis:7.2.4，随机端口、随机库名与凭据。
+    # 业务表只由 Flyway（迁移角色 vision_migrator）创建，脚本不再执行 DDL。
+    $services = Start-AcceptanceDockerServices -RunDirectory $runDir -Database $database -Nonce $nonce
+    $postgresPort = $services.PostgresPort
+    $redisPort = $services.RedisPort
+    # 核对「库里建出的表数 = 基线里的 CREATE TABLE 数」，而不是手写一个期望值：
+    # 基线变更后表数对不上必须人工复核，不能带着半套 schema 继续验收。
+    # Flyway 自己的元数据表 flyway_schema_history 也建在 public 里，不算业务表。
+    $baselineSql = Get-Content -Raw -LiteralPath (Join-Path $repo 'src/main/resources/db/migration/V1__baseline.sql')
+    $expectedTables = [regex]::Matches($baselineSql, '(?m)^CREATE TABLE ').Count
+    if ($expectedTables -eq 0) { throw 'FAIL: no CREATE TABLE statements found in the Flyway baseline.' }
+    $tableListSql = "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'flyway_schema_history'"
+    $tableRows = @(Invoke-PsqlRows -Container $services.PostgresContainer -Database $database -Password $nonce -Sql $tableListSql -LogPath (Join-Path $runDir 'schema-count.log'))
+    $createdTables = [int]$tableRows[0]
+    if ($createdTables -ne $expectedTables) {
+        throw "FAIL: acceptance schema incomplete (expected $expectedTables tables, found $createdTables)."
     }
     $results['isolation'] = 'PASS'
 
@@ -188,7 +158,7 @@ $ddl
         '--spring.profiles.active=browser',
         "--spring.config.additional-location=file:$(Join-Path $repo 'e2e/application-browser.yml')",
         "--server.port=$backendPort"
-    ) + @(Get-AcceptanceApplicationArguments $mysqlPort $redisPort $database $nonce)
+    ) + @(Get-AcceptanceApplicationArguments $postgresPort $redisPort $database $nonce)
     $java = Resolve-Java
     $backendProcess = Start-Process @processWindow -FilePath $java -ArgumentList $backendArgs -PassThru -RedirectStandardOutput (Join-Path $runDir 'backend.log') -RedirectStandardError (Join-Path $runDir 'backend-error.log')
     $ownedProcesses += $backendProcess
@@ -228,24 +198,6 @@ $ddl
     Write-Host "ERROR: $message"
 } finally {
     $results['cleanup'] = 'PASS'
-    if ($MySqlBin -and $ownedProcesses.Count -gt 0) {
-        try {
-            $ownedServers = @(Get-CimInstance Win32_Process -Filter "Name = 'mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataDir) })
-            if ($ownedServers.Count -gt 0) {
-                $env:MYSQL_PWD = ''
-                $actualDataDir = & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --batch --skip-column-names --execute='SELECT @@datadir' 2> (Join-Path $runDir 'mysql-cleanup.log')
-                if ($LASTEXITCODE -eq 0 -and [IO.Path]::GetFullPath("$actualDataDir").TrimEnd('\', '/') -eq [IO.Path]::GetFullPath($dataDir).TrimEnd('\', '/')) {
-                    & $mysql --no-defaults --host=127.0.0.1 "--port=$mysqlPort" --user=root --execute='SHUTDOWN' >> (Join-Path $runDir 'mysql-cleanup.log')
-                    if ($LASTEXITCODE -ne 0) { $results['cleanup'] = 'FAIL' }
-                    foreach ($server in $ownedServers) {
-                        if (Get-Process -Id $server.ProcessId -ErrorAction SilentlyContinue) {
-                            try { Wait-Process -Id $server.ProcessId -Timeout 20 -ErrorAction Stop } catch { $results['cleanup'] = 'FAIL' }
-                        }
-                    }
-                } else { $results['cleanup'] = 'FAIL' }
-            }
-        } catch { $results['cleanup'] = 'FAIL' }
-    }
     foreach ($process in $ownedProcesses) {
         try {
             if (-not $process.HasExited) {
@@ -257,6 +209,7 @@ $ddl
             $_ | Out-String | Add-Content (Join-Path $runDir 'process-cleanup.log')
         }
     }
+    # 隔离容器与命名卷都在本轮自建自删（Stop-AcceptanceDockerServices 负责卷）。
     if ($services) { try { Stop-AcceptanceDockerServices $services } catch { $results['cleanup'] = 'FAIL' } }
     foreach ($entry in @(Get-ChildItem Env:)) {
         if (-not $savedEnvironment.ContainsKey($entry.Name)) { [Environment]::SetEnvironmentVariable($entry.Name, $null) }
@@ -266,7 +219,7 @@ $ddl
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
         runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') })
-        infrastructure = $(if ($MySqlBin) { 'native-explicit' } else { 'docker' })
+        infrastructure = 'docker'
         results = $results
         logs = $runDir
         productionAcceptance = 'NOT_RUN'

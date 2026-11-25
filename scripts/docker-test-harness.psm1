@@ -4,7 +4,7 @@
 #   * 本 harness 创建的 container / volume / network 一律带标签：
 #       vs.owner=vision-space / vs.run-id=<本轮唯一 id> / vs.kind=test
 #   * 数据卷一律命名（vsvol-<run-id>-<suffix>），不使用匿名卷；
-#     mysql:8.0.36 与 redis:7.2.4 都声明了 VOLUME，任何未显式挂载的路径
+#     postgres:18.7 与 redis:7.2.4 都声明了 VOLUME，任何未显式挂载的路径
 #     都会让 Docker 自动配一个匿名卷，硬杀后无法归属。
 #   * Complete-VsDockerRun 只删除带本轮 run-id 的资源：先按标签扫，
 #     再用运行登记文件兜底（标签写入失败时）。永不调用任何 prune，
@@ -20,8 +20,8 @@
 # 用法（入口脚本）：
 #   Import-Module (Join-Path $PSScriptRoot 'docker-test-harness.psm1') -Force
 #   Initialize-VsDockerRun -RunId $runId
-#   $volume = New-VsVolume -Suffix 'mysql'
-#   Start-VsDockerContainer -Name $name -Arguments @('-v', "${volume}:/var/lib/mysql", 'mysql:8.0.36') -LogPath $log
+#   $volume = New-VsVolume -Suffix 'postgres'
+#   Start-VsDockerContainer -Name $name -Arguments @('-v', "${volume}:/var/lib/postgresql", 'postgres:18.7') -LogPath $log
 #   Complete-VsDockerRun -LogDirectory $logDir   # finally 中调用，返回是否干净
 
 $ErrorActionPreference = 'Stop'
@@ -195,7 +195,19 @@ function Complete-VsDockerRun {
         [string]$LogDirectory,
         [string[]]$LogNames = @()
     )
-    if ($script:VsTeardownDone -and $RunId -eq $script:VsRunId) { return $true }
+    if ($script:VsTeardownDone -and $RunId -eq $script:VsRunId) {
+        # 已经拆过一轮：只能认为「干净」的前提是此刻确实没有残留。
+        # 早退不校验会让「拆完又被重新拉起」或「重复调用」的情况静默判 PASS，
+        # 资源就留在机器上（验收报告显示 cleanup=PASS，docker ps 里却还有容器）。
+        $leftover = Get-VsDockerRunResources -RunId $RunId
+        $leaked = $leftover.ContainerIds.Count + $leftover.Volumes.Count + $leftover.Networks.Count
+        if ($leaked -gt 0) {
+            Write-Warning ("LEAK after repeated teardown: run {0} containers={1} volumes={2} networks={3}" -f
+                $RunId, $leftover.ContainerIds.Count, $leftover.Volumes.Count, $leftover.Networks.Count)
+            return $false
+        }
+        return $true
+    }
 
     $registryEntries = @(Get-VsDockerRegistryEntries)
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {

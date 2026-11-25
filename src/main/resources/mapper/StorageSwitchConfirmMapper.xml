@@ -4,7 +4,7 @@
 
     <!--
       #40 切换确认实例集合。
-      主键 (version, instanceId) + INSERT IGNORE：同一实例重复确认
+      主键 (version, instance_id) + ON CONFLICT DO NOTHING：同一实例重复确认
       （应用失败重试、重启后再次确认）只计一次，确认数不可能被虚增。
     -->
 
@@ -19,14 +19,15 @@
       旧令牌，条件不成立则 0 行插入。返回 0 也可能只是重复确认（主键幂等）。
     -->
     <insert id="insertIfCurrent">
-        INSERT IGNORE INTO storage_switch_confirm (version, instanceId, configId)
-        SELECT #{version}, #{instanceId}, #{configId} FROM DUAL
+        INSERT INTO storage_switch_confirm (version, instance_id, config_id)
+        SELECT #{version}, #{instanceId}, #{configId}
         WHERE EXISTS (
             SELECT 1 FROM storage_switch_state
             WHERE id = 1
-              AND pendingVersion = #{version}
-              AND pendingToken = #{pendingToken}
+              AND pending_version = #{version}
+              AND pending_token = #{pendingToken}
         )
+        ON CONFLICT (version, instance_id) DO NOTHING
     </insert>
 
     <select id="countByVersion" resultType="long">

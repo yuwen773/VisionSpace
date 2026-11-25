@@ -48,7 +48,7 @@ rm -f /fixture/backend.ready
 trap 'rm -f /fixture/backend.ready; exit 0' TERM INT
 echo 'HikariPool-1 - Starting...'
 attempt=0
-while [ ! -f /fixture/mysql.ready ] || [ ! -f /fixture/redis.ready ]; do
+while [ ! -f /fixture/postgres.ready ] || [ ! -f /fixture/redis.ready ]; do
     attempt=$((attempt + 1))
     if [ "$attempt" -ge 25 ]; then exit 17; fi
     sleep 1 & wait $!
@@ -71,12 +71,12 @@ x-fixture: &fixture
     timeout: 1s
     retries: 2
 services:
-  mysql:
+  postgres:
     <<: *fixture
-    command: ["sh", "/fixture/dependency.sh", "mysql"]
+    command: ["sh", "/fixture/dependency.sh", "postgres"]
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "test", "-f", "/fixture/mysql.ready"]
+      test: ["CMD", "test", "-f", "/fixture/postgres.ready"]
   redis:
     <<: *fixture
     command: ["sh", "/fixture/dependency.sh", "redis"]
@@ -88,13 +88,13 @@ services:
     command: ["sh", "/fixture/backend.sh"]
     restart: unless-stopped
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
-      test: ["CMD-SHELL", "test -f /fixture/backend.ready && test -f /fixture/mysql.ready && test -f /fixture/redis.ready"]
+      test: ["CMD-SHELL", "test -f /fixture/backend.ready && test -f /fixture/postgres.ready && test -f /fixture/redis.ready"]
 "@ | Set-Content -LiteralPath $composeYml
         Invoke-Compose @('up', '-d', '--wait', '--wait-timeout', '30') *> (Join-Path $runDir 'fixture-up.log')
         . $lateScenario
@@ -183,10 +183,10 @@ function docker {
     }
     if ($verbIndex -lt 0) { throw "Unexpected fixture compose command: $argv" }
     $verb = $argv[$verbIndex]
-    $services = @($argv[($verbIndex + 1)..($argv.Count - 1)] | Where-Object { $_ -in @('backend', 'mysql', 'redis') })
+    $services = @($argv[($verbIndex + 1)..($argv.Count - 1)] | Where-Object { $_ -in @('backend', 'postgres', 'redis') })
     if ($verb -eq 'stop') {
         if ($services -contains 'backend') { $script:backendRunning = $false; $script:backendExit = 0 }
-        if ($services -contains 'mysql' -or $services -contains 'redis') { $script:dependenciesRunning = $false }
+        if ($services -contains 'postgres' -or $services -contains 'redis') { $script:dependenciesRunning = $false }
     } elseif ($verb -eq 'restart') {
         $script:backendRunning = $true
         $script:startedAt = '2026-10-24T00:00:01Z'

@@ -11,6 +11,38 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 STATES = {"PASS", "FAIL", "BLOCKED", "BLOCKED_ENV", "NOT_RUN"}
+# 失败原因只接受结构化短句：字母数字、空格与少量标点。
+# 不允许 '=' 出现在里面——任何“键=值”形态（口令、令牌、连接串）都会被整体丢弃，
+# 这比逐个字段做脱敏更可靠。
+FAILURE_REASON = re.compile(r"[A-Za-z0-9 _.:/()\-]{1,200}")
+
+
+def project_failures(value):
+    failures = value.get("gateFailures")
+    if not isinstance(failures, dict):
+        return {}
+    out = {}
+    for name, reason in failures.items():
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", str(name)):
+            continue
+        if not isinstance(reason, str) or not FAILURE_REASON.fullmatch(reason):
+            continue
+        out[name] = reason
+    return out
+
+
+def project_test_coverage(value):
+    """覆盖对照只投影计数（计划 §5.8）：类名清单不进证据，只留得出「有没有净删除」的几个数。"""
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for key in ("baseTestClasses", "currentTestClasses", "added", "retired", "migrated", "problems"):
+        number = value.get(key)
+        if isinstance(number, int) and not isinstance(number, bool) and 0 <= number <= 100_000:
+            out[key] = number
+    if re.fullmatch(r"[0-9a-f]{7,40}", str(value.get("baseRef", ""))):
+        out["baseRef"] = value["baseRef"]
+    return out if "migrated" in out else {}
 
 
 def project(value):
@@ -38,6 +70,12 @@ def project(value):
         elif isinstance(content, dict):
             out[key] = {name: status for name, status in content.items()
                         if re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", name) and isinstance(status, str) and status in STATES}
+    projected_failures = project_failures(value)
+    if projected_failures:
+        out["gateFailures"] = projected_failures
+    projected_coverage = project_test_coverage(value.get("testCoverage"))
+    if projected_coverage:
+        out["testCoverage"] = projected_coverage
     return out
 
 

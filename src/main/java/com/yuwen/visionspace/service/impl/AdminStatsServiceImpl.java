@@ -42,28 +42,32 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         stats.setSpaceCount(spaceService.count());
         // 一条 SQL 同时获取图片总数和总大小
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("count(*) as cnt", "ifnull(sum(picSize), 0) as totalSize");
+        queryWrapper.select("count(*) as cnt", "coalesce(sum(pic_size), 0) as total_size");
         Map<String, Object> result = pictureService.getBaseMapper().selectMaps(queryWrapper).get(0);
         stats.setPictureCount(((Number) result.get("cnt")).longValue());
-        stats.setUsedSize(((Number) result.get("totalSize")).longValue());
+        // selectMaps 的键是 SQL 别名本身，不会 camel 化：别名写成 total_size 就得按 total_size 取。
+        stats.setUsedSize(((Number) result.get("total_size")).longValue());
 
         // 今日推荐统计
+        // user_picture_action 的时间列是 created_time（不是多数表用的 create_time）；
+        // 这里写错列名在编译期和类型上都没有提示，只会在调用接口时以 SQL 报错 500 暴露，
+        // 因此由 HttpPictureStatsObservabilityTest 走真实 HTTP 覆盖该接口。
         LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
         LocalDateTime todayEnd = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
 
         // 今日曝光量 (source=0 HOME_RECOMMEND, actionType=0 impression)
         QueryWrapper<UserPictureAction> impressionWrapper = new QueryWrapper<>();
         impressionWrapper.eq("source", 0)
-                .eq("actionType", 0)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 0)
+                .between("created_time", todayStart, todayEnd);
         Long todayImpression = userPictureActionMapper.selectCount(impressionWrapper);
         stats.setTodayImpressionCount(todayImpression);
 
         // 今日点击量 (source=0 HOME_RECOMMEND, actionType=1 click)
         QueryWrapper<UserPictureAction> clickWrapper = new QueryWrapper<>();
         clickWrapper.eq("source", 0)
-                .eq("actionType", 1)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 1)
+                .between("created_time", todayStart, todayEnd);
         Long todayClick = userPictureActionMapper.selectCount(clickWrapper);
         stats.setTodayClickCount(todayClick);
 
@@ -78,8 +82,8 @@ public class AdminStatsServiceImpl implements AdminStatsService {
         // 今日收藏量 (source=0 HOME_RECOMMEND, actionType=4 collect)
         QueryWrapper<UserPictureAction> collectWrapper = new QueryWrapper<>();
         collectWrapper.eq("source", 0)
-                .eq("actionType", 4)
-                .between("createdTime", todayStart, todayEnd);
+                .eq("action_type", 4)
+                .between("created_time", todayStart, todayEnd);
         Long todayCollect = userPictureActionMapper.selectCount(collectWrapper);
         stats.setTodayCollectCount(todayCollect);
 

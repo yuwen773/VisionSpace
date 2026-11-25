@@ -29,10 +29,12 @@ abstract class BoardProposalHttpFixture {
         space = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
         picture = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
         thread = "proposal-" + UUID.randomUUID();
-        jdbc.update("INSERT INTO agent_session (sessionId, userId, title) VALUES (?, ?, 'proposal')", thread, user);
-        jdbc.update("INSERT INTO space (id, userId, spaceType, spaceName, totalSize, totalCount) VALUES (?, ?, 1, 'proposal-team', 10, 1)", space, user + 1);
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'viewer')", space, user);
-        jdbc.update("INSERT INTO picture (id, userId, spaceId, name, url, picWidth, picHeight, picSize) VALUES (?, ?, ?, 'gallery', 'https://origin.invalid/proposal.jpg', 1920, 1080, 10)", picture, user + 1, space);
+        // PostgreSQL 的 agent_session 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO agent_session (id, session_id, user_id, title) VALUES (?, ?, ?, 'proposal')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), thread, user);
+        jdbc.update("INSERT INTO space (id, user_id, space_type, space_name, total_size, total_count) VALUES (?, ?, 1, 'proposal-team', 10, 1)", space, user + 1);
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'viewer')", space, user);
+        jdbc.update("INSERT INTO picture (id, user_id, space_id, name, url, pic_width, pic_height, pic_size) VALUES (?, ?, ?, 'gallery', 'https://origin.invalid/proposal.jpg', 1920, 1080, 10)", picture, user + 1, space);
         seedContent();
         var searchResponse = call("POST", "/agent/asset-search", Map.of("spaceId", String.valueOf(space), "criteria", Map.of("orientation", "LANDSCAPE")));
         assertEquals(0, searchResponse.path("code").asInt(), searchResponse.toString());

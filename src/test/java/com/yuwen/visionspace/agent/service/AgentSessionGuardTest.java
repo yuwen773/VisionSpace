@@ -49,7 +49,7 @@ class AgentSessionGuardTest {
                 () -> guard.bindOwner("thread-1", STRANGER, "hi"));
 
         assertEquals(40101, error.getCode());
-        // 插入是 ON DUPLICATE KEY 空操作，但仍必须执行一次以覆盖「会话不存在」的首次创建
+        // 插入是 ON CONFLICT DO NOTHING 空操作，但仍必须执行一次以覆盖「会话不存在」的首次创建
         verify(sessionMapper).insertIfAbsent(eq("thread-1"), eq(STRANGER), anyString());
         // 不产生任何写入
         verify(sessionMapper, never()).updateMessageCount(anyString(), anyLong(), anyString());

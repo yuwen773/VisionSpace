@@ -18,29 +18,29 @@ public final class SortKeyResolver {
     public static final Map<String, String> PICTURE_KEYS = Map.of(
             "id", "id",
             "name", "name",
-            "picSize", "picSize",
-            "picWidth", "picWidth",
-            "picHeight", "picHeight",
-            "createTime", "createTime",
-            "editTime", "editTime");
+            "picSize", "pic_size",
+            "picWidth", "pic_width",
+            "picHeight", "pic_height",
+            "createTime", "create_time",
+            "editTime", "edit_time");
 
     /** 空间查询允许的排序键。 */
     public static final Map<String, String> SPACE_KEYS = Map.of(
             "id", "id",
-            "spaceName", "spaceName",
-            "spaceLevel", "spaceLevel",
-            "totalSize", "totalSize",
-            "totalCount", "totalCount",
-            "createTime", "createTime",
-            "editTime", "editTime");
+            "spaceName", "space_name",
+            "spaceLevel", "space_level",
+            "totalSize", "total_size",
+            "totalCount", "total_count",
+            "createTime", "create_time",
+            "editTime", "edit_time");
 
     /** 用户查询允许的排序键。 */
     public static final Map<String, String> USER_KEYS = Map.of(
             "id", "id",
-            "userName", "userName",
-            "userRole", "userRole",
-            "createTime", "createTime",
-            "editTime", "editTime");
+            "userName", "user_name",
+            "userRole", "user_role",
+            "createTime", "create_time",
+            "editTime", "edit_time");
 
     /** 前端既有排序控件只发送这两个取值。 */
     private static final String ASCEND = "ascend";

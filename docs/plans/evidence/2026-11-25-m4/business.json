@@ -1,0 +1,229 @@
+{
+  "results": [
+    {
+      "step": "space reuse existing",
+      "ok": true,
+      "detail": {
+        "spaceId": "2125598075288887297",
+        "reason": "POST /api/space/add -> code=50001 message=每个用户每类空间只能创建一个"
+      }
+    },
+    {
+      "step": "picture upload #0",
+      "ok": true,
+      "detail": {
+        "id": "2125599498760167426",
+        "url": "/picture/content/2125599498760167426/original",
+        "picColor": "#DC10C2C"
+      }
+    },
+    {
+      "step": "picture upload #1",
+      "ok": true,
+      "detail": {
+        "id": "2125599499154432002",
+        "url": "/picture/content/2125599499154432002/original",
+        "picColor": "#1CA043C"
+      }
+    },
+    {
+      "step": "picture upload #2",
+      "ok": true,
+      "detail": {
+        "id": "2125599499443838978",
+        "url": "/picture/content/2125599499443838978/original",
+        "picColor": "#2C404DC"
+      }
+    },
+    {
+      "step": "picture upload #3",
+      "ok": true,
+      "detail": {
+        "id": "2125599499708080129",
+        "url": "/picture/content/2125599499708080129/original",
+        "picColor": "#E4C0C2C"
+      }
+    },
+    {
+      "step": "picture upload #4",
+      "ok": true,
+      "detail": {
+        "id": "2125599499989098498",
+        "url": "/picture/content/2125599499989098498/original",
+        "picColor": "#8C20CCC"
+      }
+    },
+    {
+      "step": "object storage objects",
+      "ok": true,
+      "detail": {
+        "count": 72,
+        "sample": [
+          "acceptance/public/2125597887010775041/2026-11-25_2GmRoyyODyJFtOc4.png",
+          "acceptance/public/2125597887010775041/2026-11-25_2GmRoyyODyJFtOc4.png.min.jpg",
+          "acceptance/public/2125597887010775041/2026-11-25_xkt4fDWLH5i8YQnq.png"
+        ]
+      }
+    },
+    {
+      "step": "picture list page",
+      "ok": true,
+      "detail": {
+        "total": "34",
+        "records": 20
+      }
+    },
+    {
+      "step": "color search",
+      "ok": true,
+      "detail": 12
+    },
+    {
+      "step": "admin review approve",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "step": "private-space picture search denied for anonymous",
+      "ok": true,
+      "detail": "POST /api/picture/search/picture -> code=40101 message=无权限"
+    },
+    {
+      "step": "admin public upload auto-approved (anonymous read)",
+      "ok": true,
+      "detail": {
+        "reviewStatus": null,
+        "status": 200
+      }
+    },
+    {
+      "step": "search by picture",
+      "ok": true,
+      "skipped": true,
+      "detail": "POST /api/picture/search/picture -> code=50001 message=搜索失败"
+    },
+    {
+      "step": "picture edit",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "step": "picture detail",
+      "ok": true,
+      "detail": {
+        "name": "m4-edited",
+        "tags": [
+          "m4",
+          "acceptance"
+        ],
+        "reviewStatus": null
+      }
+    },
+    {
+      "step": "picture grant add",
+      "ok": true,
+      "detail": {
+        "id": "2125599503168380929",
+        "resourceType": "picture",
+        "resourceId": "2125599498760167426",
+        "resourceName": "m4-edited",
+        "granteeUserId": "2125597894619242497",
+        "granteeUserName": "无名",
+        "grantedByUserId": "2125597891674841090",
+        "grantedByUserName": "无名",
+        "reason": "M4 实机验收限时授权",
+        "expiresTime": "2026-12-02T22:36:27.000+00:00",
+        "status": "ACTIVE",
+        "revokedByUserId": null,
+        "revokeReason": null,
+        "revokeTime": null,
+        "createTime": null
+      }
+    },
+    {
+      "step": "picture grant list",
+      "ok": true,
+      "detail": {
+        "grants": 1,
+        "canManage": true
+      }
+    },
+    {
+      "step": "grantee sees active grant",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "step": "picture grant revoke",
+      "ok": true,
+      "detail": {
+        "id": "2125599503168380929",
+        "resourceType": "picture",
+        "resourceId": "2125599498760167426",
+        "resourceName": "m4-edited",
+        "granteeUserId": "2125597894619242497",
+        "granteeUserName": "无名",
+        "grantedByUserId": "2125597891674841090",
+        "grantedByUserName": "无名",
+        "reason": "M4 实机验收限时授权",
+        "expiresTime": "2026-12-02T22:36:27.000+00:00",
+        "status": "REVOKED",
+        "revokedByUserId": "2125597891674841090",
+        "revokeReason": "验收结束撤销",
+        "revokeTime": "2026-11-25T14:36:28.348+00:00",
+        "createTime": "2026-11-25T14:36:28.000+00:00"
+      }
+    },
+    {
+      "step": "user picture stats",
+      "ok": true,
+      "detail": {
+        "uploadCount": "34",
+        "likeCount": "0",
+        "reviewPassCount": "2",
+        "reviewPassRate": 5.88
+      }
+    },
+    {
+      "step": "user recent pictures",
+      "ok": true,
+      "detail": 6
+    },
+    {
+      "step": "picture delete",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "step": "list after delete",
+      "ok": true,
+      "detail": {
+        "before": 34,
+        "after": "33"
+      }
+    }
+  ],
+  "pictures": [
+    {
+      "id": "2125599498760167426",
+      "url": "/picture/content/2125599498760167426/original"
+    },
+    {
+      "id": "2125599499154432002",
+      "url": "/picture/content/2125599499154432002/original"
+    },
+    {
+      "id": "2125599499443838978",
+      "url": "/picture/content/2125599499443838978/original"
+    },
+    {
+      "id": "2125599499708080129",
+      "url": "/picture/content/2125599499708080129/original"
+    },
+    {
+      "id": "2125599499989098498",
+      "url": "/picture/content/2125599499989098498/original"
+    }
+  ],
+  "spaceId": "2125598075288887297"
+}

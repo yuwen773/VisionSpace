@@ -25,10 +25,11 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * 定长摘要也让 utf8mb4 下的索引长度保持可控。
      */
     @Insert("INSERT INTO storage_cleanup_task " +
-            "(pictureFileId, pictureId, platform, objectKey, kind, reason, status, attempts, nextRetryTime, pendingKey) " +
-            "VALUES (#{pictureFileId}, #{pictureId}, #{platform}, #{objectKey}, #{kind}, #{reason}, 0, 0, NOW(), " +
-            "SHA2(CONCAT(COALESCE(#{platform}, ''), '|', COALESCE(#{kind}, ''), '|', #{objectKey}), 256)) " +
-            "ON DUPLICATE KEY UPDATE updateTime = updateTime")
+            "(picture_file_id, picture_id, platform, object_key, kind, reason, status, attempts, next_retry_time, pending_key) " +
+            "VALUES (#{pictureFileId}, #{pictureId}, #{platform}, #{objectKey}, #{kind}, #{reason}, 0, 0, " +
+            "statement_timestamp(), " +
+            "encode(digest(concat(coalesce(#{platform}, ''), '|', coalesce(#{kind}, ''), '|', #{objectKey}), 'sha256'), 'hex')) " +
+            "ON CONFLICT (pending_key) DO NOTHING")
     int insertPending(@Param("pictureFileId") Long pictureFileId,
                       @Param("pictureId") Long pictureId,
                       @Param("platform") String platform,
@@ -41,10 +42,10 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * 不进入自动重试，也不占用待处理唯一键。
      */
     @Insert("INSERT INTO storage_cleanup_task " +
-            "(pictureFileId, pictureId, platform, objectKey, kind, reason, status, attempts, lastError) " +
+            "(picture_file_id, picture_id, platform, object_key, kind, reason, status, attempts, last_error) " +
             "SELECT NULL, NULL, NULL, #{objectKey}, NULL, #{reason}, 2, 0, #{lastError} " +
             "WHERE NOT EXISTS (SELECT 1 FROM storage_cleanup_task " +
-            "WHERE objectKey = #{objectKey} AND status = 2 AND pictureFileId IS NULL)")
+            "WHERE object_key = #{objectKey} AND status = 2 AND picture_file_id IS NULL)")
     int insertForReview(@Param("objectKey") String objectKey,
                         @Param("reason") String reason,
                         @Param("lastError") String lastError);
@@ -53,7 +54,8 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * 到期待重试的任务。到期判定在数据库时钟内完成，与应用侧时钟无关。
      */
     @Select("SELECT * FROM storage_cleanup_task WHERE status = 0 " +
-            "AND (nextRetryTime IS NULL OR nextRetryTime <= NOW()) ORDER BY id ASC LIMIT #{limit}")
+            "AND (next_retry_time IS NULL OR next_retry_time <= statement_timestamp()) " +
+            "ORDER BY id ASC LIMIT #{limit}")
     List<StorageCleanupTask> selectDue(@Param("limit") int limit);
 
     /**
@@ -61,10 +63,10 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      *
      * <p>只在待重试查询之前调用：认领时长按数据库时钟计算，与实例本地时钟无关。
      */
-    @Update("UPDATE storage_cleanup_task SET status = 0, claimTime = NULL, " +
-            "lastError = '认领超时，重新排队', updateTime = NOW() " +
-            "WHERE status = 3 AND claimTime IS NOT NULL " +
-            "AND claimTime < NOW() - INTERVAL #{timeoutSeconds} SECOND")
+    @Update("UPDATE storage_cleanup_task SET status = 0, claim_time = NULL, " +
+            "last_error = '认领超时，重新排队', update_time = statement_timestamp() " +
+            "WHERE status = 3 AND claim_time IS NOT NULL " +
+            "AND claim_time < statement_timestamp() - (#{timeoutSeconds} * interval '1 second')")
     int releaseStaleClaims(@Param("timeoutSeconds") long timeoutSeconds);
 
     /**
@@ -73,15 +75,16 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * <p>两个实例同时取到同一批到期任务时，条件更新保证只有一方拿到处理权，
      * 另一方影响 0 行并跳过；不依赖行锁或进程内状态，跨 JVM 同样成立。
      */
-    @Update("UPDATE storage_cleanup_task SET status = 3, claimTime = NOW(), updateTime = NOW() " +
+    @Update("UPDATE storage_cleanup_task SET status = 3, claim_time = statement_timestamp(), " +
+            "update_time = statement_timestamp() " +
             "WHERE id = #{id} AND status = 0")
     int claim(@Param("id") Long id);
 
     /**
      * 对象删除已确认。进入终态时释放待处理唯一键。
      */
-    @Update("UPDATE storage_cleanup_task SET status = 1, attempts = attempts + 1, lastError = NULL, " +
-            "claimTime = NULL, pendingKey = NULL, updateTime = NOW() " +
+    @Update("UPDATE storage_cleanup_task SET status = 1, attempts = attempts + 1, last_error = NULL, " +
+            "claim_time = NULL, pending_key = NULL, update_time = statement_timestamp() " +
             "WHERE id = #{id} AND status = 3")
     int markDone(@Param("id") Long id);
 
@@ -89,8 +92,9 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * 删除未确认：保留任务并按退避时间安排下次重试。
      */
     @Update("UPDATE storage_cleanup_task SET status = 0, attempts = attempts + 1, " +
-            "lastError = #{lastError}, claimTime = NULL, " +
-            "nextRetryTime = NOW() + INTERVAL #{delaySeconds} SECOND, updateTime = NOW() " +
+            "last_error = #{lastError}, claim_time = NULL, " +
+            "next_retry_time = statement_timestamp() + (#{delaySeconds} * interval '1 second'), " +
+            "update_time = statement_timestamp() " +
             "WHERE id = #{id} AND status = 3")
     int markRetry(@Param("id") Long id,
                   @Param("lastError") String lastError,
@@ -100,8 +104,8 @@ public interface StorageCleanupTaskMapper extends BaseMapper<StorageCleanupTask>
      * 引用复核不通过：暂停自动重试，等待人工处理，同时释放待处理唯一键，
      * 让同一个对象之后可以按新的事实重新排队。
      */
-    @Update("UPDATE storage_cleanup_task SET status = 2, attempts = attempts + 1, lastError = #{lastError}, " +
-            "claimTime = NULL, pendingKey = NULL, updateTime = NOW() " +
+    @Update("UPDATE storage_cleanup_task SET status = 2, attempts = attempts + 1, last_error = #{lastError}, " +
+            "claim_time = NULL, pending_key = NULL, update_time = statement_timestamp() " +
             "WHERE id = #{id} AND status = 3")
     int markBlocked(@Param("id") Long id, @Param("lastError") String lastError);
 }

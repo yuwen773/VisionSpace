@@ -3,6 +3,7 @@ package com.yuwen.visionspace.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuwen.visionspace.model.entity.UserPictureAction;
 import com.yuwen.visionspace.model.vo.PictureStatsBacklogVO;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -22,12 +23,32 @@ import java.util.List;
 public interface UserPictureActionMapper extends BaseMapper<UserPictureAction> {
 
     /**
+     * 写入一条行为事件；同一 {@code event_id} 已存在时忽略（{@code ON CONFLICT DO NOTHING}）。
+     *
+     * <p>用冲突即忽略而不是捕获唯一约束异常：PostgreSQL 中任何语句报错都会把当前
+     * 事务置为 aborted，捕获 {@code DuplicateKeyException} 后继续写库会得到 25P02。
+     * 影响行数 1 表示写入，0 表示同一事件已有载荷。
+     *
+     * @param action 事件载荷，主键由调用方分配
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO user_picture_action
+                (id, user_id, picture_id, action_type, action_value, source, event_id,
+                 is_processed, is_accumulated, attempt_count)
+            VALUES (#{id}, #{userId}, #{pictureId}, #{actionType}, #{actionValue}, #{source}, #{eventId},
+                    #{isProcessed}, #{isAccumulated}, #{attemptCount})
+            ON CONFLICT (event_id) DO NOTHING
+            """)
+    int insertIgnoreDuplicate(UserPictureAction action);
+
+    /**
      * 领取待处理事件。
      *
      * <p>只领取「未完成、未计入、且没有有效租约」的事件；目标图片已不存在的事件
      * 不在这里领取，它们留在待处理状态里作为冲突可见，不会被静默丢弃。
      *
-     * <p>租约的时间基准一律取数据库时钟（{@code NOW()}）：租约到期时间是写进库的值，
+     * <p>租约的时间基准一律取数据库时钟（{@code statement_timestamp()}）：租约到期时间是写进库的值，
      * 如果改用调用方 JVM 的时间去比较，容器与宿主、多个实例之间的时钟偏差就会让
      * 「租约是否过期」失真——快钟提前抢走别人的事件，慢钟让事件迟迟无法回收。
      * 写库与比较必须是同一个时钟。

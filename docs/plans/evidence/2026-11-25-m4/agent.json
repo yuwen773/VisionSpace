@@ -1,0 +1,15 @@
+{
+  "results": [
+    {
+      "step": "agent SSE stream",
+      "ok": false,
+      "detail": {
+        "elapsed": 0.0,
+        "events": 0,
+        "head": [],
+        "tail": []
+      }
+    }
+  ],
+  "streamFile": "/root/m4/agent-stream.txt"
+}

@@ -160,15 +160,17 @@ function New-Secret([int]$Length) {
     [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
 }
-$mysqlRoot = New-Secret 24
+$superuserPassword = New-Secret 24
+$migratorPassword = New-Secret 24
 $dbPassword = New-Secret 24
 $redisPassword = New-Secret 24
 $dashscopeKey = "test-" + (New-Secret 20)
 $defaultPassword = New-Secret 20
 
 @"
-MYSQL_ROOT_PASSWORD=$mysqlRoot
-MYSQL_DATABASE=vs45_$nonce
+POSTGRES_SUPERUSER_PASSWORD=$superuserPassword
+POSTGRES_MIGRATOR_PASSWORD=$migratorPassword
+POSTGRES_DB=vs45_$nonce
 SPRING_DATASOURCE_PASSWORD=$dbPassword
 REDIS_PASSWORD=$redisPassword
 BACKEND_PORT=$backendPort
@@ -188,44 +190,56 @@ try {
     if (-not $SkipBuild) {
         Invoke-Compose @('build', '--pull=false') *> (Join-Path $runDir 'build.log')
     }
-    # 只启动基础设施，先导入业务表结构，再让 backend 启动（防止 FileStorageInit
+    # 只启动基础设施，先让 Flyway 建业务表，再让 backend 启动（防止 FileStorageInit
     # 的 PostConstruct 查询不存在的表导致候选启动失败）。
-    Invoke-Compose @('up', '-d', 'mysql', 'redis')
+    Invoke-Compose @('up', '-d', 'postgres', 'redis')
 
-    Write-Host '=== schema bootstrap (isolated database) ==='
-    # 复用 #27 验收的约定：只提取跟踪 DDL 的 CREATE TABLE 语句，不含库选择、
-    # DROP 与任何数据。提取数必须与源文件声明的 CREATE TABLE 数一致，
-    # 这样表结构演进不需要改脚本，但正则漏抓会立即失败而不是静默少建表。
-    $sourceDdl = Get-Content -Raw -LiteralPath (Join-Path $repo 'sql/create_vision_space.sql')
-    $tables = [regex]::Matches($sourceDdl, '(?ms)^CREATE TABLE .*?^\)[^\r\n]*;')
-    $declaredTables = [regex]::Matches($sourceDdl, '(?m)^CREATE TABLE ').Count
-    if ($declaredTables -eq 0 -or $tables.Count -ne $declaredTables) {
-        throw "FAIL: schema extraction incomplete ($($tables.Count)/$declaredTables tables)"
-    }
-    $ddl = ($tables | ForEach-Object { $_.Value }) -join "`n"
-    # 隔离库的账号由 init 脚本在数据卷首启时创建；这里等 MySQL 就绪后用
-    # healthcheck 账号导入业务表。口令经 MYSQL_PWD 环境变量传入。
-    $schemaPath = Join-Path $runDir 'schema.sql'
-    [IO.File]::WriteAllText($schemaPath, "USE ``vs45_$nonce``;`n$ddl", [Text.UTF8Encoding]::new($false))
-    $mysqlReady = $false
+    Write-Host '=== schema bootstrap (Flyway, isolated database) ==='
+    # 唯一建表入口：Flyway 以迁移角色 vision_migrator 执行 V1 基线。
+    # 迁移目录只读挂进 tools profile 的 flyway 服务；口令走 FLYWAY_* 环境变量，
+    # 不出现在 compose 参数或日志里。
+    $postgresReady = $false
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     while ([DateTime]::UtcNow -lt $deadline) {
-        $state = & docker inspect --format '{{.State.Health.Status}}' "$project-mysql-1" 2>$null
-        if ($state -eq 'healthy') { $mysqlReady = $true; break }
+        $state = & docker inspect --format '{{.State.Health.Status}}' "$project-postgres-1" 2>$null
+        if ($state -eq 'healthy') { $postgresReady = $true; break }
         Start-Sleep -Seconds 3
     }
-    if (-not $mysqlReady) {
-        Write-Host '--- mysql health log ---'
-        & docker inspect --format '{{json .State.Health}}' "$project-mysql-1" 2>&1 | ForEach-Object { Write-Host $_ }
-        throw 'isolated MySQL did not become healthy within 120s'
+    if (-not $postgresReady) {
+        Write-Host '--- postgres health log ---'
+        & docker inspect --format '{{json .State.Health}}' "$project-postgres-1" 2>&1 | ForEach-Object { Write-Host $_ }
+        throw 'isolated PostgreSQL did not become healthy within 120s'
     }
-    # docker compose up -d mysql 已执行 init 脚本（vision_app/healthcheck 已建）；
-    # 表结构导入用初始化管理身份（root）：vision_app 只有业务 DML 权限，没有 CREATE。
-    # 通过 stdin 灌入 DDL，不把 schema 文件挂进镜像或卷。
-    Get-Content -Raw $schemaPath | docker compose -f $composeYml -p $project --env-file $envFile exec -T `
-        -e MYSQL_PWD="$mysqlRoot" mysql sh -c 'mysql' > (Join-Path $runDir 'schema-import.log')
-    if ($LASTEXITCODE -ne 0) { throw 'schema import failed (see schema-import.log)' }
-    Write-Host "PASS: schema-bootstrap ($($tables.Count) tables)"
+    $previousFlyway = @{}
+    foreach ($name in @('FLYWAY_URL', 'FLYWAY_USER', 'FLYWAY_PASSWORD')) {
+        $previousFlyway[$name] = [Environment]::GetEnvironmentVariable($name)
+    }
+    try {
+        $env:FLYWAY_URL = "jdbc:postgresql://postgres:5432/vs45_$nonce"
+        $env:FLYWAY_USER = 'vision_migrator'
+        $env:FLYWAY_PASSWORD = $migratorPassword
+        # Flyway 镜像原生读取 FLYWAY_URL / FLYWAY_USER / FLYWAY_PASSWORD，
+        # 不把连接串与口令写进 compose 参数（进程列表可见）。
+        & docker compose -f $composeYml -p $project --env-file $envFile --profile tools run --rm --no-deps `
+            -e FLYWAY_URL -e FLYWAY_USER -e FLYWAY_PASSWORD flyway `
+            -locations=filesystem:/flyway/sql -validateOnMigrate=true -cleanDisabled=true migrate `
+            *> (Join-Path $runDir 'flyway-migrate.log')
+        if ($LASTEXITCODE -ne 0) { throw 'Flyway migrate failed (see flyway-migrate.log)' }
+    } finally {
+        foreach ($name in $previousFlyway.Keys) { [Environment]::SetEnvironmentVariable($name, $previousFlyway[$name]) }
+    }
+
+    # 基线声明的业务表数量是期望值；Flyway 自己的元数据表不计入。
+    $baselineSql = Get-Content -Raw -LiteralPath (Join-Path $repo 'src/main/resources/db/migration/V1__baseline.sql')
+    $expectedTables = [regex]::Matches($baselineSql, '(?m)^CREATE TABLE ').Count
+    if ($expectedTables -eq 0) { throw 'FAIL: no CREATE TABLE statements found in the Flyway baseline' }
+    $tableCountSql = "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'flyway_schema_history'"
+    $createdTables = ("$(& docker compose -f $composeYml -p $project --env-file $envFile exec -T `
+        -e "PGPASSWORD=$dbPassword" postgres psql --no-psqlrc -tA -U vision_app -d "vs45_$nonce" -c $tableCountSql 2>$null)" -replace '\s', '')
+    if ($createdTables -ne "$expectedTables") {
+        throw "FAIL: schema bootstrap incomplete (expected $expectedTables tables, found '$createdTables')"
+    }
+    Write-Host "PASS: schema-bootstrap ($expectedTables tables via Flyway)"
 
     Invoke-Compose @('up', '-d', 'backend')
 
@@ -254,10 +268,10 @@ try {
     # 字段结构对照 Docker 官方文档：服务级 Service / 发布项级 URL（绑定地址）。
     $portsRaw = & docker compose -f $composeYml -p $project --env-file $envFile ps --format json 2>$null
     $portsJson = @($portsRaw | ForEach-Object { $_ | ConvertFrom-Json })
-    $mysqlPublished = @($portsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+    $postgresPublished = @($portsJson | Where-Object { $_.Service -eq 'postgres' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
     $redisPublished = @($portsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
     $backendPub = @($portsJson | Where-Object { $_.Service -eq 'backend' } | ForEach-Object { $_.Publishers } | Where-Object { $_ })
-    Assert (($mysqlPublished.Count -eq 0) -and ($redisPublished.Count -eq 0)) 'A2-db-redis-not-published' 'mysql/redis must publish no ports'
+    Assert (($postgresPublished.Count -eq 0) -and ($redisPublished.Count -eq 0)) 'A2-db-redis-not-published' 'postgres/redis must publish no ports'
     $backOk = ($backendPub.Count -eq 1) -and ($backendPub[0].PublishedPort -eq $backendPort) -and ("$($backendPub[0].URL)" -eq '127.0.0.1')
     Assert $backOk 'A2-backend-loopback-only' "backend published: $($backendPub | ConvertTo-Json -Compress)"
 
@@ -267,7 +281,7 @@ try {
     # 可达性以本轮候选为对象：DB/Redis 的任何宿主发布（含非默认端口）都算失败。
     # 宿主机上与候选无关的既有服务不在判定范围。
     $leaked = @()
-    foreach ($svc in @('mysql', 'redis')) {
+    foreach ($svc in @('postgres', 'redis')) {
         $anyPublish = @($portsJson | Where-Object { $_.Service -eq $svc } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
         if ($anyPublish.Count -gt 0) { $leaked += $svc }
     }
@@ -276,9 +290,9 @@ try {
     # 内部网络正向探针证明服务在监听；独立 edge 网络反向探针验证跨网络隔离。
     # Docker 宿主可能直接路由容器 IP；宿主其他服务也可能占用默认端口。
     # 此检查不代替从真实外网验证部署环境的路由和防火墙。
-    $mysqlIp = Get-ContainerIp 'mysql'
+    $postgresIp = Get-ContainerIp 'postgres'
     $redisIp = Get-ContainerIp 'redis'
-    foreach ($target in @(@('mysql', $mysqlIp, 3306), @('redis', $redisIp, 6379))) {
+    foreach ($target in @(@('postgres', $postgresIp, 5432), @('redis', $redisIp, 6379))) {
         $name, $address, $port = $target
         $inside = Test-ContainerNetworkTcp "$($project)_internal" $address $port
         $outside = Test-ContainerNetworkTcp "$($project)_edge" $address $port
@@ -300,7 +314,7 @@ try {
         'A3-vision-config-forwarded' 'backend container must receive the configured vision endpoint and model'
 
     $healthBody = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/health" -TimeoutSec 10).Content
-    $healthClean = (-not $healthBody.Contains($mysqlRoot)) -and (-not $healthBody.Contains($dbPassword)) -and (-not $healthBody.Contains($redisPassword)) -and (-not $healthBody.Contains($dashscopeKey))
+    $healthClean = (-not $healthBody.Contains($superuserPassword)) -and (-not $healthBody.Contains($migratorPassword)) -and (-not $healthBody.Contains($dbPassword)) -and (-not $healthBody.Contains($redisPassword)) -and (-not $healthBody.Contains($dashscopeKey))
     Assert $healthClean 'A3-health-no-secrets' 'health response must not contain secrets'
 
     # 触发一次真实写 SQL，并先用数据库行数确认写入确实发生，再判断日志卫生。
@@ -309,10 +323,10 @@ try {
     $probeAccount = 'vs45_' + $nonce
     $regBody = '{"userAccount":"' + $probeAccount + '","userPassword":"' + $defaultPassword + '","checkPassword":"' + $defaultPassword + '"}'
     function Get-UserRowCount {
-        # 反引号是 MySQL 标识符引用；用单引号字符串，避免 PowerShell 把 `u 当作转义。
-        $sql = 'SELECT COUNT(*) FROM `user`;'
+        # 业务表名是 app_user（user 是 PostgreSQL 保留字）。
+        $sql = 'SELECT count(*) FROM app_user;'
         $raw = $sql | docker compose -f $composeYml -p $project --env-file $envFile exec -T `
-            -e "MYSQL_PWD=$mysqlRoot" mysql mysql -N -B "vs45_$nonce" 2>$null | Out-String
+            -e "PGPASSWORD=$dbPassword" postgres psql --no-psqlrc -tA -U vision_app -d "vs45_$nonce" 2>$null | Out-String
         if ($LASTEXITCODE -ne 0) { throw 'user row count query failed' }
         $matches = [regex]::Matches($raw, '(?m)^\s*(\d+)\s*$')
         if ($matches.Count -eq 0) { throw "user row count query returned no number: $raw" }
@@ -350,18 +364,19 @@ try {
     # 用独立 project 与随机回环端口启动「默认栈 + host-access 覆盖」，实际验证
     # 覆盖文件只发布回环非默认端口，且从非回环地址连不通。不触碰主候选的依赖。
     Write-Host '=== extra: host-access override stack ==='
-    $hostMysqlPort = Free-Port
+    $hostPostgresPort = Free-Port
     $hostRedisPort = Free-Port
-    while ($hostRedisPort -eq $hostMysqlPort) { $hostRedisPort = Free-Port }
+    while ($hostRedisPort -eq $hostPostgresPort) { $hostRedisPort = Free-Port }
     $hostProject = "vs45-host-$nonce"
     $hostAccessYml = Join-Path $repo 'docker-compose.host-access.yml'
     $hostEnvFile = Join-Path $runDir '.env.host-access'
     @"
-MYSQL_ROOT_PASSWORD=$mysqlRoot
-MYSQL_DATABASE=vs45_host_$nonce
+POSTGRES_SUPERUSER_PASSWORD=$superuserPassword
+POSTGRES_MIGRATOR_PASSWORD=$migratorPassword
+POSTGRES_DB=vs45_host_$nonce
 SPRING_DATASOURCE_PASSWORD=$dbPassword
 REDIS_PASSWORD=$redisPassword
-HOST_MYSQL_PORT=$hostMysqlPort
+HOST_POSTGRES_PORT=$hostPostgresPort
 HOST_REDIS_PORT=$hostRedisPort
 SPRING_AI_DASHSCOPE_API_KEY=$dashscopeKey
 SPRING_AI_OPENAI_API_KEY=$dashscopeKey
@@ -371,27 +386,27 @@ VISION_SPACE_VISION_RECOGNITION_API_KEY=$dashscopeKey
 VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 "@ | Set-Content -LiteralPath $hostEnvFile -NoNewline
     try {
-        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile up -d mysql redis *> (Join-Path $runDir 'host-access-up.log')
+        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile up -d postgres redis *> (Join-Path $runDir 'host-access-up.log')
         if ($LASTEXITCODE -ne 0) { throw 'host-access override stack failed to start' }
         $hostDeadline = [DateTime]::UtcNow.AddSeconds(120)
         $hostReady = $false
         while ([DateTime]::UtcNow -lt $hostDeadline) {
-            $mysqlState = & docker inspect --format '{{.State.Health.Status}}' "$hostProject-mysql-1" 2>$null
+            $postgresState = & docker inspect --format '{{.State.Health.Status}}' "$hostProject-postgres-1" 2>$null
             $redisState = & docker inspect --format '{{.State.Health.Status}}' "$hostProject-redis-1" 2>$null
-            if ($mysqlState -eq 'healthy' -and $redisState -eq 'healthy') { $hostReady = $true; break }
+            if ($postgresState -eq 'healthy' -and $redisState -eq 'healthy') { $hostReady = $true; break }
             Start-Sleep -Seconds 3
         }
         if (-not $hostReady) { throw 'host-access override dependencies did not become healthy' }
         $hostPortsRaw = & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile ps --format json 2>$null
         $hostPortsJson = @($hostPortsRaw | ForEach-Object { $_ | ConvertFrom-Json })
-        $mysqlHostPub = @($hostPortsJson | Where-Object { $_.Service -eq 'mysql' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
+        $postgresHostPub = @($hostPortsJson | Where-Object { $_.Service -eq 'postgres' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
         $redisHostPub = @($hostPortsJson | Where-Object { $_.Service -eq 'redis' } | ForEach-Object { $_.Publishers } | Where-Object { $_ -and $_.PublishedPort -gt 0 })
-        $hostOk = ($mysqlHostPub.Count -eq 1) -and ("$($mysqlHostPub[0].URL)" -eq '127.0.0.1') -and
-            ($mysqlHostPub[0].PublishedPort -eq $hostMysqlPort) -and ($mysqlHostPub[0].TargetPort -eq 3306) -and
+        $hostOk = ($postgresHostPub.Count -eq 1) -and ("$($postgresHostPub[0].URL)" -eq '127.0.0.1') -and
+            ($postgresHostPub[0].PublishedPort -eq $hostPostgresPort) -and ($postgresHostPub[0].TargetPort -eq 5432) -and
             ($redisHostPub.Count -eq 1) -and ("$($redisHostPub[0].URL)" -eq '127.0.0.1') -and
             ($redisHostPub[0].PublishedPort -eq $hostRedisPort) -and ($redisHostPub[0].TargetPort -eq 6379)
-        Assert $hostOk 'A2-host-access-loopback-and-nondefault' "mysql=$($mysqlHostPub | ConvertTo-Json -Compress) redis=$($redisHostPub | ConvertTo-Json -Compress)"
-        Assert (Test-TcpConnect '127.0.0.1' $hostMysqlPort) 'A2-host-access-mysql-loopback-reachable' 'the explicitly published MySQL port must accept connections'
+        Assert $hostOk 'A2-host-access-loopback-and-nondefault' "postgres=$($postgresHostPub | ConvertTo-Json -Compress) redis=$($redisHostPub | ConvertTo-Json -Compress)"
+        Assert (Test-TcpConnect '127.0.0.1' $hostPostgresPort) 'A2-host-access-postgres-loopback-reachable' 'the explicitly published PostgreSQL port must accept connections'
         Assert (Test-TcpConnect '127.0.0.1' $hostRedisPort) 'A2-host-access-redis-loopback-reachable' 'the explicitly published Redis port must accept connections'
         # 从非回环的本机地址连接必须失败：只绑 127.0.0.1 的运行证据。
         $nonLoopback = @()
@@ -404,7 +419,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         }
         if ($nonLoopback.Count -gt 0) {
             $lanIp = $nonLoopback[0].ToString()
-            Assert (-not (Test-TcpConnect $lanIp $hostMysqlPort)) 'A2-host-access-mysql-lan-refused' "tcp connect to $lanIp`:$hostMysqlPort unexpectedly succeeded"
+            Assert (-not (Test-TcpConnect $lanIp $hostPostgresPort)) 'A2-host-access-postgres-lan-refused' "tcp connect to $lanIp`:$hostPostgresPort unexpectedly succeeded"
             Assert (-not (Test-TcpConnect $lanIp $hostRedisPort)) 'A2-host-access-redis-lan-refused' "tcp connect to $lanIp`:$hostRedisPort unexpectedly succeeded"
         } else {
             Write-Host 'SKIP: no non-loopback IPv4 address on this runner; LAN refusal not probed'
@@ -414,18 +429,18 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
     }
 
-    # ---- 验收 4：健康状态与依赖故障（MySQL/Redis 故障、恢复、延迟启动、重试耗尽）----
+    # ---- 验收 4：健康状态与依赖故障（PostgreSQL/Redis 故障、恢复、延迟启动、重试耗尽）----
     Write-Host '=== extra: dependency failure, recovery & retry exhaustion ==='
     Assert ((Get-BackendHealth) -eq 'healthy') 'A4-healthy-before-failure' 'readiness healthy before failure'
 
-    Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'mysql-stop.log')
+    Invoke-Compose @('stop', 'postgres') *> (Join-Path $runDir 'postgres-stop.log')
     # 窗口要覆盖容器探活的重试周期（interval 10s × retries 6）加上单次探活的
     # 阻塞时间；90 秒会卡在边界上误判，150 秒留出余量。
-    Assert (Wait-Health 'unhealthy' 150) 'A4-readiness-down-on-mysql-stop' 'readiness must report unhealthy after mysql stops'
+    Assert (Wait-Health 'unhealthy' 150) 'A4-readiness-down-on-postgres-stop' 'readiness must report unhealthy after postgres stops'
 
-    Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'mysql-start.log')
+    Invoke-Compose @('start', 'postgres') *> (Join-Path $runDir 'postgres-start.log')
     # 恢复等待必须等到 healthy 或超时：unhealthy 是过渡态，不能一次判负
-    Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-mysql-restart' 'readiness must return healthy after mysql restarts'
+    Assert (Wait-Health 'healthy' 180) 'A4-recovers-after-postgres-restart' 'readiness must return healthy after postgres restarts'
 
     # Redis 故障同样必须反映到 readiness（redis 组件在 readiness 组内）
     Invoke-Compose @('stop', 'redis') *> (Join-Path $runDir 'redis-stop.log')
@@ -436,11 +451,11 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 
     # 依赖延迟启动：仅对这两个隔离启动实验关闭 Docker 自动重启，核对同一
     # 应用进程进入连接阶段、等待依赖并恢复，避免崩溃重启替代应用重试。
-    # 只停 MySQL：Redis 由 Redisson 在启动早期连接，Redis 缺失会让应用在
+    # 只停 PostgreSQL：Redis 由 Redisson 在启动早期连接，Redis 缺失会让应用在
     # 到达 Hikari 之前明确失败，无法验证「有限等待后恢复」这条路径。
     & docker update --restart=no "$project-backend-1" *> (Join-Path $runDir 'backend-restart-policy.log')
     if ($LASTEXITCODE -ne 0) { throw 'could not disable automatic restarts for the startup experiments' }
-    Invoke-Compose @('stop', 'mysql') *> (Join-Path $runDir 'deps-stop.log')
+    Invoke-Compose @('stop', 'postgres') *> (Join-Path $runDir 'deps-stop.log')
     Invoke-Compose @('restart', '--no-deps', 'backend') *> (Join-Path $runDir 'backend-restart.log')
     $delayedStart = Get-ContainerInspection 'backend'
     $connectionObserved = Wait-BackendConnectionAttempt $delayedStart 60
@@ -450,9 +465,9 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
     $sameWaitingProcess = $waiting.State.Running -and
         $waiting.State.StartedAt -eq $delayedStart.State.StartedAt -and $waiting.RestartCount -eq $delayedStart.RestartCount
     Assert $sameWaitingProcess 'A4-late-same-process-waiting' 'backend must remain in the same process while the dependency is absent'
-    $dependency = Get-ContainerInspection 'mysql'
-    Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) 'A4-late-mysql-stopped' 'mysql must remain stopped during the delay'
-    Invoke-Compose @('start', 'mysql') *> (Join-Path $runDir 'deps-restart.log')
+    $dependency = Get-ContainerInspection 'postgres'
+    Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) 'A4-late-postgres-stopped' 'postgres must remain stopped during the delay'
+    Invoke-Compose @('start', 'postgres') *> (Join-Path $runDir 'deps-restart.log')
     Assert (Wait-Health 'healthy' 240) 'A4-late-dependency-recovers' 'backend must reach healthy once the dependency starts late'
     $recovered = Get-ContainerInspection 'backend'
     $sameRecoveredProcess = $recovered.State.Running -and
@@ -460,7 +475,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
     Assert $sameRecoveredProcess 'A4-late-same-process-recovered' 'dependency recovery must not replace the application process'
 
     # 重试耗尽：依赖持续缺失时应用必须明确失败退出（退出码非 0），而非带病运行
-    Invoke-Compose @('stop', 'mysql', 'redis') *> (Join-Path $runDir 'deps-stop2.log')
+    Invoke-Compose @('stop', 'postgres', 'redis') *> (Join-Path $runDir 'deps-stop2.log')
     Invoke-Compose @('stop', 'backend') *> (Join-Path $runDir 'backend-stop2.log')
     $beforeExhaustion = Get-ContainerInspection 'backend'
     # 直接启动既有容器，绝不由 compose up 重新拉起依赖；启动命令本身必须成功。
@@ -472,7 +487,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         $exited.State.ExitCode -ne 0 -and $exited.State.StartedAt -ne $beforeExhaustion.State.StartedAt -and
         $exited.RestartCount -eq $beforeExhaustion.RestartCount
     Assert $clearFailure 'A4-exhausted-retries-fail-clearly' 'backend must exit nonzero within 150s; timeout, zero exit and missing inspect evidence cannot pass'
-    foreach ($service in @('mysql', 'redis')) {
+    foreach ($service in @('postgres', 'redis')) {
         $dependency = Get-ContainerInspection $service
         Assert (-not $dependency.State.Running -and -not $dependency.State.Restarting) "A4-exhausted-$service-stopped" 'dependency must remain stopped throughout retry exhaustion'
     }
@@ -492,7 +507,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
     Write-Host "BLOCKED_ENV/ERROR: $_"
     # 失败诊断：容器日志与状态落到本轮目录并回显尾部，避免只看到超时结果。
     try {
-        foreach ($service in @('backend', 'mysql', 'redis')) {
+        foreach ($service in @('backend', 'postgres', 'redis')) {
             & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "failure-$service.log")
         }
         & docker compose -f $composeYml -p $project --env-file $envFile ps *> (Join-Path $runDir 'failure-ps.txt')
@@ -505,7 +520,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 } finally {
     Write-Host '=== cleanup: removing only this run''s resources ==='
     # 清理前保留完整日志，作为每轮证据；失败时无需重跑即可定位。
-    foreach ($service in @('backend', 'mysql', 'redis')) {
+    foreach ($service in @('backend', 'postgres', 'redis')) {
         & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "$service.log")
     }
     & docker compose -f $composeYml -p $project --env-file $envFile down -v --remove-orphans *> (Join-Path $runDir 'down.log')

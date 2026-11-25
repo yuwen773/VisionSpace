@@ -53,7 +53,7 @@ class HttpPermissionContractTest {
     @BeforeEach
     void fixture() {
         jdbc.update("DELETE FROM picture WHERE id = ?", TEAM_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ?", TEAM_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ?", TEAM_SPACE);
         jdbc.update("DELETE FROM space WHERE id = ?", TEAM_SPACE);
     }
 
@@ -117,7 +117,7 @@ class HttpPermissionContractTest {
         joinTeam(editorId, "editor");
 
         Integer countBefore = jdbc.queryForObject(
-                "SELECT totalCount FROM space WHERE id = ?", Integer.class, TEAM_SPACE);
+                "SELECT total_count FROM space WHERE id = ?", Integer.class, TEAM_SPACE);
         try (var viewer = client()) {
             login(viewer, viewerId);
             List<String> permissions = spacePermissions(viewer);
@@ -130,7 +130,7 @@ class HttpPermissionContractTest {
             assertTrue(code == 40100 || code == 40101, "viewer upload must be rejected: " + response);
         }
         assertEquals(countBefore, jdbc.queryForObject(
-                "SELECT totalCount FROM space WHERE id = ?", Integer.class, TEAM_SPACE),
+                "SELECT total_count FROM space WHERE id = ?", Integer.class, TEAM_SPACE),
                 "rejected upload must not consume space quota");
     }
 
@@ -150,22 +150,22 @@ class HttpPermissionContractTest {
 
     private void seedTeamSpace(long ownerId) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'team space', ?, 0, 1, 1000, 1000, 0, 1, 0)
                 """, TEAM_SPACE, ownerId);
     }
 
     private void joinTeam(long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 TEAM_SPACE, userId, role);
     }
 
     private void seedPicture(long ownerId, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'team-picture', ?, ?, 10, ?, 1, 0)
-                ON DUPLICATE KEY UPDATE name = VALUES(name), userId = VALUES(userId)
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, user_id = EXCLUDED.user_id
                 """, TEAM_PICTURE, name, ownerId, TEAM_SPACE);
     }
 
@@ -196,7 +196,7 @@ class HttpPermissionContractTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

@@ -86,9 +86,9 @@ class HttpPictureActionReportingTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM user_picture_action WHERE pictureId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PENDING_PICTURE, SPACE_PICTURE);
-        jdbc.update("DELETE FROM user_picture_action WHERE pictureId = ?", REJECTED_PICTURE);
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id = ?", REJECTED_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?)",
                 PUBLIC_PICTURE, PENDING_PICTURE, SPACE_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id = ?", REJECTED_PICTURE);
@@ -97,8 +97,8 @@ class HttpPictureActionReportingTest {
         ownerId = register("action_owner_" + System.nanoTime());
 
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'private', ?, 0, 0, 1000, 1000, 0, 1, 0)
                 """, PRIVATE_SPACE, ownerId);
 
@@ -117,16 +117,16 @@ class HttpPictureActionReportingTest {
         }
 
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, PUBLIC_PICTURE);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, PUBLIC_PICTURE);
         assertEquals(3, events, "each accepted report must be persisted as an event");
 
         // 匿名事件不冒充任何用户，且处于待处理状态
         Integer anonymousEvents = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ? AND userId = 0",
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ? AND user_id = 0",
                 Integer.class, PUBLIC_PICTURE);
         assertEquals(3, anonymousEvents);
         Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ? AND isProcessed = 0 AND isAccumulated = 0",
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ? AND is_processed = 0 AND is_accumulated = 0",
                 Integer.class, PUBLIC_PICTURE);
         assertEquals(3, pending, "reported events must stay pending until they are aggregated");
     }
@@ -139,7 +139,7 @@ class HttpPictureActionReportingTest {
             assertAccepted(report(anonymous, PUBLIC_PICTURE, IMPRESSION, "evt-replay"));
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, PUBLIC_PICTURE);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, PUBLIC_PICTURE);
         assertEquals(1, events, "the same event replayed must be counted once");
     }
 
@@ -150,7 +150,7 @@ class HttpPictureActionReportingTest {
             assertRejected(report(anonymous, PUBLIC_PICTURE, COLLECT, "evt-collect"), 40101);
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, PUBLIC_PICTURE);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, PUBLIC_PICTURE);
         assertEquals(0, events, "rejected account actions must not leave events behind");
     }
 
@@ -162,7 +162,7 @@ class HttpPictureActionReportingTest {
             assertRejected(report(anonymous, MISSING_PICTURE, IMPRESSION, "evt-missing"), 40400);
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId IN (?, ?, ?)",
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
                 Integer.class, SPACE_PICTURE, PENDING_PICTURE, MISSING_PICTURE);
         assertEquals(0, events, "rejected targets must not leave events behind");
     }
@@ -173,7 +173,7 @@ class HttpPictureActionReportingTest {
             assertRejected(report(anonymous, REJECTED_PICTURE, IMPRESSION, "evt-rejected"), 40101);
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, REJECTED_PICTURE);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, REJECTED_PICTURE);
         assertEquals(0, events, "a rejected target must not leave events behind");
     }
 
@@ -186,7 +186,7 @@ class HttpPictureActionReportingTest {
             assertRejected(post(owner, "/picture/action/report", forged), 40000);
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, PUBLIC_PICTURE);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, PUBLIC_PICTURE);
         assertEquals(0, events, "a client declared user must not produce events");
     }
 
@@ -198,7 +198,7 @@ class HttpPictureActionReportingTest {
             assertRejected(report(anonymous, -1L, IMPRESSION, "evt-picture"), 40000);
         }
         Integer events = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId IN (?, ?, ?)",
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id IN (?, ?, ?)",
                 Integer.class, PUBLIC_PICTURE, PENDING_PICTURE, SPACE_PICTURE);
         assertEquals(0, events, "invalid input must not leave events behind");
     }
@@ -210,7 +210,7 @@ class HttpPictureActionReportingTest {
             assertAccepted(report(owner, PUBLIC_PICTURE, LIKE, "evt-owner-like"));
         }
         Long userId = jdbc.queryForObject(
-                "SELECT userId FROM user_picture_action WHERE pictureId = ?", Long.class, PUBLIC_PICTURE);
+                "SELECT user_id FROM user_picture_action WHERE picture_id = ?", Long.class, PUBLIC_PICTURE);
         assertEquals(ownerId, userId, "the event must carry the server resolved user");
     }
 
@@ -302,19 +302,19 @@ class HttpPictureActionReportingTest {
 
     private int eventCount(long pictureId) {
         return jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_picture_action WHERE pictureId = ?", Integer.class, pictureId);
+                "SELECT COUNT(*) FROM user_picture_action WHERE picture_id = ?", Integer.class, pictureId);
     }
 
     private long statsCount(long pictureId) {
         Long value = jdbc.queryForObject(
-                "SELECT COALESCE((SELECT impressionCount FROM picture_stats WHERE pictureId = ?), 0)",
+                "SELECT COALESCE((SELECT impression_count FROM picture_stats WHERE picture_id = ?), 0)",
                 Long.class, pictureId);
         return value == null ? 0L : value;
     }
 
     private void seedPicture(long id, Long spaceId, int reviewStatus, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, ?, ?, 0)
                 """, id, "https://origin.invalid/" + name + ".jpg", name, ownerId, spaceId, reviewStatus);
     }
@@ -329,7 +329,7 @@ class HttpPictureActionReportingTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

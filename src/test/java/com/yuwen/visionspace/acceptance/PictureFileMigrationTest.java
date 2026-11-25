@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,57 +15,70 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 资源记录表的前向迁移与回滚脚本可执行且互为逆操作。
+ * 资源记录表的前向迁移与回滚互为逆操作：前向建出这张表，回滚只删这张表。
  *
- * <p>脚本在临时表名上执行，不触碰本轮的 {@code picture_file} 与 {@code picture}；
- * 真实环境的执行窗口、备份与旧直链失效仍属人工关卡。
+ * <p>PostgreSQL 之后业务表只由 Flyway 的基线 {@code db/migration/V1__baseline.sql} 建立，
+ * 隔离库里的运行角色 {@code vision_app} 只有 DML 权限，测试不能再自己建表跑脚本。
+ * 因此前向迁移改由「基线已落地」来证明：基线脚本必须声明这张资源记录表，隔离库里
+ * 这张表必须存在、并且保留约定的列与索引；回滚脚本仍然只删除本工单新增的表，
+ * 既有表不受影响。
+ *
+ * <p>真实环境的执行窗口、备份与旧直链失效仍属人工关卡。
  */
 @IsolatedSpringBootTest
 class PictureFileMigrationTest {
 
     private static final String TABLE = "picture_file";
-    private static final String SCRATCH = "picture_file_migration_check";
 
-    private static final Path FORWARD = Path.of("sql/migrations/2026-10-22-picture-file.sql");
+    /** 前向迁移的落地形态：PostgreSQL 基线脚本（唯一的建表入口）。 */
+    private static final Path FORWARD = Path.of("src/main/resources/db/migration/V1__baseline.sql");
+    /** 回滚脚本：只删除本工单新增的资源记录表。 */
     private static final Path ROLLBACK = Path.of("sql/migrations/2026-10-22-picture-file-rollback.sql");
+
+    /** 基线里约定的列（snake_case）。 */
+    private static final List<String> DOCUMENTED_COLUMNS = List.of("id", "owner_user_id", "space_id",
+            "picture_id", "purpose", "kind", "platform", "object_key", "url", "file_size", "status",
+            "create_time", "update_time");
+
+    /** 基线里约定的索引。 */
+    private static final List<String> DOCUMENTED_INDEXES = List.of("ix_picture_file_picture_kind",
+            "ix_picture_file_owner_purpose_status", "ix_picture_file_platform_key", "ix_picture_file_url");
 
     @Autowired
     private JdbcTemplate jdbc;
 
     @Test
     void forwardMigrationCreatesTheRecordTableAndRollbackRemovesOnlyIt() throws Exception {
-        jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
-        try {
-            run(FORWARD);
-            assertTrue(tableExists(SCRATCH), "forward migration must create the record table");
-            List<String> columns = jdbc.queryForList(
-                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
-                    String.class, SCRATCH);
-            assertTrue(columns.containsAll(List.of("id", "ownerUserId", "spaceId", "pictureId", "purpose",
-                    "kind", "platform", "objectKey", "url", "fileSize", "status", "createTime", "updateTime")),
-                    "record table must keep the documented columns: " + columns);
-            List<String> indexes = jdbc.queryForList(
-                    "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
-                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
-                    String.class, SCRATCH);
-            assertTrue(indexes.containsAll(List.of("idx_picture_kind", "idx_owner_purpose_status",
-                    "idx_platform_key", "idx_url")), "record table must keep the documented indexes: " + indexes);
+        // 前向迁移：基线脚本声明了资源记录表
+        String forward = Files.readString(FORWARD, StandardCharsets.UTF_8);
+        assertTrue(forward.contains("CREATE TABLE " + TABLE + " ("),
+                "forward migration must declare the record table: " + FORWARD);
 
-            run(ROLLBACK);
-            assertFalse(tableExists(SCRATCH), "rollback must drop the record table");
-            // 回滚只删除本工单新增的表，既有表不受影响
-            assertTrue(tableExists("picture"), "rollback must not touch existing tables");
-            assertTrue(tableExists(TABLE), "rollback must not touch the live record table");
-        } finally {
-            jdbc.execute("DROP TABLE IF EXISTS `" + SCRATCH + "`");
-        }
-    }
+        // 基线已由 Flyway 落到隔离库：表存在，且保留约定的列
+        assertTrue(tableExists(TABLE), "forward migration must create the record table");
+        List<String> columns = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
+                String.class, TABLE);
+        assertTrue(columns.containsAll(DOCUMENTED_COLUMNS),
+                "record table must keep the documented columns: " + columns);
+        List<String> indexes = jdbc.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = ?",
+                String.class, TABLE);
+        assertTrue(indexes.containsAll(DOCUMENTED_INDEXES),
+                "record table must keep the documented indexes: " + indexes);
 
-    private void run(Path script) throws IOException {
-        for (String statement : statements(Files.readString(script, StandardCharsets.UTF_8))) {
-            jdbc.execute(statement.replace("`" + TABLE + "`", "`" + SCRATCH + "`"));
-        }
+        // 回滚脚本：只删除本工单新增的表，既有表不受影响
+        List<String> rollbackStatements = statements(Files.readString(ROLLBACK, StandardCharsets.UTF_8));
+        assertEquals(1, rollbackStatements.size(), "rollback must be a single statement: " + rollbackStatements);
+        String rollback = rollbackStatements.get(0);
+        assertTrue(rollback.contains("DROP TABLE IF EXISTS") && rollback.contains(TABLE),
+                "rollback must drop the record table: " + rollback);
+        assertFalse(rollback.matches("(?is).*DROP\\s+TABLE\\s+(IF\\s+EXISTS\\s+)?[`\"]?picture[`\"]?(?![_a-zA-Z0-9]).*"),
+                "rollback must not touch existing tables: " + rollback);
+        // 回滚只删除本工单新增的表，既有表不受影响
+        assertTrue(tableExists("picture"), "rollback must not touch existing tables");
+        assertTrue(tableExists(TABLE), "rollback must not touch the live record table");
     }
 
     /**
@@ -82,7 +94,7 @@ class PictureFileMigrationTest {
             }
             current.append(line).append('\n');
             if (trimmed.endsWith(";")) {
-                result.add(current.toString());
+                result.add(current.toString().trim());
                 current.setLength(0);
             }
         }
@@ -92,8 +104,7 @@ class PictureFileMigrationTest {
 
     private boolean tableExists(String table) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.TABLES "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND tablename = ?",
                 Integer.class, table);
         return count != null && count > 0;
     }

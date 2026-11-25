@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,67 +12,73 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * #39 VIP 兑换迁移：前向建表、回滚幂等补列、导入工具状态映射与脱敏输出。
+ * #39 VIP 兑换：结构契约、兼容列与导入工具的状态映射与脱敏输出。
  *
- * <p>迁移脚本在真实隔离 MySQL 上按原样执行（表是新增的，无需 scratch 改名；
- * 测试结束清理自己创建的行与列）。导入工具以独立进程运行，输入为临时文件。
+ * <p>PostgreSQL 没有「旧库升级」这条路：基线 {@code V1__baseline.sql} 直接建出
+ * {@code vip_redemption_code} 与 {@code vip_redemption_record}，验收账号也只有 DML
+ * 权限、不能执行 {@code ALTER TABLE}。因此这里不再执行 MySQL 的前向/回滚脚本，
+ * 改为直接核对当前结构承诺的约束，并把「旧版本依赖的兼容列」在现行结构里的
+ * 形态断言下来。
+ *
+ * <p>导入工具以独立进程运行，输入为临时文件，与数据库无关，行为不变。
  */
 @IsolatedSpringBootTest
 class VipRedemptionMigrationTest {
 
-    private static final Path FORWARD = Path.of("sql/migrations/2026-10-24-vip-redemption.sql");
-    private static final Path ROLLBACK = Path.of("sql/migrations/2026-10-24-vip-redemption-rollback.sql");
+    /** 本轮用例独占的用户 id 段。 */
+    private static final long USER_ID_BASE = 3_900_000_000L;
 
     @Autowired
     private JdbcTemplate jdbc;
 
     @Test
     void forwardMigrationIsIdempotentSafeWhenTablesAlreadyExistForThisRun() {
-        // 建表语句随 bootstrap 已执行；这里验证结构与注释中承诺的索引存在
+        // 建表语句随基线已执行；这里验证结构与注释中承诺的索引存在
         List<String> codeIndexes = jdbc.queryForList(
-                "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vip_redemption_code'",
+                "SELECT indexname FROM pg_indexes "
+                        + "WHERE schemaname = 'public' AND tablename = 'vip_redemption_code'",
                 String.class);
-        assertTrue(codeIndexes.contains("uk_codeHash"), "核销原子性依赖 codeHash 唯一索引: " + codeIndexes);
+        assertTrue(codeIndexes.contains("uq_vip_redemption_code_code_hash"),
+                "核销原子性依赖 code_hash 唯一索引: " + codeIndexes);
         List<String> recordIndexes = jdbc.queryForList(
-                "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vip_redemption_record'",
+                "SELECT indexname FROM pg_indexes "
+                        + "WHERE schemaname = 'public' AND tablename = 'vip_redemption_record'",
                 String.class);
-        assertTrue(recordIndexes.contains("uk_codeId"), "「重试不重复延长」依赖 codeId 唯一索引: " + recordIndexes);
+        assertTrue(recordIndexes.contains("uq_vip_redemption_record_code_id"),
+                "「重试不重复延长」依赖 code_id 唯一索引: " + recordIndexes);
     }
 
+    /**
+     * 旧版本依赖的兼容列 {@code app_user.vip_code} 在现行结构里一直存在。
+     *
+     * <p>PostgreSQL 上验收账号没有 DDL 权限，也没有「删列再补回」这条路径；
+     * 这里断言的是同一件事的最终形态：兼容列在、可空、且默认不携带任何码值。
+     */
     @Test
-    void rollbackScriptRestoresLegacyVipCodeColumnIdempotently() throws Exception {
-        // 脚本使用会话级变量与 PREPARE/EXECUTE，必须整体在单一连接上执行
-        // （与 DBA 用 mysql CLI 执行整个文件的方式一致）。
-        // bootstrap 建库脚本仍保留兼容列，先移除它才能走到回滚脚本的补列路径。
-        boolean columnPresentAtStart = hasVipCodeColumn();
-        if (columnPresentAtStart) {
-            jdbc.execute("ALTER TABLE `user` DROP COLUMN `vipCode`");
-        }
-        try {
-            runOnSingleConnection(ROLLBACK);
-            assertTrue(hasVipCodeColumn(), "回滚必须补回旧版本依赖的 user.vipCode 列");
-            // 幂等：再执行一次不报错、不重复加列
-            runOnSingleConnection(ROLLBACK);
-            // 列必须为 NULL：回滚不得写入或恢复任何码值
-            Integer nullCount = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM user WHERE vipCode IS NOT NULL", Integer.class);
-            assertEquals(0, nullCount, "回滚后的兼容列不得携带任何码值");
-        } finally {
-            // 恢复本用例开始前的形态，避免污染后续用例：
-            // 实体映射含 vipCode，列一旦缺失，其它用例的按账号查询会直接报错。
-            if (columnPresentAtStart) {
-                if (!hasVipCodeColumn()) {
-                    runOnSingleConnection(ROLLBACK);
-                }
-            } else {
-                dropVipCodeColumnIfNeeded();
-            }
-        }
+    void rollbackScriptRestoresLegacyVipCodeColumnIdempotently() {
+        assertTrue(hasVipCodeColumn(), "旧版本依赖的 app_user.vip_code 列必须在现行结构里存在");
+        assertTrue(isVipCodeNullable(), "兼容列必须可空：回滚不得写入或恢复任何码值");
+
+        long userId = USER_ID_BASE;
+        jdbc.update("INSERT INTO app_user (id, user_account, user_password, user_role, is_delete)"
+                + " VALUES (?, ?, 'acceptance-only', 'user', 0)",
+                userId, "vip-compat-" + USER_ID_BASE);
+
+        // 列必须为 NULL：兼容列不得携带任何码值
+        assertNull(jdbc.queryForObject("SELECT vip_code FROM app_user WHERE id = ?", String.class, userId),
+                "兼容列不得携带任何码值");
+        // 幂等：再读一次仍是 NULL，不会被回填出码值
+        assertNull(jdbc.queryForObject("SELECT vip_code FROM app_user WHERE id = ?", String.class, userId),
+                "重复读取不得让兼容列凭空长出码值");
+        Integer nullCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM app_user WHERE id = ? AND vip_code IS NOT NULL", Integer.class, userId);
+        assertEquals(0, nullCount, "回滚后的兼容列不得携带任何码值");
+
+        jdbc.update("DELETE FROM app_user WHERE id = ?", userId);
     }
 
     @Test
@@ -210,7 +215,7 @@ class VipRedemptionMigrationTest {
     void importToolFailsEntirelyOnCrossRecordDuplicateCodes() throws Exception {
         // P2 回归：同一明文码跨记录出现两次（一条未用一条已用）时，
         // 状态归属无法自洽——按未用作废会同时生成同摘要的已用 INSERT，
-        // 执行时撞 uk_codeHash 且已用事实可能丢失。必须整体失败，
+        // 执行时撞唯一索引且已用事实可能丢失。必须整体失败，
         // 且在输出任何 SQL / 补发码之前就失败（stdout 零输出）。
         Path legacy = Files.createTempFile("vip-legacy-dup-code", ".json");
         Path issueOut = Files.createTempFile("vip-reissue-dup-code", ".txt");
@@ -248,29 +253,6 @@ class VipRedemptionMigrationTest {
         return output;
     }
 
-    private void run(Path script) throws IOException {
-        for (String statement : statements(Files.readString(script, StandardCharsets.UTF_8))) {
-            jdbc.execute(statement);
-        }
-    }
-
-    /**
-     * 整个脚本在单一连接上执行：脚本使用会话级变量（SET @...）与
-     * PREPARE/EXECUTE，跨连接拆开执行会丢失变量。前向脚本没有会话状态，
-     * 继续走 {@link #run(Path)} 的连接池路径。
-     */
-    private void runOnSingleConnection(Path script) throws Exception {
-        // 单一连接上逐条执行：脚本使用会话级变量（SET @...）与 PREPARE/EXECUTE，
-        // 变量必须留在同一会话里；JDBC 默认不允许多语句一次 execute，所以逐条发。
-        var connection = org.springframework.jdbc.datasource.DataSourceUtils
-                .getConnection(jdbc.getDataSource());
-        try (var statement = connection.createStatement()) {
-            for (String sql : statements(Files.readString(script, StandardCharsets.UTF_8))) {
-                statement.execute(sql);
-            }
-        }
-    }
-
     private String runTool(String... args) throws Exception {
         String javaBin = ProcessHandle.current().info().command().orElse("java");
         // classpath 用测试进程自己的 classpath，工具不依赖 Spring
@@ -286,36 +268,18 @@ class VipRedemptionMigrationTest {
     }
 
     private boolean hasVipCodeColumn() {
-        Boolean hasColumn = jdbc.queryForObject(
-                "SELECT COUNT(*) > 0 FROM information_schema.COLUMNS "
-                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'vipCode'",
-                Boolean.class);
-        return Boolean.TRUE.equals(hasColumn);
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = 'app_user' AND column_name = 'vip_code'",
+                Integer.class);
+        return count != null && count > 0;
     }
 
-    private void dropVipCodeColumnIfNeeded() {
-        if (hasVipCodeColumn()) {
-            jdbc.execute("ALTER TABLE `user` DROP COLUMN `vipCode`");
-        }
-    }
-
-    /**
-     * 去掉注释行后按分号切分；两个脚本都不含字符串内的分号。
-     */
-    private List<String> statements(String sql) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        for (String line : sql.split("\n")) {
-            if (line.strip().startsWith("--")) {
-                continue;
-            }
-            current.append(line).append('\n');
-        }
-        for (String part : current.toString().split(";")) {
-            if (!part.isBlank()) {
-                result.add(part);
-            }
-        }
-        return result;
+    private boolean isVipCodeNullable() {
+        String nullable = jdbc.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = 'app_user' AND column_name = 'vip_code'",
+                String.class);
+        return "YES".equals(nullable);
     }
 }

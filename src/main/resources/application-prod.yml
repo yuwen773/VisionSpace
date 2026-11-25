@@ -6,13 +6,21 @@ spring:
   # 数据库配置；连接池启动窗口有限重试（30 秒）：依赖延迟时给启动留出缓冲，
   # 重试耗尽仍连不上则以明确异常快速失败（退出码非 0），而不是无限阻塞或带病启动。
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     url: ${SPRING_DATASOURCE_URL:}
     username: ${SPRING_DATASOURCE_USERNAME:}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     hikari:
       initialization-fail-timeout: 30000
       validation-timeout: 5000
+      # 2 vCPU / 1.7 GB 生产机：连接池上限收紧，避免 PG 连接内存叠加
+      maximum-pool-size: 5
+      minimum-idle: 1
+      # 与 MySQL 的 REPEATABLE READ 明确区分：统一 READ COMMITTED
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+  # Flyway 不在运行时依赖里；这里显式关闭，防止未来误引入 starter 后启动自动迁移
+  flyway:
+    enabled: false
   # Redis 配置
   data:
     redis:
@@ -33,9 +41,11 @@ spring:
   ai:
     openai:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
-    # 站内图片检索（RAG）：生产随 compose 起 Chroma，因此默认开启。
-    # 没有 Chroma 的部署把这两项都置 none（标准环境变量
-    # SPRING_AI_MODEL_EMBEDDING_TEXT=none / SPRING_AI_VECTORSTORE_TYPE=none 即可覆盖）。
+    # 站内图片检索（RAG）：这里是 prod profile 的默认值，面向「自带 Chroma」的部署。
+    # 仓库自带的 docker-compose.yml 默认**不起** chromadb（它在 rag profile 里），
+    # 因此 compose 会把 SPRING_AI_MODEL_EMBEDDING_TEXT / SPRING_AI_VECTORSTORE_TYPE
+    # 默认下发成 none，覆盖这里的值；阿里云手册的 app.env 同样显式置 none。
+    # 有 Chroma 的部署不用动；没有的把这两项都置 none 即可（整条链路就不装配）。
     model:
       embedding:
         text: dashscope

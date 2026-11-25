@@ -12,16 +12,16 @@ import java.util.List;
 @Mapper
 public interface PictureFileMapper extends BaseMapper<PictureFile> {
 
-    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
-            "WHERE id = #{id} AND status = 0 AND pictureId IS NULL AND purpose = 'gallery'")
+    @Update("UPDATE picture_file SET status = 3, update_time = statement_timestamp() " +
+            "WHERE id = #{id} AND status = 0 AND picture_id IS NULL AND purpose = 'gallery'")
     int markAbandonedGalleryUpload(@Param("id") Long id);
 
-    @Update("UPDATE picture_file SET status = 3, updateTime = NOW() " +
-            "WHERE id = #{id} AND pictureId = #{pictureId} AND status = 1 " +
-            "AND EXISTS (SELECT 1 FROM picture WHERE id = #{pictureId} AND isDelete = 1)")
+    @Update("UPDATE picture_file SET status = 3, update_time = statement_timestamp() " +
+            "WHERE id = #{id} AND picture_id = #{pictureId} AND status = 1 " +
+            "AND EXISTS (SELECT 1 FROM picture WHERE id = #{pictureId} AND is_delete = 1)")
     int markDeletedPictureFile(@Param("id") Long id, @Param("pictureId") Long pictureId);
 
-    @Update("UPDATE picture_file SET status = 2, updateTime = NOW() WHERE id = #{id} AND status = 3")
+    @Update("UPDATE picture_file SET status = 2, update_time = statement_timestamp() WHERE id = #{id} AND status = 3")
     int markSupersededDeleted(@Param("id") Long id);
 
     /**
@@ -40,7 +40,7 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      * 后到的一方在拿到行锁之后才看到前一方提交后的状态，不会把同一批旧对象
      * 再清理一遍。
      */
-    @Select("SELECT * FROM picture_file WHERE pictureId = #{pictureId} AND status = #{status} FOR UPDATE")
+    @Select("SELECT * FROM picture_file WHERE picture_id = #{pictureId} AND status = #{status} FOR UPDATE")
     List<PictureFile> selectByPictureAndStatusForUpdate(@Param("pictureId") Long pictureId,
                                                        @Param("status") Integer status);
 
@@ -50,7 +50,7 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      * <p>「是否已绑定」不在这里判定：候选只是可能过期，回收前必须逐条锁定并
      * 复核绑定状态。
      *
-     * <p>保留期用数据库自己的时钟计算（{@code NOW()}），不把应用侧的时间当作
+     * <p>保留期用数据库自己的时钟计算（{@code statement_timestamp()}），不把应用侧的时间当作
      * 参数传入：{@code createTime} 由数据库写入，两侧必须用同一个时钟比较，
      * 否则时区或时钟漂移会让「已过期」判定整体偏移。
      *
@@ -59,7 +59,7 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      */
     @Select("SELECT * FROM picture_file " +
             "WHERE purpose = 'agent-chat' AND status = 0 " +
-            "AND createTime < NOW() - INTERVAL #{retentionHours} HOUR " +
+            "AND create_time < statement_timestamp() - (#{retentionHours} * interval '1 hour') " +
             "ORDER BY id ASC LIMIT #{limit}")
     List<PictureFile> selectReclaimCandidates(@Param("retentionHours") int retentionHours,
                                                @Param("limit") int limit);
@@ -70,18 +70,20 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      * <p>比较同样在数据库时钟内完成：{@code deleteNextRetryTime} 由数据库写入。
      */
     @Select("SELECT * FROM picture_file " +
-            "WHERE deleteState = 1 AND (deleteNextRetryTime IS NULL OR deleteNextRetryTime <= NOW()) " +
+            "WHERE delete_state = 1 AND (delete_next_retry_time IS NULL " +
+            "OR delete_next_retry_time <= statement_timestamp()) " +
             "ORDER BY id ASC LIMIT #{limit}")
     List<PictureFile> selectPendingDeletes(@Param("limit") int limit);
 
     /**
      * 标记删除未确认，保留可重试状态。
      *
-     * <p>下次重试时间由数据库时钟推导（{@code NOW()} 加退避时长），与应用侧时钟
+     * <p>下次重试时间由数据库时钟推导（{@code statement_timestamp()} 加退避时长），与应用侧时钟
      * 无关。
      */
-    @Update("UPDATE picture_file SET deleteState = 1, deleteRetryCount = #{retryCount}, " +
-            "deleteNextRetryTime = NOW() + INTERVAL #{retryDelaySeconds} SECOND, updateTime = NOW() WHERE id = #{id}")
+    @Update("UPDATE picture_file SET delete_state = 1, delete_retry_count = #{retryCount}, " +
+            "delete_next_retry_time = statement_timestamp() + (#{retryDelaySeconds} * interval '1 second'), " +
+            "update_time = statement_timestamp() WHERE id = #{id}")
     int markDeletePending(@Param("id") Long id,
                           @Param("retryCount") int retryCount,
                           @Param("retryDelaySeconds") long retryDelaySeconds);
@@ -89,22 +91,22 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
     /**
      * 标记删除已确认：资源不再占用存储。
      */
-    @Update("UPDATE picture_file SET status = 2, deleteState = 2, deleteRetryCount = #{retryCount}, " +
-            "updateTime = NOW() WHERE id = #{id}")
+    @Update("UPDATE picture_file SET status = 2, delete_state = 2, delete_retry_count = #{retryCount}, " +
+            "update_time = statement_timestamp() WHERE id = #{id}")
     int markDeleteConfirmed(@Param("id") Long id, @Param("retryCount") int retryCount);
 
     /**
      * 标记资源为有效。Agent 附件绑定后不再是「无人引用的临时资源」，
      * 回收任务不会把它当成候选。
      */
-    @Update("UPDATE picture_file SET status = 1, updateTime = NOW() WHERE id = #{id} AND status = 0")
+    @Update("UPDATE picture_file SET status = 1, update_time = statement_timestamp() WHERE id = #{id} AND status = 0")
     int markActive(@Param("id") Long id);
 
     /**
      * 同一对象键上仍占用存储的记录（临时或有效）。清理任务删除对象之前用它核对
      * 引用：已被替换或已删除的记录不再占用，不会被当成新的引用者。
      */
-    @Select("SELECT * FROM picture_file WHERE platform = #{platform} AND objectKey = #{objectKey} " +
+    @Select("SELECT * FROM picture_file WHERE platform = #{platform} AND object_key = #{objectKey} " +
             "AND status IN (0, 1)")
     List<PictureFile> selectLiveByPlatformAndKey(@Param("platform") String platform,
                                                  @Param("objectKey") String objectKey);
@@ -113,10 +115,10 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      * 图片是否仍指向该资源地址，或资源地址缺失而无法确认引用已解除。
      * 同一 pictureId 也会保留在替换后的历史记录上，不能仅凭图片仍存在就阻断清理。
      */
-    @Select("SELECT COUNT(*) FROM picture p JOIN picture_file f ON f.pictureId = p.id " +
-            "WHERE f.id = #{fileId} AND p.isDelete = 0 AND " +
+    @Select("SELECT COUNT(*) FROM picture p JOIN picture_file f ON f.picture_id = p.id " +
+            "WHERE f.id = #{fileId} AND p.is_delete = 0 AND " +
             "(f.status IN (0, 1) OR f.url IS NULL OR f.url = '' OR p.url = f.url " +
-            "OR p.thumbnailUrl = f.url OR p.previewUrl = f.url)")
+            "OR p.thumbnail_url = f.url OR p.preview_url = f.url)")
     int countLivePictureBinding(@Param("fileId") Long fileId);
 
     /**
@@ -125,7 +127,7 @@ public interface PictureFileMapper extends BaseMapper<PictureFile> {
      * <p>删除对象之前用它确认没有别的记录指向同一个键：同一张图的历史记录、
      * 或复制出来的记录都可能共用一个对象，删掉会让其余记录读到不存在的对象。
      */
-    @Select("SELECT COUNT(*) FROM picture_file WHERE platform = #{platform} AND objectKey = #{objectKey} " +
+    @Select("SELECT COUNT(*) FROM picture_file WHERE platform = #{platform} AND object_key = #{objectKey} " +
             "AND status IN (0, 1) AND id <> #{excludeId}")
     int countLiveReferences(@Param("platform") String platform,
                             @Param("objectKey") String objectKey,

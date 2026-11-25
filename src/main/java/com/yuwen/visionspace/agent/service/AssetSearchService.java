@@ -229,7 +229,9 @@ public class AssetSearchService {
         return taskProjection(proposals.lock(viewer.getId(), proposalId), viewer, null);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED, readOnly = true)
+    // 读路径也要拿共享行锁（FOR SHARE）来与保存/提案串行化，PostgreSQL 不允许在
+    // 只读事务里执行锁定读，所以这里不能标 readOnly。
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BoardProposalTask readTask(String taskId, User viewer) {
         return taskProjection(requireTask(taskId, viewer), viewer, null);
     }
@@ -346,7 +348,8 @@ public class AssetSearchService {
         return new PreparedBoard(old, spaceId, new BoardPayload(request.title(), request.groups(), entries));
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED, readOnly = true)
+    // 同 readTask：ownedBoard / lockBoardSpace 是 FOR SHARE 锁定读，不能放进只读事务。
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public AssetBoard readBoard(String boardId, User viewer) {
         var row = ownedBoard(boardId, viewer);
         lockBoardSpace(row.spaceId(), viewer);
@@ -358,7 +361,8 @@ public class AssetSearchService {
                         .map(group -> new SaveAssetBoardRequest.Group(group.groupId(), group.position(), "不可用分组")).toList() : payload.groups(), projected);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED, readOnly = true)
+    // 同 readTask：operationReceipt 会锁定空间与成员行，不能放进只读事务。
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public AssetBoard.Operation readOperation(String operationId, User viewer) {
         ThrowUtils.throwIf(viewer == null || viewer.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         var row = boards.operation(viewer.getId(), operationId);

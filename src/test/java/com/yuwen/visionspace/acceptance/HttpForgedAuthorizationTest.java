@@ -62,7 +62,7 @@ class HttpForgedAuthorizationTest {
     @BeforeEach
     void fixture() {
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", TEAM_PICTURE, PRIVATE_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId IN (?, ?)", TEAM_SPACE, PRIVATE_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id IN (?, ?)", TEAM_SPACE, PRIVATE_SPACE);
         jdbc.update("DELETE FROM space WHERE id IN (?, ?)", TEAM_SPACE, PRIVATE_SPACE);
     }
 
@@ -185,7 +185,7 @@ class HttpForgedAuthorizationTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
@@ -195,21 +195,21 @@ class HttpForgedAuthorizationTest {
 
     private void seedSpace(long id, long ownerId, int type) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'space', ?, 0, ?, 1000, 1000, 0, 0, 0)
                 """, id, ownerId, type);
     }
 
     private void joinTeam(long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 TEAM_SPACE, userId, role);
     }
 
     private void seedPicture(long id, long ownerId, long spaceId, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, thumbnailUrl, previewUrl, name, userId, picSize, spaceId,
-                                     reviewStatus, isDelete)
+                INSERT INTO picture (id, url, thumbnail_url, preview_url, name, user_id, pic_size, space_id,
+                                     review_status, is_delete)
                 VALUES (?, ?, ?, ?, ?, ?, 10, ?, 1, 0)
                 """, id, "https://cdn.example/original-" + id, "https://cdn.example/thumb-" + id,
                 "https://cdn.example/preview-" + id, name, ownerId, spaceId);
@@ -227,7 +227,7 @@ class HttpForgedAuthorizationTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

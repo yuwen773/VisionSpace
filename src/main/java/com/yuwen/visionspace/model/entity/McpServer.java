@@ -11,29 +11,32 @@ public class McpServer {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("mcpServerCode")
+    @TableField("mcp_server_code")
     private String mcpServerCode;
 
-    @TableField("userId")
+    @TableField("user_id")
     private Long userId;
 
     private String name;
 
     private String description;
 
-    @TableField("deployConfig")
+    @TableField("deploy_config")
     private String deployConfig;
 
     private Integer status;
 
-    @TableField("installType")
+    @TableField("install_type")
     private String installType;
 
     private String host;
 
-    @TableField(value = "gmtCreate", fill = FieldFill.INSERT)
+    // 时间列不参与 MyBatis Plus 的自动填充：项目没有注册 MetaObjectHandler，
+    // fill 注解只会把未赋值的字段以 NULL 写进 INSERT/UPDATE，反而绕过数据库默认值
+    // 与 mcp_server 的 gmt_modified 触发器（两列都是 NOT NULL）。
+    @TableField("gmt_create")
     private Date gmtCreate;
 
-    @TableField(value = "gmtModified", fill = FieldFill.INSERT_UPDATE)
+    @TableField("gmt_modified")
     private Date gmtModified;
 }

@@ -150,9 +150,11 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         Long userId = spaceUserQueryRequest.getUserId();
         String spaceRole = spaceUserQueryRequest.getSpaceRole();
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
-        queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "spaceId", spaceId);
-        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
-        queryWrapper.eq(ObjUtil.isNotEmpty(spaceRole), "spaceRole", spaceRole);
+        // QueryWrapper 的列名是裸字符串，MyBatis Plus 不会做 camel → snake 转换；
+        // 写成 "spaceId" 在 PostgreSQL 上会被折成 spaceid 并报列不存在。
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "space_id", spaceId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "user_id", userId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceRole), "space_role", spaceRole);
         return queryWrapper;
     }
 }

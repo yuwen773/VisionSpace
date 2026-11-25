@@ -44,9 +44,9 @@ class HttpAssetBoardTest {
         assertEquals(0, call("POST", "/user/login", Map.of("userAccount", account, "userPassword", "acceptance-password")).path("code").asInt());
         space = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
         picture = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
-        jdbc.update("INSERT INTO space (id, userId, spaceType, spaceName, totalSize, totalCount) VALUES (?, ?, 1, 'board-team', 10, 1)", space, user + 1);
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'viewer')", space, user);
-        jdbc.update("INSERT INTO picture (id, userId, spaceId, name, url, picWidth, picHeight, picSize) VALUES (?, ?, ?, 'gallery', 'https://origin.invalid/board.jpg', 1920, 1080, 10)", picture, user + 1, space);
+        jdbc.update("INSERT INTO space (id, user_id, space_type, space_name, total_size, total_count) VALUES (?, ?, 1, 'board-team', 10, 1)", space, user + 1);
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'viewer')", space, user);
+        jdbc.update("INSERT INTO picture (id, user_id, space_id, name, url, pic_width, pic_height, pic_size) VALUES (?, ?, ?, 'gallery', 'https://origin.invalid/board.jpg', 1920, 1080, 10)", picture, user + 1, space);
         result = call("POST", "/agent/asset-search", Map.of("spaceId", String.valueOf(space), "criteria", Map.of("orientation", "LANDSCAPE"))).path("data");
         assertEquals(1, result.path("items").size());
     }
@@ -66,7 +66,7 @@ class HttpAssetBoardTest {
         assertFalse(board.path("items").get(0).path("boardItemId").asText().isBlank());
         assertTrue(board.path("items").get(0).path("selected").asBoolean());
         assertEquals("COMMITTED", call("GET", "/agent/board-operations/create-one", null).path("data").path("status").asText());
-        assertEquals(10L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id = ?", Long.class, space));
+        assertEquals(10L, jdbc.queryForObject("SELECT total_size FROM space WHERE id = ?", Long.class, space));
         assertEquals(calls, recorder.calls().size());
     }
 
@@ -146,8 +146,8 @@ class HttpAssetBoardTest {
         String account = "other_board_" + System.nanoTime();
         long stranger = call("POST", "/user/register", Map.of("userAccount", account, "userPassword", "acceptance-password", "checkPassword", "acceptance-password")).path("data").asLong();
         call("POST", "/user/login", Map.of("userAccount", account, "userPassword", "acceptance-password"));
-        jdbc.update("UPDATE user SET userRole='admin' WHERE id=?", stranger);
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'admin')", space, stranger);
+        jdbc.update("UPDATE app_user SET user_role='admin' WHERE id=?", stranger);
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'admin')", space, stranger);
         assertEquals(40101, call("GET", "/agent/boards/" + id, null).path("code").asInt());
         assertEquals(40101, call("POST", "/agent/boards", create("foreign-result")).path("code").asInt());
         assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/private", null).path("data").path("status").asText());
@@ -160,21 +160,42 @@ class HttpAssetBoardTest {
     @Test
     void aFailureAfterBoardWriteRollsBackBoardAndReceiptAndSameKeyCanRetry() throws Exception {
         String id = call("POST", "/agent/boards", create("before-failure")).path("data").path("boardId").asText();
-        String constraint = "board_failure_" + Long.toUnsignedString(System.nanoTime());
         var body = Map.of("operationId", "injected-failure", "expectedRevision", 1, "title", "事务新标题", "groups", List.of(), "items", List.of());
-        jdbc.execute("ALTER TABLE asset_board_operation ADD CONSTRAINT " + constraint + " CHECK (operationId <> 'injected-failure')");
-        try {
-            assertEquals(50000, call("PUT", "/agent/boards/" + id, body).path("code").asInt());
-            var board = call("GET", "/agent/boards/" + id, null).path("data");
-            assertEquals(1, board.path("revision").asInt());
-            assertEquals(1, board.path("items").size());
-            assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/injected-failure", null).path("data").path("status").asText());
-        } finally { jdbc.execute("ALTER TABLE asset_board_operation DROP CHECK " + constraint); }
+        // 运行角色 vision_app 没有 DDL 权限，不能像 MySQL 那样临时加 CHECK 约束。
+        // 改为制造一次真实的唯一键冲突：另一条连接在应用写回执之前插入同键回执，
+        // 应用写回执时必然冲突失败，同事务里的板写入必须一起回滚。
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+             var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            // 锁住板行：应用读完回执后会停在这里，因此它读不到下面那条未提交的回执
+            try (var lock = connection.prepareStatement("SELECT id FROM asset_board WHERE id = ? FOR UPDATE")) {
+                lock.setString(1, id);
+                try (var rows = lock.executeQuery()) { assertTrue(rows.next()); }
+            }
+            var saving = pool.submit(() -> call("PUT", "/agent/boards/" + id, body));
+            awaitLockingSql("from asset_board", "for update");
+            try (var inject = connection.prepareStatement(
+                    "INSERT INTO asset_board_operation (owner_id, operation_id, operation_type, board_id, request_digest) "
+                            + "VALUES (?, 'injected-failure', 'REPLACE', ?, ?)")) {
+                inject.setLong(1, user);
+                inject.setString(2, id);
+                inject.setString(3, "0".repeat(64));
+                inject.executeUpdate();
+            }
+            connection.commit();
+            assertEquals(50000, saving.get(15, java.util.concurrent.TimeUnit.SECONDS).path("code").asInt());
+        }
+        var board = call("GET", "/agent/boards/" + id, null).path("data");
+        assertEquals(1, board.path("revision").asInt());
+        assertEquals(1, board.path("items").size());
+        assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/injected-failure", null).path("data").path("status").asText());
+        // 撤掉注入的冲突行：同一个操作键必须还能重试成功
+        jdbc.update("DELETE FROM asset_board_operation WHERE owner_id = ? AND operation_id = 'injected-failure'", user);
         assertEquals(2, call("PUT", "/agent/boards/" + id, body).path("data").path("revision").asInt());
     }
 
     @Test
-    void concurrentRequestsAreDecidedByMySqlAndRevocationWinsBeforeSaveCommit() throws Exception {
+    void concurrentRequestsAreDecidedByPostgresAndRevocationWinsBeforeSaveCommit() throws Exception {
         var create = create("parallel-create");
         try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             var start = new java.util.concurrent.CountDownLatch(1);
@@ -196,11 +217,11 @@ class HttpAssetBoardTest {
             assertEquals(2, call("GET", "/agent/boards/" + id, null).path("data").path("revision").asInt());
             try (var connection = jdbc.getDataSource().getConnection()) {
                 connection.setAutoCommit(false);
-                try (var delete = connection.prepareStatement("DELETE FROM space_user WHERE spaceId=? AND userId=?")) {
+                try (var delete = connection.prepareStatement("DELETE FROM space_user WHERE space_id=? AND user_id=?")) {
                     delete.setLong(1, space); delete.setLong(2, user); delete.executeUpdate();
                 }
                 var saving = pool.submit(() -> call("POST", "/agent/boards", create("revoked-in-transaction")));
-                awaitLockingSql("selectspacerolefromspace_userwherespaceid=" + space + "anduserid=" + user + "forshare");
+                awaitLockingSql("from space_user", "for share");
                 assertFalse(saving.isDone(), "Save must still be waiting inside its transaction");
                 connection.commit();
                 assertEquals(40101, saving.get(15, java.util.concurrent.TimeUnit.SECONDS).path("code").asInt());
@@ -221,11 +242,11 @@ class HttpAssetBoardTest {
                 try (var rows = lock.executeQuery()) { assertTrue(rows.next()); }
             }
             var original = pool.submit(() -> call("POST", "/agent/boards", body));
-            awaitLockingSql("select*frompicturewhereid=" + picture + "andisdelete=0forupdate");
+            awaitLockingSql("from picture", "for update");
             assertFalse(original.isDone());
             assertEquals("NOT_RECORDED", call("GET", "/agent/board-operations/in-flight", null).path("data").path("status").asText());
             var retry = pool.submit(() -> call("POST", "/agent/boards", body));
-            awaitLockingSql("selectidfromuserwhereid=" + user + "andisdelete=0forupdate");
+            awaitLockingSql("from app_user", "for update");
             assertFalse(retry.isDone());
             connection.commit();
             var receipt = original.get(15, java.util.concurrent.TimeUnit.SECONDS);
@@ -237,13 +258,26 @@ class HttpAssetBoardTest {
         }
     }
 
-    private void awaitLockingSql(String expected) throws Exception {
+    /**
+     * 等待应用侧事务停在指定的行锁上。
+     *
+     * <p>PostgreSQL 没有 MySQL 的 SHOW FULL PROCESSLIST：等价事实来自
+     * {@code pg_stat_activity}——等待行锁的后端 wait_event_type 为 'Lock'，
+     * {@code query} 是它此刻正在执行的语句。应用与测试同属 vision_app 角色，
+     * 同一角色的会话互相可见对方的查询文本。
+     *
+     * @param expectedFragments 语句里必须同时出现的片段（表名片段与锁子句）
+     */
+    private void awaitLockingSql(String... expectedFragments) throws Exception {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            boolean waiting = jdbc.queryForList("SHOW FULL PROCESSLIST").stream().map(row -> row.get("Info"))
+            boolean waiting = jdbc.queryForList(
+                            "SELECT query FROM pg_stat_activity WHERE datname = current_database() "
+                                    + "AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query IS NOT NULL")
+                    .stream().map(row -> row.get("query"))
                     .filter(java.util.Objects::nonNull).map(Object::toString)
-                    .map(sql -> sql.replace("`", "").replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT))
-                    .anyMatch(expected::equals);
+                    .map(sql -> sql.replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT))
+                    .anyMatch(sql -> java.util.Arrays.stream(expectedFragments).allMatch(sql::contains));
             if (waiting) return;
             Thread.sleep(50);
         }
@@ -262,7 +296,7 @@ class HttpAssetBoardTest {
         String id = call("POST", "/agent/boards", create("good")).path("data").path("boardId").asText();
         var board = call("GET", "/agent/boards/" + id, null).path("data");
         var old = board.path("items").get(0);
-        jdbc.update("UPDATE picture SET picWidth=2000 WHERE id=?", picture);
+        jdbc.update("UPDATE picture SET pic_width=2000 WHERE id=?", picture);
         var replace = Map.of("operationId", "stale-ref", "expectedRevision", 1, "title", "不应保存", "groups", List.of(),
                 "items", List.of(Map.of("boardItemId", old.path("boardItemId").asText(), "sourceVersion", old.path("sourceVersion").asText(), "position", 0, "selected", false)));
         assertEquals("REFERENCE_STALE", call("PUT", "/agent/boards/" + id, replace).path("message").asText());
@@ -274,12 +308,16 @@ class HttpAssetBoardTest {
 
     @Test
     void boardPreviewAndOperationReceiptRespectCurrentPermissionsAndSessionDeletion() throws Exception {
-        jdbc.update("INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform, objectKey, url, fileSize, status) VALUES (?, ?, ?, 'gallery', 'original', ?, '/board/original.jpg', 'https://acceptance.invalid/board.jpg', 10, 1)", user, space, picture, RecordingStorageConfiguration.PLATFORM);
+        // PostgreSQL 的 picture_file 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform, object_key, url, file_size, status) VALUES (?, ?, ?, ?, 'gallery', 'original', ?, '/board/original.jpg', 'https://acceptance.invalid/board.jpg', 10, 1)",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), user, space, picture,
+                RecordingStorageConfiguration.PLATFORM);
         String thread = "board-thread-" + UUID.randomUUID();
-        jdbc.update("INSERT INTO agent_session (sessionId, userId, title) VALUES (?, ?, 'thread')", thread, user);
+        jdbc.update("INSERT INTO agent_session (id, session_id, user_id, title) VALUES (?, ?, ?, 'thread')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), thread, user);
         result = call("POST", "/agent/asset-search", Map.of("spaceId", String.valueOf(space), "threadId", thread, "criteria", Map.of("orientation", "LANDSCAPE"))).path("data");
         String id = call("POST", "/agent/boards", create("preview")).path("data").path("boardId").asText();
-        jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?", thread);
+        jdbc.update("UPDATE agent_session SET is_delete=1 WHERE session_id=?", thread);
         var board = call("GET", "/agent/boards/" + id, null).path("data");
         String ref = board.path("items").get(0).path("display").path("contentRef").asText();
         var content = browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api" + ref)).GET().build(), HttpResponse.BodyHandlers.ofString());
@@ -287,7 +325,7 @@ class HttpAssetBoardTest {
         assertTrue(content.headers().firstValue("Cache-Control").orElse("").contains("no-store"));
         assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "session-independent", "expectedRevision", 1, "title", "会话已删除仍可保存", "groups", List.of(), "items", List.of(Map.of("boardItemId", board.path("items").get(0).path("boardItemId").asText(), "sourceVersion", board.path("items").get(0).path("sourceVersion").asText(), "position", 0, "selected", true)))).path("code").asInt());
         int calls = recorder.calls().size();
-        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?", space, user);
+        jdbc.update("DELETE FROM space_user WHERE space_id=? AND user_id=?", space, user);
         assertEquals(40101, call("GET", "/agent/boards/" + id, null).path("code").asInt());
         var receipt = call("GET", "/agent/board-operations/preview", null).path("data");
         assertEquals(json.readTree("{\"schemaVersion\":1,\"operationId\":\"preview\",\"status\":\"COMMITTED\"}"), receipt);
@@ -310,7 +348,7 @@ class HttpAssetBoardTest {
         var firstReplace = Map.of("operationId", "replace-key", "expectedRevision", 1, "title", "替换", "groups", List.of(), "items", List.of());
         assertEquals(0, call("PUT", "/agent/boards/" + id, firstReplace).path("code").asInt());
         assertEquals("OPERATION_KEY_CONFLICT", call("PUT", "/agent/boards/" + another, firstReplace).path("message").asText());
-        jdbc.update("INSERT INTO asset_board_operation (ownerId, operationId, operationType, boardId, requestDigest, proposalId) VALUES (?, 'reserved', 'PROPOSAL', ?, ?, 'future-proposal')", user, id, "0".repeat(64));
+        jdbc.update("INSERT INTO asset_board_operation (owner_id, operation_id, operation_type, board_id, request_digest, proposal_id) VALUES (?, 'reserved', 'PROPOSAL', ?, ?, 'future-proposal')", user, id, "0".repeat(64));
         assertEquals("OPERATION_KEY_CONFLICT", call("POST", "/agent/boards", create("reserved")).path("message").asText());
         assertEquals(1, call("GET", "/agent/boards/" + another, null).path("data").path("revision").asInt());
     }
@@ -324,7 +362,9 @@ class HttpAssetBoardTest {
         entry.put("position", 0); entry.put("sourcePosition", 0); entry.put("sourceVersion", result.path("items").get(0).path("sourceVersion").asText()); entry.put("selected", true); entry.put("groupId", "private-group");
         body.put("items", List.of(entry));
         String id = call("POST", "/agent/boards", body).path("data").path("boardId").asText();
-        jdbc.update("INSERT INTO resource_isolation (resourceType, resourceId, status, activeKey, operatorId, reason) VALUES ('picture', ?, 1, ?, ?, 'fixture')", picture, "picture:" + picture, user);
+        jdbc.update("INSERT INTO resource_isolation (id, resource_type, resource_id, status, active_key, operator_id, reason) "
+                + "VALUES (?, 'picture', ?, 1, ?, ?, 'fixture')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), picture, "picture:" + picture, user);
         var hidden = call("GET", "/agent/boards/" + id, null).path("data");
         assertFalse(hidden.toString().contains("私人"));
         assertFalse(hidden.toString().contains(String.valueOf(picture)));
@@ -332,7 +372,7 @@ class HttpAssetBoardTest {
         assertEquals("UNAVAILABLE", hidden.path("items").get(0).path("status").asText());
         assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "remove-isolated", "expectedRevision", 1, "title", "已移除", "groups", List.of(), "items", List.of())).path("code").asInt());
         for (String role : List.of("editor", "viewer")) {
-            jdbc.update("UPDATE space_user SET spaceRole=? WHERE spaceId=? AND userId=?", role, space, user);
+            jdbc.update("UPDATE space_user SET space_role=? WHERE space_id=? AND user_id=?", role, space, user);
             int revision = call("GET", "/agent/boards/" + id, null).path("data").path("revision").asInt();
             assertEquals(0, call("PUT", "/agent/boards/" + id, Map.of("operationId", "role-" + role, "expectedRevision", revision, "title", "我的板", "groups", List.of(), "items", List.of())).path("code").asInt());
         }

@@ -1,0 +1,59 @@
+{
+  "results": [
+    {
+      "step": "admin login role",
+      "ok": true,
+      "detail": "admin"
+    },
+    {
+      "step": "storage config reuse",
+      "ok": true,
+      "detail": "2125597932305063938"
+    },
+    {
+      "step": "storage config update",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "step": "storage refresh after config update",
+      "ok": true,
+      "detail": {
+        "reason": "POST /api/storage/config/set_active -> code=50001 message=该平台已是当前生效平台",
+        "refreshed": true
+      }
+    },
+    {
+      "step": "storage switch status",
+      "ok": true,
+      "detail": {
+        "phase": "completed",
+        "activeVersion": "2",
+        "pendingVersion": null,
+        "pendingConfigId": null,
+        "pendingPlatform": null,
+        "confirmCount": 0,
+        "expectedInstances": 1,
+        "localEffectiveVersion": "2",
+        "localSynced": true,
+        "localDefaultPlatform": "minio",
+        "registeredPlatforms": [
+          "minio"
+        ],
+        "activePlatform": "minio",
+        "activeConfigId": "2125597932305063938"
+      }
+    },
+    {
+      "step": "active config present",
+      "ok": true,
+      "detail": [
+        {
+          "id": "2125597932305063938",
+          "platform": "minio",
+          "bucket": "vs-acceptance-media"
+        }
+      ]
+    }
+  ]
+}

@@ -85,8 +85,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
         // 2. 检查用户账号是否和数据库中已有的重复
+        // 账号唯一索引建在 lower(user_account) 上（大小写不敏感），查重必须用同一表达式，
+        // 否则大小写不同的账号会绕过这里、最后由数据库唯一索引抛出 500。
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userAccount", userAccount);
+        queryWrapper.apply("lower(user_account) = lower({0})", userAccount);
         long count = this.baseMapper.selectCount(queryWrapper);
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
@@ -130,8 +132,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码错误");
         }
         // 2. 按账号取回摘要：摘要带独立盐，不能再用「账号 + 摘要」拼查询条件
+        // 账号按大小写不敏感匹配（与 lower(user_account) 唯一索引一致）
         User user = this.lambdaQuery()
-                .eq(User::getUserAccount, userAccount)
+                .apply("lower(user_account) = lower({0})", userAccount)
                 .one();
         // 不存在，抛异常。未命中时照样走一次哈希校验，避免以响应时间枚举账号
         if (user == null || !passwordHasher.matches(userPassword, user.getUserPassword())) {
@@ -185,7 +188,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 log.info("password digest upgraded, userId={}", user.getId());
             }
         } catch (Exception e) {
-            // 升级失败不影响本次登录：用户仍可用原摘要继续登录
+            // 升级失败不影响本次登录：用户仍可用原摘要继续登录。
+            // 调用链（authenticateForPassword 及其两个调用方）都不在事务里，
+            // 单条 UPDATE 失败只会回滚这一条语句，连接不会停留在 aborted 状态；
+            // 若将来把这里包进事务，必须改成独立事务（否则后续语句会得到 25P02）。
             log.warn("password digest upgrade failed, userId={}", user.getId(), e);
         }
     }
@@ -333,8 +339,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             return new ArrayList<>();
         }
         // 姓名与账号任一命中即可：操作员手里可能只有其中一项
+        String like = "%" + kw + "%";
         List<User> users = lambdaQuery()
-                .and(w -> w.like(User::getUserName, kw).or().like(User::getUserAccount, kw))
+                .and(w -> w.apply("user_name ILIKE {0}", like).or().apply("user_account ILIKE {0}", like))
                 .orderByDesc(User::getCreateTime)
                 .last("LIMIT 20")
                 .list();
@@ -355,10 +362,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         String sortOrder = userQueryRequest.getSortOrder();
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(ObjUtil.isNotNull(id), "id", id);
-        queryWrapper.eq(StrUtil.isNotBlank(userRole), "userRole", userRole);
-        queryWrapper.like(StrUtil.isNotBlank(userAccount), "userAccount", userAccount);
-        queryWrapper.like(StrUtil.isNotBlank(userName), "userName", userName);
-        queryWrapper.like(StrUtil.isNotBlank(userProfile), "userProfile", userProfile);
+        queryWrapper.eq(StrUtil.isNotBlank(userRole), "user_role", userRole);
+        queryWrapper.apply(StrUtil.isNotBlank(userAccount), "user_account ILIKE {0}", "%" + userAccount + "%");
+        queryWrapper.apply(StrUtil.isNotBlank(userName), "user_name ILIKE {0}", "%" + userName + "%");
+        queryWrapper.apply(StrUtil.isNotBlank(userProfile), "user_profile ILIKE {0}", "%" + userProfile + "%");
         SortKeyResolver.Sort sort = SortKeyResolver.resolve(SortKeyResolver.USER_KEYS, sortField, sortOrder);
         if (!sort.isEmpty()) {
             if (sort.ascending()) {
@@ -418,13 +425,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         UserPictureStatsResponse stats = new UserPictureStatsResponse();
         // 查询该用户上传的图片总数
         Long uploadCount = pictureService.count(new QueryWrapper<Picture>()
-            .eq("userId", user.getId()));
+            .eq("user_id", user.getId()));
         stats.setUploadCount(uploadCount);
 
         // 查询审核通过数量
         Long reviewPassCount = pictureService.count(new QueryWrapper<Picture>()
-            .eq("userId", user.getId())
-            .eq("reviewStatus", 1)); // 1=通过
+            .eq("user_id", user.getId())
+            .eq("review_status", 1)); // 1=通过
         stats.setReviewPassCount(reviewPassCount);
 
         // 计算通过率

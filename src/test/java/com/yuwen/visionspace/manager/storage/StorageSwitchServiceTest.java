@@ -242,7 +242,7 @@ class StorageSwitchServiceTest {
     }
 
     /**
-     * P1-1 回归：确认数来自确认实例集合，重复确认（INSERT IGNORE 命中 0 行）
+     * P1-1 回归：确认数来自确认实例集合，重复确认（ON CONFLICT DO NOTHING 命中 0 行）
      * 不产生第二次记录，晋升只看集合大小。
      */
     @Test

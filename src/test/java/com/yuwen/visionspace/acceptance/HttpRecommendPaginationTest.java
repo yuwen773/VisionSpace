@@ -69,38 +69,38 @@ class HttpRecommendPaginationTest {
     @BeforeEach
     void fixture() {
         // 其他用例留下的公开图片会影响推荐总数，先清空，保证数据集固定
-        jdbc.update("DELETE FROM picture WHERE reviewStatus = 1 AND spaceId IS NULL");
+        jdbc.update("DELETE FROM picture WHERE review_status = 1 AND space_id IS NULL");
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?)", HOT_PICTURE, SPACE_PICTURE, PENDING_PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE pictureId >= ?", FIRST_PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id >= ?", FIRST_PICTURE);
 
         for (int i = 0; i < PUBLIC_PICTURE_COUNT; i++) {
             long id = FIRST_PICTURE + i;
             boolean large = i < LARGE_PICTURE_COUNT;
             // 每个图片属于不同作者，避免作者打散影响评分顺序
             jdbc.update("""
-                    INSERT INTO picture (id, url, name, userId, picSize, picWidth, picHeight, spaceId, reviewStatus, isDelete)
+                    INSERT INTO picture (id, url, name, user_id, pic_size, pic_width, pic_height, space_id, review_status, is_delete)
                     VALUES (?, ?, ?, ?, 10, ?, ?, NULL, 1, 0)
                     """, id, "content-" + id, "picture-" + i, OWNER + i, large ? 1920 : 800, large ? 1080 : 600);
             // 创建时间：热门图片最早，其余是刚创建的
-            jdbc.update("UPDATE picture SET createTime = ? WHERE id = ?",
+            jdbc.update("UPDATE picture SET create_time = ? WHERE id = ?",
                     id == HOT_PICTURE
                             ? java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusDays(30))
                             : java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()),
                     id);
         }
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, picWidth, picHeight, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, pic_width, pic_height, space_id, review_status, is_delete)
                 VALUES (?, 'content-space', 'space', ?, 10, 1920, 1080, 88999, 1, 0)
                 """, SPACE_PICTURE, OWNER);
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, picWidth, picHeight, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, pic_width, pic_height, space_id, review_status, is_delete)
                 VALUES (?, 'content-pending', 'pending', ?, 10, 1920, 1080, NULL, 0, 0)
                 """, PENDING_PICTURE, OWNER);
 
         // 热门图片：互动量远高于其他图片，统计行的行键与图片 ID 无关
         jdbc.update("""
-                INSERT INTO picture_stats (id, pictureId, viewCount, likeCount, collectCount, downloadCount,
-                                           shareCount, impressionCount, clickCount, ctr)
+                INSERT INTO picture_stats (id, picture_id, view_count, like_count, collect_count, download_count,
+                                           share_count, impression_count, click_count, ctr)
                 VALUES (?, ?, 1000000, 1000000, 1000000, 1000000, 1000000, 1000000, 1000000, 1.000000)
                 """, STATS_ID, HOT_PICTURE);
 
@@ -263,7 +263,7 @@ class HttpRecommendPaginationTest {
 
     @Test
     void anEmptyLibraryReturnsNoRecordsAndAZeroTotal() throws Exception {
-        jdbc.update("DELETE FROM picture WHERE reviewStatus = 1 AND spaceId IS NULL");
+        jdbc.update("DELETE FROM picture WHERE review_status = 1 AND space_id IS NULL");
         recommendService.refreshRecommendCache();
 
         var page = recommend("hot", 1, 5, null);
@@ -288,8 +288,8 @@ class HttpRecommendPaginationTest {
         assertFalse(context.isBlank(), "the response must carry the paging context");
 
         // 统计变化让热门排序换了一份，再刷新缓存
-        jdbc.update("UPDATE picture_stats SET impressionCount = impressionCount + 100000 "
-                + "WHERE pictureId = ?", FIRST_PICTURE + 1);
+        jdbc.update("UPDATE picture_stats SET impression_count = impression_count + 100000 "
+                + "WHERE picture_id = ?", FIRST_PICTURE + 1);
         recommendService.refreshRecommendCache();
 
         var second = recommend("hot", 2, 5, context);

@@ -10,7 +10,7 @@
 |------|-----------|
 | 框架 | Spring Boot 3.5.16 |
 | Java | 21 (虚拟线程) |
-| 数据库 | MySQL 8.0 |
+| 数据库 | PostgreSQL 18（Flyway 管理 schema） |
 | ORM | MyBatis Plus 3.5.16 |
 | 缓存 | Redis 7 + Caffeine |
 | 认证 | Sa-Token 1.45.0 |
@@ -44,7 +44,7 @@
 
 ### 部署
 
-Docker Compose（MySQL 8.0 + Redis 7 + Spring Boot）
+Docker Compose（PostgreSQL 18 + Redis 7 + Spring Boot）
 
 ## 功能特性
 
@@ -221,7 +221,7 @@ miniprogram/src/
 - JDK 21+
 - Node.js 18+
 - Maven 3.9+
-- MySQL 8.0+
+- PostgreSQL 18+
 - Redis 7+
 
 ### Docker Compose 一键启动
@@ -230,7 +230,7 @@ miniprogram/src/
 git clone https://github.com/yuwen773/VisionSpace.git
 cd VisionSpace
 
-# 启动 MySQL + Redis + 后端
+# 启动 PostgreSQL + Redis + 后端
 docker-compose up -d
 
 # 启动前端
@@ -248,11 +248,16 @@ npm run dev
 git clone https://github.com/yuwen773/VisionSpace.git
 cd VisionSpace
 
-# 配置数据库和 Redis
-# 编辑 src/main/resources/application-local.yml
-
-# 启动后端
+# 配好 .env（复制 .env.example），导出环境变量后启动
+# Git Bash / Linux / macOS:  set -a; . ./.env; set +a
 mvn spring-boot:run
+
+# schema 由 Flyway 显式创建（应用启动不迁移）。
+# 凭据走环境变量：Flyway 原生读取 FLYWAY_URL / FLYWAY_USER / FLYWAY_PASSWORD。
+export FLYWAY_URL=jdbc:postgresql://127.0.0.1:5432/vision_space
+export FLYWAY_USER=vision_migrator
+read -rs -p 'vision_migrator password: ' FLYWAY_PASSWORD && export FLYWAY_PASSWORD
+mvn -N org.flywaydb:flyway-maven-plugin:13.13.0:migrate
 ```
 
 #### 前端

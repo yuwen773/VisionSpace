@@ -15,12 +15,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -38,6 +47,10 @@ class HttpResourceQuarantineTest {
     private static final long PUBLIC_PICTURE = 88010;
     private static final long TEAM_PICTURE = 88011;
     private static final long GRANTED_PICTURE = 88012;
+    /**
+     * picture_file.id 是 IDENTITY，测试仍显式给 id：段位拉开，避免与其它用例的自增段撞车。
+     */
+    private static final long RESOURCE_ID_BASE = 8_800_100_000L;
 
     @LocalServerPort
     private int port;
@@ -58,15 +71,15 @@ class HttpResourceQuarantineTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM picture_file WHERE pictureId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM picture_file WHERE picture_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, TEAM_PICTURE, GRANTED_PICTURE);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?)",
                 PUBLIC_PICTURE, TEAM_PICTURE, GRANTED_PICTURE);
-        jdbc.update("DELETE FROM resource_access_grant WHERE resourceId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM resource_access_grant WHERE resource_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, TEAM_PICTURE, GRANTED_PICTURE);
-        jdbc.update("DELETE FROM resource_isolation WHERE resourceId IN (?, ?, ?)",
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id IN (?, ?, ?)",
                 PUBLIC_PICTURE, TEAM_PICTURE, GRANTED_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ?", TEAM_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ?", TEAM_SPACE);
         jdbc.update("DELETE FROM space WHERE id = ?", TEAM_SPACE);
 
         ownerId = register("quarantine_owner_" + System.nanoTime());
@@ -98,13 +111,13 @@ class HttpResourceQuarantineTest {
             assertRejected(response);
         }
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_isolation WHERE resourceId = ?", Integer.class, PUBLIC_PICTURE),
+                "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ?", Integer.class, PUBLIC_PICTURE),
                 "rejected quarantine must not write records");
         // 原因必填、目标必须存在
         assertRejected(postAs(moderatorId, "/moderation/quarantine", moderationBody(PUBLIC_PICTURE, "")));
         assertRejected(postAs(moderatorId, "/moderation/quarantine", moderationBody(999_999_999L, "举报")));
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_isolation WHERE resourceId IN (?, ?)",
+                "SELECT COUNT(*) FROM resource_isolation WHERE resource_id IN (?, ?)",
                 Integer.class, PUBLIC_PICTURE, 999_999_999L));
         // 管理员也不能查看隔离列表
         try (var admin = client()) {
@@ -150,11 +163,11 @@ class HttpResourceQuarantineTest {
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM picture WHERE id = ?", Integer.class, PUBLIC_PICTURE));
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture_file WHERE pictureId = ? AND status = 1",
+                "SELECT COUNT(*) FROM picture_file WHERE picture_id = ? AND status = 1",
                 Integer.class, PUBLIC_PICTURE));
         Map<String, Object> isolation = jdbc.queryForMap(
-                "SELECT operatorId, reason, status FROM resource_isolation WHERE resourceId = ?", PUBLIC_PICTURE);
-        assertEquals(moderatorId, ((Number) isolation.get("operatorId")).longValue());
+                "SELECT operator_id, reason, status FROM resource_isolation WHERE resource_id = ?", PUBLIC_PICTURE);
+        assertEquals(moderatorId, ((Number) isolation.get("operator_id")).longValue());
         assertEquals("举报", isolation.get("reason"));
         assertEquals(1, ((Number) isolation.get("status")).intValue());
     }
@@ -217,7 +230,7 @@ class HttpResourceQuarantineTest {
         assertEquals(deletesBefore, countStorageCalls("DELETE"), "quarantined content must not be deleted");
         // 记录与原文都还在
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture_file WHERE pictureId = ? AND status = 1",
+                "SELECT COUNT(*) FROM picture_file WHERE picture_id = ? AND status = 1",
                 Integer.class, TEAM_PICTURE), "quarantined picture file must be kept");
         assertEquals("https://origin.invalid/" + TEAM_PICTURE + ".jpg", jdbc.queryForObject(
                 "SELECT url FROM picture WHERE id = ?", String.class, TEAM_PICTURE),
@@ -256,14 +269,14 @@ class HttpResourceQuarantineTest {
         }
         // 恢复记录保留操作者、理由与时间
         List<Map<String, Object>> history = jdbc.queryForList(
-                "SELECT status, operatorId, releaseOperatorId, reason, releaseReason, releaseTime"
-                        + " FROM resource_isolation WHERE resourceId = ? ORDER BY id", PUBLIC_PICTURE);
+                "SELECT status, operator_id, release_operator_id, reason, release_reason, release_time"
+                        + " FROM resource_isolation WHERE resource_id = ? ORDER BY id", PUBLIC_PICTURE);
         assertEquals(1, history.size());
         assertEquals(2, ((Number) history.get(0).get("status")).intValue());
-        assertEquals(moderatorId, ((Number) history.get(0).get("operatorId")).longValue());
-        assertEquals(moderatorId, ((Number) history.get(0).get("releaseOperatorId")).longValue());
-        assertEquals("误报", history.get(0).get("releaseReason"));
-        assertTrue(history.get(0).get("releaseTime") != null);
+        assertEquals(moderatorId, ((Number) history.get(0).get("operator_id")).longValue());
+        assertEquals(moderatorId, ((Number) history.get(0).get("release_operator_id")).longValue());
+        assertEquals("误报", history.get(0).get("release_reason"));
+        assertTrue(history.get(0).get("release_time") != null);
     }
 
     @Test
@@ -274,7 +287,7 @@ class HttpResourceQuarantineTest {
         // 重复隔离同样拒绝，不产生第二条有效记录
         assertRejected(postAs(moderatorId, "/moderation/quarantine", moderationBody(TEAM_PICTURE, "再次")));
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM resource_isolation WHERE resourceId = ? AND status = 1",
+                "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ? AND status = 1",
                 Integer.class, TEAM_PICTURE));
     }
 
@@ -319,16 +332,16 @@ class HttpResourceQuarantineTest {
         seedPrivateSpace();
         long privatePicture = 88020;
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'https://origin.invalid/p.jpg', 'private', ?, 10, 88002, 1, 0)
-                ON DUPLICATE KEY UPDATE name = VALUES(name)
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
                 """, privatePicture, ownerId);
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                          objectKey, url, fileSize, status)
-                VALUES (?, 88002, ?, 'gallery', 'original', ?, '/private-space/original.jpg',
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                          object_key, url, file_size, status)
+                VALUES (?, ?, 88002, ?, 'gallery', 'original', ?, '/private-space/original.jpg',
                         'https://acceptance.invalid/private-space/original.jpg', 10, 1)
-                """, ownerId, privatePicture, RecordingStorageConfiguration.PLATFORM);
+                """, RESOURCE_ID_BASE + privatePicture, ownerId, privatePicture, RecordingStorageConfiguration.PLATFORM);
         try (var admin = client()) {
             login(admin, adminId);
             int before = recorder.calls().size();
@@ -339,25 +352,112 @@ class HttpResourceQuarantineTest {
             // 审核职责：公共图库待审内容仍可由管理员读取（不涉及空间）
             long pendingPublic = 88021;
             jdbc.update("""
-                    INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                    INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                     VALUES (?, 'https://origin.invalid/pending.jpg', 'pending', ?, 10, NULL, 0, 0)
-                    ON DUPLICATE KEY UPDATE name = VALUES(name)
+                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
                     """, pendingPublic, ownerId);
             jdbc.update("""
-                    INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                              objectKey, url, fileSize, status)
-                    VALUES (?, NULL, ?, 'gallery', 'original', ?, '/pending/original.jpg',
+                    INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                              object_key, url, file_size, status)
+                    VALUES (?, ?, NULL, ?, 'gallery', 'original', ?, '/pending/original.jpg',
                             'https://acceptance.invalid/pending/original.jpg', 10, 1)
-                    """, ownerId, pendingPublic, RecordingStorageConfiguration.PLATFORM);
+                    """, RESOURCE_ID_BASE + pendingPublic, ownerId, pendingPublic, RecordingStorageConfiguration.PLATFORM);
             try (var admin = client()) {
                 login(admin, adminId);
                 assertContent(admin, "/picture/content/" + pendingPublic + "/original");
             }
         } finally {
-            jdbc.update("DELETE FROM picture_file WHERE pictureId IN (?, ?)", privatePicture, 88021L);
+            jdbc.update("DELETE FROM picture_file WHERE picture_id IN (?, ?)", privatePicture, 88021L);
             jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", privatePicture, 88021L);
             jdbc.update("DELETE FROM space WHERE id = 88002");
         }
+    }
+
+    /**
+     * §3.3 的并发承诺：隔离、删除、替换共用同一把资源行锁，三者并发时既不能死锁
+     * （PG 的死锁检测会把一个事务以 40P01 打断，落到接口上就是 50000），
+     * 也不能出现「隔离已生效、原内容仍被销毁」。
+     *
+     * <p>每一轮三个动作同时打同一张图。只要有人把加锁顺序改坏，或者先锁隔离行
+     * 再锁资源行，这一轮就会以死锁超时或 50000 失败——不是靠读注释得出的结论。
+     */
+    @Test
+    void concurrentQuarantineDeleteAndReplaceNeitherDeadlockNorDestroyQuarantinedContent() throws Exception {
+        int rounds = 6;
+        ExecutorService pool = Executors.newFixedThreadPool(3);
+        try {
+            for (int round = 0; round < rounds; round++) {
+                long pictureId = 88_300 + round;
+                // 先清后种：上一轮失败留下的行会让本轮撞主键，把失败原因引到错误的地方。
+                clearRacePicture(pictureId);
+                seedPicture(pictureId, ownerId, null);
+                seedResource(pictureId, ownerId, null, "race/" + pictureId + ".jpg");
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<JsonNode>> results = new ArrayList<>();
+                for (Callable<JsonNode> operation : List.<Callable<JsonNode>>of(
+                        () -> withUser(ownerId, client -> post(client, "/picture/delete", Map.of("id", pictureId))),
+                        () -> withUser(moderatorId, client -> post(client, "/moderation/quarantine",
+                                moderationBody(pictureId, "并发处置"))),
+                        () -> withUser(ownerId, client -> upload(client, "/picture/upload", "race.png",
+                                "id", String.valueOf(pictureId))))) {
+                    results.add(pool.submit(() -> {
+                        start.await();
+                        return operation.call();
+                    }));
+                }
+                start.countDown();
+                for (Future<JsonNode> result : results) {
+                    JsonNode response;
+                    try {
+                        response = result.get(30, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        throw new AssertionError("并发处置抛出异常: " + e.getCause(), e.getCause());
+                    }
+                    assertNotEquals(50000, response.path("code").asInt(),
+                            "并发处置以系统错误收场（PG 死锁是 40P01 → 50000）: " + response);
+                }
+                assertFinalStateIsCoherent(pictureId);
+            }
+        } finally {
+            pool.shutdownNow();
+            for (int round = 0; round < rounds; round++) {
+                clearRacePicture(88_300 + round);
+            }
+        }
+    }
+
+    private void clearRacePicture(long pictureId) {
+        jdbc.update("DELETE FROM storage_cleanup_task WHERE picture_id = ?", pictureId);
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id = ?", pictureId);
+        jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", pictureId);
+        jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
+    }
+
+    /** 隔离生效后原内容不得再被销毁；删除成功的资源不得留下生效中的隔离记录。 */
+    private void assertFinalStateIsCoherent(long pictureId) {
+        Integer active = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ? AND status = 1",
+                Integer.class, pictureId);
+        Integer alive = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM picture WHERE id = ? AND is_delete = 0", Integer.class, pictureId);
+        if (active != null && active > 0) {
+            assertEquals(1, alive, "隔离已生效，原内容却不见了（picture=" + pictureId + "）");
+        }
+        if (alive != null && alive == 0) {
+            assertEquals(0, active, "内容已删除，却留下生效中的隔离记录（picture=" + pictureId + "）");
+        }
+    }
+
+    private JsonNode withUser(long userId, JsonAction action) throws Exception {
+        try (var client = client()) {
+            login(client, userId);
+            return action.apply(client);
+        }
+    }
+
+    @FunctionalInterface
+    private interface JsonAction {
+        JsonNode apply(HttpClient client) throws Exception;
     }
 
     // ---- helpers ----
@@ -429,46 +529,47 @@ class HttpResourceQuarantineTest {
 
     private void seedTeamSpace() {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'team', ?, 0, 1, 1000, 1000, 0, 3, 0)
                 """, TEAM_SPACE, ownerId);
     }
 
     private void seedPrivateSpace() {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (88002, 'private', ?, 0, 0, 1000, 1000, 0, 1, 0)
                 """, ownerId);
     }
 
     private void joinTeam(long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 TEAM_SPACE, userId, role);
     }
 
     private void seedPicture(long id, long owner, Long spaceId) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, ?, 1, 0)
                 """, id, "https://origin.invalid/" + id + ".jpg", "picture-" + id, owner, spaceId);
     }
 
     private void seedResource(long pictureId, long owner, Long spaceId, String objectKey) {
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                          objectKey, url, fileSize, status)
-                VALUES (?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
-                """, owner, spaceId, pictureId, RecordingStorageConfiguration.PLATFORM,
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                          object_key, url, file_size, status)
+                VALUES (?, ?, ?, ?, 'gallery', 'original', ?, ?, ?, 10, 1)
+                """, RESOURCE_ID_BASE + pictureId, owner, spaceId, pictureId,
+                RecordingStorageConfiguration.PLATFORM,
                 "/" + objectKey, "https://acceptance.invalid/" + objectKey);
     }
 
     private void seedGrant(long pictureId, long granteeId) {
         jdbc.update("""
-                INSERT INTO resource_access_grant (resourceType, resourceId, granteeUserId, grantedByUserId,
-                                                  reason, expiresTime, status, activeKey)
-                VALUES ('picture', ?, ?, ?, '测试授权', DATE_ADD(NOW(), INTERVAL 1 DAY), 1, ?)
+                INSERT INTO resource_access_grant (resource_type, resource_id, grantee_user_id, granted_by_user_id,
+                                                  reason, expires_time, status, active_key)
+                VALUES ('picture', ?, ?, ?, '测试授权', statement_timestamp() + (1 * interval '1 day'), 1, ?)
                 """, pictureId, granteeId, ownerId, "picture:" + pictureId + ":" + granteeId);
     }
 
@@ -505,18 +606,18 @@ class HttpResourceQuarantineTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private long registerModerator(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'moderator' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'moderator' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

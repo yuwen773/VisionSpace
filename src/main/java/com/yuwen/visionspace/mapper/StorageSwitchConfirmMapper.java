@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Param;
 /**
  * 存储切换确认实例集合数据库操作。
  *
- * <p>确认集合取代次数计数器：INSERT IGNORE 的主键幂等保证同一实例
+ * <p>确认集合取代次数计数器：ON CONFLICT DO NOTHING 的主键幂等保证同一实例
  * 对同一版本只计一次，晋升条件是集合大小达到期望实例数。
  */
 @Mapper

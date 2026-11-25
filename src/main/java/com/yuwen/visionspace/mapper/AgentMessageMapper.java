@@ -22,12 +22,12 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
      */
     @Select("<script>" +
             "SELECT * FROM agent_message " +
-            "WHERE sessionId = #{sessionId} " +
+            "WHERE session_id = #{sessionId} " +
             "<if test='beforeId != null'> " +
-            "AND (createdTime, id) &lt; (SELECT createdTime, id FROM agent_message " +
-            "WHERE id = #{beforeId} AND sessionId = #{sessionId}) " +
+            "AND (created_time, id) &lt; (SELECT created_time, id FROM agent_message " +
+            "WHERE id = #{beforeId} AND session_id = #{sessionId}) " +
             "</if>" +
-            "ORDER BY createdTime DESC, id DESC LIMIT #{limit}" +
+            "ORDER BY created_time DESC, id DESC LIMIT #{limit}" +
             "</script>")
     java.util.List<AgentMessage> selectByCursor(
             @Param("sessionId") String sessionId,
@@ -42,10 +42,10 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
      *
      * @return 1 表示已写入，0 表示会话不存在或不属于该用户（拒绝写入）
      */
-    @Insert("INSERT INTO agent_message (sessionId, role, subType, content, attachmentIds, createdTime) " +
-            "SELECT #{sessionId}, #{role}, #{subType}, #{content}, #{attachmentIds}, NOW() " +
+    @Insert("INSERT INTO agent_message (session_id, role, sub_type, content, attachment_ids, created_time) " +
+            "SELECT #{sessionId}, #{role}, #{subType}, #{content}, #{attachmentIds}, statement_timestamp() " +
             "FROM agent_session " +
-            "WHERE sessionId = #{sessionId} AND userId = #{userId} AND isDelete = 0")
+            "WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_delete = 0")
     int insertOwned(@Param("sessionId") String sessionId,
                     @Param("userId") Long userId,
                     @Param("role") String role,
@@ -53,10 +53,10 @@ public interface AgentMessageMapper extends BaseMapper<AgentMessage> {
                     @Param("content") String content,
                     @Param("attachmentIds") String attachmentIds);
 
-    @Update("UPDATE agent_message SET isSummary = 1 " +
-            "WHERE sessionId = #{sessionId} AND createdTime < #{summaryTime} " +
+    @Update("UPDATE agent_message SET is_summary = 1 " +
+            "WHERE session_id = #{sessionId} AND created_time < #{summaryTime} " +
             "AND EXISTS (SELECT 1 FROM agent_session s " +
-            "WHERE s.sessionId = #{sessionId} AND s.userId = #{userId} AND s.isDelete = 0)")
+            "WHERE s.session_id = #{sessionId} AND s.user_id = #{userId} AND s.is_delete = 0)")
     int markAsSummaryOwned(@Param("sessionId") String sessionId,
                            @Param("userId") Long userId,
                            @Param("summaryTime") Date summaryTime);

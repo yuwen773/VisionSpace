@@ -31,8 +31,8 @@ class HttpAssetBoardDualInstanceTest {
             long user = call(browser, port, "POST", "/user/register", Map.of("userAccount", account, "userPassword", "acceptance-password", "checkPassword", "acceptance-password")).path("data").asLong();
             assertEquals(0, call(browser, port, "POST", "/user/login", Map.of("userAccount", account, "userPassword", "acceptance-password")).path("code").asInt());
             long space = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
-            jdbc.update("INSERT INTO space (id, userId, spaceType, spaceName) VALUES (?, ?, 1, 'dual-board')", space, user);
-            jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, 'viewer')", space, user);
+            jdbc.update("INSERT INTO space (id, user_id, space_type, space_name) VALUES (?, ?, 1, 'dual-board')", space, user);
+            jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, 'viewer')", space, user);
             var result = call(browser, port, "POST", "/agent/asset-search", Map.of("spaceId", String.valueOf(space), "criteria", Map.of("orientation", "LANDSCAPE"))).path("data");
             var create = Map.of("operationId", "dual-create", "resultId", result.path("resultId").asText(), "title", "双实例板", "items", List.of(), "groups", List.of());
             String board;

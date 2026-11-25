@@ -17,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,13 +58,19 @@ class HttpPictureContentAuthTest {
     private long viewerId;
     private long strangerId;
 
+    /**
+     * picture_file 的主键在 PostgreSQL 基线里没有默认值（由应用侧的雪花标识分配），
+     * 种子行自己给出一个不与其它用例冲突的主键。
+     */
+    private final AtomicLong resourceIds = new AtomicLong(87_790_000L);
+
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM picture_file WHERE pictureId IN (?, ?, ?, ?) OR id IN (?, ?)",
+        jdbc.update("DELETE FROM picture_file WHERE picture_id IN (?, ?, ?, ?) OR id IN (?, ?)",
                 PUBLIC_PICTURE, PENDING_PICTURE, TEAM_PICTURE, LEGACY_PICTURE, AGENT_FILE, AGENT_FILE_OTHER);
         jdbc.update("DELETE FROM picture WHERE id IN (?, ?, ?, ?)",
                 PUBLIC_PICTURE, PENDING_PICTURE, TEAM_PICTURE, LEGACY_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId = ?", TEAM_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id = ?", TEAM_SPACE);
         jdbc.update("DELETE FROM space WHERE id = ?", TEAM_SPACE);
 
         ownerId = register("content_owner_" + System.nanoTime());
@@ -78,7 +85,7 @@ class HttpPictureContentAuthTest {
         seedPicture(TEAM_PICTURE, ownerId, TEAM_SPACE, 1, "team");
         // 未知归属的存量图片：只有 url，没有资源记录
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'https://legacy.invalid/old.jpg', 'legacy', ?, 10, NULL, 1, 0)
                 """, LEGACY_PICTURE, ownerId);
 
@@ -126,7 +133,7 @@ class HttpPictureContentAuthTest {
             assertDenied(stranger, "/picture/content/" + TEAM_PICTURE + "/original");
 
             // 移除成员后不重新登录，同一会话的下一次请求必须拒绝
-            jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", TEAM_SPACE, viewerId);
+            jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", TEAM_SPACE, viewerId);
             assertDenied(viewer, "/picture/content/" + TEAM_PICTURE + "/original");
             assertDenied(viewer, "/picture/content/" + TEAM_PICTURE + "/thumbnail");
         }
@@ -206,7 +213,7 @@ class HttpPictureContentAuthTest {
         }
         // 不产生资源记录
         assertEquals(0, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM picture_file WHERE pictureId = ?", Integer.class, LEGACY_PICTURE));
+                "SELECT COUNT(*) FROM picture_file WHERE picture_id = ?", Integer.class, LEGACY_PICTURE));
     }
 
     @Test
@@ -218,19 +225,19 @@ class HttpPictureContentAuthTest {
             long pictureId = response.path("data").path("id").asLong();
 
             var records = jdbc.queryForList(
-                    "SELECT ownerUserId, platform, objectKey, status, kind FROM picture_file WHERE pictureId = ?",
+                    "SELECT owner_user_id, platform, object_key, status, kind FROM picture_file WHERE picture_id = ?",
                     pictureId);
             assertFalse(records.isEmpty(), "upload must register resource records");
             for (var record : records) {
-                assertEquals(ownerId, ((Number) record.get("ownerUserId")).longValue());
+                assertEquals(ownerId, ((Number) record.get("owner_user_id")).longValue());
                 assertEquals(RecordingStorageConfiguration.PLATFORM, record.get("platform"));
-                assertTrue(String.valueOf(record.get("objectKey")).startsWith("/public/" + ownerId + "/"));
+                assertTrue(String.valueOf(record.get("object_key")).startsWith("/public/" + ownerId + "/"));
                 assertEquals(1, ((Number) record.get("status")).intValue(), "bound records are active");
             }
             assertTrue(records.stream().anyMatch(r -> "thumbnail".equals(r.get("kind"))),
                     "thumbnail object must be recorded: " + records);
 
-            jdbc.update("DELETE FROM picture_file WHERE pictureId = ?", pictureId);
+            jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", pictureId);
             jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
         }
     }
@@ -323,7 +330,7 @@ class HttpPictureContentAuthTest {
     @Test
     void browserReadsActualBytesAndRevocationPreventsEveryFurtherStorageRead() throws Exception {
         joinTeam(ownerId, "admin");
-        long membershipId = jdbc.queryForObject("SELECT id FROM space_user WHERE spaceId = ? AND userId = ?",
+        long membershipId = jdbc.queryForObject("SELECT id FROM space_user WHERE space_id = ? AND user_id = ?",
                 Long.class, TEAM_SPACE, viewerId);
         var browserLog = java.nio.file.Files.createTempFile("vs47-browser-content-", ".log");
         var process = new ProcessBuilder("node", "frontend/e2e/content-read.mjs")
@@ -334,7 +341,7 @@ class HttpPictureContentAuthTest {
         environment.put("VS_CONTENT_MEMBERSHIP", Long.toString(membershipId));
         for (var entry : Map.of("OWNER", ownerId, "VIEWER", viewerId, "STRANGER", strangerId).entrySet()) {
             environment.put("VS_CONTENT_" + entry.getKey(), jdbc.queryForObject(
-                    "SELECT userAccount FROM user WHERE id = ?", String.class, entry.getValue()));
+                    "SELECT user_account FROM app_user WHERE id = ?", String.class, entry.getValue()));
         }
         int before = recorder.calls().size();
         Process browser = process.start();
@@ -355,20 +362,20 @@ class HttpPictureContentAuthTest {
 
     private void seedTeamSpace() {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'team', ?, 0, 1, 1000, 1000, 0, 3, 0)
                 """, TEAM_SPACE, ownerId);
     }
 
     private void joinTeam(long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 TEAM_SPACE, userId, role);
     }
 
     private void seedPicture(long id, long ownerId, Long spaceId, int reviewStatus, String name) {
         jdbc.update("""
-                INSERT INTO picture (id, url, thumbnailUrl, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, thumbnail_url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, ?, 10, ?, ?, 0)
                 """, id, "https://origin.invalid/" + name + ".jpg",
                 "https://origin.invalid/" + name + ".min.jpg", name, ownerId, spaceId, reviewStatus);
@@ -376,18 +383,18 @@ class HttpPictureContentAuthTest {
 
     private void seedResource(long pictureId, long ownerUserId, Long spaceId, String kind, String objectKey) {
         jdbc.update("""
-                INSERT INTO picture_file (ownerUserId, spaceId, pictureId, purpose, kind, platform,
-                                          objectKey, url, fileSize, status)
-                VALUES (?, ?, ?, 'gallery', ?, ?, ?, ?, 10, 1)
-                """, ownerUserId, spaceId, pictureId, kind,
+                INSERT INTO picture_file (id, owner_user_id, space_id, picture_id, purpose, kind, platform,
+                                          object_key, url, file_size, status)
+                VALUES (?, ?, ?, ?, 'gallery', ?, ?, ?, ?, 10, 1)
+                """, resourceIds.incrementAndGet(), ownerUserId, spaceId, pictureId, kind,
                 RecordingStorageConfiguration.PLATFORM, "/" + objectKey,
                 "https://acceptance.invalid/" + objectKey);
     }
 
     private void seedAgentResource(long id, long ownerUserId, String url) {
         jdbc.update("""
-                INSERT INTO picture_file (id, ownerUserId, purpose, kind, platform, objectKey, url,
-                                          fileSize, status)
+                INSERT INTO picture_file (id, owner_user_id, purpose, kind, platform, object_key, url,
+                                          file_size, status)
                 VALUES (?, ?, 'agent-chat', 'original', ?, ?, ?, 10, 0)
                 """, id, ownerUserId, RecordingStorageConfiguration.PLATFORM,
                 url.replace("https://acceptance.invalid", ""), url);
@@ -447,12 +454,12 @@ class HttpPictureContentAuthTest {
 
     private long registerAdmin(String account) throws Exception {
         long id = register(account);
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", id);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", id);
         return id;
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

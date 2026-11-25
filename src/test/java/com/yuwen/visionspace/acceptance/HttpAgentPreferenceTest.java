@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * #42 用户可控制的持久长期偏好：真实 HTTP → 事务 → 隔离 MySQL。
+ * #42 用户可控制的持久长期偏好：真实 HTTP → 事务 → 隔离 PostgreSQL。
  *
  * <p>覆盖：按可信身份隔离（其他用户与管理员默认无权读写，27.1）、
  * 查看/显式修改/清除/开关的接口语义与自动学习默认关闭（27.2）、
@@ -299,7 +299,7 @@ class HttpAgentPreferenceTest {
     }
 
     private void jdbcSetRole(UserSession user, String role) {
-        jdbc.update("UPDATE user SET userRole = ? WHERE id = ?", role, user.id);
+        jdbc.update("UPDATE app_user SET user_role = ? WHERE id = ?", role, user.id);
     }
 
     private void login(HttpClient client, String account) throws Exception {

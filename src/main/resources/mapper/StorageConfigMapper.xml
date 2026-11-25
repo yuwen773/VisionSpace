@@ -9,15 +9,15 @@
     -->
 
     <sql id="configColumns">
-        id, platform, platformName, endpoint, region, bucket, accessKey, secretKey,
-        domain, basePath, isActive, isDefault, orderNum, status, createTime, updateTime
+        id, platform, platform_name, endpoint, region, bucket, access_key, secret_key,
+        domain, base_path, is_active, is_default, order_num, status, create_time, update_time
     </sql>
 
     <select id="selectActiveConfig" resultType="com.yuwen.visionspace.model.entity.StorageConfig">
         SELECT <include refid="configColumns"/>
         FROM storage_config
-        WHERE isDelete = 0
-          AND isActive = 1
+        WHERE is_delete = 0
+          AND is_active = 1
         ORDER BY id ASC
         LIMIT 1
     </select>
@@ -25,25 +25,25 @@
     <select id="selectEnabledConfigs" resultType="com.yuwen.visionspace.model.entity.StorageConfig">
         SELECT <include refid="configColumns"/>
         FROM storage_config
-        WHERE isDelete = 0
+        WHERE is_delete = 0
           AND status = 1
-        ORDER BY orderNum ASC, id ASC
+        ORDER BY order_num ASC, id ASC
     </select>
 
     <update id="deactivateOtherConfigs">
         UPDATE storage_config
-        SET isActive = 0,
-            updateTime = NOW()
-        WHERE isDelete = 0
-          AND isActive = 1
+        SET is_active = 0,
+            update_time = statement_timestamp()
+        WHERE is_delete = 0
+          AND is_active = 1
           AND id &lt;&gt; #{targetConfigId}
     </update>
 
     <update id="activateConfig">
         UPDATE storage_config
-        SET isActive = 1,
-            updateTime = NOW()
-        WHERE isDelete = 0
+        SET is_active = 1,
+            update_time = statement_timestamp()
+        WHERE is_delete = 0
           AND id = #{targetConfigId}
           AND status = 1
     </update>

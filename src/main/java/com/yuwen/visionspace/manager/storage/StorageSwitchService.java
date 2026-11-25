@@ -28,7 +28,7 @@ import java.util.Objects;
  * 保持 pending 可见，不虚报完整成功。进行中的切换可随时安全回滚。
  *
  * <p>确认以「实例集合」记录而非次数：storage_switch_confirm 主键
- * (version, instanceId) + INSERT IGNORE 保证同一实例重复确认（重试、重启）
+ * (version, instanceId) + ON CONFLICT DO NOTHING 保证同一实例重复确认（重试、重启）
  * 只计一次，晋升不会被确认数虚增提前触发。发起实例与其他实例走同一条确认路径。
  * 占位事务内由赢家清空同版本号的残留确认行：回滚只清 pending，重新发起时
  * 若不清残留行，流产尝试的确认会被继承而提前晋升。

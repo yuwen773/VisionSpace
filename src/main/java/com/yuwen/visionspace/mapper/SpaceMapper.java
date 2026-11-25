@@ -26,10 +26,10 @@ public interface SpaceMapper extends BaseMapper<Space> {
      * @param size    本次新增的字节数
      * @return 影响行数；0 表示空间不存在或已达上限
      */
-    @Update("UPDATE `space` SET `totalCount` = `totalCount` + 1, `totalSize` = `totalSize` + #{size}, " +
-            "`updateTime` = NOW() " +
-            "WHERE `id` = #{spaceId} AND `isDelete` = 0 " +
-            "AND `totalCount` < `maxCount` AND `totalSize` + #{size} <= `maxSize`")
+    @Update("UPDATE space SET total_count = total_count + 1, total_size = total_size + #{size}, " +
+            "update_time = statement_timestamp() " +
+            "WHERE id = #{spaceId} AND is_delete = 0 " +
+            "AND total_count < max_count AND total_size + #{size} <= max_size")
     int reservePictureSlot(@Param("spaceId") Long spaceId, @Param("size") long size);
 
     /**
@@ -42,9 +42,10 @@ public interface SpaceMapper extends BaseMapper<Space> {
      * @param delta   新图字节数减去旧图字节数，可为负
      * @return 影响行数；0 表示空间不存在或增大后超出上限
      */
-    @Update("UPDATE `space` SET `totalSize` = GREATEST(`totalSize` + #{delta}, 0), `updateTime` = NOW() " +
-            "WHERE `id` = #{spaceId} AND `isDelete` = 0 " +
-            "AND (#{delta} <= 0 OR `totalSize` + #{delta} <= `maxSize`)")
+    @Update("UPDATE space SET total_size = GREATEST(total_size + #{delta}, 0), " +
+            "update_time = statement_timestamp() " +
+            "WHERE id = #{spaceId} AND is_delete = 0 " +
+            "AND (#{delta} <= 0 OR total_size + #{delta} <= max_size)")
     int applyPictureSizeDelta(@Param("spaceId") Long spaceId, @Param("delta") long delta);
 
     /**
@@ -57,9 +58,9 @@ public interface SpaceMapper extends BaseMapper<Space> {
      * @param size    被删除图片的字节数
      * @return 影响行数；0 表示空间不存在
      */
-    @Update("UPDATE `space` SET `totalCount` = GREATEST(`totalCount` - 1, 0), " +
-            "`totalSize` = GREATEST(`totalSize` - #{size}, 0), `updateTime` = NOW() " +
-            "WHERE `id` = #{spaceId}")
+    @Update("UPDATE space SET total_count = GREATEST(total_count - 1, 0), " +
+            "total_size = GREATEST(total_size - #{size}, 0), update_time = statement_timestamp() " +
+            "WHERE id = #{spaceId}")
     int releasePictureSlot(@Param("spaceId") Long spaceId, @Param("size") long size);
 
     /**
@@ -72,7 +73,7 @@ public interface SpaceMapper extends BaseMapper<Space> {
      * @param spaceId 空间 id
      * @return 影响行数
      */
-    @Update("UPDATE `space` SET `isDelete` = 1, `activeKey` = NULL, `updateTime` = NOW() " +
-            "WHERE `id` = #{spaceId} AND `isDelete` = 0")
+    @Update("UPDATE space SET is_delete = 1, active_key = NULL, update_time = statement_timestamp() " +
+            "WHERE id = #{spaceId} AND is_delete = 0")
     int softDeleteAndReleaseActiveKey(@Param("spaceId") Long spaceId);
 }

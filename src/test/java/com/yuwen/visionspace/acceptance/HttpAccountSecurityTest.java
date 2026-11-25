@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 账户认证与入口安全（工单 32 / 原 07、30）。
  *
- * <p>全部用例经过真实 TCP、过滤器链、Sa-Token、Spring Session 与 MySQL/Redis：
+ * <p>全部用例经过真实 TCP、过滤器链、Sa-Token、Spring Session 与 PostgreSQL/Redis：
  * 旧摘要兼容升级、失败登录不改写、并发升级、注销撤销、CSRF 与跨站来源拒绝。
  */
 @IsolatedSpringBootTest
@@ -98,9 +98,9 @@ class HttpAccountSecurityTest {
         String upgraded = storedPassword(userId);
         assertTrue(upgraded.startsWith("$2a$"), "成功登录后应升级，实际：" + upgraded);
         assertNotEquals(legacy, upgraded);
-        assertEquals("admin", jdbc.queryForObject("SELECT userRole FROM user WHERE id = ?", String.class, userId),
+        assertEquals("admin", jdbc.queryForObject("SELECT user_role FROM app_user WHERE id = ?", String.class, userId),
                 "升级不能改写管理角色");
-        assertEquals(0, jdbc.queryForObject("SELECT isDelete FROM user WHERE id = ?", Integer.class, userId),
+        assertEquals(0, jdbc.queryForObject("SELECT is_delete FROM app_user WHERE id = ?", Integer.class, userId),
                 "升级不能让账户消失");
 
         // 升级后同一个密码仍能登录，旧摘要已不再可用但不再是唯一凭据
@@ -113,7 +113,7 @@ class HttpAccountSecurityTest {
         String account = account();
         long userId = insertUser(account, legacyMd5(PASSWORD));
         // 会员与角色在升级前后必须保持一致
-        jdbc.update("UPDATE user SET userRole = 'vip', vipExpireTime = '2030-01-01 00:00:00' WHERE id = ?", userId);
+        jdbc.update("UPDATE app_user SET user_role = 'vip', vip_expire_time = '2030-01-01 00:00:00' WHERE id = ?", userId);
 
         int threads = 6;
         var start = new CountDownLatch(1);
@@ -136,8 +136,8 @@ class HttpAccountSecurityTest {
 
         String upgraded = storedPassword(userId);
         assertTrue(upgraded.startsWith("$2a$"), "并发登录后应完成升级");
-        assertEquals("vip", jdbc.queryForObject("SELECT userRole FROM user WHERE id = ?", String.class, userId));
-        assertTrue(jdbc.queryForObject("SELECT vipExpireTime FROM user WHERE id = ?", String.class, userId)
+        assertEquals("vip", jdbc.queryForObject("SELECT user_role FROM app_user WHERE id = ?", String.class, userId));
+        assertTrue(jdbc.queryForObject("SELECT vip_expire_time FROM app_user WHERE id = ?", String.class, userId)
                 .startsWith("2030-01-01"), "升级不能破坏会员权益");
         assertEquals(0, post(independentClient(),
                 "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD)).path("code").asInt(),
@@ -172,7 +172,7 @@ class HttpAccountSecurityTest {
                 "刚登录的客户端应已通过空间鉴权，只受业务校验影响：" + beforeLogout);
         assertEquals(40100, post(replayed, "/picture/delete", Map.of("id", 1)).path("code").asInt(),
                 "旧令牌不能继续通过空间鉴权");
-        assertEquals(userId, jdbc.queryForObject("SELECT id FROM user WHERE id = ?", Long.class, userId));
+        assertEquals(userId, jdbc.queryForObject("SELECT id FROM app_user WHERE id = ?", Long.class, userId));
     }
 
     @Test
@@ -344,13 +344,15 @@ class HttpAccountSecurityTest {
     }
 
     private long insertUser(String account, String digest) {
-        jdbc.update("INSERT INTO user (userAccount, userPassword, userName, userRole) VALUES (?, ?, 'legacy', 'admin')",
-                account, digest);
-        return jdbc.queryForObject("SELECT id FROM user WHERE userAccount = ?", Long.class, account);
+        // PostgreSQL 的 app_user 没有自增列，标识由测试显式给出
+        jdbc.update("INSERT INTO app_user (id, user_account, user_password, user_name, user_role) "
+                        + "VALUES (?, ?, ?, 'legacy', 'admin')",
+                com.baomidou.mybatisplus.core.toolkit.IdWorker.getId(), account, digest);
+        return jdbc.queryForObject("SELECT id FROM app_user WHERE lower(user_account) = lower(?)", Long.class, account);
     }
 
     private String storedPassword(long userId) {
-        return jdbc.queryForObject("SELECT userPassword FROM user WHERE id = ?", String.class, userId);
+        return jdbc.queryForObject("SELECT user_password FROM app_user WHERE id = ?", String.class, userId);
     }
 
     private boolean rejected(JsonNode response) {

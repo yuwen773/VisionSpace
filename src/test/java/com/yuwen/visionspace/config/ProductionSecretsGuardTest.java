@@ -57,7 +57,7 @@ class ProductionSecretsGuardTest {
         var cases = Map.of(
                 "spring.datasource.password", "123456",
                 "vision-space.security.default-password", "12345678",
-                "spring.datasource.url", "jdbc:mysql://localhost:3306/vision_space",
+                "spring.datasource.url", "jdbc:postgresql://localhost:5432/vision_space",
                 "spring.data.redis.host", "127.0.0.1");
         cases.forEach((name, devValue) -> {
             var candidate = new HashMap<>(productionValues());

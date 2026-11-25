@@ -98,8 +98,8 @@ public class ResourceIsolationServiceImpl extends ServiceImpl<ResourceIsolationM
         // 子查询按库实时判定：隔离/恢复立即对所有实例的列表查询生效，且不依赖进程内状态。
         // 必须用 NOT IN：若写成 NOT EXISTS 并把外层列裸写进子查询，
         // 该列会被 resource_isolation.id 遮蔽，条件恒假，隔离行反而全部返回。
-        wrapper.apply(column + " NOT IN (SELECT ri.resourceId FROM resource_isolation ri"
-                        + " WHERE ri.resourceType = {0} AND ri.status = {1})",
+        wrapper.apply(column + " NOT IN (SELECT ri.resource_id FROM resource_isolation ri"
+                        + " WHERE ri.resource_type = {0} AND ri.status = {1})",
                 resourceType, ResourceIsolationStatusEnum.QUARANTINED.getValue());
     }
 

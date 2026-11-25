@@ -85,9 +85,9 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
             var beforeRefusedProposal=savedState();
             assertEquals("INVALID_OPERATION_STATE",callAt(restarted.port,"POST","/agent/board-proposals",fresh).path("message").asText());
             assertEquals(beforeRefusedProposal,savedState(),"Stopped proposal must not create or change durable state");
-            jdbc.update("UPDATE agent_session SET checkpointData='stale-backup' WHERE sessionId=?",thread);
+            jdbc.update("UPDATE agent_session SET checkpoint_data=convert_to('stale-backup','UTF8') WHERE session_id=?",thread);
             assertEquals("CANCELLED",callAt(restarted.port,"GET","/agent/tasks/"+pending.path("taskId").asText(),null).path("data").path("status").asText());
-            jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?",thread);
+            jdbc.update("UPDATE agent_session SET is_delete=1 WHERE session_id=?",thread);
             assertEquals(40101,callAt(restarted.port,"GET","/agent/tasks/"+committed.path("taskId").asText(),null).path("code").asInt());
             assertEquals(40101,decide(pending,"CANCEL").path("code").asInt());
             assertEquals(0,callAt(restarted.port,"GET","/agent/boards/"+board,null).path("code").asInt());
@@ -96,11 +96,11 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
     }
     private List<List<Map<String,Object>>> savedState() {
         return List.of(
-                jdbc.queryForList("SELECT id,revision,payload FROM asset_board WHERE ownerId=? ORDER BY id",user),
-                jdbc.queryForList("SELECT * FROM asset_board_proposal WHERE ownerId=? ORDER BY proposalId",user),
-                jdbc.queryForList("SELECT * FROM asset_board_operation WHERE ownerId=? ORDER BY operationId",user),
+                jdbc.queryForList("SELECT id,revision,payload FROM asset_board WHERE owner_id=? ORDER BY id",user),
+                jdbc.queryForList("SELECT * FROM asset_board_proposal WHERE owner_id=? ORDER BY proposal_id",user),
+                jdbc.queryForList("SELECT * FROM asset_board_operation WHERE owner_id=? ORDER BY operation_id",user),
                 jdbc.queryForList("SELECT * FROM picture WHERE id=?",picture),
-                jdbc.queryForList("SELECT totalSize,totalCount FROM space WHERE id=?",space));
+                jdbc.queryForList("SELECT total_size,total_count FROM space WHERE id=?",space));
     }
     private List<JsonNode> race(Callable<JsonNode> one,Callable<JsonNode> two) throws Exception {
         try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {

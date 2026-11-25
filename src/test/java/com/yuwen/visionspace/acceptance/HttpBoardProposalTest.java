@@ -29,7 +29,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
         assertEquals("COMMITTED", decide(task, "CONFIRM").path("data").path("status").asText());
         assertEquals(2, readBoard().path("revision").asInt());
         assertFalse(readBoard().path("items").get(0).path("selected").asBoolean());
-        assertEquals(10L, jdbc.queryForObject("SELECT totalSize FROM space WHERE id=?", Long.class, space));
+        assertEquals(10L, jdbc.queryForObject("SELECT total_size FROM space WHERE id=?", Long.class, space));
         assertEquals(calls, recorder.calls().size(), "No model, tool or storage execution at proposal/decision interfaces");
     }
 
@@ -45,7 +45,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
 
     @Test void metadataChangesKeepHistoricalEvidenceButDisableConfirmationUntilANewProposal() throws Exception {
         var task=call("POST","/agent/board-proposals",proposal("metadata-change")).path("data");
-        jdbc.update("UPDATE picture SET picWidth=2000 WHERE id=?",picture);
+        jdbc.update("UPDATE picture SET pic_width=2000 WHERE id=?",picture);
         var stale=readTask(task);
         assertTrue(stale.has("target"));
         assertEquals("STALE",stale.path("target").path("items").get(0).path("status").asText());
@@ -78,12 +78,12 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
         var task=call("POST","/agent/board-proposals",proposal("preview-authorization")).path("data");
         String path="/api/agent/tasks/"+task.path("taskId").asText()+"/items/"+item.path("boardItemId").asText()+"/content";
         int calls=recorder.calls().size();
-        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?",space,user);
+        jdbc.update("DELETE FROM space_user WHERE space_id=? AND user_id=?",space,user);
         assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
-        jdbc.update("INSERT INTO space_user (spaceId,userId,spaceRole) VALUES (?,?,'viewer')",space,user);
+        jdbc.update("INSERT INTO space_user (space_id,user_id,space_role) VALUES (?,?,'viewer')",space,user);
         assertEquals(0,call("PUT","/agent/boards/"+board,Map.of("operationId","preview-new-version","expectedRevision",1,"title","新板","groups",List.of(),"items",List.of())).path("code").asInt());
         assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
-        jdbc.update("UPDATE agent_session SET isDelete=1 WHERE sessionId=?",thread);
+        jdbc.update("UPDATE agent_session SET is_delete=1 WHERE session_id=?",thread);
         assertEquals(403,browser.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         assertEquals(calls,recorder.calls().size());
     }
@@ -127,7 +127,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
         assertFalse(events.contains("个人草稿"));assertFalse(events.contains("精选"));assertFalse(events.contains("sourceVersion"));
         assertEquals("COMMITTED",decide(task,"CONFIRM").path("data").path("status").asText());
         String committed=events(task);assertTrue(committed.contains("OPERATION_COMMITTED"));assertTrue(committed.contains("BOARD_UPDATED"));
-        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?",space,user);
+        jdbc.update("DELETE FROM space_user WHERE space_id=? AND user_id=?",space,user);
         String denied=events(task);assertFalse(denied.contains(board));assertFalse(denied.contains("OPERATION_COMMITTED"));
         assertEquals(calls,recorder.calls().size());
     }
@@ -156,16 +156,16 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
     @Test void revokedOwnerGetsOnlyMinimalStatusAndCanCancelButCannotConfirm() throws Exception {
         var task=call("POST","/agent/board-proposals",proposal("revoked")).path("data");
         int calls=recorder.calls().size();
-        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?",space,user);
+        jdbc.update("DELETE FROM space_user WHERE space_id=? AND user_id=?",space,user);
         var minimal=readTask(task);
         for(String key:List.of("boardId","spaceId","target","current","expectedRevision","revision")) assertFalse(minimal.has(key),minimal.toString());
         assertFalse(minimal.path("canConfirm").asBoolean());
         assertEquals("CANCELLED",decide(task,"CANCEL").path("data").path("status").asText());
         assertEquals("INVALID_OPERATION_STATE",decide(task,"CONFIRM").path("data").path("reasonCode").asText());
-        jdbc.update("INSERT INTO space_user (spaceId,userId,spaceRole) VALUES (?,?,'viewer')",space,user);
+        jdbc.update("INSERT INTO space_user (space_id,user_id,space_role) VALUES (?,?,'viewer')",space,user);
         assertEquals(1,readBoard().path("revision").asInt());
         var another=call("POST","/agent/board-proposals",proposal("reject")).path("data");
-        jdbc.update("DELETE FROM space_user WHERE spaceId=? AND userId=?",space,user);
+        jdbc.update("DELETE FROM space_user WHERE space_id=? AND user_id=?",space,user);
         assertEquals("REJECTED",decide(another,"CONFIRM").path("data").path("status").asText());
         assertEquals(calls,recorder.calls().size());
     }
@@ -174,7 +174,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
         var task=call("POST","/agent/board-proposals",proposal("deleted")).path("data");
         int calls=recorder.calls().size();
         assertEquals("COMMITTED",decide(task,"CONFIRM").path("data").path("status").asText());
-        jdbc.update("UPDATE picture SET isDelete=1 WHERE id=?",picture);
+        jdbc.update("UPDATE picture SET is_delete=1 WHERE id=?",picture);
         var state=readTask(task);
         assertEquals("COMMITTED",state.path("status").asText());
         assertFalse(state.has("target")); assertFalse(state.has("current"));
@@ -187,7 +187,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
     @Test void unavailablePendingReferenceRejectsConfirmationWithoutLeakingOrSaving() throws Exception {
         var task=call("POST","/agent/board-proposals",proposal("pending-delete")).path("data");
         int calls=recorder.calls().size();
-        jdbc.update("UPDATE picture SET isDelete=1 WHERE id=?",picture);
+        jdbc.update("UPDATE picture SET is_delete=1 WHERE id=?",picture);
         assertFalse(readTask(task).has("target"));
         var rejected=decide(task,"CONFIRM").path("data");
         assertEquals("REJECTED",rejected.path("status").asText());
@@ -199,14 +199,18 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
     @Test void failureAtTaskCommitRollsBackSharedBoardSaveAndReceiptAndRemainsRetryable() throws Exception {
         var task=call("POST","/agent/board-proposals",proposal("rollback")).path("data");
         int calls=recorder.calls().size();
-        String constraint="proposal_failure_"+Long.toUnsignedString(System.nanoTime());
-        jdbc.execute("ALTER TABLE asset_board_proposal ADD CONSTRAINT "+constraint+" CHECK (proposalId <> '"+task.path("proposalId").asText()+"' OR status <> 'COMMITTED')");
+        // 运行角色 vision_app 没有 DDL 权限，不能像 MySQL 那样临时加 CHECK 约束。
+        // 改为破坏提案的基线载荷：提案在同事务里保存完板之后才投影任务，
+        // 载荷解码失败会让整笔事务回滚——板写入与回执必须一起撤销。
+        String proposalId=task.path("proposalId").asText();
+        String baseline=jdbc.queryForObject("SELECT baseline FROM asset_board_proposal WHERE proposal_id=?",String.class,proposalId);
+        jdbc.update("UPDATE asset_board_proposal SET baseline=? WHERE proposal_id=?","not-a-json-payload",proposalId);
         try {
             assertEquals(50000,decide(task,"CONFIRM").path("code").asInt());
             assertEquals(1,readBoard().path("revision").asInt());
-            assertEquals("AWAITING_CONFIRMATION",readTask(task).path("status").asText());
-            assertEquals("NOT_RECORDED",call("GET","/agent/board-operations/"+task.path("operationId").asText(),null).path("data").path("status").asText());
-        } finally {jdbc.execute("ALTER TABLE asset_board_proposal DROP CHECK "+constraint);}
+        } finally {jdbc.update("UPDATE asset_board_proposal SET baseline=? WHERE proposal_id=?",baseline,proposalId);}
+        assertEquals("AWAITING_CONFIRMATION",readTask(task).path("status").asText());
+        assertEquals("NOT_RECORDED",call("GET","/agent/board-operations/"+task.path("operationId").asText(),null).path("data").path("status").asText());
         assertEquals("COMMITTED",decide(task,"CONFIRM").path("data").path("status").asText());
         assertEquals(2,readBoard().path("revision").asInt());
         assertEquals(calls,recorder.calls().size());
@@ -228,7 +232,7 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
             String account="outsider_"+System.nanoTime();
             long outsider=call("POST","/user/register",Map.of("userAccount",account,"userPassword","acceptance-password","checkPassword","acceptance-password")).path("data").asLong();
             call("POST","/user/login",Map.of("userAccount",account,"userPassword","acceptance-password"));
-            jdbc.update("UPDATE user SET userRole='admin' WHERE id=?",outsider);
+            jdbc.update("UPDATE app_user SET user_role='admin' WHERE id=?",outsider);
             assertEquals(40101,call("GET","/agent/tasks/"+task.path("taskId").asText(),null).path("code").asInt());
             assertEquals(40101,decide(task,"CANCEL").path("code").asInt());
             assertEquals(40101,call("POST","/agent/board-proposals",proposal("foreign")).path("code").asInt());
@@ -273,22 +277,37 @@ class HttpBoardProposalTest extends BoardProposalHttpFixture {
             connection.setAutoCommit(false);
             try(var lock=connection.prepareStatement("SELECT id FROM picture WHERE id=? FOR UPDATE")){lock.setLong(1,picture);try(var rows=lock.executeQuery()){assertTrue(rows.next());}}
             var original=pool.submit(()->decide(task,"CONFIRM"));
-            awaitSql("select*frompicturewhereid="+picture+"andisdelete=0forupdate");
+            awaitSql("from picture","for update");
             assertFalse(original.isDone());
             assertEquals("AWAITING_CONFIRMATION",readTask(task).path("status").asText());
             assertEquals("NOT_RECORDED",call("GET","/agent/board-operations/"+task.path("operationId").asText(),null).path("data").path("status").asText());
             var retry=pool.submit(()->decide(task,"CONFIRM"));
-            awaitSql("selectidfromuserwhereid="+user+"andisdelete=0forupdate");assertFalse(retry.isDone());
+            awaitSql("from app_user","for update");assertFalse(retry.isDone());
             connection.commit();
             assertEquals("COMMITTED",original.get(20,java.util.concurrent.TimeUnit.SECONDS).path("data").path("status").asText());
             assertEquals("COMMITTED",retry.get(20,java.util.concurrent.TimeUnit.SECONDS).path("data").path("status").asText());
         }
         assertEquals(2,readBoard().path("revision").asInt());assertEquals(calls,recorder.calls().size());
     }
-    private void awaitSql(String expected) throws Exception {
+    /**
+     * 等待应用侧事务停在指定的行锁上。
+     *
+     * <p>PostgreSQL 没有 MySQL 的 SHOW FULL PROCESSLIST：等价事实来自
+     * {@code pg_stat_activity}——等待行锁的后端 wait_event_type 为 'Lock'，
+     * {@code query} 是它此刻正在执行的语句。应用与测试同属 vision_app 角色，
+     * 同一角色的会话互相可见对方的查询文本。
+     *
+     * @param expectedFragments 语句里必须同时出现的片段（表名片段与锁子句）
+     */
+    private void awaitSql(String... expectedFragments) throws Exception {
         long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
         while(System.nanoTime()<deadline) {
-            if(jdbc.queryForList("SHOW FULL PROCESSLIST").stream().map(r->Objects.toString(r.get("Info"),"").replace("`", "").replaceAll("\\s+","").toLowerCase(Locale.ROOT)).anyMatch(expected::equals)) return;
+            boolean waiting=jdbc.queryForList("SELECT query FROM pg_stat_activity WHERE datname = current_database() "
+                            + "AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query IS NOT NULL")
+                    .stream().map(r->Objects.toString(r.get("query"),""))
+                    .map(sql->sql.replaceAll("\\s+"," ").toLowerCase(Locale.ROOT))
+                    .anyMatch(sql->java.util.Arrays.stream(expectedFragments).allMatch(sql::contains));
+            if(waiting) return;
             Thread.sleep(30);
         }
         fail("Expected fixture locking SQL was not observed");

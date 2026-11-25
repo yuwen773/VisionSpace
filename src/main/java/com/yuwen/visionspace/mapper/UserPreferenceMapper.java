@@ -27,15 +27,15 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示本次创建，0 表示已存在
      */
-    @Insert("INSERT INTO user_preference (userId, autoLearn, preferenceVersion, dataEpoch, " +
-            "createTime, updateTime) VALUES (#{userId}, 0, 0, 0, NOW(), NOW()) " +
-            "ON DUPLICATE KEY UPDATE userId = userId")
+    @Insert("INSERT INTO user_preference (user_id, auto_learn, preference_version, data_epoch, " +
+            "create_time, update_time) VALUES (#{userId}, 0, 0, 0, statement_timestamp(), statement_timestamp()) " +
+            "ON CONFLICT (user_id) DO NOTHING")
     int insertIfAbsent(@Param("userId") Long userId);
 
     /**
      * 按用户读取偏好行。归属条件写进查询，读到别人的偏好在这里就不可能发生。
      */
-    @Select("SELECT * FROM user_preference WHERE userId = #{userId}")
+    @Select("SELECT * FROM user_preference WHERE user_id = #{userId}")
     UserPreference selectByUserId(@Param("userId") Long userId);
 
     /**
@@ -47,9 +47,11 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已写入，0 表示期间发生过别的写（版本/纪元已更替）
      */
-    @Update("UPDATE user_preference SET explicitContent = #{explicitJson}, learnError = NULL, " +
-            "preferenceVersion = preferenceVersion + 1, dataEpoch = dataEpoch + 1, updateTime = NOW() " +
-            "WHERE userId = #{userId} AND preferenceVersion = #{expectedVersion} AND dataEpoch = #{expectedEpoch}")
+    @Update("UPDATE user_preference SET explicit_content = #{explicitJson}, learn_error = NULL, " +
+            "preference_version = preference_version + 1, data_epoch = data_epoch + 1, " +
+            "update_time = statement_timestamp() " +
+            "WHERE user_id = #{userId} AND preference_version = #{expectedVersion} " +
+            "AND data_epoch = #{expectedEpoch}")
     int updateExplicit(@Param("userId") Long userId,
                        @Param("explicitJson") String explicitJson,
                        @Param("expectedVersion") long expectedVersion,
@@ -64,11 +66,11 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已写入，0 表示已清除、已关闭或期间发生过别的写
      */
-    @Update("UPDATE user_preference SET learnedContent = #{learnedJson}, " +
-            "feedbackHistory = #{feedbackHistoryJson}, learnError = NULL, " +
-            "preferenceVersion = preferenceVersion + 1, updateTime = NOW() " +
-            "WHERE userId = #{userId} AND preferenceVersion = #{expectedVersion} " +
-            "AND dataEpoch = #{expectedEpoch} AND autoLearn = 1")
+    @Update("UPDATE user_preference SET learned_content = #{learnedJson}, " +
+            "feedback_history = #{feedbackHistoryJson}, learn_error = NULL, " +
+            "preference_version = preference_version + 1, update_time = statement_timestamp() " +
+            "WHERE user_id = #{userId} AND preference_version = #{expectedVersion} " +
+            "AND data_epoch = #{expectedEpoch} AND auto_learn = 1")
     int applyLearned(@Param("userId") Long userId,
                      @Param("learnedJson") String learnedJson,
                      @Param("feedbackHistoryJson") String feedbackHistoryJson,
@@ -84,10 +86,10 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已清除，0 表示用户本就没有偏好行（视为已清除）
      */
-    @Update("UPDATE user_preference SET explicitContent = NULL, learnedContent = NULL, " +
-            "feedbackHistory = NULL, learnError = NULL, preferenceVersion = preferenceVersion + 1, " +
-            "dataEpoch = dataEpoch + 1, updateTime = NOW() " +
-            "WHERE userId = #{userId}")
+    @Update("UPDATE user_preference SET explicit_content = NULL, learned_content = NULL, " +
+            "feedback_history = NULL, learn_error = NULL, preference_version = preference_version + 1, " +
+            "data_epoch = data_epoch + 1, update_time = statement_timestamp() " +
+            "WHERE user_id = #{userId}")
     int clearData(@Param("userId") Long userId);
 
     /**
@@ -98,9 +100,10 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      *
      * @return 1 表示已写入，0 表示用户本就没有偏好行
      */
-    @Update("UPDATE user_preference SET autoLearn = #{enabled}, learnError = NULL, " +
-            "preferenceVersion = preferenceVersion + 1, dataEpoch = dataEpoch + 1, updateTime = NOW() " +
-            "WHERE userId = #{userId}")
+    @Update("UPDATE user_preference SET auto_learn = #{enabled}, learn_error = NULL, " +
+            "preference_version = preference_version + 1, data_epoch = data_epoch + 1, " +
+            "update_time = statement_timestamp() " +
+            "WHERE user_id = #{userId}")
     int setAutoLearn(@Param("userId") Long userId, @Param("enabled") int enabled);
 
     /**
@@ -112,7 +115,7 @@ public interface UserPreferenceMapper extends BaseMapper<UserPreference> {
      * <p>无条件更新（只按归属）：学习放弃本身就是已经让位的动作，
      * 不再与用户控制操作竞争版本。
      */
-    @Update("UPDATE user_preference SET learnError = #{error}, updateTime = NOW() " +
-            "WHERE userId = #{userId}")
+    @Update("UPDATE user_preference SET learn_error = #{error}, update_time = statement_timestamp() " +
+            "WHERE user_id = #{userId}")
     int recordLearnFailure(@Param("userId") Long userId, @Param("error") String error);
 }

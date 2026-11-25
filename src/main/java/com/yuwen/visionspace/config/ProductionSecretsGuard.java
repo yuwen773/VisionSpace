@@ -36,14 +36,14 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
     private static final Map<String, List<String>> DEVELOPMENT_FALLBACKS = Map.of(
             "spring.datasource.password", List.of("123456"),
             "vision-space.security.default-password", List.of("12345678", "123456"),
-            "spring.datasource.url", List.of("jdbc:mysql://localhost:3306/vision_space"),
+            "spring.datasource.url", List.of("jdbc:postgresql://localhost:5432/vision_space"),
             "spring.data.redis.host", List.of("localhost", "127.0.0.1", "::1"),
             "spring.ai.openai.api-key", List.of("acceptance-dummy"),
             "spring.ai.dashscope.api-key", List.of("acceptance-dummy"));
 
     /** 占位文本：示例值或未替换的模板必须在生产拒绝。 */
     private static final List<String> PLACEHOLDERS = List.of(
-            "xxx", "xxxx", "your_mysql_password", "your_redis_password",
+            "xxx", "xxxx", "your_pg_password", "your_postgres_password", "your_redis_password",
             "your_db_password", "your_db_user", "your_db_host", "your-redis-host",
             "your_dashscope_key", "your_pexels_key", "your_vision_recognition_key",
             "change_me_before_production", "changeme", "todo", "<secret>", "secret", "password");

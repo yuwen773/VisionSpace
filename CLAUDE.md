@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Verification — the only entry point that can run the backend tests.
 # `mvn test` alone aborts with BLOCKED_ENV: the test suite refuses to start
-# without the isolated MySQL/Redis instances this script provisions.
+# without the isolated PostgreSQL/Redis instances this script provisions.
 pwsh.exe -NoLogo -NoProfile -File ./scripts/acceptance.ps1   # ~5-15 min; see ACCEPTANCE.md
 
 # Backend (Spring Boot 3.5.16 + Java 21)
@@ -35,7 +35,11 @@ npm run format               # Prettier --write src/
 npm run openapi2ts           # Regenerate API clients (needs a backend on :8081; see API regeneration)
 
 # Docker
-docker-compose up -d         # MySQL 8.0 + Redis 7 + backend
+docker-compose up -d         # PostgreSQL 18 + Redis 7 + backend（向量库默认不启动）
+# 业务表只由 Flyway 建，backend 起来前必须先迁移一次（否则 Hikari 启动期查不到表就退出）：
+#   docker-compose up -d postgres
+#   docker compose --profile tools run --rm flyway migrate
+#   docker-compose up -d
 ```
 
 ## Tech Stack
@@ -43,7 +47,7 @@ docker-compose up -d         # MySQL 8.0 + Redis 7 + backend
 | Layer | Technology |
 |-------|-----------|
 | Backend | Spring Boot 3.5.16, Java 21 (virtual threads), MyBatis Plus 3.5.16, Sa-Token 1.45.0 |
-| Database | MySQL 8.0, Redis 7 (session + cache + Caffeine local) |
+| Database | PostgreSQL 18 (Flyway-managed schema), Redis 7 (session + cache + Caffeine local) |
 | AI | Spring AI 1.1.8 + Spring AI Alibaba 1.1.2.4-security-fix (DashScope), native MCP SDK 1.1.5 |
 | Frontend | Vue 3.5, TypeScript 5.6, Vite 6, Ant Design Vue 4, Pinia, ECharts 6 |
 | Icons | lucide-vue-next (stroke-based, `currentColor` inherits theme) |
@@ -89,8 +93,9 @@ Multi-layered architecture with cross-cutting managers:
 
 ### Database
 
-- MySQL 8.0. MyBatis Plus with `map-underscore-to-camel-case: false` (uses resultMap manually)
-- **Field naming: camelCase** (`userId`, `actionType`, `createdTime`)
+- PostgreSQL 18. Schema is created only by Flyway (`src/main/resources/db/migration`, baseline `V1__baseline.sql`); the app never runs DDL at startup (`spring.flyway.enabled=false`). Two roles: `vision_migrator` (DDL/owner) and `vision_app` (DML only) — applications and tests always connect as `vision_app`.
+- **Column naming: snake_case** (`user_id`, `action_type`, `created_time`); Java fields and JSON stay camelCase. MyBatis Plus uses `map-underscore-to-camel-case: true`, but raw `QueryWrapper` column strings must be written snake_case by hand.
+- `timestamp(0)` without time zone; SQL "now" is `statement_timestamp()`, never `now()` (PG `now()` is transaction time). Text uniqueness: account is case-insensitive via `lower(user_account)`; opaque IDs/hashes are case-sensitive.
 - Global logic delete: `isDelete` field
 - SQL schemas in `sql/`
 
@@ -100,11 +105,11 @@ Multi-layered architecture with cross-cutting managers:
 - **Jakarta EE imports** — Use `jakarta.*` not `javax.*` (Spring Boot 3)
 - **Commit style** — Use `git-commit-cn` skill for Chinese conventional commits
 - **Feature development** — Create a worktree, PR to `main`, never commit directly. Fetch `origin main` first: local `main` is often stale; base the worktree on `origin/main`.
-- **Worktree test runs** — The worktree shell guard blocks `pwsh`/`cmd`. Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated MySQL/Redis and removes its datadir on exit.
+- **Worktree test runs** — The worktree shell guard blocks `pwsh`/`cmd`. Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated PostgreSQL 18 / Redis in Docker and removes its volume on exit.
 - **Docker test resources** — New tests create services through `scripts/docker-test-harness.psm1` (named volumes + `vs.*` labels + run-id teardown); manual `docker run` must mount a named volume and carry the labels. Reclaim only via `scripts/docker-test-resources.ps1`; never `docker ... prune`.
 - **Before code review** — Run `python -I scripts/tests/check-review-target.py`; commit first so the review sees HEAD, not a stale index. Judgment-call standards are in `CODING_STANDARDS.md`.
 - **Design docs** — Plans saved to `docs/plans/` (gitignored, use `git add -f`)
-- **API regeneration** — After backend endpoint changes, regenerate `frontend/src/api` from the contract that acceptance exports to `target/openapi-contract.json`; no live backend, MySQL or Redis needed. From `frontend/`: `OPENAPI_SCHEMA_PATH="$PWD/../target/openapi-contract.json" OPENAPI_SERVERS_PATH="$PWD/src" node scripts/openapi-check.mjs`. Only if that contract is missing, fall back to `npm run openapi2ts` (needs a backend on :8081)
+- **API regeneration** — After backend endpoint changes, regenerate `frontend/src/api` from the contract that acceptance exports to `target/openapi-contract.json`; no live backend, PostgreSQL or Redis needed. From `frontend/`: `OPENAPI_SCHEMA_PATH="$PWD/../target/openapi-contract.json" OPENAPI_SERVERS_PATH="$PWD/src" node scripts/openapi-check.mjs`. Only if that contract is missing, fall back to `npm run openapi2ts` (needs a backend on :8081)
 
 ## Agent skills
 

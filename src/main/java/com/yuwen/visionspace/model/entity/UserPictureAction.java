@@ -62,21 +62,19 @@ public class UserPictureAction {
     private String eventId;
 
     /**
-     * 创建时间
+     * 创建时间。由数据库默认值（{@code statement_timestamp()}）写入：
+     * 项目没有注册 MetaObjectHandler，{@code fill} 注解只会把未赋值的字段写成 NULL。
      */
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;
 
     /**
      * 是否已完成聚合：0-未处理 1-已处理
      */
-    @TableField(fill = FieldFill.INSERT)
     private Integer isProcessed;
 
     /**
      * 是否已计入统计：0-未计入 1-已计入
      */
-    @TableField(fill = FieldFill.INSERT)
     private Integer isAccumulated;
 
     /**

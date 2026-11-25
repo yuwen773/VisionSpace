@@ -61,12 +61,12 @@ class HttpPublicGalleryTest {
         seedPublicPicture(PASSED_PICTURE, "passed", 1, ownerId);
         seedPublicPicture(PENDING_PICTURE, "pending", 0, ownerId);
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'private', ?, 0, 0, 100, 100, 0, 1, 0)
                 """, PRIVATE_SPACE, ownerId);
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'private-picture', 'private', ?, 10, ?, 1, 0)
                 """, PRIVATE_PICTURE, ownerId, PRIVATE_SPACE);
     }
@@ -79,8 +79,10 @@ class HttpPublicGalleryTest {
             assertEquals("passed", detail.path("data").path("name").asText());
             assertTrue(detail.path("data").path("permissionList").isArray());
 
+            // 共享库里还有其他用例留下的公共图片，且默认没有 ORDER BY：
+            // 按作者过滤，首页才一定覆盖本用例的三张图（两公开 + 一空间）。
             var listing = post(anonymous, "/picture/list/page/vo",
-                    body(Map.of("current", 1, "pageSize", 10)));
+                    body(Map.of("current", 1, "pageSize", 10, "userId", authorId)));
             assertEquals(0, listing.path("code").asInt(), listing.toString());
             List<Long> ids = ids(listing);
             assertTrue(ids.contains(PASSED_PICTURE), "approved public picture must be listed: " + ids);
@@ -140,7 +142,7 @@ class HttpPublicGalleryTest {
 
     private void seedPublicPicture(long id, String name, int reviewStatus, long ownerId) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, ?, ?, 10, NULL, ?, 0)
                 """, id, "public-" + id, name, ownerId, reviewStatus);
     }
@@ -155,7 +157,7 @@ class HttpPublicGalleryTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

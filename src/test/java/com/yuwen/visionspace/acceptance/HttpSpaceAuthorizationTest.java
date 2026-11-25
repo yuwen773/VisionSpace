@@ -49,7 +49,7 @@ class HttpSpaceAuthorizationTest {
     @BeforeEach
     void fixture() {
         jdbc.update("DELETE FROM picture WHERE id = ?", TEAM_PICTURE);
-        jdbc.update("DELETE FROM space_user WHERE spaceId IN (?, ?, ?)", PRIVATE_SPACE, TEAM_SPACE, OTHER_PRIVATE_SPACE);
+        jdbc.update("DELETE FROM space_user WHERE space_id IN (?, ?, ?)", PRIVATE_SPACE, TEAM_SPACE, OTHER_PRIVATE_SPACE);
         jdbc.update("DELETE FROM space WHERE id IN (?, ?, ?)", PRIVATE_SPACE, TEAM_SPACE, OTHER_PRIVATE_SPACE);
     }
 
@@ -161,7 +161,7 @@ class HttpSpaceAuthorizationTest {
             assertEquals(0, get(member, "/space/get/vo?id=" + TEAM_SPACE).path("code").asInt());
 
             // 降权/移除后不重新登录，沿用同一会话
-            jdbc.update("DELETE FROM space_user WHERE spaceId = ? AND userId = ?", TEAM_SPACE, viewerId);
+            jdbc.update("DELETE FROM space_user WHERE space_id = ? AND user_id = ?", TEAM_SPACE, viewerId);
 
             assertRejected(get(member, "/space/get/vo?id=" + TEAM_SPACE), "removed member detail");
         }
@@ -185,7 +185,7 @@ class HttpSpaceAuthorizationTest {
                     "outsider must not list members");
         }
         Integer members = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM space_user WHERE spaceId = ?", Integer.class, TEAM_SPACE);
+                "SELECT COUNT(*) FROM space_user WHERE space_id = ?", Integer.class, TEAM_SPACE);
         assertEquals(1, members, "rejected requests must not create membership");
     }
 
@@ -226,28 +226,28 @@ class HttpSpaceAuthorizationTest {
 
     private void seedPrivateSpace(long id, long ownerId, String name) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, ?, ?, 0, 0, 100, 100, 0, 0, 0)
                 """, id, name, ownerId);
     }
 
     private void seedTeamSpace(long ownerId) {
         jdbc.update("""
-                INSERT INTO space (id, spaceName, userId, spaceLevel, spaceType, maxSize, maxCount,
-                                   totalSize, totalCount, isDelete)
+                INSERT INTO space (id, space_name, user_id, space_level, space_type, max_size, max_count,
+                                   total_size, total_count, is_delete)
                 VALUES (?, 'team space', ?, 1, 1, 1000, 1000, 0, 1, 0)
                 """, TEAM_SPACE, ownerId);
     }
 
     private void joinTeam(long spaceId, long userId, String role) {
-        jdbc.update("INSERT INTO space_user (spaceId, userId, spaceRole) VALUES (?, ?, ?)",
+        jdbc.update("INSERT INTO space_user (space_id, user_id, space_role) VALUES (?, ?, ?)",
                 spaceId, userId, role);
     }
 
     private void seedTeamPicture(long ownerId) {
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, 'team-picture', 'original', ?, 10, ?, 1, 0)
                 """, TEAM_PICTURE, ownerId, TEAM_SPACE);
     }
@@ -273,7 +273,7 @@ class HttpSpaceAuthorizationTest {
     }
 
     private void loginAs(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of("userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());
     }

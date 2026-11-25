@@ -50,8 +50,8 @@ class HttpStorageConfigSecurityTest {
         jdbc.update("DELETE FROM storage_config WHERE id = ?", CONFIG_ID);
         jdbc.update("""
                 INSERT INTO storage_config
-                    (id, platform, platformName, endpoint, region, bucket, accessKey, secretKey,
-                     domain, basePath, isActive, isDefault, orderNum, status, isDelete)
+                    (id, platform, platform_name, endpoint, region, bucket, access_key, secret_key,
+                     domain, base_path, is_active, is_default, order_num, status, is_delete)
                 VALUES (?, 'minio', 'acceptance minio', 'http://minio.internal:9000', 'cn-east-1',
                         'acceptance-bucket', ?, ?, 'http://cdn.internal', 'acceptance/', 0, 0, 1, 1, 0)
                 """, CONFIG_ID, ACCESS_KEY, SECRET_KEY);
@@ -111,7 +111,7 @@ class HttpStorageConfigSecurityTest {
             var response = post(admin, "/storage/config/add", updateBody("******", "******"));
             assertEquals(40000, response.path("code").asInt(), response.toString());
             assertEquals(0, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM storage_config WHERE accessKey = '******'", Integer.class));
+                    "SELECT COUNT(*) FROM storage_config WHERE access_key = '******'", Integer.class));
         }
     }
 
@@ -180,7 +180,7 @@ class HttpStorageConfigSecurityTest {
 
     private void loginAsAdmin(HttpClient client) throws Exception {
         long userId = registerAndLogin(client, "storage_admin_" + System.nanoTime());
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", userId);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", userId);
         // 重新登录，使会话中的角色与数据库一致
         var login = json.writeValueAsString(Map.of(
                 "userAccount", accountOf(userId), "userPassword", PASSWORD));
@@ -188,7 +188,7 @@ class HttpStorageConfigSecurityTest {
     }
 
     private String accountOf(long userId) {
-        return jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        return jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
     }
 
     private long registerAndLogin(HttpClient client, String account) throws Exception {
@@ -207,11 +207,11 @@ class HttpStorageConfigSecurityTest {
     }
 
     private String storedAccessKey() {
-        return jdbc.queryForObject("SELECT accessKey FROM storage_config WHERE id = ?", String.class, CONFIG_ID);
+        return jdbc.queryForObject("SELECT access_key FROM storage_config WHERE id = ?", String.class, CONFIG_ID);
     }
 
     private String storedSecretKey() {
-        return jdbc.queryForObject("SELECT secretKey FROM storage_config WHERE id = ?", String.class, CONFIG_ID);
+        return jdbc.queryForObject("SELECT secret_key FROM storage_config WHERE id = ?", String.class, CONFIG_ID);
     }
 
     private HttpClient client() {

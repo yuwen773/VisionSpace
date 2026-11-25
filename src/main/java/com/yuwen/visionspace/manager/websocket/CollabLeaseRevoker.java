@@ -36,7 +36,7 @@ public class CollabLeaseRevoker {
      */
     public void revokeSpaceUserLeases(long spaceId, long userId) {
         List<Long> pictureIds = pictureService.listObjs(new QueryWrapper<Picture>()
-                        .select("id").eq("spaceId", spaceId).eq("isDelete", 0),
+                        .select("id").eq("space_id", spaceId).eq("is_delete", 0),
                 id -> (Long) id);
         for (Long pictureId : pictureIds) {
             var lease = leaseManager.currentLease(pictureId);

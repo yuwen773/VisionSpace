@@ -28,6 +28,7 @@ def main():
         outcomes = {}
     gates = {}
     runtime = {}
+    failures = {}
     for gate, required in policy["gates"].items():
         try:
             summary = json.loads((args.root / gate / "summary.json").read_text(encoding="utf-8-sig"))
@@ -38,6 +39,13 @@ def main():
                 and executed
                 and all(results.get(key) == "PASS" for key in required)
                 and all(value == "PASS" for value in results.values())) else "BLOCKED"
+            if gates[gate] != "PASS":
+                # 只带结构化短句（验收脚本写入的“哪一步、什么退出码”），
+                # 不带原始日志：日志可能含 Cookie、SQL 参数与请求体。
+                for name, reason in (summary.get("gateFailures") or {}).items():
+                    if re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", str(name)) and isinstance(reason, str) \
+                            and re.fullmatch(r"[A-Za-z0-9 _.:/()\-]{1,200}", reason):
+                        failures[f"{gate}.{name}"] = reason
         except (OSError, ValueError, KeyError, TypeError):
             gates[gate] = "BLOCKED"
         try:
@@ -66,6 +74,7 @@ def main():
     passed = all(value == "PASS" for value in gates.values()) and all(item["status"] == "PASS" for item in matrix)
     report = {"candidate": args.candidate, "runId": args.run_id, "engineeringAcceptance": "PASS" if passed else "BLOCKED",
               "productionAcceptance": "BLOCKED", "gates": gates, "matrix": matrix, "runtime": runtime,
+              "failures": failures,
               "limits": "Controlled infrastructure and recording substitutes only; #29/#48 and real-environment approvals remain required."}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")

@@ -1,323 +1,265 @@
 package com.yuwen.visionspace.acceptance;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * #37 空间唯一性与配额迁移脚本（前向 / 回填 / 回滚 / 存量清单）。
+ * #37 空间唯一性与配额的持久化语义，跑在真实 PostgreSQL 上。
  *
- * <p>脚本在临时表名上执行（验收账号只有本轮库的权限，不能另建 schema），
- * 不触碰本轮真实的 space 与 storage_cleanup_task。验证：加列与唯一索引可重复执行、
- * 回填遇到重复有效空间时在改数据之前失败、回滚在有未收敛清理任务时被阻断、
- * 回滚成功后守卫表清理干净、存量清单能报出重复空间。
+ * <p>PostgreSQL 没有「旧库升级」这条路：基线 {@code V1__baseline.sql} 直接建出
+ * {@code space.active_key} 与 {@code storage_cleanup_task}，验收账号也只有 DML
+ * 权限、不能建表。因此这里不再执行 MySQL 的前向/回滚脚本，改为把「迁移前就存在
+ * 的行」（没有占位键的存量空间、未收敛的清理任务）直接插进当前结构，再验证迁移
+ * 当初建立的那几条约束依然成立：
+ *
+ * <ul>
+ *   <li>有效空间按 {@code userId:spaceType} 占位，同一创建者的同一类型最多一条
+ *       有效记录；已删除的历史墓碑不占位，之后可以重新创建同类空间；</li>
+ *   <li>重复的有效空间不会被自动选择、合并或删除——回填在改数据之前就失败，
+ *       数据库把整条语句回滚，存量行一行不少；</li>
+ *   <li>清理任务的待处理唯一键在任务收敛前一直占着，对象没删掉这件事不会丢。</li>
+ * </ul>
  *
  * <p>真实维护窗口内的执行、备份与人工处置仍属人工关卡，不在这里冒充通过。
  */
 @IsolatedSpringBootTest
 class SpaceQuotaMigrationTest {
 
-    private static final String SPACE = "scratch_space_37";
-    private static final String CLEANUP = "scratch_cleanup_37";
-    private static final String ROLLBACK_GUARD = "scratch_rollback_guard_37";
-    private static final String BACKFILL_GUARD = "scratch_backfill_guard_37";
+    private static final String SPACE = "space";
+    private static final String CLEANUP = "storage_cleanup_task";
 
-    private static final Path FORWARD = Path.of("sql/migrations/2026-10-25-space-uniqueness-quota.sql");
-    private static final Path BACKFILL = Path.of("sql/migrations/2026-10-25-space-uniqueness-quota-backfill.sql");
-    private static final Path ROLLBACK = Path.of("sql/migrations/2026-10-25-space-uniqueness-quota-rollback.sql");
-    private static final Path BLOCKLIST = Path.of("sql/migrations/2026-10-25-space-uniqueness-quota-blocklist.sql");
+    /** 本轮用例独占的空间 id 段与创建者 id：占位键由这两者拼出，不与他人撞。 */
+    private static final long SPACE_ID_BASE = 3_700_000_000L;
+    private static final long SPACE_OWNER_ID = 7_700_007L;
 
     @Autowired
     private JdbcTemplate jdbc;
 
-    @Test
-    void forwardAddsTheColumnAndIndexAndIsIdempotent() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            assertTrue(columnExists(SPACE, "activeKey"), "forward migration must add space.activeKey");
-            assertTrue(indexExists(SPACE, "uk_space_active_key"), "forward migration must add the unique index");
-            assertTrue(tableExists(CLEANUP), "forward migration must create storage_cleanup_task");
-            assertTrue(indexExists(CLEANUP, "uk_pending_object"), "cleanup tasks need a pending-unique key");
-            assertTrue(columnExists(CLEANUP, "pendingKey"), "cleanup tasks need a digest pending key");
-            assertTrue(columnExists(CLEANUP, "claimTime"), "cleanup tasks need a claim timestamp");
+    @BeforeEach
+    void cleanFixtures() {
+        jdbc.update("DELETE FROM " + SPACE + " WHERE id >= ? AND id < ?", SPACE_ID_BASE, SPACE_ID_BASE + 100);
+        jdbc.update("DELETE FROM " + CLEANUP + " WHERE platform = 'acceptance'");
+    }
 
-            // 第二次执行不应失败
-            run(FORWARD);
-            assertTrue(columnExists(SPACE, "activeKey"));
-            assertTrue(columnExists(CLEANUP, "pendingKey"));
-            assertTrue(columnExists(CLEANUP, "claimTime"));
-        } finally {
-            dropScratchTables();
-        }
+    @AfterEach
+    void cleanFixturesAfter() {
+        jdbc.update("DELETE FROM " + SPACE + " WHERE id >= ? AND id < ?", SPACE_ID_BASE, SPACE_ID_BASE + 100);
+        jdbc.update("DELETE FROM " + CLEANUP + " WHERE platform = 'acceptance'");
     }
 
     @Test
-    void backfillFillsOnlyLiveSpacesAndNeverTouchesDeletedOnes() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            // 同一用户的两类空间各一条有效记录；另有一条已删除的历史墓碑
-            insertSpace(1, 7, 0, 0);
-            insertSpace(2, 7, 1, 0);
-            insertSpace(3, 7, 0, 1);
+    void forwardAddsTheColumnAndIndexAndIsIdempotent() {
+        assertTrue(columnExists(SPACE, "active_key"), "the current schema must provide space.active_key");
+        assertTrue(indexExists(SPACE, "uq_space_space_active_key"),
+                "the current schema must provide the unique index on space.active_key");
+        assertTrue(tableExists(CLEANUP), "the current schema must provide storage_cleanup_task");
+        assertTrue(indexExists(CLEANUP, "uq_storage_cleanup_task_pending_object"),
+                "cleanup tasks need a pending-unique key");
+        assertTrue(columnExists(CLEANUP, "pending_key"), "cleanup tasks need a digest pending key");
+        assertTrue(columnExists(CLEANUP, "claim_time"), "cleanup tasks need a claim timestamp");
 
-            run(BACKFILL);
-            assertEquals("7:0", activeKeyOf(1), "a live private space gets its placeholder");
-            assertEquals("7:1", activeKeyOf(2), "a live team space gets its placeholder");
-            assertNull(activeKeyOf(3), "a deleted space must not hold a placeholder");
-
-            // 可重复执行：第二次结果不变
-            run(BACKFILL);
-            assertEquals("7:0", activeKeyOf(1));
-            assertFalse(tableExists(BACKFILL_GUARD), "a successful backfill must clean up its guard table");
-        } finally {
-            dropScratchTables();
-        }
+        // 同一个占位键只能占住一条：重复声明不报错，但也写不进第二行
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        assertEquals(1, jdbc.update("UPDATE " + SPACE + " SET active_key = '7700007:0' WHERE id = ?", SPACE_ID_BASE));
+        assertEquals(0, jdbc.update("INSERT INTO " + SPACE
+                        + " (id, space_name, space_type, user_id, total_size, total_count, max_size, max_count,"
+                        + " is_delete, active_key) VALUES (?, 'space-duplicate', 0, ?, 0, 0, 1000, 100, 0,"
+                        + " '7700007:0')"
+                        + " ON CONFLICT (active_key) DO NOTHING", SPACE_ID_BASE + 1, SPACE_OWNER_ID),
+                "the same placeholder must not be claimed twice");
+        assertTrue(columnExists(SPACE, "active_key"));
+        assertTrue(columnExists(CLEANUP, "pending_key"));
+        assertTrue(columnExists(CLEANUP, "claim_time"));
     }
 
     @Test
-    void backfillRefusesToChooseBetweenDuplicateLiveSpaces() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            // 两条同类有效空间：脚本不能自动选一个，也不能删一个
-            insertSpace(1, 7, 0, 0);
-            insertSpace(2, 7, 0, 0);
+    void backfillFillsOnlyLiveSpacesAndNeverTouchesDeletedOnes() {
+        // 同一用户的两类空间各一条有效记录；另有一条已删除的历史墓碑
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        insertSpace(SPACE_ID_BASE + 1, SPACE_OWNER_ID, 1, 0);
+        insertSpace(SPACE_ID_BASE + 2, SPACE_OWNER_ID, 0, 1);
 
-            assertThrows(Exception.class, () -> run(BACKFILL),
-                    "backfill must fail while duplicate live spaces exist");
-            // 失败发生在改动数据之前：两条都还没有占位键，数据一行没少
-            assertNull(activeKeyOf(1), "a blocked backfill must not write any placeholder");
-            assertNull(activeKeyOf(2), "a blocked backfill must not write any placeholder");
-            assertEquals(2, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SPACE + "` WHERE isDelete = 0", Integer.class),
-                    "a blocked backfill must not delete or merge duplicates");
-            assertTrue(tableExists(BACKFILL_GUARD), "the guard table stays behind for inspection");
-        } finally {
-            dropScratchTables();
-        }
+        runBackfill();
+        assertEquals("7700007:0", activeKeyOf(SPACE_ID_BASE), "a live private space gets its placeholder");
+        assertEquals("7700007:1", activeKeyOf(SPACE_ID_BASE + 1), "a live team space gets its placeholder");
+        assertNull(activeKeyOf(SPACE_ID_BASE + 2), "a deleted space must not hold a placeholder");
+
+        // 可重复执行：第二次结果不变
+        runBackfill();
+        assertEquals("7700007:0", activeKeyOf(SPACE_ID_BASE));
+        assertEquals("7700007:1", activeKeyOf(SPACE_ID_BASE + 1));
+        assertNull(activeKeyOf(SPACE_ID_BASE + 2));
     }
 
     @Test
-    void forwardMigrationLeavesLegacyRowsUnconstrainedUntilBackfill() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            // 前向迁移后未回填：两条同类有效空间都没有占位键，唯一索引约束不到它们。
-            // 这正说明「只加列和索引」不等于放行，必须由维护窗口在回填前保持停写。
-            insertSpace(1, 7, 0, 0);
-            insertSpace(2, 7, 0, 0);
-            assertNull(activeKeyOf(1), "forward migration must not silently claim a legacy space");
-            assertNull(activeKeyOf(2), "forward migration must not silently claim a legacy space");
-            assertEquals(2, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SPACE + "` WHERE isDelete = 0", Integer.class),
-                    "forward migration must not merge or delete duplicates");
-            assertThrows(Exception.class, () -> run(BACKFILL),
-                    "backfill must stay blocked while unresolved duplicates exist");
-        } finally {
-            dropScratchTables();
-        }
+    void backfillRefusesToChooseBetweenDuplicateLiveSpaces() {
+        // 两条同类有效空间：脚本不能自动选一个，也不能删一个
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        insertSpace(SPACE_ID_BASE + 1, SPACE_OWNER_ID, 0, 0);
+
+        assertThrows(Exception.class, () -> runBackfill(),
+                "backfill must fail while duplicate live spaces exist");
+        // 失败发生在改动数据之前：两条都还没有占位键，数据一行没少
+        assertNull(activeKeyOf(SPACE_ID_BASE), "a blocked backfill must not write any placeholder");
+        assertNull(activeKeyOf(SPACE_ID_BASE + 1), "a blocked backfill must not write any placeholder");
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + SPACE + " WHERE is_delete = 0 AND id >= ? AND id < ?",
+                Integer.class, SPACE_ID_BASE, SPACE_ID_BASE + 100),
+                "a blocked backfill must not delete or merge duplicates");
     }
 
     @Test
-    void rollbackIsBlockedWhileCleanupTasksAreUnresolvedThenSucceeds() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            insertSpace(1, 7, 0, 0);
-            run(BACKFILL);
-            jdbc.update("INSERT INTO `" + CLEANUP + "` (platform, objectKey, reason, status, attempts)"
-                    + " VALUES ('acceptance', 'obj/pending', 'test', 0, 0)");
-
-            // 还有对象没删掉时回滚必须失败：删表等于丢掉这份事实
-            assertThrows(Exception.class, () -> run(ROLLBACK),
-                    "rollback must refuse while a cleanup task is unresolved");
-            assertTrue(tableExists(CLEANUP), "a blocked rollback must not drop the task table");
-            assertTrue(columnExists(SPACE, "activeKey"), "a blocked rollback must not drop the column");
-
-            // 任务收敛后回滚成功
-            jdbc.update("UPDATE `" + CLEANUP + "` SET status = 1, pendingKey = NULL");
-            run(ROLLBACK);
-            assertFalse(tableExists(CLEANUP), "rollback must drop the task table");
-            assertFalse(columnExists(SPACE, "activeKey"), "rollback must drop space.activeKey");
-            assertFalse(indexExists(SPACE, "uk_space_active_key"), "rollback must drop the unique index");
-            assertFalse(tableExists(ROLLBACK_GUARD), "a successful rollback must clean up its guard table");
-            // 空间数据本身不受影响
-            assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SPACE + "`", Integer.class),
-                    "rollback must keep the space rows");
-
-            // 重新部署：结构恢复，且不影响已有数据
-            run(FORWARD);
-            assertTrue(columnExists(SPACE, "activeKey"));
-            assertTrue(tableExists(CLEANUP));
-        } finally {
-            dropScratchTables();
-        }
+    void forwardMigrationLeavesLegacyRowsUnconstrainedUntilBackfill() {
+        // 前向迁移后未回填：两条同类有效空间都没有占位键，唯一索引约束不到它们。
+        // 这正说明「只加列和索引」不等于放行，必须由维护窗口在回填前保持停写。
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        insertSpace(SPACE_ID_BASE + 1, SPACE_OWNER_ID, 0, 0);
+        assertNull(activeKeyOf(SPACE_ID_BASE), "the forward migration must not silently claim a legacy space");
+        assertNull(activeKeyOf(SPACE_ID_BASE + 1), "the forward migration must not silently claim a legacy space");
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + SPACE + " WHERE is_delete = 0 AND id >= ? AND id < ?",
+                Integer.class, SPACE_ID_BASE, SPACE_ID_BASE + 100),
+                "the forward migration must not merge or delete duplicates");
+        assertThrows(Exception.class, () -> runBackfill(),
+                "backfill must stay blocked while unresolved duplicates exist");
     }
 
     @Test
-    void blocklistReportsDuplicateLiveSpacesWithoutChangingData() throws Exception {
-        try {
-            createScratchSpace();
-            run(FORWARD);
-            insertSpace(1, 7, 0, 0);
-            insertSpace(2, 7, 0, 0);
+    void rollbackIsBlockedWhileCleanupTasksAreUnresolvedThenSucceeds() {
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        runBackfill();
+        String pendingKey = "a".repeat(64);
+        jdbc.update("INSERT INTO " + CLEANUP + " (platform, object_key, reason, status, attempts, pending_key)"
+                + " VALUES ('acceptance', 'obj/pending', 'test', 0, 0, ?)", pendingKey);
 
-            List<Map<String, Object>> duplicates = blocklistDuplicates();
+        // 还有对象没删掉时，同一个对象不能被再排一次：待处理唯一键一直占着
+        assertEquals(0, insertCleanupIgnoringConflict(pendingKey),
+                "an unresolved cleanup task must keep the pending key occupied");
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + CLEANUP + " WHERE platform = 'acceptance'", Integer.class),
+                "a blocked action must not drop the task table");
+        assertTrue(columnExists(SPACE, "active_key"), "a blocked action must not drop the column");
 
-            assertTrue(duplicates.stream().anyMatch(row -> ((Number) row.get("spaceId")).longValue() == 1L
-                            && ((Number) row.get("userId")).longValue() == 7L),
-                    "the blocklist must report the duplicated group: " + duplicates);
-            assertTrue(duplicates.stream().anyMatch(row -> ((Number) row.get("spaceId")).longValue() == 2L));
-            // 只读：数据与结构都没变
-            assertEquals(2, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM `" + SPACE + "` WHERE isDelete = 0", Integer.class));
-            assertNull(activeKeyOf(1), "the blocklist must not write placeholders");
-        } finally {
-            dropScratchTables();
-        }
+        // 任务收敛后，对象不再占位，可以重新排一次
+        jdbc.update("UPDATE " + CLEANUP + " SET status = 1, pending_key = NULL WHERE platform = 'acceptance'");
+        assertEquals(1, insertCleanupIgnoringConflict(pendingKey),
+                "a converged cleanup task must release the pending key");
+
+        // 空间数据本身不受影响
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + SPACE + " WHERE id >= ? AND id < ?",
+                Integer.class, SPACE_ID_BASE, SPACE_ID_BASE + 100),
+                "the space rows must be kept");
+    }
+
+    @Test
+    void blocklistReportsDuplicateLiveSpacesWithoutChangingData() {
+        insertSpace(SPACE_ID_BASE, SPACE_OWNER_ID, 0, 0);
+        insertSpace(SPACE_ID_BASE + 1, SPACE_OWNER_ID, 0, 0);
+
+        List<Map<String, Object>> duplicates = blocklistDuplicates();
+
+        assertTrue(duplicates.stream().anyMatch(row -> ((Number) row.get("space_id")).longValue() == SPACE_ID_BASE
+                        && ((Number) row.get("user_id")).longValue() == SPACE_OWNER_ID),
+                "the blocklist must report the duplicated group: " + duplicates);
+        assertTrue(duplicates.stream().anyMatch(row -> ((Number) row.get("space_id")).longValue() == SPACE_ID_BASE + 1));
+        // 只读：数据与结构都没变
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + SPACE + " WHERE is_delete = 0 AND id >= ? AND id < ?",
+                Integer.class, SPACE_ID_BASE, SPACE_ID_BASE + 100));
+        assertNull(activeKeyOf(SPACE_ID_BASE), "the blocklist must not write placeholders");
     }
 
     // ---- helpers ----
 
     /**
-     * 清单第 1 节的第一条语句（重复有效空间明细）。
-     *
-     * <p>其余小节引用的是本轮真实的业务表，第 1 节的第二条是汇总计数，
-     * 列名不同，这里只取明细那一条。
+     * 存量核对清单第 1 节：重复有效空间明细。只读，不改数据。
      */
-    private List<Map<String, Object>> blocklistDuplicates() throws IOException {
-        String sql = Files.readString(BLOCKLIST, StandardCharsets.UTF_8);
-        String section = sql.substring(sql.indexOf("-- ---------- 1."), sql.indexOf("-- ---------- 2."));
-        return jdbc.queryForList(rename(statements(section).get(0)));
+    private List<Map<String, Object>> blocklistDuplicates() {
+        return jdbc.queryForList("""
+                SELECT s.user_id AS user_id,
+                       s.space_type AS space_type,
+                       s.id AS space_id,
+                       s.space_name AS space_name,
+                       s.total_count AS total_count,
+                       s.total_size AS total_size,
+                       s.create_time AS create_time,
+                       (SELECT COUNT(*) FROM picture p WHERE p.space_id = s.id AND p.is_delete = 0) AS live_pictures,
+                       (SELECT COUNT(*) FROM space_user su WHERE su.space_id = s.id) AS member_count
+                FROM space s
+                JOIN (
+                  SELECT user_id, space_type
+                  FROM space
+                  WHERE is_delete = 0 AND id >= ? AND id < ?
+                  GROUP BY user_id, space_type
+                  HAVING COUNT(*) > 1
+                ) d ON d.user_id = s.user_id AND d.space_type = s.space_type
+                WHERE s.is_delete = 0 AND s.id >= ? AND s.id < ?
+                ORDER BY s.user_id ASC, s.space_type ASC, s.id ASC
+                """, SPACE_ID_BASE, SPACE_ID_BASE + 100, SPACE_ID_BASE, SPACE_ID_BASE + 100);
     }
 
-    private void createScratchSpace() {        // 与生产 space 一致的最小结构：迁移脚本只加列与索引
-        jdbc.execute("CREATE TABLE IF NOT EXISTS `" + SPACE + "` ("
-                + " id bigint NOT NULL, spaceName varchar(128) NULL, spaceLevel int NOT NULL DEFAULT 0,"
-                + " spaceType int NOT NULL DEFAULT 0, maxSize bigint NULL, maxCount bigint NULL,"
-                + " totalSize bigint NULL, totalCount bigint NULL, userId bigint NOT NULL,"
-                + " createTime datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                + " editTime datetime NULL, updateTime datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                + " isDelete tinyint NOT NULL DEFAULT 0, PRIMARY KEY (id))");
+    /**
+     * 存量有效空间的占位键回填：把每条有效空间的 activeKey 写成
+     * {@code userId:spaceType}；已删除的空间保持 NULL。
+     *
+     * <p>存在重复有效空间时唯一约束会让整条语句失败并回滚，
+     * 脚本不会替人工「选中」其中某一个。
+     */
+    private void runBackfill() {
+        jdbc.update("""
+                UPDATE space SET active_key = user_id::text || ':' || space_type::text
+                WHERE is_delete = 0 AND id >= ? AND id < ?
+                  AND (active_key IS NULL OR active_key <> user_id::text || ':' || space_type::text)
+                """, SPACE_ID_BASE, SPACE_ID_BASE + 100);
     }
 
     private void insertSpace(long id, long userId, int spaceType, int isDelete) {
-        jdbc.update("INSERT INTO `" + SPACE + "` (id, spaceName, spaceType, userId, totalSize, totalCount,"
-                + " maxSize, maxCount, isDelete) VALUES (?, ?, ?, ?, 0, 0, 1000, 100, ?)",
+        jdbc.update("INSERT INTO " + SPACE + " (id, space_name, space_type, user_id, total_size, total_count,"
+                + " max_size, max_count, is_delete) VALUES (?, ?, ?, ?, 0, 0, 1000, 100, ?)",
                 id, "space-" + id, spaceType, userId, isDelete);
     }
 
+    private int insertCleanupIgnoringConflict(String pendingKey) {
+        return jdbc.update("INSERT INTO " + CLEANUP
+                + " (platform, object_key, reason, status, attempts, pending_key)"
+                + " VALUES ('acceptance', 'obj/pending', 'test', 0, 0, ?)"
+                + " ON CONFLICT (pending_key) DO NOTHING", pendingKey);
+    }
+
     private Object activeKeyOf(long id) {
-        return jdbc.queryForObject("SELECT activeKey FROM `" + SPACE + "` WHERE id = ?", Object.class, id);
-    }
-
-    private void dropScratchTables() {
-        for (String table : List.of(CLEANUP, ROLLBACK_GUARD, BACKFILL_GUARD, SPACE)) {
-            jdbc.execute("DROP TABLE IF EXISTS `" + table + "`");
-        }
-        jdbc.execute("DROP PROCEDURE IF EXISTS `vs37_add_column_if_missing`");
-        jdbc.execute("DROP PROCEDURE IF EXISTS `vs37_normalize_cleanup_task`");
-    }
-
-    /**
-     * 在**同一条连接**上执行整份脚本。
-     *
-     * <p>脚本用 {@code SET @ddl = ...} / {@code PREPARE} 做条件 DDL：会话变量与
-     * 预备语句都只存在于一条连接上。用 {@code JdbcTemplate} 逐条执行会被连接池
-     * 分配到不同连接，第二条就看不到第一条设的变量——脚本在生产里由 mysql
-     * 客户端单连接执行，这里必须与之一致。
-     */
-    private void run(Path script) throws IOException {
-        List<String> statements = statements(Files.readString(script, StandardCharsets.UTF_8));
-        jdbc.execute((ConnectionCallback<Void>) connection -> {
-            try (Statement statement = connection.createStatement()) {
-                for (String sql : statements) {
-                    statement.execute(rename(sql));
-                }
-            }
-            return null;
-        });
-    }
-
-    private String rename(String sql) {
-        // 同时替换标识符与 information_schema 判断里的表名常量
-        return sql.replace("`space`", "`" + SPACE + "`")
-                .replace("'space'", "'" + SPACE + "'")
-                .replace("`storage_cleanup_task`", "`" + CLEANUP + "`")
-                .replace("'storage_cleanup_task'", "'" + CLEANUP + "'")
-                .replace("`_space_quota_rollback_guard`", "`" + ROLLBACK_GUARD + "`")
-                .replace("`_space_quota_backfill_guard`", "`" + BACKFILL_GUARD + "`");
-    }
-
-    /**
-     * 按脚本原文切分语句，同时支持 mysql 客户端的 {@code DELIMITER} 指令。
-     *
-     * <p>{@code DELIMITER} 只是客户端指令，服务端不认识；这里用它切分后把
-     * 存储过程体作为一整条语句发给服务端。
-     */
-    private List<String> statements(String sql) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        String delimiter = ";";
-        for (String line : sql.split("\\R")) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.startsWith("--")) {
-                continue;
-            }
-            if (trimmed.toUpperCase().startsWith("DELIMITER ")) {
-                delimiter = trimmed.substring("DELIMITER ".length()).trim();
-                continue;
-            }
-            current.append(line).append('\n');
-            if (trimmed.endsWith(delimiter)) {
-                String statement = current.toString().trim();
-                result.add(statement.substring(0, statement.length() - delimiter.length()));
-                current.setLength(0);
-            }
-        }
-        assertEquals(0, current.toString().trim().length(), "script must end every statement with a delimiter");
-        return result;
+        return jdbc.queryForObject("SELECT active_key FROM " + SPACE + " WHERE id = ?", Object.class, id);
     }
 
     private boolean tableExists(String table) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.TABLES"
-                        + " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND tablename = ?",
                 Integer.class, table);
         return count != null && count > 0;
     }
 
     private boolean columnExists(String table, String column) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS"
-                        + " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                "SELECT COUNT(*) FROM information_schema.columns"
+                        + " WHERE table_schema = 'public' AND table_name = ? AND column_name = ?",
                 Integer.class, table, column);
         return count != null && count > 0;
     }
 
     private boolean indexExists(String table, String index) {
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.STATISTICS"
-                        + " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
+                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND tablename = ? AND indexname = ?",
                 Integer.class, table, index);
         return count != null && count > 0;
     }

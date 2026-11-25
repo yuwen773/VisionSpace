@@ -2,6 +2,7 @@ package com.yuwen.visionspace.acceptance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,16 +50,36 @@ class HttpPictureStatsObservabilityTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        jdbc.update("DELETE FROM user_picture_action WHERE pictureId = ?", PICTURE);
-        jdbc.update("DELETE FROM picture_stats WHERE pictureId = ?", PICTURE);
-        jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE);
+        cleanFixtures();
         jdbc.update("""
-                INSERT INTO picture (id, url, name, userId, picSize, spaceId, reviewStatus, isDelete)
+                INSERT INTO picture (id, url, name, user_id, pic_size, space_id, review_status, is_delete)
                 VALUES (?, ?, 'observable', ?, 10, NULL, 1, 0)
                 """, PICTURE, "content-" + PICTURE, OWNER);
 
         adminId = register("stats_admin_" + System.nanoTime());
-        jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", adminId);
+        jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", adminId);
+    }
+
+    /**
+     * 用例跑完也要清干净。
+     *
+     * <p>整轮验收共用一个库：本类会写图片、行为事件与一个注册出来的管理员账号，
+     * 这些行留在库里会污染后面按全库口径断言的用例（积压看板、仪表盘统计）。
+     */
+    @AfterEach
+    void removeFixtures() {
+        cleanFixtures();
+        if (adminId > 0) {
+            jdbc.update("DELETE FROM user_preference WHERE user_id = ?", adminId);
+            jdbc.update("DELETE FROM app_user WHERE id = ?", adminId);
+            adminId = 0;
+        }
+    }
+
+    private void cleanFixtures() {
+        jdbc.update("DELETE FROM user_picture_action WHERE picture_id = ?", PICTURE);
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id = ?", PICTURE);
+        jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE);
     }
 
     @Test
@@ -86,6 +107,25 @@ class HttpPictureStatsObservabilityTest {
             String body = response.toString();
             assertFalse(body.contains("observable-event"), "the backlog leaked an event id: " + body);
             assertFalse(body.contains(String.valueOf(PICTURE)), "the backlog leaked a picture id: " + body);
+        }
+    }
+
+    @Test
+    void theDashboardAggregatesAreReadableByAdministrators() throws Exception {
+        // 仪表盘按 user_picture_action.created_time 统计今日曝光/点击/收藏。
+        // 该表的时间列与其它表不同名（created_time，不是 create_time），
+        // QueryWrapper 里写错列名编译期不报错、其它用例也不经过这个接口，
+        // 只有真打一次 HTTP 才会以 SQL 报错 500 暴露，所以这里必须有覆盖。
+        try (var admin = client()) {
+            loginAsAdmin(admin);
+            var response = post(admin, "/admin/stats/dashboard", Map.of());
+
+            assertEquals(0, response.path("code").asInt(), response.toString());
+            JsonNode stats = response.path("data");
+            assertTrue(stats.has("todayImpressionCount"), "the dashboard shape must be stable: " + stats);
+            assertTrue(stats.has("todayClickCount"), "the dashboard shape must be stable: " + stats);
+            assertTrue(stats.has("todayCollectCount"), "the dashboard shape must be stable: " + stats);
+            assertTrue(stats.has("todayCtr"), "the dashboard shape must be stable: " + stats);
         }
     }
 
@@ -135,7 +175,7 @@ class HttpPictureStatsObservabilityTest {
     }
 
     private void login(HttpClient client, long userId) throws Exception {
-        String account = jdbc.queryForObject("SELECT userAccount FROM user WHERE id = ?", String.class, userId);
+        String account = jdbc.queryForObject("SELECT user_account FROM app_user WHERE id = ?", String.class, userId);
         var response = post(client, "/user/login", Map.of(
                 "userAccount", account, "userPassword", PASSWORD));
         assertEquals(0, response.path("code").asInt(), response.toString());

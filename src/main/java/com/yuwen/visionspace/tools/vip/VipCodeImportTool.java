@@ -64,7 +64,7 @@ public final class VipCodeImportTool {
 
         // --- 跨记录重复检查（在任何 SQL / 补发码输出之前） ---
         // 同一明文出现多次时，状态归属（已用/未用）无法自洽：按未用作废会同时
-        // 生成同摘要的已用 INSERT，执行时撞 uk_codeHash 且先落库的那条状态随机，
+        // 生成同摘要的已用 INSERT，执行时撞 uq_vip_redemption_code_code_hash 且先落库的那条状态随机，
         // 已用事实可能丢失。重复即整体失败，交人工核查源文件。
         java.util.Set<String> seenHashes = new java.util.HashSet<>();
         for (LegacyCode code : legacy) {
@@ -79,15 +79,15 @@ public final class VipCodeImportTool {
 
         // --- 台账 INSERT（只有摘要与状态；已用码不带用户归属，不推定身份） ---
         System.out.println("-- #39 存量兑换码导入：只含摘要，不含明文。在维护窗口由人工执行。");
-        System.out.println("-- 前提：vip_redemption_code 已由 2026-10-24-vip-redemption.sql 建表。");
+        System.out.println("-- 前提：Flyway 基线已建好 vip_redemption_code（PostgreSQL）。");
         List<LegacyCode> invalidated = new ArrayList<>();
         for (LegacyCode code : legacy) {
             if (code.used()) {
-                System.out.println("INSERT INTO `vip_redemption_code` (`codeHash`, `status`) VALUES ('"
+                System.out.println("INSERT INTO vip_redemption_code (code_hash, status) VALUES ('"
                         + CodeHashes.sha256(code.rawCode()) + "', 1); -- used: " + code.mask());
             } else {
                 invalidated.add(code);
-                System.out.println("INSERT INTO `vip_redemption_code` (`codeHash`, `status`) VALUES ('"
+                System.out.println("INSERT INTO vip_redemption_code (code_hash, status) VALUES ('"
                         + CodeHashes.sha256(code.rawCode()) + "', 2); -- voided: exposed-in-history");
             }
         }
@@ -115,7 +115,7 @@ public final class VipCodeImportTool {
             System.out.println("-- 补发新码 " + freshHashes.size() + " 个：明文已写入 "
                     + issueOut + "（不得入库、不得进入 Git）；摘要 INSERT 如下。");
             for (String hash : freshHashes) {
-                System.out.println("INSERT INTO `vip_redemption_code` (`codeHash`, `status`) VALUES ('" + hash + "', 0);");
+                System.out.println("INSERT INTO vip_redemption_code (code_hash, status) VALUES ('" + hash + "', 0);");
             }
         }
     }

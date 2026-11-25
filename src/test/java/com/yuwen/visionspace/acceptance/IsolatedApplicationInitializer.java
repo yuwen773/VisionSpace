@@ -18,14 +18,21 @@ public class IsolatedApplicationInitializer implements ApplicationContextInitial
             throw new IllegalStateException("BLOCKED_ENV: acceptance must be the only active profile");
         }
         // Check both instance markers before Spring can initialize application beans.
-        try (var connection = DriverManager.getConnection(settings.jdbcUrl(), "vs_acceptance", settings.nonce());
+        // PostgreSQL 侧不建标记表（业务表只能由 Flyway 创建）：用库注释承载 nonce，
+        // 同时校验连到的确实是本轮隔离库、且用的是低权运行角色。
+        try (var connection = DriverManager.getConnection(settings.jdbcUrl(), IsolationSettings.APP_USER, settings.nonce());
              var statement = connection.createStatement();
-             var rows = statement.executeQuery("SELECT nonce FROM acceptance_instance")) {
-            if (!rows.next() || !settings.nonce().equals(rows.getString(1))) {
-                throw new IllegalStateException("MySQL isolation marker mismatch");
+             var rows = statement.executeQuery(
+                     "SELECT current_database(), current_user, "
+                             + "shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = current_database()")) {
+            if (!rows.next()
+                    || !settings.database().equals(rows.getString(1))
+                    || !IsolationSettings.APP_USER.equals(rows.getString(2))
+                    || !settings.nonce().equals(rows.getString(3))) {
+                throw new IllegalStateException("PostgreSQL isolation marker mismatch");
             }
         } catch (Exception e) {
-            throw new IllegalStateException("BLOCKED_ENV: isolated MySQL marker unavailable", e);
+            throw new IllegalStateException("BLOCKED_ENV: isolated PostgreSQL marker unavailable", e);
         }
         var client = RedisClient.create(RedisURI.builder().withHost("127.0.0.1")
                 .withPort(settings.redisPort()).withPassword(settings.nonce().toCharArray())
@@ -49,10 +56,10 @@ public class IsolatedApplicationInitializer implements ApplicationContextInitial
             });
             TestPropertyValues.of(
                     "spring.datasource.url=" + settings.jdbcUrl(),
-                    "spring.datasource.username=vs_acceptance",
+                    "spring.datasource.username=" + IsolationSettings.APP_USER,
                     "spring.datasource.password=" + settings.nonce(),
                     "spring.datasource.hikari.jdbc-url=" + settings.jdbcUrl(),
-                    "spring.datasource.hikari.username=vs_acceptance",
+                    "spring.datasource.hikari.username=" + IsolationSettings.APP_USER,
                     "spring.datasource.hikari.password=" + settings.nonce(),
                     "spring.data.redis.host=127.0.0.1",
                     "spring.data.redis.port=" + settings.redisPort(),

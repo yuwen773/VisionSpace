@@ -198,11 +198,21 @@ spring:
       - org.springframework.ai.vectorstore.chroma.autoconfigure.ChromaVectorStoreAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   # 数据库配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
+  # 运行角色固定为 vision_app（ADR-0004 §5）：本地开发也不例外，超级用户只用于
+  # 建角色/建库那一步。默认值写成 postgres 会让日常开发绕过最小权限，
+  # 也让「以运行角色能否跑通」这类问题晚到验收才暴露。
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/vision_space
-    username: root
-    password: ${MYSQL_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/vision_space
+    username: ${SPRING_DATASOURCE_USERNAME:vision_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      # MySQL 默认 REPEATABLE READ，PG 默认 READ COMMITTED：显式固定，避免切库后语义漂移
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+      maximum-pool-size: 10
+  # 迁移只在部署/CI 用 Flyway 显式执行；应用启动不做 DDL
+  flyway:
+    enabled: false
   # Redis 配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
   data:
     redis:
@@ -231,8 +241,8 @@ spring:
       max-file-size: 10MB
 mybatis-plus:
   configuration:
-    # MyBatis 配置
-    map-underscore-to-camel-case: false
+    # MyBatis 配置：PG 基线统一 snake_case，实体/JSON 继续保持 camelCase
+    map-underscore-to-camel-case: true
     # 仅在开发环境打印日志
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:

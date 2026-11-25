@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * #39 VIP 权益独立与原子兑换：真实 HTTP → 事务 → 隔离 MySQL。
+ * #39 VIP 权益独立与原子兑换：真实 HTTP → 事务 → 隔离 PostgreSQL。
  *
  * <p>覆盖：到期时间较晚者加十二个月、管理员角色保留、事务回滚不吞码、
  * 重试不重复延长、已用/无效状态表达。
@@ -49,7 +49,7 @@ class HttpVipRedemptionTest {
             // VIP 不经由 userRole 表达：普通用户角色保持不变
             assertEquals("user", roleOf(user.id), "VIP 权益不得改写基础角色");
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM vip_redemption_record WHERE userId = ?", Integer.class, user.id));
+                    "SELECT COUNT(*) FROM vip_redemption_record WHERE user_id = ?", Integer.class, user.id));
         }
     }
 
@@ -57,7 +57,7 @@ class HttpVipRedemptionTest {
     void redemptionExtendsFromTheLaterOfNowAndCurrentExpiry() throws Exception {
         // 未到期用户：从原到期时间累加，不损失已有权益（3 个月 + 12 个月 ≈ 15 个月）
         try (UserSession unexpired = newUser()) {
-            jdbc.update("UPDATE user SET vipExpireTime = ? WHERE id = ?",
+            jdbc.update("UPDATE app_user SET vip_expire_time = ? WHERE id = ?",
                     java.sql.Timestamp.valueOf(LocalDate.now().plusMonths(3).atStartOfDay()), unexpired.id);
             String code = insertAvailableCode();
             assertEquals("success", unexpired.redeem(code).path("data").path("status").asText());
@@ -65,7 +65,7 @@ class HttpVipRedemptionTest {
         }
         // 已到期用户：从当前时间累加
         try (UserSession expired = newUser()) {
-            jdbc.update("UPDATE user SET vipExpireTime = ? WHERE id = ?",
+            jdbc.update("UPDATE app_user SET vip_expire_time = ? WHERE id = ?",
                     java.sql.Timestamp.valueOf(LocalDate.now().minusMonths(2).atStartOfDay()), expired.id);
             String code = insertAvailableCode();
             assertEquals("success", expired.redeem(code).path("data").path("status").asText());
@@ -76,7 +76,7 @@ class HttpVipRedemptionTest {
     @Test
     void adminRedemptionKeepsTheAdminRole() throws Exception {
         try (UserSession admin = newUser()) {
-            jdbc.update("UPDATE user SET userRole = 'admin' WHERE id = ?", admin.id);
+            jdbc.update("UPDATE app_user SET user_role = 'admin' WHERE id = ?", admin.id);
             String code = insertAvailableCode();
             assertEquals("success", admin.redeem(code).path("data").path("status").asText());
             assertEquals("admin", roleOf(admin.id), "管理员兑换 VIP 不得改变管理角色");
@@ -95,8 +95,8 @@ class HttpVipRedemptionTest {
             assertEquals("already_used", retry.path("data").path("status").asText(), "同码第二次兑换必须明确报已用");
             assertEquals(firstExpiry, expiryOf(first.id), "重试不得重复延长");
             assertEquals(1, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM vip_redemption_record WHERE codeId = "
-                            + "(SELECT id FROM vip_redemption_code WHERE codeHash = ?)",
+                    "SELECT COUNT(*) FROM vip_redemption_record WHERE code_id = "
+                            + "(SELECT id FROM vip_redemption_code WHERE code_hash = ?)",
                     Integer.class, VipTestHashes.sha256(code)));
         }
     }
@@ -120,10 +120,10 @@ class HttpVipRedemptionTest {
             assertEquals("invalid", user.redeem("no-such-code-anything").path("data").path("status").asText());
             assertEquals(40000, user.redeem("").path("code").asInt());
             // 无副作用
-            assertEquals(null, jdbc.queryForObject("SELECT vipExpireTime FROM user WHERE id = ?",
+            assertEquals(null, jdbc.queryForObject("SELECT vip_expire_time FROM app_user WHERE id = ?",
                     java.sql.Timestamp.class, user.id));
             assertEquals(0, jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM vip_redemption_record WHERE userId = ?", Integer.class, user.id));
+                    "SELECT COUNT(*) FROM vip_redemption_record WHERE user_id = ?", Integer.class, user.id));
         }
     }
 
@@ -133,10 +133,10 @@ class HttpVipRedemptionTest {
             String code = insertAvailableCode();
             // 预插入一条指向该码的流水，使本次兑换写流水时撞 uk_codeId，
             // 模拟「核销成功后、事务内后续步骤失败」；核销必须随之回滚。
-            long codeId = jdbc.queryForObject("SELECT id FROM vip_redemption_code WHERE codeHash = ?",
+            long codeId = jdbc.queryForObject("SELECT id FROM vip_redemption_code WHERE code_hash = ?",
                     Long.class, VipTestHashes.sha256(code));
-            jdbc.update("INSERT INTO vip_redemption_record (userId, codeId, codeHash, previousExpireTime, expireTime) "
-                    + "VALUES (?, ?, ?, NOW(), NOW())", user.id + 1, codeId, VipTestHashes.sha256(code));
+            jdbc.update("INSERT INTO vip_redemption_record (user_id, code_id, code_hash, previous_expire_time, expire_time) "
+                    + "VALUES (?, ?, ?, statement_timestamp(), statement_timestamp())", user.id + 1, codeId, VipTestHashes.sha256(code));
 
             JsonNode result = user.redeem(code);
             assertNotEquals("success", result.path("data").path("status").asText(), "事务内失败必须向调用方报错");
@@ -144,7 +144,7 @@ class HttpVipRedemptionTest {
                     "SELECT status FROM vip_redemption_code WHERE id = ?", Integer.class, codeId),
                     "失败回滚后码必须未被吞");
             // 清掉障碍后重试成功
-            jdbc.update("DELETE FROM vip_redemption_record WHERE userId = ?", user.id + 1);
+            jdbc.update("DELETE FROM vip_redemption_record WHERE user_id = ?", user.id + 1);
             assertEquals("success", user.redeem(code).path("data").path("status").asText(), "失败不吞码，重试必须能成功");
         }
     }
@@ -195,17 +195,17 @@ class HttpVipRedemptionTest {
 
     private String insertCodeWithStatus(int status) {
         String code = "TEST" + Long.toHexString(System.nanoTime()) + "CODE";
-        jdbc.update("INSERT INTO vip_redemption_code (codeHash, status) VALUES (?, ?)",
+        jdbc.update("INSERT INTO vip_redemption_code (code_hash, status) VALUES (?, ?)",
                 VipTestHashes.sha256(code), status);
         return code;
     }
 
     private String roleOf(long userId) {
-        return jdbc.queryForObject("SELECT userRole FROM user WHERE id = ?", String.class, userId);
+        return jdbc.queryForObject("SELECT user_role FROM app_user WHERE id = ?", String.class, userId);
     }
 
     private java.sql.Timestamp expiryOf(long userId) {
-        return jdbc.queryForObject("SELECT vipExpireTime FROM user WHERE id = ?", java.sql.Timestamp.class, userId);
+        return jdbc.queryForObject("SELECT vip_expire_time FROM app_user WHERE id = ?", java.sql.Timestamp.class, userId);
     }
 
     private void assertExpireCloseToNow(long userId, int monthsFromNow) {
