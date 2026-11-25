@@ -22,9 +22,15 @@ $second = "vs-pg-persist-b-$suffix"
 $volume = $null
 
 function Wait-Postgres([string]$Container) {
+    # 必须等一次真实查询成功，不能只等 pg_isready：
+    # 官方镜像初始化时先起一个只监听 unix socket 的临时服务器，
+    # pg_isready 在那个窗口会返回 0，随后临时服务器退出、正式服务器才起来，
+    # 此时的第一次真实查询会失败——CI 机器负载高时这个竞态很容易被撞上
+    # （实测并发四份时约四分之一概率失败，报 psql failed: SHOW data_directory）。
     $deadline = [DateTime]::UtcNow.AddSeconds(180)
     while ([DateTime]::UtcNow -lt $deadline) {
-        & docker exec $Container pg_isready -q -U postgres *> $null
+        & docker exec -e "PGPASSWORD=$nonce" $Container psql --no-psqlrc -tA -v ON_ERROR_STOP=1 `
+            -U postgres -d postgres -c 'SELECT 1' *> $null
         if ($LASTEXITCODE -eq 0) { return }
         Start-Sleep -Milliseconds 500
     }
@@ -32,11 +38,17 @@ function Wait-Postgres([string]$Container) {
 }
 
 # 裸值读取：-tA（tuples-only + unaligned），口令经 PGPASSWORD，不进 argv。
+# 重试几次：服务器刚切到正式实例的瞬间，一次连接失败不代表数据有问题。
 function Invoke-Probe([string]$Container, [string]$User, [string]$Sql) {
-    $value = & docker exec -e "PGPASSWORD=$nonce" $Container psql --no-psqlrc -tA -v ON_ERROR_STOP=1 `
-        -U $User -d postgres -c $Sql 2>$null
-    if ($LASTEXITCODE -ne 0) { throw "psql failed: $Sql" }
-    return (@($value | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' }) -join "`n")
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $value = & docker exec -e "PGPASSWORD=$nonce" $Container psql --no-psqlrc -tA -v ON_ERROR_STOP=1 `
+            -U $User -d postgres -c $Sql 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return (@($value | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' }) -join "`n")
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "psql failed: $Sql"
 }
 
 $cleanTeardown = $false
