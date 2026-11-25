@@ -861,7 +861,7 @@ swap 上限合计 812 MB，比实机的 2 GB 更苛刻——这一轮不是更�
 
 M4 实机写入验收，是首次在真实云主机上把 **安装 → 建库 → 迁移 → 部署 → 业务 → 压力 → soak → 备份恢复** 整条链跑一遍。所有动作都在该轮的用户显式授权内；共同依据只有本计划与 `docs/adr/0004-postgresql-schema-and-time-contract.md`。**未合并 main、未打 1.1.0、未发布 GitHub Release、未放生产流量。**
 
-**仓库代码零改动**：候选提交 `427414a`，`git diff main --stat` 在本轮验收期间始终为空。改动只发生在验收机的部署配置上，逐条在 F.10 出现的地方说明处置。
+**验收期间未改业务代码**：候选提交 `427414a` 是本轮实机验收的代码基线，**M4 实机验收期间，相对 `427414a` 未修改任何业务代码**（验收动作只落在验收机的部署配置与 `docs/` 文档上）。本次 PR 相对 `main` 的代码变更全部来自 M1–M3 的迁移工作本身，与实机验收无关。
 
 本附录同时**闭合 §7 门禁 8**（「实机低资源验收记录归档」）：§5.9 的四项、1 小时真机 soak、备份恢复演练都在实机跑过并留证；其余七项门禁以 CI 与本地验收为准（见 B）。
 
@@ -994,7 +994,7 @@ PG 关键参数实测：`shared_buffers` 16384×8kB（128 MB）、`work_mem` 204
 1. **运行手册的 `app.env` 少了模型端点键**（真缺陷，涉及手册/模板，不涉及代码）。少了 `SPRING_AI_OPENAI_BASE_URL` 时，Agent 走 OpenAI 客户端默认打 `api.openai.com`——大陆不可达，同步调用挂到超时，SSE 一个字节都回不来。补上 `SPRING_AI_OPENAI_BASE_URL`（DashScope 兼容模式）与 `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=qwen-plus` 后，请求 1.5 秒内得到明确失败。**处置**：两键写进计划 §3.6 的 `app.env` 清单。
 2. **DashScope 免费额度耗尽**（`403 AllocationQuota.FreeTierOnly`），兼容模式与原生端点同样 403；服务端直接 `curl` 复现。与迁移无关，属账号侧阻塞，是 RELEASE / PRODUCTION 判定的外部前置。
 3. **SSE 首帧 28–30 秒，与 MVC 默认 30 秒异步超时正面撞车**。换用可用供应商实测：`first_frame=30.2s / 28.1s`，另一个时段 65.6s；同一供应商 `curl -N` 直连 1.5 秒出首包，说明这 28–30 秒耗在应用内、模型调用之前的阶段（同期日志只有 `Agent 流式对话请求` 一行，没有工具/节点级日志可归因）。默认 30 秒下会话在首帧前被 `AsyncRequestTimeoutException` 掐断，客户端拿不到任何帧。**处置**：`app.env` 显式 `SPRING_MVC_ASYNC_REQUEST_TIMEOUT=300000` 并写进手册；首帧延迟本身列为待查性能项（F.11）。
-4. **模型失败发生在首帧之前时，客户端收到 500 空体**，而不是 SSE 的 `error` 帧。日志同时出现 `AgentController` 的「流式对话错误」（`onErrorResume` 生效）与 `GlobalExceptionHandler` 的 `HttpMessageNotWritableException: ... preset Content-Type 'text/event-stream'`。`AgentController` 与 `GlobalExceptionHandler` 在本分支相对 `main` **没有任何改动**（`git diff --stat main` 为空）→ 既有行为，不是迁移引入；建议单开 issue 让「首帧前失败」也走 SSE 错误帧。
+4. **模型失败发生在首帧之前时，客户端收到 500 空体**，而不是 SSE 的 `error` 帧。日志同时出现 `AgentController` 的「流式对话错误」（`onErrorResume` 生效）与 `GlobalExceptionHandler` 的 `HttpMessageNotWritableException: ... preset Content-Type 'text/event-stream'`。`AgentController` 与 `GlobalExceptionHandler` 在本分支相对 `main` **没有任何改动**（`git diff --stat main -- <这两个文件>` 为空）→ 既有行为，不是迁移引入；建议单开 issue 让「首帧前失败」也走 SSE 错误帧。
 5. **存储配置缺 `domain` 会产出 `null` 前缀 URL**（实测 `nullacceptance//space/...`），预览随之失败；补 `domain` 后刷新即恢复。**处置**：`domain` 列为部署必填项写进手册（生产是 COS/OSS 的公开域名）。
 6. **应用绑 `0.0.0.0:8081`**。当前靠安全组挡住（外网直连实测 `000`），但一旦安全组放开或换机器就会直接暴露明文 HTTP。**处置**：建议生产加 `SERVER_ADDRESS=127.0.0.1`（或安全组显式白名单），列入上线清单。
 7. **`oom_kill` 基线是 1**：验收机在本轮之前已发生过一次整机 OOM kill（装包阶段 apt/dpkg 与 unattended-upgrade 抢内存）。本轮压测与 soak 全程该计数不变，说明验收期间没有新的 OOM；报告里所有「无 OOM」结论都以「计数不增长」为准，而非「计数为 0」。
@@ -1016,7 +1016,7 @@ PG 关键参数实测：`shared_buffers` 16384×8kB（128 MB）、`work_mem` 204
 
 | 判定 | 结论 | 依据与条件 |
 |---|---|---|
-| **MERGE_READY** | **是** | 仓库代码相对 `main` 未变（验收期间 `git diff --stat main` 为空），PR #166 在 `427414a` 上六个作业全绿（`security`/`browser`/`container`/`acceptance`/`evidence`/`SRF merge gate`），mergeable；实机验收没有发现任何「必须改代码才能上线」的问题。合并仍需用户显式授权 |
+| **MERGE_READY** | **是** | M4 实机验收期间相对 `427414a` 未修改业务代码（`427414a..f0e30a5` 只含 `docs/`），PR #166 在最终 HEAD 上六个作业全绿（`security`/`browser`/`container`/`acceptance`/`evidence`/`SRF merge gate`），mergeable；实机验收没有发现任何「必须改代码才能上线」的问题。合并仍需用户显式授权 |
 | **RELEASE_READY** | **有条件** | 迁移本体能在 1.7 GB 机型上稳定运行（F.5–F.8 全绿）。条件：① DashScope 额度或换 key；② `SPRING_AI_OPENAI_BASE_URL` + `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL` + `SPRING_MVC_ASYNC_REQUEST_TIMEOUT` 进 `app.env` 模板；③ 存储配置 `domain` 必填。打 `1.1.0` 需另行授权 |
 | **PRODUCTION_READY** | **否（当前）** | 除上面三条外还差：公网域名 + 正式证书；真实 COS/OSS 域名下验证预览；微信登录凭据（若首发就要）；`8081` 绑回环；定时备份与基线监控。放生产流量需另行授权 |
 
