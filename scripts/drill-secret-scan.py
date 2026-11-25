@@ -18,7 +18,8 @@ FILES = [
     "scripts/drill-secret-scan.py",
     "sql/migrations/2026-11-05-maintenance-window-blocklist.sql",
     "sql/migrations/maintenance-window.manifest.json",
-    "src/test/java/com/yuwen/visionspace/acceptance/MaintenanceWindowDrillTest.java",
+    # MaintenanceWindowDrillTest 随 MySQL→PostgreSQL 迁移退役（对照清单 scripts/pg-migration-test-map.json），
+    # 替身是 PostgresSchemaConformanceTest；这里同步移除已删除的文件，避免扫描脚本读不到文件直接崩。
     "src/test/java/com/yuwen/visionspace/acceptance/MaintenanceWindowManifestTest.java",
 ]
 
