@@ -115,8 +115,12 @@ def main():
 
         # postgres:18 声明 VOLUME /var/lib/postgresql（PGDATA=/var/lib/postgresql/18/docker）：
         # 显式挂命名卷，避免匿名卷在容器删除后无法回收。
-        volume_result = docker("volume", "create", "--label", f"vs.run={nonce}",
-                               "--label", "vs.role=drill", volume, capture_output=True)
+        volume_result = docker("volume", "create",
+                               # 标签必须与 scripts/docker-test-harness.psm1 同一套键：
+                               # 审计器只按 vs.run-id / vs.owner 分类，写 vs.run 的资源会被
+                               # 归进 REVIEW_* 永不回收（硬杀后就成了永久残留）。
+                               "--label", "vs.owner=vision-space", "--label", f"vs.run-id={nonce}",
+                               "--label", "vs.kind=test", volume, capture_output=True)
         if volume_result.returncode != 0:
             raise RuntimeError("isolated PostgreSQL volume creation failed")
         created_volume = True
@@ -126,7 +130,8 @@ def main():
                     "-e", f"POSTGRES_PASSWORD={nonce}", "-e", "POSTGRES_USER=postgres",
                     "-e", "POSTGRES_DB=postgres", "-e", f"ACCEPTANCE_DB={database}",
                     "-e", f"ACCEPTANCE_NONCE={nonce}", "-e", "TZ=UTC",
-                    "--label", f"vs.run={nonce}", "--label", "vs.role=drill",
+                    "--label", "vs.owner=vision-space", "--label", f"vs.run-id={nonce}",
+                    "--label", "vs.kind=test",
                     "-v", f"{volume}:/var/lib/postgresql",
                     "--mount", f"type=bind,source={init_path},target=/docker-entrypoint-initdb.d/01-acceptance.sh,readonly",
                     # 全量套件会同时存活多个 Spring 上下文（含双实例用例），每个池都要连接；
@@ -137,7 +142,8 @@ def main():
         created_containers.append(postgres_container)
         redis = docker("run", "-d", "--name", redis_container,
                        "-p", f"127.0.0.1:{redis_port}:6379",
-                       "--label", f"vs.run={nonce}", "--label", "vs.role=drill",
+                       "--label", "vs.owner=vision-space", "--label", f"vs.run-id={nonce}",
+                       "--label", "vs.kind=test",
                        REDIS_IMAGE, "redis-server", "--requirepass", nonce,
                        capture_output=True, text=True)
         if redis.returncode != 0:

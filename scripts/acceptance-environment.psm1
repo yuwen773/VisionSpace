@@ -121,19 +121,21 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
         [IO.File]::WriteAllText($initPath, $initScript.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
 
         # postgres:18 声明 VOLUME /var/lib/postgresql：显式挂命名卷，避免匿名卷残留。
-        & docker volume create --label "vs.run=$Nonce" --label 'vs.role=acceptance-test' $volume *> (Join-Path $RunDirectory 'postgres-volume.log')
+        & docker volume create --label 'vs.owner=vision-space' --label "vs.run-id=$Nonce" --label 'vs.kind=test' $volume *> (Join-Path $RunDirectory 'postgres-volume.log')
         if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: isolated PostgreSQL volume creation failed.' }
         # 全量套件会同时存活多个 Spring 上下文（含双实例用例），每个连接池都要连接；
         # 镜像默认 max_connections=100 会被用尽，双实例用例因此拿不到连接。测试实例放宽到 200。
         & docker run -d --name $services.PostgresContainer -p '127.0.0.1::5432' `
             -e "POSTGRES_PASSWORD=$Nonce" -e 'POSTGRES_USER=postgres' -e 'POSTGRES_DB=postgres' `
             -e "ACCEPTANCE_DB=$Database" -e "ACCEPTANCE_NONCE=$Nonce" -e 'TZ=UTC' `
-            --label "vs.run=$Nonce" --label 'vs.role=acceptance-test' `
+            --label 'vs.owner=vision-space' --label "vs.run-id=$Nonce" --label 'vs.kind=test' `
             -v "${volume}:/var/lib/postgresql" `
             --mount "type=bind,source=$initPath,target=/docker-entrypoint-initdb.d/01-acceptance.sh,readonly" `
             $script:PostgresImage -c max_connections=200 *> (Join-Path $RunDirectory 'postgres-container.log')
         if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: isolated PostgreSQL startup failed.' }
-        & docker run -d --name $services.RedisContainer -p '127.0.0.1::6379' redis:7.2.4 redis-server --requirepass $Nonce *> (Join-Path $RunDirectory 'redis-container.log')
+        & docker run -d --name $services.RedisContainer -p '127.0.0.1::6379' `
+            --label 'vs.owner=vision-space' --label "vs.run-id=$Nonce" --label 'vs.kind=test' `
+            redis:7.2.4 redis-server --requirepass $Nonce *> (Join-Path $RunDirectory 'redis-container.log')
         if ($LASTEXITCODE -ne 0) { throw 'BLOCKED_ENV: isolated Redis startup failed.' }
         $services.PostgresPort = [int]((& docker port $services.PostgresContainer 5432) -split ':')[-1]
         $services.RedisPort = [int]((& docker port $services.RedisContainer 6379) -split ':')[-1]
