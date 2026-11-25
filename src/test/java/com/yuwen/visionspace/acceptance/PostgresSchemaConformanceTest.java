@@ -2,13 +2,22 @@ package com.yuwen.visionspace.acceptance;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -141,11 +150,52 @@ class PostgresSchemaConformanceTest {
         assertEquals(List.of("set_updated_create_time", "set_updated_gmt_modified",
                         "set_updated_time", "set_updated_updated_time"),
                 functions, "更新时间触发器只允许复用这四个函数，新增函数会绕开「内容未变不刷新」的语义");
+    }
 
-        Long triggerCount = jdbc.queryForObject("""
-                SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal
-                """, Long.class);
-        assertEquals(22L, triggerCount, "触发器数量与「原本有 ON UPDATE CURRENT_TIMESTAMP 的列」一一对应");
+    /**
+     * 触发器绑定以迁移脚本本身为准，测试不另存一份数量：增删触发器只改
+     * {@code db/migration/*.sql}，库与源一旦不一致就在这里失败
+     * （CODING_STANDARDS「编排数量来自单一事实来源」）。
+     *
+     * <p>比对的是「表 + 函数」的集合而不是数量：数量碰巧相等但绑错了表，同样会
+     * 让某一列的 update_time 停住或让别的列被意外刷新，计数抓不出来。
+     */
+    @Test
+    void updateTriggersMatchTheMigrationSource() throws IOException {
+        List<String> expected = updateTriggersFromMigrations();
+        assertFalse(expected.isEmpty(),
+                "没能从 db/migration/*.sql 解析出任何触发器：解析规则与迁移写法已经脱节");
+        List<String> actual = jdbc.queryForList("""
+                SELECT c.relname || '.' || p.proname
+                FROM pg_trigger t
+                JOIN pg_class c ON c.oid = t.tgrelid
+                JOIN pg_proc p ON p.oid = t.tgfoid
+                WHERE NOT t.tgisinternal
+                ORDER BY 1
+                """, String.class);
+        assertEquals(expected, actual,
+                "库里的触发器与迁移脚本不一致：多出来的会绕开「内容未变不刷新」，缺失的会让 update_time 停住");
+    }
+
+    /** 从 {@code classpath:db/migration/*.sql} 取「表.函数」绑定；先剥掉行注释，免得注释掉的示例被当成期望值。 */
+    private static List<String> updateTriggersFromMigrations() throws IOException {
+        Pattern createTrigger = Pattern.compile(
+                "(?i)CREATE\\s+TRIGGER\\s+\\S+\\s+BEFORE\\s+UPDATE\\s+ON\\s+(\\w+)\\s+FOR\\s+EACH\\s+ROW"
+                        + "\\s+EXECUTE\\s+FUNCTION\\s+(\\w+)\\s*\\(");
+        Set<String> bindings = new TreeSet<>();
+        Resource[] scripts = new PathMatchingResourcePatternResolver()
+                .getResources("classpath*:db/migration/*.sql");
+        for (Resource script : scripts) {
+            String sql;
+            try (InputStream in = script.getInputStream()) {
+                sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            Matcher matcher = createTrigger.matcher(sql.replaceAll("(?m)--.*$", ""));
+            while (matcher.find()) {
+                bindings.add(matcher.group(1) + "." + matcher.group(2));
+            }
+        }
+        return List.copyOf(bindings);
     }
 
     @Test

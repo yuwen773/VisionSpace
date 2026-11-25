@@ -31,10 +31,18 @@ services:
     networks:
       - internal
 
-  # 显式迁移工具：docker compose --profile tools run --rm flyway ... migrate
+  # 显式迁移工具：业务表只由它建（计划 §2.1：Docker init 只建角色/库/扩展）。
+  #   docker compose --profile tools run --rm flyway migrate
+  # 刻意不放进默认栈：`up -d` 不该顺手改库结构，迁移是发布步骤而不是副作用。
+  # 连接参数走 FLYWAY_* 环境变量，口令由 compose 从 .env 插值，不进 argv。
   flyway:
     image: flyway/flyway:13.13.0
     profiles: ["tools"]
+    command: ["migrate"]
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      FLYWAY_USER: vision_migrator
+      FLYWAY_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?POSTGRES_MIGRATOR_PASSWORD is required}
     volumes:
       - ./src/main/resources/db/migration:/flyway/sql:ro
     depends_on:

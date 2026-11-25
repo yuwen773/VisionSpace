@@ -46,6 +46,33 @@ class PublishEvidenceTest(unittest.TestCase):
             self.assertEqual(summary["gateFailures"], {"frontend-build": "scripts/tests/test-postgres-persistence.ps1 exited 1"})
             self.assertNotIn("leaked-value", (output / "summary.json").read_text())
 
+    def test_test_coverage_counts_travel_but_class_names_do_not(self):
+        with tempfile.TemporaryDirectory(prefix="vs47-coverage-") as directory:
+            source, output = Path(directory) / "raw", Path(directory) / "public"
+            source.mkdir()
+            (source / "summary.json").write_text(json.dumps({
+                "head": "a" * 40,
+                "results": {"test-coverage-map": "PASS"},
+                "testCoverage": {
+                    "baseRef": "7545610",
+                    "baseTestClasses": 132,
+                    "currentTestClasses": 140,
+                    "added": 9,
+                    "retired": 1,
+                    "migrated": 51,
+                    "problems": 0,
+                    "addedClasses": ["com.example.internal.SecretPathTest"],
+                },
+            }))
+            result = subprocess.run([sys.executable, "-I", "scripts/publish-evidence.py", str(source), str(output)], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            text = (output / "summary.json").read_text()
+            coverage = json.loads(text)["testCoverage"]
+            self.assertEqual(coverage["migrated"], 51)
+            self.assertEqual(coverage["baseRef"], "7545610")
+            self.assertNotIn("addedClasses", coverage)
+            self.assertNotIn("SecretPathTest", text)
+
 
 if __name__ == "__main__":
     unittest.main()

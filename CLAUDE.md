@@ -35,7 +35,11 @@ npm run format               # Prettier --write src/
 npm run openapi2ts           # Regenerate API clients (needs a backend on :8081; see API regeneration)
 
 # Docker
-docker-compose up -d         # PostgreSQL 18 + Redis 7 + backend
+docker-compose up -d         # PostgreSQL 18 + Redis 7 + backend（向量库默认不启动）
+# 业务表只由 Flyway 建，backend 起来前必须先迁移一次（否则 Hikari 启动期查不到表就退出）：
+#   docker-compose up -d postgres
+#   docker compose --profile tools run --rm flyway migrate
+#   docker-compose up -d
 ```
 
 ## Tech Stack

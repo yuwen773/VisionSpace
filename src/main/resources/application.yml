@@ -198,10 +198,13 @@ spring:
       - org.springframework.ai.vectorstore.chroma.autoconfigure.ChromaVectorStoreAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
   # 数据库配置：仅开发默认值，生产由 application-prod.yml 与环境变量覆盖
+  # 运行角色固定为 vision_app（ADR-0004 §5）：本地开发也不例外，超级用户只用于
+  # 建角色/建库那一步。默认值写成 postgres 会让日常开发绕过最小权限，
+  # 也让「以运行角色能否跑通」这类问题晚到验收才暴露。
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/vision_space
-    username: postgres
+    username: ${SPRING_DATASOURCE_USERNAME:vision_app}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     hikari:
       # MySQL 默认 REPEATABLE READ，PG 默认 READ COMMITTED：显式固定，避免切库后语义漂移

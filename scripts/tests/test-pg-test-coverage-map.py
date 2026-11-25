@@ -78,6 +78,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".", help="仓库根目录（默认当前目录）")
     parser.add_argument("--map", default=str(MAP_PATH))
+    parser.add_argument("--json-out", default="", help="把计数摘要另存为 JSON（验收脚本读它写进 summary）")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
@@ -99,8 +100,13 @@ def main() -> int:
     registered: dict[str, str] = {}
     for kind, entries in (("retired", retired), ("migrated", migrated)):
         for entry in entries:
-            name = str(entry.get("test", "")).strip()
-            replacement = str(entry.get("replacement", "")).strip()
+            # `retired` 写成对象（退役必须有承担者）；`migrated` 是纯类名列表：
+            # 原地改写的类，replacement 就是它自己，再抄一遍只是噪音。
+            if isinstance(entry, str):
+                name, replacement = entry.strip(), entry.strip()
+            else:
+                name = str(entry.get("test", "")).strip()
+                replacement = str(entry.get("replacement", "")).strip()
             if not name:
                 problems.append(f"{kind} 里有缺少 test 字段的条目")
                 continue
@@ -132,11 +138,16 @@ def main() -> int:
         "currentTestClasses": len(current),
         "added": added,
         "missing": missing,
-        "retired": [entry.get("test") for entry in retired],
+        "retired": [entry if isinstance(entry, str) else entry.get("test") for entry in retired],
         "migrated": len(migrated),
         "problems": problems,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+    if args.json_out:
+        # 验收脚本要把这几项计数写进 summary.json：只有退出码的话，证据里看不出
+        # 「退役几个、新增几个」，判断不了是不是靠净删除换绿（计划 §5.8）。
+        Path(args.json_out).write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if problems:
         for problem in problems:

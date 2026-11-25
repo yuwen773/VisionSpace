@@ -15,12 +15,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -362,6 +371,93 @@ class HttpResourceQuarantineTest {
             jdbc.update("DELETE FROM picture WHERE id IN (?, ?)", privatePicture, 88021L);
             jdbc.update("DELETE FROM space WHERE id = 88002");
         }
+    }
+
+    /**
+     * §3.3 的并发承诺：隔离、删除、替换共用同一把资源行锁，三者并发时既不能死锁
+     * （PG 的死锁检测会把一个事务以 40P01 打断，落到接口上就是 50000），
+     * 也不能出现「隔离已生效、原内容仍被销毁」。
+     *
+     * <p>每一轮三个动作同时打同一张图。只要有人把加锁顺序改坏，或者先锁隔离行
+     * 再锁资源行，这一轮就会以死锁超时或 50000 失败——不是靠读注释得出的结论。
+     */
+    @Test
+    void concurrentQuarantineDeleteAndReplaceNeitherDeadlockNorDestroyQuarantinedContent() throws Exception {
+        int rounds = 6;
+        ExecutorService pool = Executors.newFixedThreadPool(3);
+        try {
+            for (int round = 0; round < rounds; round++) {
+                long pictureId = 88_300 + round;
+                // 先清后种：上一轮失败留下的行会让本轮撞主键，把失败原因引到错误的地方。
+                clearRacePicture(pictureId);
+                seedPicture(pictureId, ownerId, null);
+                seedResource(pictureId, ownerId, null, "race/" + pictureId + ".jpg");
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<JsonNode>> results = new ArrayList<>();
+                for (Callable<JsonNode> operation : List.<Callable<JsonNode>>of(
+                        () -> withUser(ownerId, client -> post(client, "/picture/delete", Map.of("id", pictureId))),
+                        () -> withUser(moderatorId, client -> post(client, "/moderation/quarantine",
+                                moderationBody(pictureId, "并发处置"))),
+                        () -> withUser(ownerId, client -> upload(client, "/picture/upload", "race.png",
+                                "id", String.valueOf(pictureId))))) {
+                    results.add(pool.submit(() -> {
+                        start.await();
+                        return operation.call();
+                    }));
+                }
+                start.countDown();
+                for (Future<JsonNode> result : results) {
+                    JsonNode response;
+                    try {
+                        response = result.get(30, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        throw new AssertionError("并发处置抛出异常: " + e.getCause(), e.getCause());
+                    }
+                    assertNotEquals(50000, response.path("code").asInt(),
+                            "并发处置以系统错误收场（PG 死锁是 40P01 → 50000）: " + response);
+                }
+                assertFinalStateIsCoherent(pictureId);
+            }
+        } finally {
+            pool.shutdownNow();
+            for (int round = 0; round < rounds; round++) {
+                clearRacePicture(88_300 + round);
+            }
+        }
+    }
+
+    private void clearRacePicture(long pictureId) {
+        jdbc.update("DELETE FROM storage_cleanup_task WHERE picture_id = ?", pictureId);
+        jdbc.update("DELETE FROM resource_isolation WHERE resource_id = ?", pictureId);
+        jdbc.update("DELETE FROM picture_file WHERE picture_id = ?", pictureId);
+        jdbc.update("DELETE FROM picture WHERE id = ?", pictureId);
+    }
+
+    /** 隔离生效后原内容不得再被销毁；删除成功的资源不得留下生效中的隔离记录。 */
+    private void assertFinalStateIsCoherent(long pictureId) {
+        Integer active = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM resource_isolation WHERE resource_id = ? AND status = 1",
+                Integer.class, pictureId);
+        Integer alive = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM picture WHERE id = ? AND is_delete = 0", Integer.class, pictureId);
+        if (active != null && active > 0) {
+            assertEquals(1, alive, "隔离已生效，原内容却不见了（picture=" + pictureId + "）");
+        }
+        if (alive != null && alive == 0) {
+            assertEquals(0, active, "内容已删除，却留下生效中的隔离记录（picture=" + pictureId + "）");
+        }
+    }
+
+    private JsonNode withUser(long userId, JsonAction action) throws Exception {
+        try (var client = client()) {
+            login(client, userId);
+            return action.apply(client);
+        }
+    }
+
+    @FunctionalInterface
+    private interface JsonAction {
+        JsonNode apply(HttpClient client) throws Exception;
     }
 
     // ---- helpers ----

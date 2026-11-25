@@ -31,6 +31,20 @@ def project_failures(value):
     return out
 
 
+def project_test_coverage(value):
+    """覆盖对照只投影计数（计划 §5.8）：类名清单不进证据，只留得出「有没有净删除」的几个数。"""
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for key in ("baseTestClasses", "currentTestClasses", "added", "retired", "migrated", "problems"):
+        number = value.get(key)
+        if isinstance(number, int) and not isinstance(number, bool) and 0 <= number <= 100_000:
+            out[key] = number
+    if re.fullmatch(r"[0-9a-f]{7,40}", str(value.get("baseRef", ""))):
+        out["baseRef"] = value["baseRef"]
+    return out if "migrated" in out else {}
+
+
 def project(value):
     if isinstance(value, list):
         return [project(item) for item in value]
@@ -59,6 +73,9 @@ def project(value):
     projected_failures = project_failures(value)
     if projected_failures:
         out["gateFailures"] = projected_failures
+    projected_coverage = project_test_coverage(value.get("testCoverage"))
+    if projected_coverage:
+        out["testCoverage"] = projected_coverage
     return out
 
 

@@ -8,261 +8,58 @@
       "reason": "MySQL 维护窗口演练随 42 份 MySQL 迁移脚本一并退役：它执行 ENGINE=InnoDB 临时表、DELIMITER 存储过程与 sql/migrations 回放，在 PostgreSQL + vision_app（无 DDL 权限）下无法成立。PG 侧等价保障改为：Flyway 单一建表入口 + PostgresSchemaConformanceTest 锁定基线形状 + scripts/tests/test-postgres-persistence.ps1 容器重建持久化 + M4 备份恢复演练。"
     }
   ],
+  "migratedNote": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。",
   "migrated": [
-    {
-      "test": "com.yuwen.visionspace.acceptance.AgentAttachmentMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.AgentAttachmentMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.AssetBoardBrowserIT",
-      "replacement": "com.yuwen.visionspace.acceptance.AssetBoardBrowserIT",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.AssetSearchBrowserIT",
-      "replacement": "com.yuwen.visionspace.acceptance.AssetSearchBrowserIT",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.BoardProposalBrowserIT",
-      "replacement": "com.yuwen.visionspace.acceptance.BoardProposalBrowserIT",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAccountSecurityTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAccountSecurityTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAgentAttachmentLifecycleTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAgentAttachmentLifecycleTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAgentPreferenceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAgentPreferenceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAgentRecoveryTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAgentRecoveryTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAgentSessionIsolationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAgentSessionIsolationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAssetBoardDualInstanceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAssetBoardDualInstanceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAssetBoardTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAssetBoardTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpAssetSearchTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpAssetSearchTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpBaselineTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpBaselineTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpBoardProposalAgentTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpBoardProposalAgentTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpBoardProposalDualInstanceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpBoardProposalDualInstanceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpBoardProposalTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpBoardProposalTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpFeedbackProtectionTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpFeedbackProtectionTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpForgedAuthorizationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpForgedAuthorizationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpMcpAndUrlSecurityTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpMcpAndUrlSecurityTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpMiniProgramAuthTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpMiniProgramAuthTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPermissionContractTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPermissionContractTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureActionReportingTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureActionReportingTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureContentAuthTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureContentAuthTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureGrantTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureGrantTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureStatsAggregationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureStatsAggregationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureStatsAssociationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureStatsAssociationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPictureStatsObservabilityTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPictureStatsObservabilityTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpPublicGalleryTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpPublicGalleryTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpQuarantineRaceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpQuarantineRaceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpRecommendCandidateBoundTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpRecommendCandidateBoundTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpRecommendPaginationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpRecommendPaginationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpResourceQuarantineTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpResourceQuarantineTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpSpaceAuthorizationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpSpaceAuthorizationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpSpaceDualInstanceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpSpaceDualInstanceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpSpaceQuotaConsistencyTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpSpaceQuotaConsistencyTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpStorageConfigSecurityTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpStorageConfigSecurityTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpStorageSwitchTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpStorageSwitchTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpVipRedemptionDualInstanceTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpVipRedemptionDualInstanceTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.HttpVipRedemptionTest",
-      "replacement": "com.yuwen.visionspace.acceptance.HttpVipRedemptionTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.IsolationSettingsTest",
-      "replacement": "com.yuwen.visionspace.acceptance.IsolationSettingsTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.PictureFileMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.PictureFileMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.PictureIndexLifecycleTest",
-      "replacement": "com.yuwen.visionspace.acceptance.PictureIndexLifecycleTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.PictureIndexTaskMapperTest",
-      "replacement": "com.yuwen.visionspace.acceptance.PictureIndexTaskMapperTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.PictureStatsEventMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.PictureStatsEventMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.PrivateResourceMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.PrivateResourceMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.SortKeyWhitelistIntegrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.SortKeyWhitelistIntegrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.SpaceQuotaMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.SpaceQuotaMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.UserPreferenceMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.UserPreferenceMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.VipRedemptionMigrationTest",
-      "replacement": "com.yuwen.visionspace.acceptance.VipRedemptionMigrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.acceptance.WsPictureEditContractTest",
-      "replacement": "com.yuwen.visionspace.acceptance.WsPictureEditContractTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    },
-    {
-      "test": "com.yuwen.visionspace.agent.service.ChatHistoryCursorIntegrationTest",
-      "replacement": "com.yuwen.visionspace.agent.service.ChatHistoryCursorIntegrationTest",
-      "note": "SQL/夹具由 MySQL 方言改写为 PostgreSQL（snake_case、app_user、ON CONFLICT、statement_timestamp、information_schema）。门禁只校验该类仍存在并实际跑到，**断言强度不由此表证明**，需评审逐类对照基线用例。"
-    }
+    "com.yuwen.visionspace.acceptance.AgentAttachmentMigrationTest",
+    "com.yuwen.visionspace.acceptance.AssetBoardBrowserIT",
+    "com.yuwen.visionspace.acceptance.AssetSearchBrowserIT",
+    "com.yuwen.visionspace.acceptance.BoardProposalBrowserIT",
+    "com.yuwen.visionspace.acceptance.HttpAccountSecurityTest",
+    "com.yuwen.visionspace.acceptance.HttpAgentAttachmentLifecycleTest",
+    "com.yuwen.visionspace.acceptance.HttpAgentPreferenceTest",
+    "com.yuwen.visionspace.acceptance.HttpAgentRecoveryTest",
+    "com.yuwen.visionspace.acceptance.HttpAgentSessionIsolationTest",
+    "com.yuwen.visionspace.acceptance.HttpAssetBoardDualInstanceTest",
+    "com.yuwen.visionspace.acceptance.HttpAssetBoardTest",
+    "com.yuwen.visionspace.acceptance.HttpAssetSearchTest",
+    "com.yuwen.visionspace.acceptance.HttpBaselineTest",
+    "com.yuwen.visionspace.acceptance.HttpBoardProposalAgentTest",
+    "com.yuwen.visionspace.acceptance.HttpBoardProposalDualInstanceTest",
+    "com.yuwen.visionspace.acceptance.HttpBoardProposalTest",
+    "com.yuwen.visionspace.acceptance.HttpFeedbackProtectionTest",
+    "com.yuwen.visionspace.acceptance.HttpForgedAuthorizationTest",
+    "com.yuwen.visionspace.acceptance.HttpMcpAndUrlSecurityTest",
+    "com.yuwen.visionspace.acceptance.HttpMiniProgramAuthTest",
+    "com.yuwen.visionspace.acceptance.HttpPermissionContractTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureActionReportingTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureContentAuthTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureGrantTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureStatsAggregationTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureStatsAssociationTest",
+    "com.yuwen.visionspace.acceptance.HttpPictureStatsObservabilityTest",
+    "com.yuwen.visionspace.acceptance.HttpPublicGalleryTest",
+    "com.yuwen.visionspace.acceptance.HttpQuarantineRaceTest",
+    "com.yuwen.visionspace.acceptance.HttpRecommendCandidateBoundTest",
+    "com.yuwen.visionspace.acceptance.HttpRecommendPaginationTest",
+    "com.yuwen.visionspace.acceptance.HttpResourceQuarantineTest",
+    "com.yuwen.visionspace.acceptance.HttpSpaceAuthorizationTest",
+    "com.yuwen.visionspace.acceptance.HttpSpaceDualInstanceTest",
+    "com.yuwen.visionspace.acceptance.HttpSpaceQuotaConsistencyTest",
+    "com.yuwen.visionspace.acceptance.HttpStorageConfigSecurityTest",
+    "com.yuwen.visionspace.acceptance.HttpStorageSwitchTest",
+    "com.yuwen.visionspace.acceptance.HttpVipRedemptionDualInstanceTest",
+    "com.yuwen.visionspace.acceptance.HttpVipRedemptionTest",
+    "com.yuwen.visionspace.acceptance.IsolationSettingsTest",
+    "com.yuwen.visionspace.acceptance.PictureFileMigrationTest",
+    "com.yuwen.visionspace.acceptance.PictureIndexLifecycleTest",
+    "com.yuwen.visionspace.acceptance.PictureIndexTaskMapperTest",
+    "com.yuwen.visionspace.acceptance.PictureStatsEventMigrationTest",
+    "com.yuwen.visionspace.acceptance.PrivateResourceMigrationTest",
+    "com.yuwen.visionspace.acceptance.SortKeyWhitelistIntegrationTest",
+    "com.yuwen.visionspace.acceptance.SpaceQuotaMigrationTest",
+    "com.yuwen.visionspace.acceptance.UserPreferenceMigrationTest",
+    "com.yuwen.visionspace.acceptance.VipRedemptionMigrationTest",
+    "com.yuwen.visionspace.acceptance.WsPictureEditContractTest",
+    "com.yuwen.visionspace.agent.service.ChatHistoryCursorIntegrationTest"
   ]
 }

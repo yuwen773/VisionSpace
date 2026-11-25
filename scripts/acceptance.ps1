@@ -96,6 +96,15 @@ try {
             if ($LASTEXITCODE -ne 0) { throw "$($test.Name) exited $LASTEXITCODE" }
         }
     }
+    # §5.8 的覆盖对照计数要进 summary。runner-tests 里的那次通配执行只留退出码，
+    # 证据看不出「退役几个、新增几个」，也就判断不了是不是靠净删除换绿；
+    # 这里再跑一次（纯文件扫描，秒级），把计数落成 JSON 供 summary 引用。
+    Run-Gate 'test-coverage-map' {
+        $python = Get-AcceptancePython
+        & $python -I (Join-Path $PSScriptRoot 'tests/test-pg-test-coverage-map.py') `
+            --json-out (Join-Path $runDir 'test-coverage-map.json')
+        if ($LASTEXITCODE -ne 0) { throw "test-pg-test-coverage-map exited $LASTEXITCODE" }
+    }
     # 候选内容脱敏扫描：只记录文件:行号:规则名，不输出命中内容。
     Run-Gate 'secret-scan' { & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'secret-scan.ps1') }
     try {
@@ -364,6 +373,21 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
         $_ | Out-String | Add-Content (Join-Path $runDir 'docker-cleanup.log')
     }
     foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }
+    # 覆盖对照计数：即使该关卡 FAIL 也照抄（失败时 problems 非空，同样是证据）。
+    $testCoverage = $null
+    $coveragePath = Join-Path $runDir 'test-coverage-map.json'
+    if (Test-Path -LiteralPath $coveragePath) {
+        $coverage = Get-Content -Raw -LiteralPath $coveragePath | ConvertFrom-Json
+        $testCoverage = [ordered]@{
+            baseRef = [string]$coverage.baseRef
+            baseTestClasses = [int]$coverage.baseTestClasses
+            currentTestClasses = [int]$coverage.currentTestClasses
+            added = @($coverage.added).Count
+            retired = @($coverage.retired).Count
+            migrated = [int]$coverage.migrated
+            problems = @($coverage.problems).Count
+        }
+    }
     $summary = [ordered]@{
         head = (git rev-parse HEAD)
         runId = $runId
@@ -372,6 +396,7 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
         docker = $dockerResources
         results = $results
         gateFailures = $failures
+        testCoverage = $testCoverage
         logs = $runDir
         # A failure remains FAIL until baseline comparison establishes it was pre-existing.
         productionAcceptance = 'NOT_RUN'

@@ -363,12 +363,12 @@ END $$;
 }
 ```
 
-`scripts/tests/check-test-coverage-map.py`：
+`scripts/tests/test-pg-test-coverage-map.py`（原稿写作 `check-test-coverage-map.py`，实现时按仓库 `test-*.py` 约定命名）：
 
 - 以 `baseRef` 列出旧测试类；
 - 当前缺失的类必须出现在 `retired` 或 `migrated`，否则 FAIL；
 - 新增测试类数量必须 ≥ 退役数量（防止净删除）；
-- CI 在 backend gate 前执行，结果写入验收 summary。
+- CI 在 backend gate 前执行，结果写入验收 summary（`testCoverage`：基线/当前类数、退役、迁移、新增）。
 
 9 个迁移演练类逐项登记；51 个 JDBC 测试逐项登记为 migrated；不得以“删掉即通过”。
 
@@ -654,7 +654,7 @@ PG 18 镜像初始化时先起一个**只监听 unix socket 的临时服务器**
 
 #### B.8.2 真缺陷二：测试夹具里的 `password=` 被秘密扫描当成口令
 
-新加的失败原因用例用 `password=leaked-value` 举例“带值形态的原因”，`secret-scan` 的 `hardcoded-password-bare` 规则直接命中，CI 安全关卡变红。处置：换成 `credential=`，被验证的行为（原因里含 `=` 就整条丢弃）与关键字无关。
+新加的失败原因用例里举了一个「口令关键字 + 等号 + 一段值」的例子，`secret-scan` 的 `hardcoded-password-bare` 规则直接命中，CI 安全关卡变红。（这段文字本身也踩过一次：本复盘的初稿把那个形态原样写了出来，被同一条规则抓了现形，只好改成描述而不给字面量。）处置：换成 `credential=`，被验证的行为（原因里含 `=` 就整条丢弃）与关键字无关。
 
 #### B.8.3 顺带补上的东西：红灯要能定位
 
@@ -669,6 +669,25 @@ PG 18 镜像初始化时先起一个**只监听 unix socket 的临时服务器**
 - 修完两个真缺陷后，`25b8295` 与 `028a3a9` 的重跑都是**六个作业全绿**。
 - 剩下的两次（`frontend-build`、`https-browser`）是环境抖动：同样的代码在后续 run 里自然通过，没有改任何相关代码。复现不了就不硬编根因，记在这里备查。
 - 一条方法论：**同一个关卡连续绿过一次，不能证明它不 flaky**。这三个 run 各红在不同关卡，说明 CI 的抖动面比想象中宽；定位手段（结构化失败原因）比“再跑一次”更值得投入。
+
+### B.9 第二轮两轴评审（2026-11-25，`main` 7545610 → `02d21cb`）与处置
+
+按 `/mattpocock-skills:code-review` 再跑一遍两轴。**Standards：1 条硬违规 + 6 条判断项；Spec：3 条缺口**（M4 实机项已登记，不计违规）。
+
+| 发现 | 轴 | 处置 |
+|---|---|---|
+| `PostgresSchemaConformanceTest` 把触发器数量写成字面量 `22L` | Standards 硬违规（CODING_STANDARDS「编排数量来自单一事实来源」） | 期望值改为从 `classpath*:db/migration/*.sql` 解析「表.函数」绑定，与 `pg_trigger` 逐项比对：增删触发器只改迁移，测试随即失败并列出多出/缺失项。顺带比字面量计数更强——数量相同但绑错表也会被抓到 |
+| `pg-migration-test-map.json` 的 51 条 `migrated` 共用一段完全相同的 `note`，`replacement` 恒等于 `test` | Standards 判断项 | 收成顶层 `migratedNote` + 纯类名列表；门禁对字符串条目按「原地改写，承担者即自身」解释（仍兼容对象形态） |
+| 文本唯一键清单写在三处（基线 SQL / Semantics 24 条 / Behavior 19 条） | Standards 判断项 | **不合并，登记理由**：两份清单口径不同（前者是索引形状含数值键，后者是可做大小写探测的文本键及其兄弟列），合并要把两种用途塞进一个结构。漂移仍会被抓：索引形状对不上或真实插入不像预期都会失败 |
+| `BASELINE_TABLES` / `IDENTITY_TABLES` / `LOGICAL_DELETE_TABLES` 三份表集合字面量 | Standards 判断项 | 保留：每条断言都带指向性消息（点名缺哪张表），新增表时任一处漏改都会失败 |
+| `PostgresUniqueCaseSemanticsTest` 与 `…BehaviorTest` 命名分不清结构清单与行为矩阵 | Standards 判断项 | 保留命名，`BehaviorTest` 的 javadoc 已明确指向 `SemanticsTest`；改名会连带 §5.8 清单与 CI 路径，换不来证据强度 |
+| `UserPreferenceMigrationTest` 名字未变，但删掉了 `tableExists` 断言 | Standards 判断项 | 删掉的是已退役 MySQL 回滚脚本的存在性断言；PG 侧对应保障仍在同类的三条用例里（归档恢复不产生第二行、被清除数据不复活、阻断不改在线行） |
+| compose 的 `flyway` 服务在 `profiles: ["tools"]`，而 CLAUDE.md 仍写 `docker-compose up -d` 就完事 | Standards 判断项 | 两处都改：flyway 服务补 `FLYWAY_URL/USER/PASSWORD`（口令走 compose 插值，不进 argv），CLAUDE.md 改成「先起库 → migrate → 再 up」三步 |
+| §3.3「替换/删除/隔离共用同一顺序，测试并发无死锁」没有用例 | Spec | `HttpResourceQuarantineTest` 新增并发用例：6 轮，删除 / 隔离 / 替换同时打同一张图，断言不出现 `50000`（PG 死锁 `40P01` 落点）、终态自洽（隔离生效 ⇒ 内容还在；已删除 ⇒ 没有生效中的隔离） |
+| §5.8「结果写入验收 summary」只做到退出码 | Spec | 验收新增 `test-coverage-map` 关卡，计数写进 summary 的 `testCoverage`；证据投影只带数字（类名不出仓库）；门禁加 `--json-out` |
+| §3.2 `upgradeStoredPassword` 的前提只有注释 | Spec | 新增 `LoginPasswordUpgradeTransactionBoundaryTest`：`authenticateForPassword` / `userLogin` / 小程序 `bind` 都不得带 `@Transactional`，否则立即失败并指出 25P02 风险 |
+| `application.yml` 默认 `username: postgres` | Spec | 改为 `vision_app`（ADR §5：应用一律以运行角色连接），超级用户只用于建角色/建库 |
+| compose 里新增 `flyway` 服务属 spec 之外 | Spec | 保留并在此登记：它是 §2.1「Flyway 唯一建表入口」的部署侧落点；刻意留在 `tools` profile，`up -d` 不会顺手改库结构 |
 
 ## 附录 C：M4 低资源排练（本机模拟 2 vCPU / 1.7 GB 参数，非阿里云实机）
 
