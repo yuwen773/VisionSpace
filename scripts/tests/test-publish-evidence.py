@@ -28,6 +28,24 @@ class PublishEvidenceTest(unittest.TestCase):
                     self.assertNotIn(secret, path.read_text())
             self.assertNotIn(secret, result.stdout + result.stderr)
 
+    def test_structured_failure_reason_travels_but_value_shaped_ones_do_not(self):
+        with tempfile.TemporaryDirectory(prefix="vs47-failures-") as directory:
+            source, output = Path(directory) / "raw", Path(directory) / "public"
+            source.mkdir()
+            (source / "summary.json").write_text(json.dumps({
+                "head": "a" * 40,
+                "results": {"frontend-build": "FAIL"},
+                "gateFailures": {
+                    "frontend-build": "scripts/tests/test-postgres-persistence.ps1 exited 1",
+                    "backend": "password=leaked-value",
+                },
+            }))
+            result = subprocess.run([sys.executable, "-I", "scripts/publish-evidence.py", str(source), str(output)], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads((output / "summary.json").read_text())
+            self.assertEqual(summary["gateFailures"], {"frontend-build": "scripts/tests/test-postgres-persistence.ps1 exited 1"})
+            self.assertNotIn("leaked-value", (output / "summary.json").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

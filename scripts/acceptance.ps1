@@ -15,6 +15,10 @@ $runId = if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { $nonce }
 $dockerResources = [ordered]@{ containers = @(); volumes = @() }
 $database = "vs_acceptance_$nonce"
 $results = [ordered]@{}
+# 每个失败关卡的“为什么”。只记结构化原因（脚本路径 + 退出码这类），
+# 不记日志正文：日志里可能有 Cookie、SQL 参数与请求体。
+# 没有它，CI 上只会看到一个红灯状态码，无法定位是哪一步、哪条规则挂的。
+$failures = [ordered]@{}
 $savedEnvironment = @{}
 $environmentNames = @('VS_ACCEPTANCE_NONCE', 'VS_ACCEPTANCE_PG_PORT', 'VS_ACCEPTANCE_REDIS_PORT', 'JAVA_TOOL_OPTIONS')
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -62,6 +66,11 @@ function Run-Gate([string]$Name, [scriptblock]$Command) {
         } elseif ($Name -eq 'backend') {
             Get-BackendTestStatus -ExitCode 1 -ReportDirectory (Join-Path $runDir 'surefire')
         } else { 'FAIL' }
+        # 失败原因只留结构化短句；清洗掉任何看起来像“键=值”的片段。
+        $reason = [string]$_.Exception.Message
+        $reason = ($reason -replace '(?i)(password|passwd|pwd|secret|token|api[-_]?key|authorization)\s*[:=]\s*\S+', '$1=***').Trim()
+        if ($reason.Length -gt 200) { $reason = $reason.Substring(0, 200) }
+        if ($reason) { $failures[$Name] = $reason }
         Get-Content -LiteralPath $log -Tail 25 | Write-Host
     }
 }
@@ -362,6 +371,7 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
         infrastructure = 'docker'
         docker = $dockerResources
         results = $results
+        gateFailures = $failures
         logs = $runDir
         # A failure remains FAIL until baseline comparison establishes it was pre-existing.
         productionAcceptance = 'NOT_RUN'
