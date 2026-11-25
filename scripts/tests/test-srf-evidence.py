@@ -102,7 +102,7 @@ class EvidenceTest(unittest.TestCase):
             path = directory / "acceptance/summary.json"
             summary = json.loads(path.read_text())
             summary["results"]["frontend-build"] = "FAIL"
-            summary["gateFailures"] = {"frontend-build": "password=super-secret-value"}
+            summary["gateFailures"] = {"frontend-build": "credential=super-secret-value"}
             path.write_text(json.dumps(summary))
             result, report = self.run_report(directory)
             self.assertEqual(result.returncode, 1)

@@ -37,7 +37,7 @@ class PublishEvidenceTest(unittest.TestCase):
                 "results": {"frontend-build": "FAIL"},
                 "gateFailures": {
                     "frontend-build": "scripts/tests/test-postgres-persistence.ps1 exited 1",
-                    "backend": "password=leaked-value",
+                    "backend": "credential=leaked-value",
                 },
             }))
             result = subprocess.run([sys.executable, "-I", "scripts/publish-evidence.py", str(source), str(output)], cwd=ROOT, capture_output=True, text=True)
