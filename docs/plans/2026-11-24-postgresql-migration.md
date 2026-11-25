@@ -339,6 +339,10 @@ END $$;
   - `curl http://127.0.0.1:9081/actuator/health/readiness`（真实 DB/Redis）；
   - `curl http://127.0.0.1/api/health`（应用存活）；
 - 负例：故意用错误口令启动，readiness 必须 DOWN/503，而不是只报端口通。
+  R1 实测修正（见附录 B.6 / C.4）：口令错误的场景不会走到 readiness——Hikari 的 `checkFailFast`
+  在启动期就抛 `FATAL: password authentication failed`，应用直接拒绝启动、管理端口根本不监听。
+  这是更强的一种「不是只报端口通」，因此负例按「启动失败」验收；「依赖在运行中消失」才由
+  readiness DOWN 覆盖，由 `scripts/tests/test-container-verification.ps1` 的停库/后到场景锁定。
 
 ### 5.8 旧测试 → 新测试覆盖对照
 
