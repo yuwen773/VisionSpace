@@ -50,6 +50,15 @@
         ],
         "createdAt": "2026-11-22T09:09:11.805Z",
         "reason": "False positive: .wave-decoration::after is a full-width 8px bottom wave texture (left:0;right:0;bottom:0), not a side accent bar; used by MySpacePage.vue:34 as a bottom edge decoration"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "frontend/src/pages/SpaceAnalyzePage.vue"
+        ],
+        "createdAt": "2026-11-26T02:33:08.248Z",
+        "reason": "DESIGN.md L133/L172/L315 的「无渐变标题」只约束用户中心档案面（Private Print Room）；SpaceAnalyzePage 是紫漾主题的空间分析页，在该系统之外，与既有 ignore 里的 AddSpacePage.vue 属同类处理。该文件早于本轮改动（attribution unknown），本次未修改。"
       }
     ]
   }
