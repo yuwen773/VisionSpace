@@ -168,7 +168,7 @@ WP-03（正式域名 + 证书）
 | 仓库护栏 | `check-repo-hygiene.py`、`test-pg-test-coverage-map.py` → PASS（132 个基线测试类全部有下落） |
 | 独立评审 | Standards 轴与 Spec 轴各跑一遍子代理评审（对照 `CODING_STANDARDS.md` 与本计划 WP-01 / ADR-0005），结论已全部处理，见下方「评审发现与处置」 |
 | 未做（等授权） | 验收机 `app.env` 更新（A1）、实机建独立生产库与切连接串（A2）、验收库清理（A3，本轮明确不授权） |
-| CI 最终验收 | 最终 HEAD `055a9d3` 六个作业全绿：acceptance / browser / container / security / evidence / SRF merge gate（run 45791964018） |
+| CI 验收 | `80e9794` 六个作业全绿：acceptance / browser / container / security / evidence / SRF merge gate（run 45799350000）；此后仅计划文档改动 |
 
 评审发现与处置（2026-11-26 第二轮修订）：
 
