@@ -40,11 +40,27 @@ for (const configured of [false, true]) {
     const name = `${configured ? 'configured' : 'unconfigured'}-${theme}`
     try {
       browser = await chromium.launchPersistentContext(profile, { headless: true, args: ['--remote-debugging-port=0'] })
-      const port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]
+      // 端口文件由 Chromium 落盘，launch 返回不等于它已经写好；机器繁忙时立刻读会
+      // ENOENT，把一次正常启动记成 BLOCKED_ENV（2026-11-26 CI 实测）。
+      let port
+      for (let attempt = 0; attempt < 60 && port === undefined; attempt++) {
+        try {
+          port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      }
+      if (!port) throw new Error(`DevToolsActivePort missing in ${profile} after 15s`)
       // Keep Playwright's transport alive while it attaches newly-created CDP targets.
       const run = await promisify(execFile)(process.execPath, ['harness/browser-check.mjs'], { env: { ...env, CDP_PORT: port, HARNESS_THEME: theme }, encoding: 'utf8', timeout: 90000, maxBuffer: 10 * 1024 * 1024 })
-        .then((value) => ({ ...value, status: 0 }), (error) => ({ stdout: error.stdout, stderr: error.stderr, status: 1 }))
-      fs.writeFileSync(path.join(diagnostics, `${name}.log`), (run.stdout || '') + (run.stderr || ''))
+        .then((value) => ({ ...value, status: 0 }), (error) => ({
+          stdout: error.stdout,
+          stderr: error.stderr,
+          status: 1,
+          // 进程被杀/超时同样是现场：不记下来，日志结尾 PASS 却判 FAIL 时无从解释。
+          note: `[harness] exit status=1 killed=${error.killed} signal=${error.signal} code=${error.code}\n`,
+        }))
+      fs.writeFileSync(path.join(diagnostics, `${name}.log`), (run.note || '') + (run.stdout || '') + (run.stderr || ''))
       results[name] = run.status === 0 ? 'PASS' : 'FAIL'
       console.log(`${results[name]}: diagram ${name}`)
     } catch (error) {

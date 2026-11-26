@@ -502,9 +502,11 @@ for (const src of dom.evilPlantumlSrcs ?? []) {
   }
 }
 
-if (failures.length) {
-  console.log('\nRESULT: FAIL')
-  for (const f of failures) console.log(' - ' + f)
-  process.exit(1)
-}
-console.log('\nRESULT: PASS')
+// 结果打印完就显式退出，不等事件循环自己排空。
+// 调用方（run-ci.mjs）给本进程设了执行超时；Linux 上 CDP 连接关闭后偶尔还有句柄
+// 挂着，进程不退，一次全部通过、日志结尾已经写着 RESULT: PASS 的场景会被超时
+// 杀掉并记成 FAIL（2026-11-26 CI 实测：关卡总时长正好等于一个超时）。
+const verdict = failures.length
+  ? '\nRESULT: FAIL\n' + failures.map((f) => ' - ' + f).join('\n') + '\n'
+  : '\nRESULT: PASS\n'
+process.stdout.write(verdict, () => process.exit(failures.length ? 1 : 0))
