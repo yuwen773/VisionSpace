@@ -518,7 +518,7 @@ const handleSubmit = async () => {
 }
 
 .json-textarea {
-  font-family: 'Monaco', 'Menlo', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
