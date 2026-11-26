@@ -169,6 +169,7 @@ WP-03（正式域名 + 证书）
 | 独立评审 | Standards 轴与 Spec 轴各跑一遍子代理评审（对照 `CODING_STANDARDS.md` 与本计划 WP-01 / ADR-0005），结论已全部处理，见下方「评审发现与处置」 |
 | 未做（等授权） | 验收机 `app.env` 更新（A1）、实机建独立生产库与切连接串（A2）、验收库清理（A3，本轮明确不授权） |
 | CI 验收 | `80e9794` 六个作业全绿：acceptance / browser / container / security / evidence / SRF merge gate（run 45799350000）；此后仅计划文档改动 |
+| 合并后 main CI 核对（2026-11-26） | `main@f70380a` 的 push 轮 [45814682262](https://github.com/yuwen773/VisionSpace/actions/runs/45814682262) attempt 1 出现两处**不可解释的红**：container 作业跑满 45 分钟超时被杀（发布出来的 `summary.json` 只有 `cleanup: PASS`，说明卡在第一条断言之前）→ evidence 与 SRF merge gate 连带红；同时 PR #170 那轮红在同码 14 分钟前还绿的 `PictureStatsEventMigrationTest.maintenanceListIsExecutableAndOnlyReads`。同 HEAD 重跑 attempt 2 六作业全绿（container 7.5 分钟、acceptance 恢复），两处均未复现、均无法归因，已分别登记 [#171](https://github.com/yuwen773/VisionSpace/issues/171)、[#172](https://github.com/yuwen773/VisionSpace/issues/172)；「CI 红只能本地重跑才能解释」这条证据可读性缺口登记为 [#173](https://github.com/yuwen773/VisionSpace/issues/173)。**不据此宣布这两处已修复，也不把重跑当成通过。** |
 
 评审发现与处置（2026-11-26 第二轮修订）：
 
