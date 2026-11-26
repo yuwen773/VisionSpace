@@ -14,10 +14,15 @@ import java.util.Map;
  *
  * <p>缺失、空白、开发回退值与占位文本都会让启动失败，错误信息只包含属性名，
  * 绝不包含属性值。非生产 profile 不做检查，避免影响本地开发与隔离验收。
+ *
+ * <p>检查项里除了秘密，还包括「没有它就一定跑不起来」的配置：模型供应商的
+ * 端点与模型名。实机验收发现过缺端点时 OpenAI 客户端默认打 api.openai.com
+ * （大陆不可达），Agent 的同步调用挂到超时、SSE 一个字节都回不来——
+ * 那种故障在启动期完全看不出来，只能等到用户发消息才发现。
  */
 public final class ProductionSecretsGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
-    static final String BLOCKED = "BLOCKED_ENV: production secrets are not configured: ";
+    static final String BLOCKED = "BLOCKED_ENV: production configuration is not complete: ";
 
     static final List<String> REQUIRED_KEYS = List.of(
             "spring.datasource.url",
@@ -27,6 +32,11 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
             "spring.data.redis.password",
             "spring.ai.dashscope.api-key",
             "spring.ai.openai.api-key",
+            // 模型端点与模型名：prod 配置里给了可达的默认值（application-prod.yml），
+            // 所以「完全没配」不会发生；这里要挡的是**显式置空**——环境变量存在却是空串，
+            // 请求会打向空地址，故障同样只在首帧之后才暴露。
+            "spring.ai.openai.base-url",
+            "spring.ai.openai.chat.options.model",
             "aliYunAi.apiKey",
             "vision-space.pexels.api-key",
             "vision-space.vision-recognition.api-key",
@@ -72,8 +82,12 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
         var problems = new java.util.ArrayList<String>();
         for (String key : REQUIRED_KEYS) {
             String value = values.get(key);
-            if (value == null || value.isBlank()) {
+            if (value == null) {
                 problems.add(key + " (missing)");
+            } else if (value.isBlank()) {
+                // 空串与缺项是两回事：空串通常是「环境变量存在但没填」，
+                // 说成 missing 会把人引到「加一个变量」而不是「把值填上」。
+                problems.add(key + " (blank)");
             } else if (isPlaceholder(value)) {
                 problems.add(key + " (placeholder)");
             } else if (isDevelopmentFallback(key, value)) {
@@ -88,9 +102,12 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
     private static boolean isPlaceholder(String value) {
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         // 模板残留：以 your_/your- 开头或含 change_me 的值一律视为未替换。
+        // 未替换的 <占位> 模板同样要挡住：模板里写的是中文说明（如 <运行角色口令>），
+        // 不在下面的英文占位词表里，光靠词表会放它过去，让服务带着假口令起来。
         return PLACEHOLDERS.contains(normalized)
                 || normalized.startsWith("your_") || normalized.startsWith("your-")
-                || normalized.contains("change_me");
+                || normalized.contains("change_me")
+                || (normalized.contains("<") && normalized.contains(">"));
     }
 
     private static boolean isDevelopmentFallback(String key, String value) {

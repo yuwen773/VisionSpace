@@ -90,3 +90,7 @@ i[0-9]*_body.txt
 i[0-9]*_extract.txt
 .review-*/
 .tickets/
+
+# Python 字节码（隔离门禁脚本被 import / 直跑时生成，不入库）
+__pycache__/
+*.pyc

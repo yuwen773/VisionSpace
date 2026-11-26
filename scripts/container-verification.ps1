@@ -177,6 +177,9 @@ BACKEND_PORT=$backendPort
 SPRING_PROFILES_ACTIVE=prod
 SPRING_AI_DASHSCOPE_API_KEY=$dashscopeKey
 SPRING_AI_OPENAI_API_KEY=$dashscopeKey
+# 模型端点与模型名：生产守卫要求这两项非空。指向假端点，容器内不会有任何外呼。
+SPRING_AI_OPENAI_BASE_URL=http://openai-fixture.invalid/v1
+SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=fixture-model
 ALI_YUN_AI_API_KEY=$dashscopeKey
 VISION_SPACE_PEXELS_API_KEY=$dashscopeKey
 VISION_SPACE_VISION_RECOGNITION_API_KEY=$dashscopeKey
@@ -380,6 +383,9 @@ HOST_POSTGRES_PORT=$hostPostgresPort
 HOST_REDIS_PORT=$hostRedisPort
 SPRING_AI_DASHSCOPE_API_KEY=$dashscopeKey
 SPRING_AI_OPENAI_API_KEY=$dashscopeKey
+# 模型端点与模型名：生产守卫要求这两项非空。指向假端点，容器内不会有任何外呼。
+SPRING_AI_OPENAI_BASE_URL=http://openai-fixture.invalid/v1
+SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=fixture-model
 ALI_YUN_AI_API_KEY=$dashscopeKey
 VISION_SPACE_PEXELS_API_KEY=$dashscopeKey
 VISION_SPACE_VISION_RECOGNITION_API_KEY=$dashscopeKey

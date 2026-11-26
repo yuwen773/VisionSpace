@@ -1,5 +1,11 @@
 # 生产配置：所有秘密仅从环境变量注入，缺失时由 ProductionSecretsGuard 拒绝启动。
 # 本文件与镜像中不得出现真实口令、密钥或内网地址。
+server:
+  # 业务端口只绑回环：nginx 在本机反代到 127.0.0.1:8081。
+  # 实测发现应用原本绑 0.0.0.0:8081，公网入口当时靠安全组挡住（纵深防御缺口）。
+  # 容器部署（docker-compose）会显式覆盖成 0.0.0.0——容器内必须监听所有接口
+  # 才能被端口映射，宿主机侧仍然只发布到 127.0.0.1。
+  address: ${SERVER_ADDRESS:127.0.0.1}
 spring:
   application:
     name: vision-space
@@ -21,6 +27,13 @@ spring:
   # Flyway 不在运行时依赖里；这里显式关闭，防止未来误引入 starter 后启动自动迁移
   flyway:
     enabled: false
+  # MVC 异步请求超时（毫秒）。SSE 会话在首帧到达前一直占着异步请求，
+  # 默认 30 秒会把「模型还没出首帧」的会话掐断，客户端一个帧都收不到（2026-11-25 实测）。
+  # 这是止血兜底，不是首帧延迟的根因修复——根因定位见
+  # docs/plans/2026-11-26-production-readiness.md 的 WP-02。
+  mvc:
+    async:
+      request-timeout: ${SPRING_MVC_ASYNC_REQUEST_TIMEOUT:300000}
   # Redis 配置
   data:
     redis:
@@ -41,6 +54,13 @@ spring:
   ai:
     openai:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
+      # 供应商端点与模型名必须显式给出。缺 base-url 时 OpenAI 客户端默认打
+      # api.openai.com——大陆不可达，Agent 的同步调用会挂到超时，SSE 一个字节都回不来
+      # （2026-11-25 实机验收）。默认值指向 DashScope 兼容模式；换供应商时两个键一起改。
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      chat:
+        options:
+          model: ${SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL:qwen-plus}
     # 站内图片检索（RAG）：这里是 prod profile 的默认值，面向「自带 Chroma」的部署。
     # 仓库自带的 docker-compose.yml 默认**不起** chromadb（它在 rag profile 里），
     # 因此 compose 会把 SPRING_AI_MODEL_EMBEDDING_TEXT / SPRING_AI_VECTORSTORE_TYPE

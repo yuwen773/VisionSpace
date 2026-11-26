@@ -1,9 +1,13 @@
 # VisionSpace 阿里云生产部署手册
 
-- 日期：2026-11-24（2026-11-25 改为 PostgreSQL 18 方案）
+- 日期：2026-11-24（2026-11-25 改为 PostgreSQL 18 方案；2026-11-26 起部署件改用仓库内 `deploy/` 模板）
 - 目标服务器：阿里云 ECS `121.199.77.168`（SSH：`root@121.199.77.168`，密钥 `~/.ssh/aliyun.pem`）
 - 域名：`visionspace.space` / `www.visionspace.space`（阿里云 DNS，A 记录 → 121.199.77.168，TTL 10min）
 - 版本：1.1.0（首次上线；MySQL → PostgreSQL 18 迁移后）
+- **部署模板在仓库里**：`deploy/`（环境变量、systemd、nginx、PG 参数、初始化与自检脚本）。
+  本手册讲的是「为什么这么做」，模板讲的是「具体写成什么样」；两者不一致时以 `deploy/` 为准，
+  并由 `scripts/tests/test-deploy-templates.py` 在 CI 里盯着。长期契约见
+  `docs/adr/0005-production-deployment-contract.md`。
 
 ## 一、目标拓扑
 
@@ -81,33 +85,31 @@ psql --version   # 18.x（应为 18.7；只有 18.6 时见下）
 
 > PGDG 不可达时的退路：`apt-get install -y postgresql-18` 直接用 Ubuntu 26.04 自带源的 **18.6**。同一主版本，本基线用到的特性没有差异，但要在计划附录 D.3 登记「实机 18.6 / CI 18.7」这条补丁版差异，别让后来的人以为两边完全同版。
 
-# 1.7G 内存的低资源参数（对应计划 §5.9）
-cat >>/etc/postgresql/18/main/postgresql.conf <<'EOF'
-listen_addresses = '127.0.0.1'
-shared_buffers = 128MB
-work_mem = 2MB
-maintenance_work_mem = 32MB
-max_connections = 20
-timezone = 'Asia/Shanghai'
-log_timezone = 'Asia/Shanghai'
-EOF
+# 1.7G 内存的低资源参数（对应计划 §5.9）；模板见 deploy/postgresql-production.conf
+install -m 644 deploy/postgresql-production.conf /etc/postgresql/18/main/conf.d/vision-space.conf
 systemctl enable --now postgresql
 ```
 
-角色与库：**迁移角色管 DDL，运行角色只做 DML**。口令用 `\password` 交互设置（客户端算哈希，不进 shell 历史、不进 argv）：
+> `conf.d` 片段与 `postgresql.conf` 追加等价，二选一，别写两遍（后者覆盖前者）。
+> 片段里的数值来自实机验收：shared_buffers 128MB / work_mem 2MB / maintenance_work_mem 32MB /
+> max_connections 20 / timezone Asia/Shanghai。
+
+角色与库：**迁移角色管 DDL，运行角色只做 DML**。生产库用**独立空库**（默认 `vision_space_prod`），
+验收库 `vision_space` 留着验收数据，不直接转正。建库交给仓库里的脚本，它只新建、绝不覆盖既有库：
 
 ```bash
+# 角色口令用 \password 交互设置（客户端算哈希，不进 shell 历史、不进 argv）
 sudo -u postgres psql -c "CREATE ROLE vision_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE"
 sudo -u postgres psql -c "CREATE ROLE vision_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT"
-sudo -u postgres psql -c "CREATE DATABASE vision_space OWNER vision_migrator"
-sudo -u postgres psql -d vision_space \
-  -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC" \
-  -c "GRANT USAGE ON SCHEMA public TO vision_app" \
-  -c "CREATE EXTENSION IF NOT EXISTS pgcrypto" \
-  -c "ALTER DATABASE vision_space SET timezone = 'Asia/Shanghai'"
 sudo -u postgres psql -c '\password vision_migrator'
 sudo -u postgres psql -c '\password vision_app'
+
+# 独立空库：角色已存在时脚本不动它们的口令；目标库已存在时脚本直接拒绝
+sudo VS_DB_NAME=vision_space_prod ./deploy/init-production-db.sh
 ```
+
+> 脚本做四件事：建库、`REVOKE CREATE ON SCHEMA public FROM PUBLIC`、`GRANT USAGE ... TO vision_app`、
+> 装 `pgcrypto`、设库时区。它**不建业务表**——建表只有 Flyway 一个入口。
 
 建表只走 Flyway（部署包携带 Flyway CLI 13.13.0 与迁移目录）：
 
@@ -116,7 +118,7 @@ install -d -m 755 /opt/visionspace/flyway /opt/visionspace/migrations
 # 解压 flyway-commandline-13.13.0 到 /opt/visionspace/flyway
 # 上传 src/main/resources/db/migration/V1__baseline.sql 到 /opt/visionspace/migrations
 cat >/opt/visionspace/flyway.conf <<'EOF'
-flyway.url=jdbc:postgresql://127.0.0.1:5432/vision_space
+flyway.url=jdbc:postgresql://127.0.0.1:5432/vision_space_prod
 flyway.user=vision_migrator
 flyway.locations=filesystem:/opt/visionspace/migrations
 flyway.validateOnMigrate=true
@@ -125,13 +127,14 @@ flyway.outOfOrder=false
 flyway.encoding=UTF-8
 EOF
 chmod 600 /opt/visionspace/flyway.conf
+
+# migrate + validate（口令只经环境变量，不进 argv、不进日志）
 read -rs -p 'vision_migrator password: ' FLYWAY_PASSWORD; export FLYWAY_PASSWORD
-/opt/visionspace/flyway/flyway -configFiles=/opt/visionspace/flyway.conf migrate
-/opt/visionspace/flyway/flyway -configFiles=/opt/visionspace/flyway.conf validate
+VS_DB_NAME=vision_space_prod ./deploy/flyway-migrate.sh
 unset FLYWAY_PASSWORD
 
 # 期望 31 张业务表 + flyway_schema_history
-sudo -u postgres psql -d vision_space -tAc \
+sudo -u postgres psql -d vision_space_prod -tAc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name <> 'flyway_schema_history'"
 ```
 
@@ -161,36 +164,24 @@ getent hosts vision-redis
 
 ### 3.6 应用环境变量
 
-`/opt/visionspace/app.env`（`chmod 600`，只有 root 可读；systemd 以 root 读取后降权运行）：
+`/opt/visionspace/app.env`（`chmod 600`，只有 root 可读；systemd 以 root 读取后降权运行）。
+模板在 `deploy/app.env.example`，**逐项替换 `<...>` 占位**：
 
 ```bash
-cat >/opt/visionspace/app.env <<'EOF'
-SPRING_PROFILES_ACTIVE=prod
-# 运行角色只做 DML；迁移角色只在 3.3 的 Flyway 步骤里使用
-SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/vision_space?ApplicationName=vision-space&sslmode=disable
-SPRING_DATASOURCE_USERNAME=vision_app
-SPRING_DATASOURCE_PASSWORD=<APP_PASSWORD>
-SPRING_DATA_REDIS_HOST=vision-redis
-SPRING_DATA_REDIS_PORT=6379
-SPRING_DATA_REDIS_PASSWORD=<REDIS_PASSWORD>
-SPRING_AI_DASHSCOPE_API_KEY=<...>
-SPRING_AI_OPENAI_API_KEY=<...>
-ALI_YUN_AI_API_KEY=<...>
-VISION_SPACE_PEXELS_API_KEY=<...>
-VISION_SPACE_VISION_RECOGNITION_API_KEY=<...>
-VISION_SPACE_VISION_RECOGNITION_BASE_URL=<...>
-VISION_SPACE_VISION_RECOGNITION_MODEL=<...>
-VISION_SPACE_DEFAULT_PASSWORD=<至少 8 位，不要用 12345678>
-SPRING_AI_VECTORSTORE_TYPE=none
-SPRING_AI_MODEL_EMBEDDING_TEXT=none
-VISION_SPACE_TRUSTED_ORIGINS=
-LOGGING_FILE_NAME=/opt/visionspace/logs/app.log
-# 库、JDBC 会话、JVM 三者同区：timestamp(0) 存墙钟，API 输出不带偏移
-TZ=Asia/Shanghai
-PGTZ=Asia/Shanghai
-EOF
-chmod 600 /opt/visionspace/app.env
+install -m 600 deploy/app.env.example /opt/visionspace/app.env
+vi /opt/visionspace/app.env
 ```
+
+模板里必须改对的几项（2026-11-25 实机踩过的坑）：
+
+| 键 | 值 | 踩坑后果 |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` | 指向独立空库 `vision_space_prod` | 指到验收库就把验收数据带上线了 |
+| `SERVER_ADDRESS` | `127.0.0.1` | 不写就绑 `*:8081`，纵深防御缺口 |
+| `SPRING_AI_OPENAI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `application-prod.yml` 已内建同值默认值；显式写出来是为了「部署意图写在部署文件里」，换供应商时一眼看得出 |
+| `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL` | `qwen-plus` | 同上，内建默认值已是 `qwen-plus`（Spring AI 的默认 `gpt-4o-mini` 供应商会直接报错） |
+| `SPRING_MVC_ASYNC_REQUEST_TIMEOUT` | `300000` | 默认 30 秒会把「首帧还没到」的会话掐断（**止血兜底**，根因见 WP-02） |
+| `SPRING_DATA_REDIS_HOST` | `vision-redis` | 写 `127.0.0.1`/`localhost` 会被守卫判为开发回退值，直接拒绝启动 |
 
 小程序登录还需要（可后补，缺失不影响启动）：
 
@@ -201,93 +192,26 @@ VISION_SPACE_WX_SECRET=<小程序 secret>
 
 ### 3.7 systemd
 
-`/etc/systemd/system/visionspace.service`：
-
-```ini
-[Unit]
-Description=VisionSpace backend
-After=network-online.target postgresql.service redis-server.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=visionspace
-Group=visionspace
-WorkingDirectory=/opt/visionspace/app
-EnvironmentFile=/opt/visionspace/app.env
-ExecStart=/usr/bin/java -Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -Duser.timezone=Asia/Shanghai -jar /opt/visionspace/app/vision-space-0.0.1-SNAPSHOT.jar
-Restart=always
-RestartSec=5
-SuccessExitStatus=143
-
-[Install]
-WantedBy=multi-user.target
-```
+单元文件在 `deploy/visionspace.service`：
 
 ```bash
+install -m 644 deploy/visionspace.service /etc/systemd/system/visionspace.service
 systemctl daemon-reload
 systemctl enable visionspace
 ```
 
-> jar 名以 `mvn package` 实际产物为准（`target/vision-space-*.jar`）。首次部署后可把它固定成不带版本号的软链，避免每次改 unit。
+> 单元里的 JVM 参数按 1.7 GB 实测基线设定（`-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m`，
+> 实测空闲 RSS 431 MB、冷启动 24 秒）；jar 名用不带版本号的软链 `/opt/visionspace/app/vision-space.jar`，
+> 避免每次发版都改 unit。
 
 ### 3.8 nginx
 
-`/etc/nginx/conf.d/visionspace.conf`（基于仓库 `visionspace.conf`，日志路径改为系统默认）：
-
-```nginx
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
-
-map $args $vs_masked_args {
-    "~*^(?<vs_pre>.*&|)(?<vs_key>[^&=]*token[^&=]*=)[^&]*(?<vs_post>&.*|)$"  "${vs_pre}${vs_key}***${vs_post}";
-    default $args;
-}
-
-log_format vs_main '$remote_addr - $remote_user [$time_local] '
-                    '"$request_method $uri$is_args$vs_masked_args $server_protocol" '
-                    '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
-
-server {
-    listen 80;
-    server_name visionspace.space www.visionspace.space;
-
-    root /opt/visionspace/dist;
-    index index.html;
-
-    access_log /var/log/nginx/visionspace.access.log vs_main;
-    error_log  /var/log/nginx/visionspace.error.log;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8081/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
+站点配置在 `deploy/nginx-visionspace.conf`（相对仓库根目录的旧 `visionspace.conf`，
+日志路径改成系统默认、静态根目录改成 `/opt/visionspace/dist`，并把 443 段留成注释，
+等 certbot 签发后启用）：
 
 ```bash
+install -m 644 deploy/nginx-visionspace.conf /etc/nginx/conf.d/visionspace.conf
 nginx -t && systemctl reload nginx
 ```
 
@@ -334,8 +258,21 @@ systemctl status visionspace --no-pager
 journalctl -u visionspace -n 50 --no-pager
 
 # 反向证明运行凭据真的可用（若这里失败，readiness 一定也是 DOWN）
-PGPASSWORD=<APP_PASSWORD> psql -h 127.0.0.1 -U vision_app -d vision_space -tAc 'SELECT 1'
+read -rs -p "运行角色口令: " PGPASSWORD && echo
+PGPASSWORD="$PGPASSWORD" psql -h 127.0.0.1 -U vision_app -d vision_space_prod -tAc 'SELECT 1'
+unset PGPASSWORD
 ```
+
+**一键自检**（监听面 / readiness / 运行角色最小权限 / 业务表数量 / Flyway 状态）：
+
+```bash
+read -rs -p "迁移角色口令: " FLYWAY_PASSWORD && echo
+export FLYWAY_PASSWORD
+VS_DB_NAME=vision_space_prod ./deploy/postflight-check.sh
+```
+
+业务表数量的期望值是从 `/opt/visionspace/migrations` 里的迁移脚本数出来的，
+加了新的迁移不用改自检脚本。
 
 首次上线做一次负例（做完立即改回）：把 `app.env` 里的 `SPRING_DATASOURCE_PASSWORD` 改成错误值并重启，
 `/actuator/health/readiness` 必须是 `DOWN` / 503，而 `systemctl is-active` 仍可能是 active——
@@ -364,7 +301,7 @@ bash scripts/rollback.sh visionspace-aliyun "<文件名>"
 
 | 阶段 | 定义 | 允许的回滚 |
 |---|---|---|
-| A：首次真实数据之前 | 库里只有种子/测试数据 | 停应用 → 回退代码 → `DROP DATABASE vision_space` → 按 3.3 重建（Flyway 重放基线）→ 起旧版 |
+| A：首次真实数据之前 | 库里只有种子/测试数据 | 停应用 → 回退代码 → `DROP DATABASE vision_space_prod` → 按 3.3 重建（Flyway 重放基线）→ 起旧版 |
 | B：首次真实数据之后 | 出现第一个真实注册/上传/行为事件 | **禁止 drop 生产库**。回滚 = 从最近 `pg_dump -Fc` 恢复到新库 + 切连接串，或前向修复；先在预发演练恢复 |
 
 - 切换点（首次真实写入）要写进发布记录，注明时间；
@@ -372,13 +309,22 @@ bash scripts/rollback.sh visionspace-aliyun "<文件名>"
 
 ```bash
 install -d -m 700 /opt/visionspace/backup
-sudo -u postgres pg_dump -Fc vision_space > /opt/visionspace/backup/vision_space-$(date +%F-%H%M).dump
-find /opt/visionspace/backup -name 'vision_space-*.dump' -mtime +7 -delete
+# 生产库备份：用仓库里的备份脚本（pg_dump -Fc，产物 600，口令走环境变量不进 argv）
+read -rs -p "运行角色口令: " PGPASSWORD && echo
+export PGPASSWORD
+VS_DB_NAME=vision_space_prod ./deploy/backup-db.sh
+unset PGPASSWORD
+# 保留期只清生产库这一种文件名；验收库备份是 vision_space-<时间>.dump，长期保留，不进这条清理
+find /opt/visionspace/backup -name 'vision_space_prod-*.dump' -mtime +7 -delete
 
 # 恢复演练（新库，不动生产）
 sudo -u postgres createdb -O vision_migrator vision_space_restore
 sudo -u postgres pg_restore -d vision_space_restore /opt/visionspace/backup/<file>.dump
 ```
+
+> 每日备份与保留策略、异地副本与失败告警属于 1.1.0 生产就绪计划的 WP-03，需要单独授权后配置；
+> 上面这段目前只是手工备份的写法。
+> 验收库 `vision_space` 的备份**长期保留**，不随保留期清理（它是验收期证据与回退锚点）。
 
 - Flyway 只前向，不写 down migration；`cleanDisabled=true`；
 - MySQL 时代遗留的 `sql/migrations/*-rollback.sql` 已归档，不属于 PostgreSQL 回滚路径。
@@ -401,6 +347,10 @@ sudo -u postgres pg_restore -d vision_space_restore /opt/visionspace/backup/<fil
 
 在 2 vCPU / 1.7 GB 的阿里云 ECS 上，按 §3.3 的原生方式装好后，逐条执行并记录数字。
 **不要占用 8081 与 nginx**：验收用临时端口，测完停掉测试实例并删测试库。
+
+> 本节是 **2026-11-25 M4 验收的历史记录**，里面的库名 `vision_space` 指当时的验收库
+> （现已由 `vision_space_prod` 独立空库接手生产，见 §3.3 与 §4）。
+> 之后的备份恢复演练按 §6.1 在生产库上做，库名写 `vision_space_prod`。
 
 > 2026-11-25 已做过一次**只读**预检（无安装、无写入），机器状态、apt 可得版本、缺失前置条件记在计划附录 D。当时 swap 尚未创建，`.1` 之前先执行 §3.1。安全组与 ICP 备案本机测不出来（代理与 DNS 劫持），仍需在控制台确认。
 
