@@ -186,6 +186,7 @@ WP-03（正式域名 + 证书）
 | 隔离验证里的表数写死 31、DDL 负例只断言「permission denied」、异常退出码 99、角色创建分支从未被执行 | 期望值从 `V1__baseline.sql` 数出；断言 SQLSTATE `42501`；异常退出码改 2（仓库约定）；新增干净集群容器专门跑「角色由脚本创建」分支 |
 | `FLYWAY_PASSWORD=<迁移角色口令>` 这类示例把口令写进命令行（会进 shell 历史） | 文档与脚本提示统一改成 `read -rs` 读进环境变量 |
 | CI 的第一轮红在 backend gate，第二轮红在本门禁，且两轮之间只差一行检测配置——原始日志被验收脚本脱敏、不外发，`summary.json` 只留「exit 1」，**无法定位** | ① 宿主机端口交给 Docker 分配（`-p 127.0.0.1::5432`），去掉 `free_port()` 挑临时端口的竞态；② 容器启动失败重试一次；③ 新增 diagnostics 通道：`acceptance.ps1` 经 `VS_ACCEPTANCE_RUN_DIR` 把现场目录传下去，关卡把失败详情写进 `<runDir>/diagnostics/`，收尾拷进报告目录，`publish-evidence.py` 只发布该目录下的 `.log`（原始 gate 日志仍不出仓库） |
+| 上面 ③ 自己引入的回归：文件头用 `-Force` 建 `<runDir>/diagnostics` 时顺带建出了 runDir，紧跟其后无 `-Force` 的 `New-Item` 抛「已存在」，整轮验收在第一个关卡之前就以退出码 1 终止；`publish-evidence.py` 因缺 `target/acceptance` 报 `BLOCKED_ENV`，证据与产物一并落空 | 运行目录及其 `diagnostics/` 改为单点创建并统一用 `-Force`，幂等。同时记下这条边界：脚本在 `try` 之前抛终止错误时不会写 `summary.json`，CI 上只会看到一个红灯——改验收脚本自身时，先确认它还能跑到第一个关卡 |
 
 落地时的两个注意点：
 
