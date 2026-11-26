@@ -188,6 +188,7 @@ WP-03（正式域名 + 证书）
 | CI 的第一轮红在 backend gate，第二轮红在本门禁，且两轮之间只差一行检测配置——原始日志被验收脚本脱敏、不外发，`summary.json` 只留「exit 1」，**无法定位** | ① 宿主机端口交给 Docker 分配（`-p 127.0.0.1::5432`），去掉 `free_port()` 挑临时端口的竞态；② 容器启动失败重试一次；③ 新增 diagnostics 通道：`acceptance.ps1` 经 `VS_ACCEPTANCE_RUN_DIR` 把现场目录传下去，关卡把失败详情写进 `<runDir>/diagnostics/`，收尾拷进报告目录，`publish-evidence.py` 只发布该目录下的 `.log`（原始 gate 日志仍不出仓库） |
 | 上面 ③ 自己引入的回归：文件头用 `-Force` 建 `<runDir>/diagnostics` 时顺带建出了 runDir，紧跟其后无 `-Force` 的 `New-Item` 抛「已存在」，整轮验收在第一个关卡之前就以退出码 1 终止；`publish-evidence.py` 因缺 `target/acceptance` 报 `BLOCKED_ENV`，证据与产物一并落空 | 运行目录及其 `diagnostics/` 改为单点创建并统一用 `-Force`，幂等。同时记下这条边界：脚本在 `try` 之前抛终止错误时不会写 `summary.json`，CI 上只会看到一个红灯——改验收脚本自身时，先确认它还能跑到第一个关卡 |
 | 修复后第二轮红在新门禁的「干净集群」分支：`wait_superuser` 用 `docker exec psql`（默认 unix socket）探活，官方镜像 initdb 阶段会先起一个 `listen_addresses=''` 的临时服务，socket 连得上而 TCP 一律拒绝——探活提前成功，部署脚本的第一条 TCP 连接随即 `Connection refused`。定点实验测得假就绪窗口约 7 秒（socket 3s 通、TCP 10s 才通） | 三处探活（新门禁、`acceptance-environment.psm1`、`drill-isolated-run.py`）统一加 `-h 127.0.0.1`，与部署脚本和应用走同一条 TCP 路径；就绪失败时把最后一次 psql 报错带进异常消息。顺带修正 `init-production-db.sh` 把端口印成 `host=` 的笔误 |
+| 第三轮红在 backend：`PictureStatsEventMigrationTest.maintenanceListIsExecutableAndOnlyReads`（本地 5/5 通过，CI 偶发）。该用例的「盘点清单只读」断言比对的是 **user_picture_action / picture_action_event_dedupe 全表行数**，上报走异步队列，别的用例排空晚一步就会补行，慢机器上抗体不住 | 只读断言收回到本用例夹具（按 `user_id` 与事件键计数）：断言要证明的是「执行盘点 SQL 不改数据」，不是「全表没人写」。三条分组断言本来就不受聚合任务影响——`claimPendingEvents` 要求目标图片真实存在，而夹具的 `picture_id` 故意不存在 |
 
 落地时的两个注意点：
 

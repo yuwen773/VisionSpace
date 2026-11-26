@@ -213,8 +213,8 @@ class PictureStatsEventMigrationTest {
         // 一条反复领取失败的事件：C 类积压
         insertAction(703L, null, 0, 0, 3);
 
-        int actionsBefore = countAllActions();
-        int ledgerBefore = countAllLedger();
+        int actionsBefore = countFixtureActions();
+        int ledgerBefore = countFixtureLedger();
 
         List<java.util.Map<String, Object>> lost = jdbc.queryForList(MAINTENANCE_SQL.get(0));
         List<java.util.Map<String, Object>> orphan = jdbc.queryForList(MAINTENANCE_SQL.get(1));
@@ -229,9 +229,12 @@ class PictureStatsEventMigrationTest {
         assertTrue(stuck.stream().anyMatch(row -> ((Number) row.get("picture_id")).longValue() == PICTURE_ID),
                 "the maintenance list must report the stuck group: " + stuck);
 
-        // 冲突清单必须可执行，且只读：执行后数据不发生变化
-        assertEquals(actionsBefore, countAllActions());
-        assertEquals(ledgerBefore, countAllLedger());
+        // 冲突清单必须可执行，且只读：执行后本用例的夹具不增不减。
+        // 这里刻意不用全表计数：上报走异步队列，别的用例排空晚一步就会往
+        // user_picture_action / picture_action_event_dedupe 里补行，全表计数
+        // 会在 CI（机器慢、时序不同）上偶发变红，而盘点 SQL 其实什么也没改。
+        assertEquals(actionsBefore, countFixtureActions());
+        assertEquals(ledgerBefore, countFixtureLedger());
         assertEquals(1, countRows(701L));
     }
 
@@ -293,13 +296,17 @@ class PictureStatsEventMigrationTest {
         return value == null ? 0 : value;
     }
 
-    private int countAllActions() {
-        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM " + TABLE, Integer.class);
+    private int countFixtureActions() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + TABLE + " WHERE user_id = ?", Integer.class, USER_ID);
         return count == null ? 0 : count;
     }
 
-    private int countAllLedger() {
-        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM " + DEDUPE_TABLE, Integer.class);
+    private int countFixtureLedger() {
+        String placeholders = "?" + ",?".repeat(EVENT_KEYS.size() - 1);
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + DEDUPE_TABLE + " WHERE event_id IN (" + placeholders + ")",
+                Integer.class, EVENT_KEYS.toArray());
         return count == null ? 0 : count;
     }
 }
