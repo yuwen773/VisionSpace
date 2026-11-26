@@ -9,6 +9,11 @@ Import-Module (Join-Path $PSScriptRoot 'docker-test-harness.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'acceptance-environment.psm1') -Force
 $nonce = [Guid]::NewGuid().ToString('N')
 $runDir = Join-Path ([IO.Path]::GetTempPath()) "visionspace-acceptance-$nonce"
+# 关卡脚本把失败现场写进 <runDir>/diagnostics/，位置经环境变量传下去，收尾时再拷进报告目录。
+# publish-evidence.py 只发布路径里带 diagnostics 目录的 .log——原始 gate 日志
+# （可能含 Cookie、SQL 参数）仍然不出仓库，但断言失败能定位。
+New-Item -ItemType Directory -Path (Join-Path $runDir 'diagnostics') -Force | Out-Null
+$env:VS_ACCEPTANCE_RUN_DIR = $runDir
 # Docker 资源身份：CI 用证据 run-id，本地用本轮 nonce。同一个值既打标签又写进
 # summary.json，硬杀之后可以从 `docker ps` 直接回到报告目录。
 $runId = if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { $nonce }
@@ -405,6 +410,9 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $reportDir 'summary.json')
     Copy-Item -Path (Join-Path $runDir '*.log') -Destination $reportDir
+    if (Test-Path -LiteralPath (Join-Path $runDir 'diagnostics')) {
+        Copy-Item -LiteralPath (Join-Path $runDir 'diagnostics') -Destination $reportDir -Recurse
+    }
     if (Test-Path -LiteralPath (Join-Path $runDir 'surefire')) {
         Copy-Item -LiteralPath (Join-Path $runDir 'surefire') -Destination $reportDir -Recurse
     }

@@ -72,11 +72,34 @@ def docker(*args, **kwargs):
     return subprocess.run(["docker", *args], **kwargs)
 
 
-def free_port():
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def container_host_port(name):
+    """读 Docker 分配给容器的宿主机端口；读不到返回 None。"""
+    result = docker("port", name, "5432/tcp",
+                    capture_output=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        return None
+    lines = [line for line in result.stdout.strip().splitlines() if line.strip()]
+    if not lines or ":" not in lines[0]:
+        return None
+    try:
+        return int(lines[0].rsplit(":", 1)[1])
+    except ValueError:
+        return None
+
+
+def write_diagnostics(text):
+    """把失败现场写进验收证据目录（CI 上会随 artifact 发布）。
+
+    目录由 scripts/acceptance.ps1 通过 VS_ACCEPTANCE_RUN_DIR 指过来；
+    本地直跑时没有这个变量就退回临时目录，至少不丢现场。
+    """
+    base = os.environ.get("VS_ACCEPTANCE_RUN_DIR") or tempfile.gettempdir()
+    try:
+        target = Path(base) / "diagnostics" / "production-db-init.log"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def psql(container, database, user, password, sql, database_override=True):
@@ -142,14 +165,18 @@ def business_tables(container, database, user, password):
                  "AND table_name <> 'flyway_schema_history'")
 
 
-def start_container(name, nonce, port, init_path=None):
-    """起一个隔离的 postgres:18.7。
+def start_container(name, nonce, init_path=None, attempts=2):
+    """起一个隔离的 postgres:18.7，返回宿主机端口。
+
+    宿主机端口交给 Docker 分配（`-p 127.0.0.1::5432`），不用自己挑：
+    自己挑到的是临时端口（bind(0) 拿到的那一个），在 bind 与 Docker 真正占用
+    之间可能宿主机的一次出站连接抢走，CI 上表现为偶发的 "address already in use"。
 
     给了 init_path 就顺带建好两个角色与验收库（供「角色已存在」分支）；
     不给就留一个一个角色都没有的干净集群（供「角色由脚本创建」分支）。
     """
     args = ["run", "-d", "--name", name,
-            "-p", f"127.0.0.1:{port}:5432",
+            "-p", "127.0.0.1::5432",
             "-e", f"POSTGRES_PASSWORD={nonce}", "-e", "POSTGRES_USER=postgres",
             "-e", "POSTGRES_DB=postgres", "-e", f"ACCEPTANCE_DB={ACCEPTANCE_DB}",
             "-e", f"ACCEPTANCE_NONCE={nonce}", "-e", "TZ=UTC",
@@ -159,7 +186,22 @@ def start_container(name, nonce, port, init_path=None):
     if init_path is not None:
         args += ["--mount", f"type=bind,source={init_path},target=/docker-entrypoint-initdb.d/01-acceptance.sh,readonly"]
     args += [POSTGRES_IMAGE]
-    return docker(*args, capture_output=True, encoding="utf-8", errors="replace")
+
+    last = ""
+    for attempt in range(1, attempts + 1):
+        result = docker(*args, capture_output=True, encoding="utf-8", errors="replace")
+        if result.returncode == 0:
+            port = container_host_port(name)
+            if port:
+                return port
+            last = "容器起来了，但读不到宿主机端口"
+        else:
+            last = result.stderr.strip()
+        # 这次没起来就把容器清掉再重试，别留半截容器占着名字与卷
+        docker("rm", "-f", "-v", name, capture_output=True)
+        if attempt < attempts:
+            time.sleep(5)
+    raise CheckFailed(f"container startup failed: {last}")
 
 
 def run_init_script(container, password, database, migrator_password=None, app_password=None):
@@ -184,7 +226,6 @@ def verify_existing_role_branch(run_dir, nonce):
     """分支一：角色已存在 —— 脚本只建库，不碰既有角色与既有库。"""
     container = f"vs-proddb-postgres-{nonce}"
     volume = f"{container}-pgdata"
-    port = free_port()
     created_volume = False
     try:
         volume_result = docker("volume", "create",
@@ -198,10 +239,7 @@ def verify_existing_role_branch(run_dir, nonce):
         init_path = run_dir / "init.sh"
         init_path.write_text(CONTAINER_INIT, encoding="utf-8", newline="\n")
 
-        pg = start_container(container, nonce, port, init_path=str(init_path))
-        if pg.returncode != 0:
-            raise CheckFailed(f"container startup failed: {pg.stderr.strip()}")
-
+        port = start_container(container, nonce, init_path=str(init_path))
         wait_postgres(container, ACCEPTANCE_DB, nonce)
 
         # ---- 先造一个「验收库」：有表、有数据 ----
@@ -288,7 +326,6 @@ def verify_role_creation_branch(run_dir, nonce):
     """分支二：干净集群 —— 角色由脚本创建，口令经环境变量交给 psql。"""
     container = f"vs-proddb-fresh-{nonce}"
     volume = f"{container}-pgdata"
-    port = free_port()
     created_volume = False
     # 带特殊字符，验证口令确实原样传下去（也要证明它没被截断或转义坏）
     migrator_secret = "Proddb-Migrator-9f2c!x"
@@ -302,9 +339,7 @@ def verify_role_creation_branch(run_dir, nonce):
             raise CheckFailed("named volume creation failed")
         created_volume = True
 
-        pg = start_container(container, nonce, port)
-        if pg.returncode != 0:
-            raise CheckFailed(f"container startup failed: {pg.stderr.strip()}")
+        port = start_container(container, nonce)
         wait_superuser(container, nonce)
 
         roles_before = count(container, "postgres", "postgres", nonce,
@@ -382,9 +417,17 @@ def main():
         exit_code = 0
     except CheckFailed as exc:
         print(f"FAIL: {exc}")
+        # CI 上 acceptance 的原始日志不外发，只有这里落盘的现场会随 artifact 出来
+        parts = [f"FAIL: {exc}", ""]
+        for log in sorted(run_dir.glob("*.log")):
+            parts.append(f"--- {log.name} ---")
+            parts.append(log.read_text(encoding="utf-8", errors="replace"))
+            parts.append("")
+        write_diagnostics("\n".join(parts))
         exit_code = 1
     except Exception as exc:  # noqa: BLE001 - 报告并保留清理
         print(f"BLOCKED_ENV: 初始化验证异常中断（RUNNER_ERROR）：{exc}", file=sys.stderr)
+        write_diagnostics(f"BLOCKED_ENV: 初始化验证异常中断（RUNNER_ERROR）：{exc!r}")
         exit_code = 2
     finally:
         if os.environ.get("VS_PRODDB_KEEP_LOGS"):
