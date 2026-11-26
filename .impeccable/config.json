@@ -59,6 +59,24 @@
         ],
         "createdAt": "2026-11-26T02:33:08.248Z",
         "reason": "DESIGN.md L133/L172/L315 的「无渐变标题」只约束用户中心档案面（Private Print Room）；SpaceAnalyzePage 是紫漾主题的空间分析页，在该系统之外，与既有 ignore 里的 AddSpacePage.vue 属同类处理。该文件早于本轮改动（attribution unknown），本次未修改。"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "miniprogram/design-demos/src/dir-2.src.html"
+        ],
+        "createdAt": "2026-11-25T13:04:20.647Z",
+        "reason": "方向二「编辑成册」的候选稿，cream 纸色是该方向的固有语言；定稿已收口到紫漾 #FAF7FF，此文件只作方向留档（direction-approved.md）"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/components/agent/message/UserMessage.vue"
+        ],
+        "createdAt": "2026-11-25T13:11:25.178Z",
+        "reason": "L145 .message-content::after 是 1.5px 渐变左侧微光（top/bottom 各留 8px、向下淡出），与 L127 顶部光带一起做深空霓虹氛围，不是分类色彩的侧边条；既有设计，非本次改动"
       }
     ]
   }
