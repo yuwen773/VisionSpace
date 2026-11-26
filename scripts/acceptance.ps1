@@ -12,7 +12,7 @@ $runDir = Join-Path ([IO.Path]::GetTempPath()) "visionspace-acceptance-$nonce"
 # 关卡脚本把失败现场写进 <runDir>/diagnostics/，位置经环境变量传下去，收尾时再拷进报告目录。
 # publish-evidence.py 只发布路径里带 diagnostics 目录的 .log——原始 gate 日志
 # （可能含 Cookie、SQL 参数）仍然不出仓库，但断言失败能定位。
-New-Item -ItemType Directory -Path (Join-Path $runDir 'diagnostics') -Force | Out-Null
+# 目录本身只在下面「New-Item ... diagnostics -Force」那一处创建。
 $env:VS_ACCEPTANCE_RUN_DIR = $runDir
 # Docker 资源身份：CI 用证据 run-id，本地用本轮 nonce。同一个值既打标签又写进
 # summary.json，硬杀之后可以从 `docker ps` 直接回到报告目录。
@@ -80,7 +80,9 @@ function Run-Gate([string]$Name, [scriptblock]$Command) {
     }
 }
 
-New-Item -ItemType Directory -Path $runDir | Out-Null
+# runDir 及其 diagnostics/ 只在这一处创建，-Force 保证幂等：曾经在文件头先建一次
+# diagnostics，这里的无 -Force 版本随即抛「已存在」，整轮验收没跑任何关卡就退出了。
+New-Item -ItemType Directory -Path (Join-Path $runDir 'diagnostics') -Force | Out-Null
 Push-Location $repo
 try {
     Run-Gate 'runner-tests' {
