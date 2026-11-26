@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 部署后自检：监听面、readiness、运行角色最小权限、Flyway 状态、业务表数量。
 #
-# 每项独立判定，失败项汇总成非零退出码；不修改任何状态。
+# 只读检查：DDL 负例在事务里执行并回滚，即使权限失效也不会在库里留下任何对象。
+# 每项独立判定，失败项汇总成非零退出码。
 # 需要 root（或能读 /opt/visionspace/app.env 与 /opt/visionspace/flyway.conf 的身份）。
 set -uo pipefail
 
@@ -12,6 +13,9 @@ VS_DB_NAME="${VS_DB_NAME:-vision_space_prod}"
 VS_APP_ROLE="${VS_APP_ROLE:-vision_app}"
 VS_BUSINESS_PORT="${VS_BUSINESS_PORT:-8081}"
 VS_MANAGEMENT_PORT="${VS_MANAGEMENT_PORT:-9081}"
+# 期望的业务表数量从迁移目录数出来，不写死字面量：加了 V2 迁移表变多时，
+# 这里跟着变，不会两边一起红（写死的数字一定会过期）。
+VS_MIGRATIONS_DIR="${VS_MIGRATIONS_DIR:-/opt/visionspace/migrations}"
 
 FAILED=0
 
@@ -67,22 +71,25 @@ else
   else
     fail "运行身份异常：$WHOAMI_OUT"
   fi
-  # DDL 负例：运行角色必须没有 CREATE 权限
-  DDL_OUT=$(PGPASSWORD="$APP_PW" psql -h 127.0.0.1 -U "$VS_APP_ROLE" -d "$VS_DB_NAME" \
-    -c 'CREATE TABLE vs_postflight_probe(id int)' 2>&1)
+  # DDL 负例：运行角色必须没有 CREATE 权限。
+  # 整段包在事务里并回滚：万一权限真的失效（负例反过来变成正例），
+  # 探针表也会被回滚掉，不会在生产库里留下对象。
+  DDL_OUT=$(PGPASSWORD="$APP_PW" psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$VS_APP_ROLE" -d "$VS_DB_NAME" \
+    -c 'BEGIN; CREATE TABLE vs_postflight_probe(id int); ROLLBACK;' 2>&1)
   if printf '%s' "$DDL_OUT" | grep -qiE 'permission denied|not the owner|42501'; then
     pass "运行角色执行 DDL 被拒绝"
   else
     fail "运行角色居然能建表：$DDL_OUT"
-    PGPASSWORD="$APP_PW" psql -h 127.0.0.1 -U "$VS_APP_ROLE" -d "$VS_DB_NAME" \
-      -c 'DROP TABLE IF EXISTS vs_postflight_probe' >/dev/null 2>&1 || true
   fi
   TABLES=$(PGPASSWORD="$APP_PW" psql -h 127.0.0.1 -U "$VS_APP_ROLE" -d "$VS_DB_NAME" -tAc \
     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name <> 'flyway_schema_history'" 2>&1)
-  if [ "$TABLES" = "31" ]; then
-    pass "业务表 31 张"
+  EXPECTED_TABLES=$(grep -h -c '^CREATE TABLE ' "$VS_MIGRATIONS_DIR"/*.sql 2>/dev/null | awk '{s+=$1} END {print s+0}')
+  if [ "$EXPECTED_TABLES" -eq 0 ]; then
+    printf 'SKIP  业务表数量（迁移目录 %s 里数不出 CREATE TABLE，跳过对照）\n' "$VS_MIGRATIONS_DIR"
+  elif [ "$TABLES" = "$EXPECTED_TABLES" ]; then
+    pass "业务表 $TABLES 张（与迁移目录一致）"
   else
-    fail "业务表数量异常：$TABLES（期望 31）"
+    fail "业务表数量异常：$TABLES（迁移目录推出来的期望值是 $EXPECTED_TABLES）"
   fi
 fi
 

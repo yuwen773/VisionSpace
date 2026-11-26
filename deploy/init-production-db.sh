@@ -32,6 +32,17 @@ if ! printf '%s' "$VS_DB_NAME" | grep -Eq '^[a-z_][a-z0-9_]{0,62}$'; then
   exit 2
 fi
 
+# 时区与库注释同样进 SQL 文本：一个卡字符集，一个转义单引号并限长
+if ! printf '%s' "$VS_DB_TIMEZONE" | grep -Eq '^[A-Za-z0-9_+\-]+(/[A-Za-z0-9_+\-]+)?$'; then
+  echo "FAIL: 时区格式不合法：$VS_DB_TIMEZONE（示例 Asia/Shanghai）" >&2
+  exit 2
+fi
+if [ "${#VS_DB_COMMENT}" -gt 200 ]; then
+  echo "FAIL: 库注释超过 200 字符" >&2
+  exit 2
+fi
+VS_DB_COMMENT_SQL=${VS_DB_COMMENT//\'/\'\'}
+
 if ! command -v psql >/dev/null 2>&1; then
   echo "FAIL: 找不到 psql 客户端" >&2
   exit 2
@@ -64,14 +75,17 @@ if [ "$existing" = "1" ]; then
 fi
 
 echo "== 1. 角色 =="
-# 口令只经 stdin 的 SQL 文本传给 psql：`--set=secret=...` 会出现在进程列表里，不能用。
+# 口令不进 SQL 文本，也不进 argv：`--set=secret=...` 会出现在进程列表里，不能用；
+# 改成把口令放进环境变量，再用 psql 的 \getenv 取进变量、':secret' 引用。
+# 这样即使 psql 报错回显语句，打印出来的也只是变量名。
 create_role() {
   local role="$1" secret="$2" inherit="$3"
-  local escaped
-  escaped=$(printf '%s' "$secret" | sed "s/'/''/g")
+  export VS_ROLE_SECRET="$secret"
   psql_super --dbname postgres <<SQL
-CREATE ROLE "$role" LOGIN PASSWORD '$escaped' NOSUPERUSER NOCREATEDB NOCREATEROLE $inherit;
+\getenv role_secret VS_ROLE_SECRET
+CREATE ROLE "$role" LOGIN PASSWORD :'role_secret' NOSUPERUSER NOCREATEDB NOCREATEROLE $inherit;
 SQL
+  unset VS_ROLE_SECRET
 }
 
 for role in "$VS_MIGRATOR_ROLE" "$VS_APP_ROLE"; do
@@ -102,7 +116,7 @@ psql_super --dbname "$VS_DB_NAME" --command \
   --command "GRANT USAGE ON SCHEMA public TO \"$VS_APP_ROLE\"" \
   --command "CREATE EXTENSION IF NOT EXISTS pgcrypto" \
   --command "ALTER DATABASE \"$VS_DB_NAME\" SET timezone = '$VS_DB_TIMEZONE'" \
-  --command "COMMENT ON DATABASE \"$VS_DB_NAME\" IS '$VS_DB_COMMENT'"
+  --command "COMMENT ON DATABASE \"$VS_DB_NAME\" IS '$VS_DB_COMMENT_SQL'"
 
 echo "== 4. 结果 =="
 psql_super --dbname "$VS_DB_NAME" --command \
@@ -114,7 +128,9 @@ cat <<EOF
 
 下一步：
   1) 建表（唯一入口是 Flyway）：
-       VS_DB_NAME=$VS_DB_NAME FLYWAY_PASSWORD=<迁移角色口令> ./deploy/flyway-migrate.sh
+       read -rs -p "迁移角色口令: " FLYWAY_PASSWORD && echo
+       export FLYWAY_PASSWORD
+       VS_DB_NAME=$VS_DB_NAME ./deploy/flyway-migrate.sh
   2) 切换应用连接串：app.env 的 SPRING_DATASOURCE_URL 指向 $VS_DB_NAME，然后重启并检查 readiness
   3) 部署后自检：./deploy/postflight-check.sh
 EOF

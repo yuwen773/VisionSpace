@@ -178,8 +178,8 @@ vi /opt/visionspace/app.env
 |---|---|---|
 | `SPRING_DATASOURCE_URL` | 指向独立空库 `vision_space_prod` | 指到验收库就把验收数据带上线了 |
 | `SERVER_ADDRESS` | `127.0.0.1` | 不写就绑 `*:8081`，纵深防御缺口 |
-| `SPRING_AI_OPENAI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 缺失时打 `api.openai.com`（大陆不可达），同步调用挂到超时、SSE 一个字节都回不来 |
-| `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL` | `qwen-plus` | 缺失时用默认的 `gpt-4o-mini`，供应商直接报错 |
+| `SPRING_AI_OPENAI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `application-prod.yml` 已内建同值默认值；显式写出来是为了「部署意图写在部署文件里」，换供应商时一眼看得出 |
+| `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL` | `qwen-plus` | 同上，内建默认值已是 `qwen-plus`（Spring AI 的默认 `gpt-4o-mini` 供应商会直接报错） |
 | `SPRING_MVC_ASYNC_REQUEST_TIMEOUT` | `300000` | 默认 30 秒会把「首帧还没到」的会话掐断（**止血兜底**，根因见 WP-02） |
 | `SPRING_DATA_REDIS_HOST` | `vision-redis` | 写 `127.0.0.1`/`localhost` 会被守卫判为开发回退值，直接拒绝启动 |
 
@@ -258,14 +258,21 @@ systemctl status visionspace --no-pager
 journalctl -u visionspace -n 50 --no-pager
 
 # 反向证明运行凭据真的可用（若这里失败，readiness 一定也是 DOWN）
-PGPASSWORD=<APP_PASSWORD> psql -h 127.0.0.1 -U vision_app -d vision_space_prod -tAc 'SELECT 1'
+read -rs -p "运行角色口令: " PGPASSWORD && echo
+PGPASSWORD="$PGPASSWORD" psql -h 127.0.0.1 -U vision_app -d vision_space_prod -tAc 'SELECT 1'
+unset PGPASSWORD
 ```
 
 **一键自检**（监听面 / readiness / 运行角色最小权限 / 业务表数量 / Flyway 状态）：
 
 ```bash
-FLYWAY_PASSWORD=<迁移角色口令> VS_DB_NAME=vision_space_prod ./deploy/postflight-check.sh
+read -rs -p "迁移角色口令: " FLYWAY_PASSWORD && echo
+export FLYWAY_PASSWORD
+VS_DB_NAME=vision_space_prod ./deploy/postflight-check.sh
 ```
+
+业务表数量的期望值是从 `/opt/visionspace/migrations` 里的迁移脚本数出来的，
+加了新的迁移不用改自检脚本。
 
 首次上线做一次负例（做完立即改回）：把 `app.env` 里的 `SPRING_DATASOURCE_PASSWORD` 改成错误值并重启，
 `/actuator/health/readiness` 必须是 `DOWN` / 503，而 `systemctl is-active` 仍可能是 active——
@@ -302,8 +309,13 @@ bash scripts/rollback.sh visionspace-aliyun "<文件名>"
 
 ```bash
 install -d -m 700 /opt/visionspace/backup
-sudo -u postgres pg_dump -Fc vision_space_prod > /opt/visionspace/backup/vision_space-$(date +%F-%H%M).dump
-find /opt/visionspace/backup -name 'vision_space-*.dump' -mtime +7 -delete
+# 生产库备份：用仓库里的备份脚本（pg_dump -Fc，产物 600，口令走环境变量不进 argv）
+read -rs -p "运行角色口令: " PGPASSWORD && echo
+export PGPASSWORD
+VS_DB_NAME=vision_space_prod ./deploy/backup-db.sh
+unset PGPASSWORD
+# 保留期只清生产库这一种文件名；验收库备份是 vision_space-<时间>.dump，长期保留，不进这条清理
+find /opt/visionspace/backup -name 'vision_space_prod-*.dump' -mtime +7 -delete
 
 # 恢复演练（新库，不动生产）
 sudo -u postgres createdb -O vision_migrator vision_space_restore
@@ -335,6 +347,10 @@ sudo -u postgres pg_restore -d vision_space_restore /opt/visionspace/backup/<fil
 
 在 2 vCPU / 1.7 GB 的阿里云 ECS 上，按 §3.3 的原生方式装好后，逐条执行并记录数字。
 **不要占用 8081 与 nginx**：验收用临时端口，测完停掉测试实例并删测试库。
+
+> 本节是 **2026-11-25 M4 验收的历史记录**，里面的库名 `vision_space` 指当时的验收库
+> （现已由 `vision_space_prod` 独立空库接手生产，见 §3.3 与 §4）。
+> 之后的备份恢复演练按 §6.1 在生产库上做，库名写 `vision_space_prod`。
 
 > 2026-11-25 已做过一次**只读**预检（无安装、无写入），机器状态、apt 可得版本、缺失前置条件记在计划附录 D。当时 swap 尚未创建，`.1` 之前先执行 §3.1。安全组与 ICP 备案本机测不出来（代理与 DNS 劫持），仍需在控制台确认。
 

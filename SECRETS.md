@@ -18,7 +18,8 @@
 
 - 只有 active profile 含 `prod` / `production` 时才检查；`local`、`acceptance` 不受影响。
 - 13 个必需项逐一校验：缺失、空白、**开发期回退值**、**占位文本**都会失败。新增覆盖 `spring.ai.openai.api-key` 与 `aliYunAi.apiKey`——两者都有 `@Value` 或自动配置依赖，原先未纳入守卫，缺项会以无关错误崩溃而非 `BLOCKED_ENV`。
-- 2026-11-26（1.1.0 生产就绪 WP-01）再增两项**不是秘密、但缺了就一定跑不起来**的配置：`spring.ai.openai.base-url` 与 `spring.ai.openai.chat.options.model`。实机验收发现：缺端点时 OpenAI 客户端默认打 `api.openai.com`（大陆不可达），Agent 的同步调用挂到超时、SSE 一个字节都回不来——故障在首帧之后，启动期完全看不出来。
+- 2026-11-26（1.1.0 生产就绪 WP-01）再增两项**不是秘密、但为空就一定跑不起来**的配置：`spring.ai.openai.base-url` 与 `spring.ai.openai.chat.options.model`。prod 配置里这两项有可达的默认值（DashScope 兼容模式 + `qwen-plus`），所以「完全没配」不会发生；守卫要挡的是**显式置空**（环境变量存在却是空串）。在那之前，缺端点时 OpenAI 客户端默认打 `api.openai.com`（大陆不可达），Agent 的同步调用挂到超时、SSE 一个字节都回不来——故障在首帧之后，启动期完全看不出来。
+- 报错把「缺」（missing）与「空」（blank）分开：前者是「加一个变量」，后者是「把值填上」，处置方式不同。
 - 错误信息只含属性名与原因，不含属性值。因为检查项里已经不只有秘密，文案从「production secrets are not configured」改成「production configuration is not complete」，`BLOCKED_ENV:` 前缀不变。
 
 必需项：`spring.datasource.url`、`spring.datasource.username`、`spring.datasource.password`、`spring.data.redis.host`、`spring.data.redis.password`、`spring.ai.dashscope.api-key`、`spring.ai.openai.api-key`、`spring.ai.openai.base-url`、`spring.ai.openai.chat.options.model`、`aliYunAi.apiKey`、`vision-space.pexels.api-key`、`vision-space.vision-recognition.api-key`、`vision-space.security.default-password`。
@@ -72,7 +73,7 @@ spring.datasource.username (missing), ... vision-space.security.default-password
 
 - **兼容：** 生产仍使用 `SPRING_PROFILES_ACTIVE=prod` + 环境变量，与 `docker-compose.yml` 现有注入方式一致；键名沿用 Spring 标准名，无需改部署脚本。新增项见 `.env.example`。
 - **回退：** 若某次发布必须临时回退，只能回退应用镜像，**不能**回退到把这些值写回 `application-prod.yml` 的旧提交——那会重新引入明文密钥。正确的回退是恢复上一版本镜像并保持秘密注入。
-- **启动失败的含义：** 看到 `BLOCKED_ENV: production secrets ...` 表示环境注入缺失或仍在使用开发回退值，属于预期保护，不应通过补默认值绕过。
+- **启动失败的含义：** 看到 `BLOCKED_ENV: production configuration ...` 表示环境注入缺失、为空、仍是开发回退值或没替换的模板占位，属于预期保护，不应通过补默认值绕过。
 
 ## 六、本次验证记录
 

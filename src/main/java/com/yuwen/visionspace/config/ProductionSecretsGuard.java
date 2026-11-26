@@ -32,8 +32,9 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
             "spring.data.redis.password",
             "spring.ai.dashscope.api-key",
             "spring.ai.openai.api-key",
-            // 模型端点与模型名：缺任一项，Agent 的请求都会打向不可达地址或错误模型，
-            // 而且故障点在首帧之后，只能等真实用户踩到。
+            // 模型端点与模型名：prod 配置里给了可达的默认值（application-prod.yml），
+            // 所以「完全没配」不会发生；这里要挡的是**显式置空**——环境变量存在却是空串，
+            // 请求会打向空地址，故障同样只在首帧之后才暴露。
             "spring.ai.openai.base-url",
             "spring.ai.openai.chat.options.model",
             "aliYunAi.apiKey",
@@ -81,8 +82,12 @@ public final class ProductionSecretsGuard implements ApplicationContextInitializ
         var problems = new java.util.ArrayList<String>();
         for (String key : REQUIRED_KEYS) {
             String value = values.get(key);
-            if (value == null || value.isBlank()) {
+            if (value == null) {
                 problems.add(key + " (missing)");
+            } else if (value.isBlank()) {
+                // 空串与缺项是两回事：空串通常是「环境变量存在但没填」，
+                // 说成 missing 会把人引到「加一个变量」而不是「把值填上」。
+                problems.add(key + " (blank)");
             } else if (isPlaceholder(value)) {
                 problems.add(key + " (placeholder)");
             } else if (isDevelopmentFallback(key, value)) {

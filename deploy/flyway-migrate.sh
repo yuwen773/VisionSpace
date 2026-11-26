@@ -4,8 +4,10 @@
 # 建表只有这一个入口（ADR-0004 §1）：应用启动不做任何 DDL（spring.flyway.enabled=false）。
 # 口令只经环境变量 FLYWAY_PASSWORD，不进 argv、不进日志、不进配置文件。
 #
-# 用法：
-#   VS_DB_NAME=vision_space_prod FLYWAY_PASSWORD=<迁移角色口令> ./deploy/flyway-migrate.sh
+# 用法（口令读进环境变量，不写进命令行）：
+#   read -rs -p "迁移角色口令: " FLYWAY_PASSWORD && echo
+#   export FLYWAY_PASSWORD
+#   VS_DB_NAME=vision_space_prod ./deploy/flyway-migrate.sh
 #
 # 依赖：Flyway CLI 13.13.0 解压在 VS_FLYWAY_HOME（默认 /opt/visionspace/flyway），
 #       配置在 VS_FLYWAY_CONF（默认 /opt/visionspace/flyway.conf，权限 600）。

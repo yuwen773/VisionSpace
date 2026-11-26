@@ -100,6 +100,18 @@ class ProductionSecretsGuardTest {
     }
 
     @Test
+    void explicitlyBlankValueIsRejectedAndReportedAsBlank() {
+        // prod 配置给模型端点留了默认值，所以「完全没配」走不到；
+        // 要挡的是环境变量存在却为空串。报错要说清是空，不是缺。
+        var candidate = new HashMap<>(productionValues());
+        candidate.put("spring.ai.openai.base-url", "");
+        var error = assertThrows(IllegalStateException.class,
+                () -> ProductionSecretsGuard.validate(true, candidate));
+        assertTrue(error.getMessage().contains("spring.ai.openai.base-url"), error.getMessage());
+        assertTrue(error.getMessage().contains("(blank)"), error.getMessage());
+    }
+
+    @Test
     void activeProfilesDetectsExplicitProductionOnly() {
         assertTrue(ProductionSecretsGuard.isProduction(List.of("prod")));
         assertTrue(ProductionSecretsGuard.isProduction(List.of("local", "prod")));

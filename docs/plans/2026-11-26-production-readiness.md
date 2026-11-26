@@ -101,10 +101,11 @@ WP-03（正式域名 + 证书）
 | `deploy/app.env.example` | 原生部署环境变量模板（全部必需键 + 可选键），占位说明 |
 | `deploy/visionspace.service` | systemd unit 模板（回环绑定、JVM 参数、`EnvironmentFile` 600） |
 | `deploy/nginx-visionspace.conf` | nginx 站点模板（80 跳转 / 静态 / `/api` 反代 / SSE 长连接） |
-| `deploy/postgresql-production.conf` | PG 18 低资源参数片段（与计划 §5.9 对齐） |
+| `deploy/postgresql-production.conf` | PG 18 低资源参数片段（与迁移计划《2026-11-24 MySQL→PostgreSQL 迁移计划》§5.9 对齐） |
 | `deploy/init-production-db.sh` | **独立空库**初始化：建角色、建库、装扩展、写授权；不碰任何既有库 |
 | `deploy/flyway-migrate.sh` | 对目标库执行 Flyway `migrate` + `validate`（口令走 `FLYWAY_PASSWORD`） |
 | `deploy/postflight-check.sh` | 部署后自检：监听面、readiness、运行角色、Flyway 状态 |
+| `deploy/backup-db.sh` | `pg_dump -Fc` 备份（产物 600）；只读，不删旧备份 |
 | `scripts/tests/test-deploy-templates.py` | **模板一致性门禁**：键名对照表由机器校验，模板与代码漂移即红 |
 | `scripts/tests/test-production-db-init.py` | **生产库初始化隔离验证**：Docker PG 18.7 上跑通「验收库 → 独立空库」，并证明验收库未受影响 |
 
@@ -127,7 +128,7 @@ WP-03（正式域名 + 证书）
 
 方案（三步，全部可回退）：
 
-1. **备份**：对 `vision_space` 做一次 `pg_dump -Fc`（迁移角色），落到 `/opt/visionspace/backup/`，权限 `600`，**保留不删**。它是「验收期证据 + 回退锚点」，即使之后清库也要留着。
+1. **备份**：`deploy/backup-db.sh` 对 `vision_space` 做一次 `pg_dump -Fc`（运行角色），落到 `/opt/visionspace/backup/`，权限 `600`，**保留不删**。它是「验收期证据 + 回退锚点」，即使之后清库也要留着。
 2. **独立空库**：用 `deploy/init-production-db.sh` 建 `vision_space_prod`（owner `vision_migrator`，`REVOKE CREATE ON SCHEMA public FROM PUBLIC`，`GRANT USAGE ON SCHEMA public TO vision_app`，`CREATE EXTENSION pgcrypto`，`ALTER DATABASE ... SET timezone='Asia/Shanghai'`）。**不 drop、不 truncate、不改 `vision_space`**。
 3. **建表与切换**：`deploy/flyway-migrate.sh` 对 `vision_space_prod` 跑 `migrate` + `validate`（31 张业务表 + `flyway_schema_history`）；应用连接串切到 `vision_space_prod`，readiness UP 后再清理验收库（清理属 A3，本轮不授权）。
 
@@ -138,7 +139,7 @@ WP-03（正式域名 + 证书）
 | 项 | 标准 |
 |---|---|
 | 模板一致性 | `python -I scripts/tests/test-deploy-templates.py` 通过：守卫要求的每个键都在 `deploy/app.env.example` 与 `.env.example` 里出现；模板里没有未登记的键；没有重复键；模板不含真实值 |
-| 生产库初始化 | `python -I scripts/tests/test-production-db-init.py` 通过：隔离 PG 18.7 上「验收库（有数据）→ 独立空库」成功；空库 31 张业务表 + `flyway_schema_history`；`vision_app` 可 `SELECT`；`vision_app` 执行 DDL 报 `42501`；**验收库行数与表数不变** |
+| 生产库初始化 | `python -I scripts/tests/test-production-db-init.py` 通过：隔离 PG 18.7 上「验收库（有数据）→ 独立空库」成功；空库业务表数与迁移目录一致（从 `V1__baseline.sql` 数出来，不写死 31）+ `flyway_schema_history` 一行；`vision_app` 可 `SELECT`；`vision_app` 执行 DDL 报 SQLSTATE `42501`；**验收库行数与表数不变**；干净集群里脚本自建角色且新口令能登录 |
 | 后端回归 | `python -I scripts/drill-isolated-run.py --test ProductionSecretsGuardTest` 通过；守卫新增必填项有对应测试 |
 | 容器路径 | `scripts/container-verification.ps1` 在 prod profile 下仍能起（compose 的 `SERVER_ADDRESS` 覆盖生效、模型端点键已注入） |
 | 最终 HEAD | CI 六个作业全绿（不复用旧 HEAD 结果） |
@@ -146,7 +147,7 @@ WP-03（正式域名 + 证书）
 
 ### 5.5 PR 边界与授权边界
 
-- **PR 边界**：只含 `deploy/`、`scripts/tests/`（两个新门禁）、`application-prod.yml`、`ProductionSecretsGuard(+Test)`、`docker-compose.yml`、`.env.example`、`docs/adr/0005`、`docs/plans/*`（部署手册与本计划）。不含真实主机变更、真实云资源、DNS、证书、凭据轮换、验收库删除、Tag/Release/生产流量。
+- **PR 边界**：只含 `deploy/`、`scripts/tests/`（两个新门禁）、`scripts/container-verification.ps1`（注入新键，让容器口径也带上模型端点）、`application-prod.yml`、`ProductionSecretsGuard(+Test)`、`docker-compose.yml`、`.env.example`、`SECRETS.md`（守卫必填项与报错文案变更的说明）、`docs/adr/0005`、`docs/plans/*`（部署手册与本计划）。不含真实主机变更、真实云资源、DNS、证书、凭据轮换、验收库删除、Tag/Release/生产流量。
 - **授权边界**：本 WP 的**代码、模板、文档、隔离验证**已获授权；A1–A3 未获授权，不得执行。
 
 ### 5.6 本 WP 明确不做
@@ -159,14 +160,31 @@ WP-03（正式域名 + 证书）
 
 | 项 | 结果 |
 |---|---|
-| 部署模板 | `deploy/` 八个文件入库：环境变量模板、systemd、nginx、PG 参数、初始化脚本、迁移脚本、自检脚本、说明 |
+| 部署模板 | `deploy/` 九个文件入库：环境变量模板、systemd、nginx、PG 参数、初始化脚本、迁移脚本、自检脚本、备份脚本、说明 |
 | 模板一致性门禁 | `python -I scripts/tests/test-deploy-templates.py` → PASS（守卫 13 个必填项在两套模板与 compose 里都有；模板无未登记键；关键默认值齐全） |
-| 生产库初始化隔离验证 | `python -I scripts/tests/test-production-db-init.py` → PASS：独立空库 31 张业务表 + Flyway 历史 1 行；`vision_app` 可读、建表被拒；**验收库行数/表数/开关行一条没变**；对已存在的库再跑一次按预期拒绝 |
-| 守卫回归 | `ProductionSecretsGuardTest` 7 项通过（新增「未替换的 `<占位>` 必须拒绝启动」用例；夹具改为断言覆盖守卫的全部键，守卫以后新增必填项不会再悄悄逃过测试） |
+| 生产库初始化隔离验证 | `python -I scripts/tests/test-production-db-init.py` → PASS：独立空库业务表数与迁移目录一致 + Flyway 历史 1 行；`vision_app` 可读、建表被拒且 SQLSTATE 为 `42501`；**验收库行数/表数/开关行一条没变**；对已存在的库再跑一次按预期拒绝；干净集群里角色由脚本创建、新口令能登录 |
+| 守卫回归 | `ProductionSecretsGuardTest` 8 项通过（新增「未替换的 `<占位>` 必须拒绝启动」「显式空值按 `(blank)` 报告」两个用例；夹具改为断言覆盖守卫的全部键，守卫以后新增必填项不会再悄悄逃过测试） |
 | 秘密扫描 | `python -I scripts/tests/verify-secret-scan.py` → 1153 个候选文件、0 命中 |
 | 仓库护栏 | `check-repo-hygiene.py`、`test-pg-test-coverage-map.py` → PASS（132 个基线测试类全部有下落） |
+| 独立评审 | Standards 轴与 Spec 轴各跑一遍子代理评审（对照 `CODING_STANDARDS.md` 与本计划 WP-01 / ADR-0005），结论已全部处理，见下方「评审发现与处置」 |
 | 未做（等授权） | 验收机 `app.env` 更新（A1）、实机建独立生产库与切连接串（A2）、验收库清理（A3，本轮明确不授权） |
 | 待补 | 最终 HEAD 的 CI 六个作业全绿（见 §11） |
+
+评审发现与处置（2026-11-26 第二轮修订）：
+
+| 发现 | 处置 |
+|---|---|
+| 守卫新增的两个模型键在 `application-prod.yml` 里有默认值，永远不会是「missing」，语义自相矛盾 | 保留默认值（可用的默认值比强制配置更稳），把守卫语义改清楚：它挡的是**显式置空**；报错区分 `(missing)` / `(blank)`。ADR-0005 §2、SECRETS.md §一同步改写 |
+| 角色口令被插值进 SQL 文本 | 改为环境变量 + psql `\getenv`，口令不进 SQL 文本、不进 argv；隔离验证里新增「脚本输出不含口令」「新口令能登录」两条断言 |
+| `postflight-check.sh` 的 DDL 负例会真的建表（权限失效时留下对象） | 整段包进 `BEGIN; … ROLLBACK;`，并加 `ON_ERROR_STOP=1` |
+| `postflight-check.sh` 写死「31 张表」 | 期望值改为从迁移目录数 `CREATE TABLE`，加了 V2 迁移不用改脚本 |
+| `postflight-check.sh` 头注释写「不修改任何状态」 | 改成「只读检查」，并说明 DDL 负例在事务里回滚 |
+| `init-production-db.sh` 的时区与库注释未校验就进 SQL | 时区卡字符集、库注释转义并限长 |
+| `deploy/README.md` 声称口令放在 `/root/.vs-secrets/*.pw`，且 `flyway.conf` 存口令 | 改成事实：`flyway.conf` 只放 URL 与用户，口令走 `FLYWAY_PASSWORD` 环境变量 |
+| `deploy/README.md` 缺授权边界与故障排查 | 补 §6 授权边界表与 §7 故障排查表 |
+| 备份步骤只在文档里，没有落地的脚本 | 新增 `deploy/backup-db.sh`（`pg_dump -Fc`、600、只读不清理） |
+| 隔离验证里的表数写死 31、DDL 负例只断言「permission denied」、异常退出码 99、角色创建分支从未被执行 | 期望值从 `V1__baseline.sql` 数出；断言 SQLSTATE `42501`；异常退出码改 2（仓库约定）；新增干净集群容器专门跑「角色由脚本创建」分支 |
+| `FLYWAY_PASSWORD=<迁移角色口令>` 这类示例把口令写进命令行（会进 shell 历史） | 文档与脚本提示统一改成 `read -rs` 读进环境变量 |
 
 落地时的两个注意点：
 

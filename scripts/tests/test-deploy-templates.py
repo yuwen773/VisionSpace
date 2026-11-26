@@ -95,6 +95,7 @@ REQUIRED_DEPLOY_FILES = [
     "init-production-db.sh",
     "flyway-migrate.sh",
     "postflight-check.sh",
+    "backup-db.sh",
 ]
 
 
