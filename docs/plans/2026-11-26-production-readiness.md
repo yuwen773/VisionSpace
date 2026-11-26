@@ -3,7 +3,7 @@
 - 创建：2026-11-26（M4 实机验收收口后）
 - 重构：2026-11-26 → 按工作包（WP）组织，原始十项待办一条不删、证据一条不丢
 - 触发来源：`docs/plans/2026-11-24-postgresql-migration.md` 附录 F（F.10 实机发现的 7 个问题、F.11 未覆盖与上线前置、F.12 三条判定）
-- 代码基线：`main@491f73a`（PR #166 已合并，PostgreSQL 18 迁移正式收口）
+- 代码基线：`main@491f73a`（PR #166 已合并，PostgreSQL 18 迁移正式收口）；WP-01 合并后为 `main@f70380a`（PR #167）
 - 适用范围：**1.1.0 首次正式上线**。本计划**独立于** PostgreSQL 迁移收口——迁移本体已通过实机验收并合并，本计划里的每一条都不属于数据库迁移范围。
 
 ## 0. 边界（先说清楚不做什么）
@@ -30,8 +30,8 @@
 
 | 工作包 | 主题 | 覆盖的原始待办 | 主要交付物 | 授权级别 |
 |---|---|---|---|---|
-| **WP-01** | 部署基础设施收口 | #3 配置侧、#4、#6、#7、#5 配置侧 | 部署模板目录、prod 配置与守卫、生产库初始化方案、模板一致性门禁 | **本轮已授权**：代码、配置模板、部署文档整改 + 隔离验证 |
-| **WP-02** | Agent 性能与可靠性专项 | #1、#2 | 首帧延迟根因报告、SSE 首帧前失败的错误处理 | 待授权（独立 PR） |
+| **WP-01** | 部署基础设施收口 | #3 配置侧、#4、#6、#7、#5 配置侧 | 部署模板目录、prod 配置与守卫、生产库初始化方案、模板一致性门禁 | **已合并**：PR #167（`main@f70380a`）；真实主机操作仍待 A1/A2 授权 |
+| **WP-02** | Agent 性能与可靠性专项 | #1、#2 | 首帧延迟根因报告、SSE 首帧前失败的错误处理 | **Deferred（2026-11-26 暂停）**：问题已登记为 #168、#169，本轮不实施；门禁不放宽（见 §6.5） |
 | **WP-03** | 生产环境与运维保障 | #8、#9、#5 实机侧、#3 外部侧 | 域名与正式证书、定时备份与监控、真实存储桶接入 | 待授权（含付费云资源） |
 | **WP-04** | 微信小程序真机验收 | #10 | 小程序凭据、真机验收清单与证据 | 待授权（依赖小程序侧资源） |
 | **Release Gate** | 1.1.0 最终发布验收 | 全部 | 最终 HEAD 全量验收 + 实机回归 + 三条判定更新 | 待授权（Tag / Release / 放流量单列） |
@@ -169,6 +169,7 @@ WP-03（正式域名 + 证书）
 | 独立评审 | Standards 轴与 Spec 轴各跑一遍子代理评审（对照 `CODING_STANDARDS.md` 与本计划 WP-01 / ADR-0005），结论已全部处理，见下方「评审发现与处置」 |
 | 未做（等授权） | 验收机 `app.env` 更新（A1）、实机建独立生产库与切连接串（A2）、验收库清理（A3，本轮明确不授权） |
 | CI 验收 | `80e9794` 六个作业全绿：acceptance / browser / container / security / evidence / SRF merge gate（run 45799350000）；此后仅计划文档改动 |
+| 合并后 main CI 核对（2026-11-26） | `main@f70380a` 的 push 轮 [45814682262](https://github.com/yuwen773/VisionSpace/actions/runs/45814682262) attempt 1 出现两处**不可解释的红**：container 作业跑满 45 分钟超时被杀（发布出来的 `summary.json` 只有 `cleanup: PASS`，说明卡在第一条断言之前）→ evidence 与 SRF merge gate 连带红；同时 PR #170 那轮红在同码 14 分钟前还绿的 `PictureStatsEventMigrationTest.maintenanceListIsExecutableAndOnlyReads`。同 HEAD 重跑 attempt 2 六作业全绿（container 7.5 分钟、acceptance 恢复），两处均未复现、均无法归因，已分别登记 [#171](https://github.com/yuwen773/VisionSpace/issues/171)、[#172](https://github.com/yuwen773/VisionSpace/issues/172)；「CI 红只能本地重跑才能解释」这条证据可读性缺口登记为 [#173](https://github.com/yuwen773/VisionSpace/issues/173)。**不据此宣布这两处已修复，也不把重跑当成通过。** |
 
 评审发现与处置（2026-11-26 第二轮修订）：
 
@@ -201,6 +202,13 @@ WP-03（正式域名 + 证书）
 
 覆盖原 #1、#2。与 WP-01/03 无耦合，可并行。
 
+> **状态：Deferred（2026-11-26 暂停）**。两个问题已登记为 GitHub Issue，本轮不开展埋点、性能治理或 Agent 架构改造：
+>
+> - [#168](https://github.com/yuwen773/VisionSpace/issues/168) Agent SSE 首帧延迟过长（28–65 秒）——对应原 #1
+> - [#169](https://github.com/yuwen773/VisionSpace/issues/169) Agent SSE 首帧前异常返回 HTTP 500 空响应——对应原 #2
+>
+> 本节内容保留为**恢复时的执行口径**（埋点切分、验收标准、PR 边界都不改）。暂停不等于豁免：见 §6.5 与 §1 的判定口径。
+
 ### 6.1 两种延迟必须分开定义与分开测（对应要求）
 
 | 指标 | 定义 | 为什么必须分开 |
@@ -222,6 +230,7 @@ T0 请求进入 → T1 会话/线程建立(DB) → T2 附件绑定(DB+对象存�
 
 - 交付物：分段埋点 + 一份归因报告（28–30 s 落在哪一段、占多少、其余段各多少）。
 - 对照实验：同供应商 `curl -N` 直连 1.5 秒出首包（M4 已测），说明 28–30 s 发生在**应用内、模型调用之前**——需要用埋点把它收敛到具体阶段，而不是靠"模型慢"解释。
+- 暂停前的静态线索（未测量，只作为恢复时的第一个验证点）：`ImageAgent.stream()`（`src/main/java/com/yuwen/visionspace/agent/ImageAgent.java:334`）在把 Flux 交给 Spring **之前**同步完成了一整串阻塞工作——`sessionGuard.requireOwned` → `recoveryService.reconcileBeforeRun` → `requireNoPendingReview` → `buildUserMessage`（含对象存储）→ `saveUserMessage` → `textMcpModelInterceptor.resolve()`（MCP 服务器解析）→ `configFor` → 可能需要 `buildMcpAgent()` 构造；这一段跑完才 `activeAgent.stream(...)`。它同时是 #169 的候选解释：此处同步抛出异常时，响应已声明 `text/event-stream`，异常处理器协商不出 JSON，于是变成空体 500。**注意这只是读码推断，尚无埋点数据支撑，恢复时必须先测得各段占比再下结论。**
 - 验收标准：
   1. 给出 28–30 s 的**具体归因**（阶段 + 数值），不是猜测；
   2. 给出 `T_status` / `T_content` 各自的 P50/P95 基线（在 2 vCPU / 1.7 GB 同款机器上复测，或明确说明口径差异）；
@@ -242,6 +251,13 @@ T0 请求进入 → T1 会话/线程建立(DB) → T2 附件绑定(DB+对象存�
 
 - **PR 边界**：Agent 服务端代码 + 前端错误展示 + 对应测试；不改数据库、不改部署模板、不动真实主机上的模型配置。
 - **授权边界**：故障注入只用测试替身，不消耗真实模型额度；如需真实供应商复测，走 A6。
+
+### 6.5 暂停后的门禁口径（不放宽）
+
+- WP-02 标记为 Deferred **只表示本轮不排期**，不改变任何上线判定：#168、#169 未闭合前，`PRODUCTION_READY` 仍为**否**，Release Gate 仍需要它们各自的验收证据。
+- WP-01 写进模板的 `SPRING_MVC_ASYNC_REQUEST_TIMEOUT=300000` 仍是**止血兜底**，不因暂停而升格为「问题已解决」；恢复 WP-02 时按要求说明它掩盖了什么、修复后收回到多少。
+- 恢复条件：需要先拿到 #168 的分段归因与 #169 的故障注入用例，二者都有独立 PR 与两轴评审，再按本节原有验收标准闭合。
+- 新发现的非阻塞性问题一律先登记 Issue，不并入当前 PR、不扩大范围。
 
 ## 7. WP-03 生产环境与运维保障
 
