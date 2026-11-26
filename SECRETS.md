@@ -17,17 +17,18 @@
 启动守卫 `ProductionSecretsGuard` 作为 `ApplicationContextInitializer` 挂在 `SpringApplication` 上，在创建任何业务 Bean 之前生效：
 
 - 只有 active profile 含 `prod` / `production` 时才检查；`local`、`acceptance` 不受影响。
-- 11 个必需项逐一校验：缺失、空白、**开发期回退值**、**占位文本**都会失败。新增覆盖 `spring.ai.openai.api-key` 与 `aliYunAi.apiKey`——两者都有 `@Value` 或自动配置依赖，原先未纳入守卫，缺项会以无关错误崩溃而非 `BLOCKED_ENV`。
-- 错误信息只含属性名与原因，不含属性值。
+- 13 个必需项逐一校验：缺失、空白、**开发期回退值**、**占位文本**都会失败。新增覆盖 `spring.ai.openai.api-key` 与 `aliYunAi.apiKey`——两者都有 `@Value` 或自动配置依赖，原先未纳入守卫，缺项会以无关错误崩溃而非 `BLOCKED_ENV`。
+- 2026-11-26（1.1.0 生产就绪 WP-01）再增两项**不是秘密、但缺了就一定跑不起来**的配置：`spring.ai.openai.base-url` 与 `spring.ai.openai.chat.options.model`。实机验收发现：缺端点时 OpenAI 客户端默认打 `api.openai.com`（大陆不可达），Agent 的同步调用挂到超时、SSE 一个字节都回不来——故障在首帧之后，启动期完全看不出来。
+- 错误信息只含属性名与原因，不含属性值。因为检查项里已经不只有秘密，文案从「production secrets are not configured」改成「production configuration is not complete」，`BLOCKED_ENV:` 前缀不变。
 
-必需项：`spring.datasource.url`、`spring.datasource.username`、`spring.datasource.password`、`spring.data.redis.host`、`spring.data.redis.password`、`spring.ai.dashscope.api-key`、`spring.ai.openai.api-key`、`aliYunAi.apiKey`、`vision-space.pexels.api-key`、`vision-space.vision-recognition.api-key`、`vision-space.security.default-password`。
+必需项：`spring.datasource.url`、`spring.datasource.username`、`spring.datasource.password`、`spring.data.redis.host`、`spring.data.redis.password`、`spring.ai.dashscope.api-key`、`spring.ai.openai.api-key`、`spring.ai.openai.base-url`、`spring.ai.openai.chat.options.model`、`aliYunAi.apiKey`、`vision-space.pexels.api-key`、`vision-space.vision-recognition.api-key`、`vision-space.security.default-password`。
 
-占位判定同时覆盖 `.env.example` 实际使用的值（`your_db_password`、`your-redis-host`、`change_me_before_production` 等），以 `your_` / `your-` 开头或含 `change_me` 的值一律拒绝——否则照抄示例文件并设 `prod` 就能蒙混过关。
+占位判定同时覆盖 `.env.example` 实际使用的值（`your_db_password`、`your-redis-host`、`change_me_before_production` 等），以 `your_` / `your-` 开头或含 `change_me` 的值一律拒绝——否则照抄示例文件并设 `prod` 就能蒙混过关。**含尖括号的未替换模板**（如 `<运行角色口令>`）同样拒绝：部署模板里的占位说明是中文，不在英文词表里，光靠词表会放它过去，服务带着假口令起来比直接启动失败更难查。
 
 失败示例（不含任何值）：
 
 ```text
-BLOCKED_ENV: production secrets are not configured: spring.datasource.url (missing),
+BLOCKED_ENV: production configuration is not complete: spring.datasource.url (missing),
 spring.datasource.username (missing), ... vision-space.security.default-password (missing)
 ```
 

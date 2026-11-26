@@ -24,6 +24,8 @@ class ProductionSecretsGuardTest {
             "spring.data.redis.password",
             "spring.ai.dashscope.api-key",
             "spring.ai.openai.api-key",
+            "spring.ai.openai.base-url",
+            "spring.ai.openai.chat.options.model",
             "aliYunAi.apiKey",
             "vision-space.pexels.api-key",
             "vision-space.vision-recognition.api-key",
@@ -31,7 +33,12 @@ class ProductionSecretsGuardTest {
 
     @Test
     void completeProductionSecretsPass() {
-        ProductionSecretsGuard.validate(true, productionValues());
+        var values = productionValues();
+        // 守卫新增必填项时，这份夹具必须跟着补：否则新项既没被测到，
+        // completeProductionSecretsPass 还会先失败，掩盖真正的回归。
+        assertEquals(ProductionSecretsGuard.REQUIRED_KEYS.size(), values.size(),
+                "夹具没有覆盖守卫要求的全部键：" + ProductionSecretsGuard.REQUIRED_KEYS);
+        ProductionSecretsGuard.validate(true, values);
     }
 
     @Test
@@ -76,6 +83,19 @@ class ProductionSecretsGuardTest {
             candidate.put("spring.datasource.password", placeholder);
             assertThrows(IllegalStateException.class,
                     () -> ProductionSecretsGuard.validate(true, candidate), placeholder);
+        }
+    }
+
+    @Test
+    void unfilledTemplatePlaceholderIsRejected() {
+        // 部署模板里的占位是中文说明，不在英文占位词表里；没替换就带着它启动，
+        // 服务能起来但用的是假口令，比直接启动失败更难查。
+        for (String template : List.of("<运行角色口令>", "<填 Redis 口令>", "<APP_PASSWORD>")) {
+            var candidate = new HashMap<>(productionValues());
+            candidate.put("spring.datasource.password", template);
+            var error = assertThrows(IllegalStateException.class,
+                    () -> ProductionSecretsGuard.validate(true, candidate), template);
+            assertTrue(error.getMessage().contains("spring.datasource.password"), error.getMessage());
         }
     }
 

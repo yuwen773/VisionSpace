@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""生产数据库初始化方案的隔离验证。
+
+验证 deploy/init-production-db.sh 的三条承诺：
+
+  1. **独立空库**：目标库是从零建出来的，业务表只有 Flyway 建的 31 张，
+     运行角色 `vision_app` 能读、但不能建表（最小权限）；
+  2. **不碰既有库**：脚本跑之前存在的验收库（带数据），跑完之后行数、表数、
+     种子行一条不少——本轮方案明确「保留验收库备份、清理另需授权」；
+  3. **不覆盖**：对已存在的库再跑一次必须失败退出，而不是当成重复执行顺手重建。
+
+隔离环境是 Docker 里的 postgres:18.7（命名卷 + vs.* 标签，与仓库其他隔离脚本同一套），
+Flyway 用仓库固定的 13.13.0 maven 插件。退出码：0 通过 / 1 断言失败 / 2 环境不可用。
+"""
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+POSTGRES_IMAGE = "postgres:18.7"
+MIGRATOR_USER = "vision_migrator"
+APP_USER = "vision_app"
+ACCEPTANCE_DB = "vision_space"
+PRODUCTION_DB = "vision_space_prod"
+FLYWAY_PLUGIN = "org.flywaydb:flyway-maven-plugin:13.13.0"
+INIT_SCRIPT = ROOT / "deploy" / "init-production-db.sh"
+EXPECTED_TABLES = 31
+
+# 与 scripts/acceptance.ps1 / drill-isolated-run.py 同一形状：只建角色、库、扩展、
+# 时区与库注释，业务表一律交给 Flyway。
+CONTAINER_INIT = r"""#!/bin/bash
+set -euo pipefail
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE ROLE vision_migrator LOGIN PASSWORD '$ACCEPTANCE_NONCE' NOSUPERUSER NOCREATEDB NOCREATEROLE"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE ROLE vision_app LOGIN PASSWORD '$ACCEPTANCE_NONCE' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -c "CREATE DATABASE \"$ACCEPTANCE_DB\" OWNER vision_migrator"
+psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEPTANCE_DB" \
+  -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC" \
+  -c "GRANT USAGE ON SCHEMA public TO vision_app" \
+  -c "CREATE EXTENSION IF NOT EXISTS pgcrypto" \
+  -c "ALTER DATABASE \"$ACCEPTANCE_DB\" SET timezone = 'UTC'"
+"""
+
+
+class CheckFailed(Exception):
+    pass
+
+
+def docker(*args, **kwargs):
+    return subprocess.run(["docker", *args], **kwargs)
+
+
+def free_port():
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def psql(container, database, user, password, sql, database_override=True):
+    return docker("exec", "-e", f"PGPASSWORD={password}", container,
+                  "psql", "--no-psqlrc", "-tAc", sql, "-U", user, "-d", database,
+                  capture_output=True, encoding="utf-8", errors="replace")
+
+
+def wait_postgres(container, database, password, deadline=180):
+    end = time.time() + deadline
+    while time.time() < end:
+        result = psql(container, database, APP_USER, password, "SELECT 1")
+        if result.returncode == 0:
+            return
+        time.sleep(0.5)
+    raise CheckFailed("isolated PostgreSQL did not accept application-role connections")
+
+
+def flyway_migrate(port, database, password):
+    """用仓库固定的 Flyway 13.13.0 插件建表（唯一建表入口）。"""
+    env = os.environ.copy()
+    env["FLYWAY_URL"] = f"jdbc:postgresql://127.0.0.1:{port}/{database}"
+    env["FLYWAY_USER"] = MIGRATOR_USER
+    env["FLYWAY_PASSWORD"] = password
+    mvn_exe = "mvn.cmd" if os.name == "nt" else "mvn"
+    result = subprocess.run([mvn_exe, "-B", "-N", "--no-transfer-progress",
+                             f"{FLYWAY_PLUGIN}:migrate"],
+                            cwd=str(ROOT), env=env, capture_output=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        tail = (result.stdout + result.stderr).strip().splitlines()[-15:]
+        raise CheckFailed(f"Flyway migrate failed for {database}:\n" + "\n".join(tail))
+
+
+def count(container, database, user, password, sql):
+    result = psql(container, database, user, password, sql)
+    if result.returncode != 0:
+        raise CheckFailed(f"query failed: {sql} -> {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def business_tables(container, database, user, password):
+    return count(container, database, user, password,
+                 "SELECT count(*) FROM information_schema.tables "
+                 "WHERE table_schema='public' AND table_type='BASE TABLE' "
+                 "AND table_name <> 'flyway_schema_history'")
+
+
+def run_init_script(container, password, database):
+    """把初始化脚本送进容器执行：超级用户走 TCP + PGPASSWORD（口令不进 argv）。"""
+    copy = docker("cp", str(INIT_SCRIPT), f"{container}:/tmp/init-production-db.sh",
+                  capture_output=True, encoding="utf-8", errors="replace")
+    if copy.returncode != 0:
+        raise CheckFailed(f"docker cp failed: {copy.stderr.strip()}")
+    result = docker("exec", "-i",
+                    "-e", f"VS_PG_SUPERUSER_PASSWORD={password}",
+                    "-e", "VS_PG_HOST=127.0.0.1",
+                    "-e", "VS_PG_PORT=5432",
+                    "-e", f"VS_DB_NAME={database}",
+                    container, "bash", "/tmp/init-production-db.sh",
+                    capture_output=True, encoding="utf-8", errors="replace")
+    return result
+
+
+def main():
+    if docker("info", capture_output=True).returncode != 0:
+        print("BLOCKED_ENV: Docker engine unavailable", file=sys.stderr)
+        return 2
+    if not INIT_SCRIPT.is_file():
+        print(f"BLOCKED_ENV: 找不到 {INIT_SCRIPT}", file=sys.stderr)
+        return 2
+
+    nonce = uuid.uuid4().hex
+    run_dir = Path(tempfile.gettempdir()) / f"visionspace-proddb-{nonce}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    container = f"vs-proddb-postgres-{nonce}"
+    volume = f"vs-proddb-pgdata-{nonce}"
+    port = free_port()
+    created_volume = False
+    exit_code = 1
+
+    try:
+        init_path = run_dir / "init.sh"
+        init_path.write_text(CONTAINER_INIT, encoding="utf-8", newline="\n")
+
+        volume_result = docker("volume", "create",
+                               "--label", "vs.owner=vision-space", "--label", f"vs.run-id={nonce}",
+                               "--label", "vs.kind=test", volume, capture_output=True, encoding="utf-8", errors="replace")
+        if volume_result.returncode != 0:
+            raise CheckFailed("named volume creation failed")
+        created_volume = True
+
+        pg = docker("run", "-d", "--name", container,
+                    "-p", f"127.0.0.1:{port}:5432",
+                    "-e", f"POSTGRES_PASSWORD={nonce}", "-e", "POSTGRES_USER=postgres",
+                    "-e", "POSTGRES_DB=postgres", "-e", f"ACCEPTANCE_DB={ACCEPTANCE_DB}",
+                    "-e", f"ACCEPTANCE_NONCE={nonce}", "-e", "TZ=UTC",
+                    "--label", "vs.owner=vision-space", "--label", f"vs.run-id={nonce}",
+                    "--label", "vs.kind=test",
+                    "-v", f"{volume}:/var/lib/postgresql",
+                    "--mount", f"type=bind,source={init_path},target=/docker-entrypoint-initdb.d/01-acceptance.sh,readonly",
+                    POSTGRES_IMAGE, capture_output=True, encoding="utf-8", errors="replace")
+        if pg.returncode != 0:
+            raise CheckFailed(f"container startup failed: {pg.stderr.strip()}")
+
+        wait_postgres(container, ACCEPTANCE_DB, nonce)
+
+        # ---- 先造一个「验收库」：有表、有数据 ----
+        flyway_migrate(port, ACCEPTANCE_DB, nonce)
+        marker = psql(container, ACCEPTANCE_DB, "postgres", nonce,
+                      "INSERT INTO app_user (user_account, user_password) "
+                      "VALUES ('acceptance_marker', 'marker') RETURNING id")
+        if marker.returncode != 0:
+            raise CheckFailed(f"cannot seed acceptance row: {marker.stderr.strip()}")
+        before_tables = business_tables(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce)
+        before_users = count(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce, "SELECT count(*) FROM app_user")
+        before_switch = count(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce,
+                               "SELECT count(*) FROM storage_switch_state")
+        if before_tables != str(EXPECTED_TABLES):
+            raise CheckFailed(f"验收库业务表数量异常：{before_tables}")
+        if before_users != "1":
+            raise CheckFailed(f"验收库种子行异常：{before_users}")
+
+        # ---- 跑初始化脚本：建独立空库 ----
+        result = run_init_script(container, nonce, PRODUCTION_DB)
+        (run_dir / "init-output.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+        if result.returncode != 0:
+            raise CheckFailed(f"init-production-db.sh failed:\n{result.stdout}\n{result.stderr}")
+
+        exists = psql(container, "postgres", "postgres", nonce,
+                      f"SELECT 1 FROM pg_database WHERE datname='{PRODUCTION_DB}'")
+        if exists.stdout.strip() != "1":
+            raise CheckFailed("生产库没有被创建")
+
+        owner = psql(container, "postgres", "postgres", nonce,
+                     f"SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='{PRODUCTION_DB}'")
+        if owner.stdout.strip() != MIGRATOR_USER:
+            raise CheckFailed(f"生产库 owner 不对：{owner.stdout.strip()}")
+
+        # ---- 生产库建表（唯一入口仍是 Flyway）----
+        flyway_migrate(port, PRODUCTION_DB, nonce)
+
+        prod_tables = business_tables(container, PRODUCTION_DB, MIGRATOR_USER, nonce)
+        if prod_tables != str(EXPECTED_TABLES):
+            raise CheckFailed(f"生产库业务表数量异常：{prod_tables}（期望 {EXPECTED_TABLES}）")
+        prod_history = count(container, PRODUCTION_DB, MIGRATOR_USER, nonce,
+                             "SELECT count(*) FROM flyway_schema_history")
+        if prod_history != "1":
+            raise CheckFailed(f"生产库 Flyway 历史行数异常：{prod_history}")
+        prod_users = count(container, PRODUCTION_DB, APP_USER, nonce, "SELECT count(*) FROM app_user")
+        if prod_users != "0":
+            raise CheckFailed(f"生产库不是空库：app_user 有 {prod_users} 行")
+
+        # 运行角色可读、不可建表
+        ddl = psql(container, PRODUCTION_DB, APP_USER, nonce,
+                   "CREATE TABLE vs_proddb_probe(id int)")
+        if ddl.returncode == 0:
+            raise CheckFailed("运行角色竟然能在生产库建表")
+        if "permission denied" not in (ddl.stderr + ddl.stdout).lower():
+            raise CheckFailed(f"DDL 负例的失败原因不对：{ddl.stderr.strip()}")
+
+        # ---- 验收库必须原封不动 ----
+        after_tables = business_tables(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce)
+        after_users = count(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce, "SELECT count(*) FROM app_user")
+        after_switch = count(container, ACCEPTANCE_DB, MIGRATOR_USER, nonce,
+                              "SELECT count(*) FROM storage_switch_state")
+        if after_tables != before_tables or after_users != before_users or after_switch != before_switch:
+            raise CheckFailed(
+                f"验收库被改动了：表 {before_tables}->{after_tables}，"
+                f"用户 {before_users}->{after_users}，开关行 {before_switch}->{after_switch}")
+
+        # ---- 对已存在的库再跑一次：必须拒绝，不覆盖 ----
+        again = run_init_script(container, nonce, PRODUCTION_DB)
+        if again.returncode == 0:
+            raise CheckFailed("初始化脚本对已存在的库没有拒绝执行")
+        tables_after_retry = business_tables(container, PRODUCTION_DB, MIGRATOR_USER, nonce)
+        if tables_after_retry != str(EXPECTED_TABLES):
+            raise CheckFailed(f"重跑之后生产库结构变了：{tables_after_retry}")
+
+        print("PASS: 独立空库初始化成立，验收库未被改动，已存在的库不会被覆盖")
+        exit_code = 0
+    except CheckFailed as exc:
+        print(f"FAIL: {exc}")
+        exit_code = 1
+    except Exception as exc:  # noqa: BLE001 - 报告并保留清理
+        print(f"RUNNER_ERROR: {exc}")
+        exit_code = 99
+    finally:
+        docker("rm", "-f", "-v", container, capture_output=True)
+        if created_volume:
+            docker("volume", "rm", "-f", volume, capture_output=True)
+        if os.environ.get("VS_PRODDB_KEEP_LOGS"):
+            print(f"[proddb] logs: {run_dir}")
+        else:
+            for entry in run_dir.glob("*"):
+                try:
+                    entry.unlink()
+                except OSError:
+                    pass
+            try:
+                run_dir.rmdir()
+            except OSError:
+                pass
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

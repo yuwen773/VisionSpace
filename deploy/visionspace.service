@@ -1,0 +1,40 @@
+# VisionSpace 后端 systemd 单元（原生部署）
+#
+# 安装：
+#   install -m 644 deploy/visionspace.service /etc/systemd/system/visionspace.service
+#   systemctl daemon-reload && systemctl enable --now visionspace
+#
+# 说明：
+#   1. EnvironmentFile 由 root 读取（600），进程以 visionspace 身份运行，口令不进 argv；
+#   2. 业务端口绑回环由 app.env 的 SERVER_ADDRESS 控制（默认 127.0.0.1），
+#      管理端口在 application-prod.yml 里固定绑 127.0.0.1:9081；
+#   3. JVM 参数按 2 vCPU / 1.7 GB 实测基线（M4 验收：冷启动 24 秒，空闲 RSS 431 MB）设定，
+#      调整前先看 docs/plans/2026-11-24-postgresql-migration.md 附录 F 的实测数字。
+
+[Unit]
+Description=VisionSpace backend
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=visionspace
+Group=visionspace
+WorkingDirectory=/opt/visionspace/app
+EnvironmentFile=/opt/visionspace/app.env
+ExecStart=/usr/bin/java -Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -Duser.timezone=Asia/Shanghai -jar /opt/visionspace/app/vision-space.jar
+Restart=always
+RestartSec=5
+SuccessExitStatus=143
+TimeoutStopSec=30
+LimitNOFILE=65535
+
+# 纵深防御：服务进程不需要提权，也不需要写系统目录
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/visionspace/logs /opt/visionspace/app
+
+[Install]
+WantedBy=multi-user.target
