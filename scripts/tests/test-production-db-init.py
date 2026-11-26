@@ -116,24 +116,42 @@ def psql_verbose(container, database, user, password, sql):
                   capture_output=True, encoding="utf-8", errors="replace")
 
 
+def psql_tcp(container, database, user, password, sql):
+    """与部署脚本同一条连接路径：容器内 TCP + PGPASSWORD 认证。
+
+    docker exec 里的 psql 默认走 unix socket，而官方镜像在 initdb 阶段会先起一个
+    listen_addresses='' 的临时服务：那时 socket 连得上、TCP 一律拒绝。只用 socket
+    探活会「提前就绪」，紧跟着部署脚本的第一条 TCP 连接就 Connection refused
+    （2026-11-26 CI 实测，诊断日志里有原始报错）。
+    """
+    return docker("exec", "-e", f"PGPASSWORD={password}", container,
+                  "psql", "--no-psqlrc", "-tAc", sql,
+                  "-h", "127.0.0.1", "-p", "5432", "-U", user, "-d", database,
+                  capture_output=True, encoding="utf-8", errors="replace")
+
+
 def wait_postgres(container, database, password, deadline=180):
     end = time.time() + deadline
+    last = ""
     while time.time() < end:
-        result = psql(container, database, APP_USER, password, "SELECT 1")
+        result = psql_tcp(container, database, APP_USER, password, "SELECT 1")
         if result.returncode == 0:
             return
+        last = result.stderr.strip()
         time.sleep(0.5)
-    raise CheckFailed("isolated PostgreSQL did not accept application-role connections")
+    raise CheckFailed(f"isolated PostgreSQL did not accept application-role connections: {last}")
 
 
 def wait_superuser(container, password, deadline=180):
     end = time.time() + deadline
+    last = ""
     while time.time() < end:
-        result = psql(container, "postgres", "postgres", password, "SELECT 1")
+        result = psql_tcp(container, "postgres", "postgres", password, "SELECT 1")
         if result.returncode == 0:
             return
+        last = result.stderr.strip()
         time.sleep(0.5)
-    raise CheckFailed("isolated PostgreSQL did not accept superuser connections")
+    raise CheckFailed(f"isolated PostgreSQL did not accept superuser connections: {last}")
 
 
 def flyway_migrate(port, database, password, user=MIGRATOR_USER):

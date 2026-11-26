@@ -65,8 +65,11 @@ def published_port(container, internal):
 
 
 def psql(container, database, user, password, sql):
+    # 走容器内 TCP，不用 psql 默认的 unix socket：官方镜像在 initdb 阶段会先起一个
+    # listen_addresses='' 的临时服务，socket 能连、TCP 拒绝，只用 socket 探活会提前就绪。
     return docker("exec", "-e", f"PGPASSWORD={password}", container,
-                  "psql", "--no-psqlrc", "-tAc", sql, "-U", user, "-d", database,
+                  "psql", "--no-psqlrc", "-tAc", sql,
+                  "-h", "127.0.0.1", "-U", user, "-d", database,
                   capture_output=True, text=True)
 
 

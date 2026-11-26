@@ -169,7 +169,9 @@ psql --no-psqlrc -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$ACCEP
         $readyDeadline = [DateTime]::UtcNow.AddSeconds(180)
         $ready = $false
         while ([DateTime]::UtcNow -lt $readyDeadline) {
-            & docker exec -e "PGPASSWORD=$nonce" $postgresContainer psql --no-psqlrc -tAc 'SELECT 1' -U vision_app -d $database *> (Join-Path $runDir 'postgres-ready.log')
+            # -h 127.0.0.1：与服务实际连接路径一致。psql 默认的 unix socket 在镜像
+            # initdb 阶段的临时服务上也能连（listen_addresses=''），会提前判就绪。
+            & docker exec -e "PGPASSWORD=$nonce" $postgresContainer psql --no-psqlrc -tAc 'SELECT 1' -h 127.0.0.1 -U vision_app -d $database *> (Join-Path $runDir 'postgres-ready.log')
             if ($LASTEXITCODE -eq 0) { $ready = $true; break }
             Start-Sleep -Milliseconds 500
         }

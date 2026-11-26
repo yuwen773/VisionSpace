@@ -65,7 +65,7 @@ scalar() {
 }
 
 echo "== 目标库 =="
-echo "database=$VS_DB_NAME host=$VS_PG_PORT timezone=$VS_DB_TIMEZONE"
+echo "database=$VS_DB_NAME host=$VS_PG_HOST port=$VS_PG_PORT timezone=$VS_DB_TIMEZONE"
 
 existing=$(scalar "SELECT 1 FROM pg_database WHERE datname = '$VS_DB_NAME'")
 if [ "$existing" = "1" ]; then

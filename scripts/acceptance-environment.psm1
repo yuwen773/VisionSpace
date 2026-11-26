@@ -49,7 +49,9 @@ function Wait-AcceptanceDockerReady([string]$Container, [string]$Database, [stri
     $deadline = [DateTime]::UtcNow.AddSeconds(180)
     while ([DateTime]::UtcNow -lt $deadline) {
         # 运行角色 + 目标库：既验证服务器接受连接，也验证角色与库已经建好。
-        & docker exec -e "PGPASSWORD=$Nonce" $Container psql --no-psqlrc -tAc 'SELECT 1' -U vision_app -d $Database 2>$null | Out-Null
+        # -h 127.0.0.1 是必须的：psql 默认走 unix socket，而官方镜像 initdb 阶段的
+        # 临时服务 listen_addresses='' 只开 socket，会让探活提前成功。
+        & docker exec -e "PGPASSWORD=$Nonce" $Container psql --no-psqlrc -tAc 'SELECT 1' -h 127.0.0.1 -U vision_app -d $Database 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { return }
         Start-Sleep -Milliseconds 500
     }
