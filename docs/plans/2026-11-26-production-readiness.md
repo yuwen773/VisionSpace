@@ -189,6 +189,7 @@ WP-03（正式域名 + 证书）
 | 上面 ③ 自己引入的回归：文件头用 `-Force` 建 `<runDir>/diagnostics` 时顺带建出了 runDir，紧跟其后无 `-Force` 的 `New-Item` 抛「已存在」，整轮验收在第一个关卡之前就以退出码 1 终止；`publish-evidence.py` 因缺 `target/acceptance` 报 `BLOCKED_ENV`，证据与产物一并落空 | 运行目录及其 `diagnostics/` 改为单点创建并统一用 `-Force`，幂等。同时记下这条边界：脚本在 `try` 之前抛终止错误时不会写 `summary.json`，CI 上只会看到一个红灯——改验收脚本自身时，先确认它还能跑到第一个关卡 |
 | 修复后第二轮红在新门禁的「干净集群」分支：`wait_superuser` 用 `docker exec psql`（默认 unix socket）探活，官方镜像 initdb 阶段会先起一个 `listen_addresses=''` 的临时服务，socket 连得上而 TCP 一律拒绝——探活提前成功，部署脚本的第一条 TCP 连接随即 `Connection refused`。定点实验测得假就绪窗口约 7 秒（socket 3s 通、TCP 10s 才通） | 三处探活（新门禁、`acceptance-environment.psm1`、`drill-isolated-run.py`）统一加 `-h 127.0.0.1`，与部署脚本和应用走同一条 TCP 路径；就绪失败时把最后一次 psql 报错带进异常消息。顺带修正 `init-production-db.sh` 把端口印成 `host=` 的笔误 |
 | 第三轮红在 backend：`PictureStatsEventMigrationTest.maintenanceListIsExecutableAndOnlyReads`（本地 5/5 通过，CI 偶发）。该用例的「盘点清单只读」断言比对的是 **user_picture_action / picture_action_event_dedupe 全表行数**，上报走异步队列，别的用例排空晚一步就会补行，慢机器上抗体不住 | 只读断言收回到本用例夹具（按 `user_id` 与事件键计数）：断言要证明的是「执行盘点 SQL 不改数据」，不是「全表没人写」。三条分组断言本来就不受聚合任务影响——`claimPendingEvents` 要求目标图片真实存在，而夹具的 `picture_id` 故意不存在 |
+| 第四轮红在 browser 的 `diagram-browser`：`unconfigured-theme-aurora` FAIL，同批 `pop` 与两种 configured 全过；本地同一 HEAD 四场景 4/4 通过，属环境偶发。该 harness 的场景日志写在 `target/diagram-browser/*.log`，不在 `diagnostics/` 下，证据里只剩一个 FAIL | 场景日志与 build 日志改写入 `diagnostics/` 子目录（`publish-evidence.py` 只发布该目录下的 `.log`），启动失败也留一行堆栈；本地复跑四场景全过、并验证日志确实随证据发布。偶发本身按仓库惯例整轮重跑，不用 `--failed` |
 
 落地时的两个注意点：
 
