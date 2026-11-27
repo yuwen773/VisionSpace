@@ -497,10 +497,11 @@ onUnmounted(() => {
 .board-editor {
   margin: 12px;
   padding: 18px;
+  /* 顶部 3px 强调边在 12px 圆角上会被圆角切断；改用主色浅底纹标记「Agent 候选板」，
+     整块边界保持完整。 */
   border: 1px solid var(--color-border-subtle);
-  border-top: 3px solid var(--color-primary-500);
   border-radius: 12px;
-  background: var(--color-bg-elevated);
+  background: color-mix(in srgb, var(--color-primary-500) 8%, var(--color-bg-elevated));
   color: var(--color-text-primary);
 }
 fieldset {
