@@ -8,6 +8,9 @@ import org.apache.ibatis.annotations.Param;
  *
  * <p>确认集合取代次数计数器：ON CONFLICT DO NOTHING 的主键幂等保证同一实例
  * 对同一版本只计一次，晋升条件是集合大小达到期望实例数。
+ *
+ * <p>主键是复合键 {@code (version, instance_id)}，因此不继承
+ * {@code BaseMapper}，实体类型由 XML 直接映射（无独立实体类）。
  */
 @Mapper
 public interface StorageSwitchConfirmMapper {

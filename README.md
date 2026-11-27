@@ -230,10 +230,19 @@ miniprogram/src/
 git clone https://github.com/yuwen773/VisionSpace.git
 cd VisionSpace
 
-# 启动 PostgreSQL + Redis + 后端
+# 1. 准备环境变量（compose 对数据库/Redis 口令是必填，缺了会直接启动失败）
+cp .env.example .env
+# 编辑 .env，至少填 POSTGRES_SUPERUSER_PASSWORD、POSTGRES_MIGRATOR_PASSWORD、
+# SPRING_DATASOURCE_PASSWORD、REDIS_PASSWORD
+
+# 2. 先起数据库，再跑 Flyway 建表（业务表只由 Flyway 创建，backend 不建表）
+docker-compose up -d postgres
+docker compose --profile tools run --rm flyway migrate
+
+# 3. 启动 PostgreSQL + Redis + 后端
 docker-compose up -d
 
-# 启动前端
+# 4. 启动前端
 cd frontend
 npm install
 npm run dev
@@ -365,7 +374,7 @@ public static final StpLogic SPACE = new StpLogic("space"); // 空间会话
 
 | 表名 | 用途 | 主键 |
 |------|------|------|
-| user | 用户信息 | id (bigint) |
+| app_user | 用户信息 | id (bigint) |
 | picture | 图片信息 | id (bigint) |
 | picture_stats | 图片统计（浏览/点赞/收藏/下载/分享） | id |
 | user_picture_action | 用户行为事件（曝光/点击/浏览/点赞/收藏/下载/分享） | id |
@@ -378,10 +387,12 @@ public static final StpLogic SPACE = new StpLogic("space"); // 空间会话
 
 ### 数据规范
 
-- 字段命名：**camelCase**（如 `userId`, `createdTime`）
-- 逻辑删除：`isDelete` 字段（值为 1 表示删除）
-- 图片主色调：`picColor` 存储十六进制值
-- 所有表使用 InnoDB 引擎，`utf8mb4_unicode_ci` 字符集
+- 数据库：**PostgreSQL 18**，表结构只由 Flyway 建（`src/main/resources/db/migration/V1__baseline.sql`），应用启动不执行 DDL。
+- 列命名：**snake_case**（如 `user_id`, `created_time`）；Java 字段与 JSON 保持 camelCase（MyBatis Plus `map-underscore-to-camel-case: true`）。
+- 逻辑删除：`is_delete` 字段（值为 1 表示删除）。
+- 图片主色调：`pic_color` 存储十六进制值。
+- 时间列统一 `timestamp(0)` 无时区；SQL 取当前时间用 `statement_timestamp()`（PG 的 `now()` 是事务开始时间）。
+- 账号等文本唯一性走 `lower(...)` 大小写不敏感索引；不透明 ID/哈希保持大小写敏感。
 
 ## 配置说明
 

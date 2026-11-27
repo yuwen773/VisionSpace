@@ -38,10 +38,9 @@ import static org.mockito.Mockito.verify;
  * <p>写侧：编辑、审核、删除都要按图片 id 触发一次索引同步。同步时以数据库当前状态
  * 为准，不再拿改动前的对象快照去重建索引。
  *
- * <p>写侧断言直接走服务层，不经过登录态：本机原生 Redis 是 5.0，不支持 Sa-Token
- * 1.46 使用的 {@code KEEPTTL}，HTTP 登录路径在本机不可用，这与本次改动无关——
- * 未改动的 {@code HttpPublicGalleryTest} 同样登录失败。编辑/审核/删除三个接口
- * 只是转发到服务层，它们的鉴权由既有接口用例覆盖。
+ * <p>写侧断言直接走服务层，以便精确锁定「以数据库当前状态为准」的同步调用；
+ * HTTP 层的注册/登录与鉴权由既有接口用例（{@code HttpPublicGalleryTest} 等）覆盖，
+ * 这里不重复建登录态。
  */
 @IsolatedSpringBootTest
 class PictureIndexLifecycleTest {

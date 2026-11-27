@@ -16,10 +16,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 用真实的状态机语义模拟 {@link AgentActionRecordMapper}。
  *
  * <p>Mockito 无法表达「同一行只允许一个调用方认领成功」，而这条原子性正是
- * 本工单要证明的东西。这里按 MySQL 的语义实现：
+ * 本工单要证明的东西。这里按当前 PostgreSQL 的语义实现：
  * <ul>
- *   <li>{@code claim} 是条件更新：只有不存在或已是 {@code FAILED} 时才生效；</li>
- *   <li>返回受影响行数，0 表示没抢到；</li>
+ *   <li>{@code claim} 是条件更新（{@code INSERT ... ON CONFLICT DO UPDATE}）：只有不存在或已是 {@code FAILED} 时才生效；</li>
+ *   <li>返回受影响行数：PostgreSQL 命中一行即返回 1，0 表示没抢到；</li>
  *   <li>{@code settleClaimed} 只在 token 与状态都匹配时生效；</li>
  *   <li>所有方法在同一个监视器下执行，等价于单行行锁。</li>
  * </ul>
@@ -80,7 +80,7 @@ final class InMemoryActionRecordMapper {
         existing.setClaimToken((String) args[6]);
         existing.setAttempt(existing.getAttempt() == null ? 1 : existing.getAttempt() + 1);
         existing.setUpdateTime(new Date());
-        return 2;
+        return 1;
     }
 
     /** 只有当前认领者能落结果；token 不符或已不是 EXECUTING 都影响 0 行 */

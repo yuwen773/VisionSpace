@@ -1,5 +1,6 @@
 package com.yuwen.visionspace.manager.cache;
 
+import com.yuwen.visionspace.config.RecommendConfig;
 import com.yuwen.visionspace.utils.HashUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,9 @@ import java.util.concurrent.TimeUnit;
 public class RecommendCacheManager {
 
     private static final String RECOMMEND_KEY_PREFIX = "recommend:";
-    private static final long CACHE_TTL = 5; // 5分钟
+
+    @Resource
+    private RecommendConfig recommendConfig;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -63,7 +66,7 @@ public class RecommendCacheManager {
     public void setCandidateList(String type, String context, RecommendCandidateList list) {
         try {
             stringRedisTemplate.opsForValue().set(candidateKey(type, context),
-                    objectMapper.writeValueAsString(list), CACHE_TTL, TimeUnit.MINUTES);
+                    objectMapper.writeValueAsString(list), recommendConfig.getCacheTtlMinutes(), TimeUnit.MINUTES);
         } catch (Exception e) {
             log.warn("推荐候选缓存写入失败: type={}", type, e);
         }
@@ -114,6 +117,6 @@ public class RecommendCacheManager {
      */
     public void setCachedTotal(String type, long total) {
         stringRedisTemplate.opsForValue().set(buildTotalKey(type),
-                String.valueOf(total), CACHE_TTL, TimeUnit.MINUTES);
+                String.valueOf(total), recommendConfig.getCacheTtlMinutes(), TimeUnit.MINUTES);
     }
 }
