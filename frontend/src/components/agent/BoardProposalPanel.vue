@@ -371,10 +371,11 @@ onUnmounted(() => {
 .proposal-panel {
   margin-top: 18px;
   padding: 16px;
+  /* 「Agent 提案」这个语义由 header 的 AGENT · PERSONAL DRAFT 标签和主色底纹承担：
+     3px 强调边在 12px 圆角上会被切出楔形，换成整块浅色底纹后边界干净。 */
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-primary);
   border-radius: 12px;
-  background: var(--color-bg-secondary);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-secondary));
   color: var(--color-text-primary);
 }
 header small {
