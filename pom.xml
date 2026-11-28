@@ -15,7 +15,7 @@
         <spring-ai.version>1.1.8</spring-ai.version>
 
         <spring-ai-alibaba.version>1.1.2.4-security-fix</spring-ai-alibaba.version>
-        <lombok.version>1.18.36</lombok.version>
+        <lombok.version>1.18.48</lombok.version>
         <!-- knife4j 4.4.0 传递依赖 springdoc 2.3.0，与 Spring Boot 3.5 不兼容
              （ControllerAdviceBean 构造函数已变更，/v3/api-docs 报 NoSuchMethodError）。
              此处显式提升到与 Spring Boot 3.5.x 对齐的版本。 -->
