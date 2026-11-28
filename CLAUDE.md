@@ -59,7 +59,7 @@ docker-compose up -d         # PostgreSQL 18 + Redis 7 + backend（向量库默�
 
 Multi-layered architecture with cross-cutting managers:
 
-- `controller/` — 16 REST controllers. **Do NOT add `/api` prefix** — it's in `server.servlet.context-path: /api`
+- `controller/` — 20 REST controllers. **Do NOT add `/api` prefix** — it's in `server.servlet.context-path: /api`
 - `service/` — Interface + Impl pattern. Business logic and transactions.
 - `mapper/` — MyBatis Plus mappers. XML in `resources/mapper/`.
 - `manager/` — Cross-cutting concerns:
