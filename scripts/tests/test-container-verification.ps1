@@ -207,6 +207,112 @@ function docker {
 
 $failures = @()
 try {
+    & {
+        $startupDiagnostic = Join-Path $runDir 'startup-test.log'
+        $buildLog = Join-Path $runDir 'build.log'
+        $fixtureSecret = 'unpublished' + 'Canary!9631'
+        $elapsed = [Diagnostics.Stopwatch]::StartNew()
+        $code = Invoke-BoundedProcess (Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })) `
+            @('-NoProfile', '-Command', "'#7 [build fixture] $fixtureSecret'; Start-Sleep -Seconds 30") $buildLog 3
+        if ($code -ne 124 -or $elapsed.Elapsed.TotalSeconds -ge 20 -or
+            -not ((Get-Content -LiteralPath $buildLog -Raw).Contains($fixtureSecret))) {
+            throw 'Hanging command must time out and preserve its partial local log.'
+        }
+
+        function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds) {
+            if ($ExtraArgs[0] -ne 'ps') { return 124 }
+            @('postgres running healthy', 'backend exited ', "backend running $fixtureSecret") |
+                Set-Content -LiteralPath $Log
+            return 0
+        }
+        Set-Content -LiteralPath (Join-Path $runDir 'flyway-migrate.log.stderr') "ERROR: $fixtureSecret"
+        try {
+            Invoke-StartupCompose 'flyway-migrate' @('run', '--rm', 'flyway') 3
+            throw 'Timed-out startup command must fail.'
+        } catch {
+            if ("$_" -notmatch 'flyway-migrate \(exit 124\)') { throw }
+        }
+        Write-StartupSnapshot
+        $snapshot = Get-Content -LiteralPath $startupDiagnostic
+        foreach ($mark in @('stage=flyway-migrate status=started', 'stage=flyway-migrate exit=124',
+                'build step=7 status=started', 'flyway-migrate status=error', 'compose-ps exit=0',
+                'service=postgres state=running health=healthy', 'service=backend state=exited health=')) {
+            if ($mark -notin $snapshot) { throw "Missing projected startup evidence: $mark" }
+        }
+        if (($snapshot -join "`n").Contains($fixtureSecret)) { throw 'Unsafe Docker output left the raw directory.' }
+        Write-Host 'PASS: bounded startup timeout, partial local log and safe public snapshot'
+    }
+
+    & {
+        $startupDiagnostic = Join-Path $runDir 'cleanup-test.log'
+        $expectedProject = $project
+        $expectedEnv = $envFile
+        $expectedOverride = ''
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $fixtureFlywayExit = 0
+        $flywayId = 'abc12345' * 8
+        function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds,
+                [string]$ProjectName, [string]$ProjectEnv, [string]$OverrideFile) {
+            if ($ProjectName -ne $expectedProject -or $ProjectEnv -ne $expectedEnv -or $OverrideFile -ne $expectedOverride) {
+                throw 'Cleanup must use the Compose configuration and environment of the stack under test.'
+            }
+            $calls.Add(($ExtraArgs -join ' '))
+            return $downExit
+        }
+        function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [string]$Log, [int]$Seconds) {
+            if ($Arguments[1] -eq 'rm') {
+                if (($Arguments -join ' ') -ne "container rm --force --volumes $flywayId") {
+                    throw 'Cleanup must remove only the listed Flyway one-off container.'
+                }
+                $calls.Add('remove-flyway')
+                return $fixtureFlywayExit
+            }
+            if ('--no-trunc' -in $Arguments) {
+                foreach ($selector in @("label=com.docker.compose.project=$expectedProject",
+                        'label=com.docker.compose.service=flyway', 'label=com.docker.compose.oneoff=True')) {
+                    if ($selector -notin $Arguments) { throw 'Flyway lookup must be scoped by all three labels.' }
+                }
+                Set-Content -LiteralPath $Log -Value $flywayId
+                return 0
+            }
+            if ($Arguments[4] -ne "label=com.docker.compose.project=$expectedProject") {
+                throw 'Cleanup verification must be scoped to this Compose project.'
+            }
+            if ($Arguments[0] -eq 'container' -and '--all' -notin $Arguments) {
+                throw 'Cleanup verification must include stopped containers.'
+            }
+            Set-Content -LiteralPath $Log -Value $(if ($Arguments[0] -eq $remainingKind) { 'fixture-id' })
+            return $(if ($Arguments[0] -eq $unavailableKind) { 124 } else { 0 })
+        }
+        $downExit = 0
+        foreach ($remainingKind in @('container', 'network', 'volume')) {
+            if (Remove-ContainerCandidate) { throw "Cleanup accepted a residual $remainingKind." }
+        }
+        $remainingKind = ''
+        $unavailableKind = 'container'
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted an unavailable Docker resource listing.' }
+        $unavailableKind = ''
+        $downExit = 124
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted a timed-out shutdown.' }
+        $downExit = 0
+        if (-not (Remove-ContainerCandidate)) { throw 'Cleanup rejected an empty Compose project.' }
+        if ($calls[-2] -ne 'remove-flyway' -or
+            $calls[-1] -ne '--profile tools down -v --remove-orphans') {
+            throw 'Cleanup must remove the Flyway container before removing project resources.'
+        }
+        $fixtureFlywayExit = 124
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted a timed-out Flyway removal.' }
+        $fixtureFlywayExit = 0
+        $expectedProject = 'vs45-host-fixture'
+        $expectedEnv = 'host.env'
+        $expectedOverride = 'host-compose.yml'
+        $remainingKind = 'volume'
+        if (Remove-ContainerCandidate $expectedProject $expectedEnv $expectedOverride) {
+            throw 'Cleanup accepted a residual host-access project volume.'
+        }
+        Write-Host 'PASS: cleanup includes Flyway and rejects residual or unverified resources'
+    }
+
     foreach ($case in @(
         @{ Name = 'nonzero-exit'; Scenario = $exhaustScenario; Expected = $true },
         @{ Name = 'running-unhealthy'; Scenario = $exhaustScenario; Expected = $false; RejectedBy = 'A4-exhausted-retries-fail-clearly' },

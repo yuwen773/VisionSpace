@@ -16,13 +16,9 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = Split-Path $PSScriptRoot -Parent
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+$dockerExecutable = (Get-Command docker -CommandType Application -TotalCount 1 -ErrorAction SilentlyContinue).Source
+if (-not $dockerExecutable) {
     Write-Host 'BLOCKED_ENV: docker CLI unavailable'
-    exit 2
-}
-docker info *> $null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host 'BLOCKED_ENV: docker daemon unavailable'
     exit 2
 }
 
@@ -44,6 +40,121 @@ function Free-Port {
 function Invoke-Compose([string[]]$ExtraArgs) {
     & docker compose -f $composeYml -p $project --env-file $envFile @ExtraArgs
     if ($LASTEXITCODE -ne 0) { throw "compose $($ExtraArgs -join ' ') failed (exit $LASTEXITCODE)" }
+}
+
+# 写入临时目录的原始输出。即使 Docker CLI 挂起，也能终止本次进程并保留已有输出。
+function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [string]$Log, [int]$Seconds) {
+    $start = [Diagnostics.ProcessStartInfo]::new($Executable)
+    foreach ($argument in $Arguments) { $start.ArgumentList.Add($argument) }
+    $start.UseShellExecute = $false
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.CreateNoWindow = $true
+    $stdout = [IO.FileStream]::new($Log, 'Create', 'Write', 'Read')
+    try {
+        $stderr = [IO.FileStream]::new("$Log.stderr", 'Create', 'Write', 'Read')
+        try {
+            $process = [Diagnostics.Process]::Start($start)
+            try {
+                $copies = @($process.StandardOutput.BaseStream.CopyToAsync($stdout),
+                            $process.StandardError.BaseStream.CopyToAsync($stderr))
+                if (-not $process.WaitForExit($Seconds * 1000)) {
+                    try { $process.Kill($true) } catch { if (-not $process.HasExited) { throw } }
+                    [void]$process.WaitForExit(5000)
+                    [void][Threading.Tasks.Task]::WaitAll($copies, 5000)
+                    return 124
+                }
+                if (-not [Threading.Tasks.Task]::WaitAll($copies, 5000)) { return 124 }
+                return $process.ExitCode
+            } finally { $process.Dispose() }
+        } finally { $stderr.Dispose() }
+    } finally { $stdout.Dispose() }
+}
+
+function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds,
+        [string]$ProjectName = $project, [string]$ProjectEnv = $envFile, [string]$OverrideFile) {
+    $arguments = @('compose', '-f', $composeYml)
+    if ($OverrideFile) { $arguments += @('-f', $OverrideFile) }
+    $arguments += @('-p', $ProjectName, '--env-file', $ProjectEnv)
+    Invoke-BoundedProcess $dockerExecutable ($arguments + $ExtraArgs) $Log $Seconds
+}
+
+function Remove-ContainerCandidate([string]$ProjectName = $project, [string]$ProjectEnv = $envFile,
+        [string]$OverrideFile) {
+    $prefix = if ($OverrideFile) { 'host-access-cleanup' } else { 'cleanup' }
+    $projectFilter = "label=com.docker.compose.project=$ProjectName"
+    # 先收回中断的 Flyway 一次性容器，避免 down 并行删卷时容器还占着卷。
+    # compose rm 仅筛选常规服务容器，按项目、服务和 oneoff 标签精确定位。
+    $flywayLog = Join-Path $runDir "$prefix-flyway-list.log"
+    $flywayExit = Invoke-BoundedProcess $dockerExecutable @('container', 'ls', '--all', '--quiet', '--no-trunc',
+        '--filter', $projectFilter, '--filter', 'label=com.docker.compose.service=flyway',
+        '--filter', 'label=com.docker.compose.oneoff=True') $flywayLog 10
+    Add-Content -LiteralPath $startupDiagnostic "$prefix-flyway-list exit=$flywayExit"
+    $clean = $flywayExit -eq 0
+    if ($clean) {
+        $flywayIds = @(Get-Content -LiteralPath $flywayLog | Where-Object { $_.Trim() })
+        if ($flywayIds -cnotmatch '^[0-9a-f]{64}$') {
+            $clean = $false
+        } elseif ($flywayIds.Count -gt 0) {
+            $flywayExit = Invoke-BoundedProcess $dockerExecutable (@('container', 'rm', '--force', '--volumes') + $flywayIds) `
+                (Join-Path $runDir "$prefix-flyway-remove.log") 30
+            Add-Content -LiteralPath $startupDiagnostic "$prefix-flyway-remove exit=$flywayExit"
+            $clean = $flywayExit -eq 0
+        }
+    }
+    $code = Invoke-BoundedCompose @('--profile', 'tools', 'down', '-v', '--remove-orphans') `
+        (Join-Path $runDir "$prefix-down.log") 45 $ProjectName $ProjectEnv $OverrideFile
+    Add-Content -LiteralPath $startupDiagnostic "$prefix-down exit=$code"
+    $clean = $clean -and $code -eq 0
+    foreach ($kind in @('container', 'network', 'volume')) {
+        $log = Join-Path $runDir "$prefix-$kind.log"
+        $arguments = @($kind, 'ls', '-q', '--filter', $projectFilter)
+        if ($kind -eq 'container') { $arguments += '--all' }
+        $code = Invoke-BoundedProcess $dockerExecutable $arguments $log 10
+        $remaining = @(Get-Content -LiteralPath $log | Where-Object { $_.Trim() }).Count
+        Add-Content -LiteralPath $startupDiagnostic "$prefix-resource=$kind exit=$code remaining=$remaining"
+        if ($code -ne 0 -or $remaining -gt 0) { $clean = $false }
+    }
+    return $clean
+}
+
+function Invoke-StartupCompose([string]$Stage, [string[]]$ExtraArgs, [int]$Seconds) {
+    Add-Content -LiteralPath $startupDiagnostic "stage=$Stage status=started"
+    $code = Invoke-BoundedCompose $ExtraArgs (Join-Path $runDir "$Stage.log") $Seconds
+    Add-Content -LiteralPath $startupDiagnostic "stage=$Stage exit=$code"
+    if ($code -ne 0) { throw "container startup failed at $Stage (exit $code)" }
+}
+
+function Write-StartupSnapshot {
+    # 只发布已知的进度标签。原始 BuildKit/Flyway 行可能含 URL、SQL 或凭据。
+    foreach ($stage in @('build', 'flyway-migrate')) {
+        $tail = foreach ($suffix in @('', '.stderr')) {
+            $log = Join-Path $runDir "$stage.log$suffix"
+            if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 25 }
+        }
+        foreach ($line in $tail) {
+            switch -Regex ($line) {
+                '^#([1-9][0-9]{0,3}) (CACHED|DONE|ERROR)\b' {
+                    Add-Content -LiteralPath $startupDiagnostic "$stage step=$($Matches[1]) status=$($Matches[2])"
+                }
+                '^#([1-9][0-9]{0,3}) \[' { Add-Content -LiteralPath $startupDiagnostic "$stage step=$($Matches[1]) status=started" }
+                '^Successfully validated\b' { Add-Content -LiteralPath $startupDiagnostic "$stage status=validated" }
+                '^Migrating schema\b' { Add-Content -LiteralPath $startupDiagnostic "$stage status=migrating" }
+                '^Successfully applied\b' { Add-Content -LiteralPath $startupDiagnostic "$stage status=applied" }
+                '^ERROR:' { Add-Content -LiteralPath $startupDiagnostic "$stage status=error" }
+            }
+        }
+    }
+    $stateLog = Join-Path $runDir 'startup-ps.log'
+    $code = Invoke-BoundedCompose @('ps', '-a', '--format', '{{.Service}} {{.State}} {{.Health}}') $stateLog 10
+    Add-Content -LiteralPath $startupDiagnostic "compose-ps exit=$code"
+    if ($code -eq 0) {
+        Get-Content -LiteralPath $stateLog | ForEach-Object {
+            if ($_ -cmatch '^(backend|postgres|redis|flyway) (created|exited|running|restarting|paused|dead|removing) ?(healthy|unhealthy|starting)?$') {
+                Add-Content -LiteralPath $startupDiagnostic "service=$($Matches[1]) state=$($Matches[2]) health=$($Matches[3])"
+            }
+        }
+    }
 }
 
 function Assert([bool]$Condition, [string]$Name, [string]$Detail) {
@@ -149,6 +260,10 @@ function Wait-BackendExit([int]$TimeoutSeconds) {
 }
 
 $results = [ordered]@{}
+$reportDir = Join-Path $repo 'target/container-verification'
+$diagnosticsDir = Join-Path $reportDir 'diagnostics'
+$startupDiagnostic = Join-Path $runDir 'container-startup.log'
+Set-Content -LiteralPath $startupDiagnostic 'container candidate startup'
 $backendPort = Free-Port
 
 # ---- 随机测试秘密：写入忽略的临时文件，不回显 ----
@@ -188,31 +303,41 @@ VISION_SPACE_VISION_RECOGNITION_MODEL=fixture-model
 VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 "@ | Set-Content -LiteralPath $envFile -NoNewline
 
+$dockerAvailable = $false
 try {
+    Add-Content -LiteralPath $startupDiagnostic 'stage=docker-info status=started'
+    $code = Invoke-BoundedProcess $dockerExecutable @('info') (Join-Path $runDir 'docker-info.log') 15
+    Add-Content -LiteralPath $startupDiagnostic "stage=docker-info exit=$code"
+    if ($code -ne 0) { throw "docker daemon unavailable (exit $code)" }
+    $dockerAvailable = $true
     Write-Host "=== [1/4] build & up (project $project) ==="
     if (-not $SkipBuild) {
-        Invoke-Compose @('build', '--pull=false') *> (Join-Path $runDir 'build.log')
+        Invoke-StartupCompose 'build' @('--progress', 'plain', 'build', '--pull=false') 900
     }
     # 只启动基础设施，先让 Flyway 建业务表，再让 backend 启动（防止 FileStorageInit
     # 的 PostConstruct 查询不存在的表导致候选启动失败）。
-    Invoke-Compose @('up', '-d', 'postgres', 'redis')
+    Invoke-StartupCompose 'dependencies-up' @('up', '-d', 'postgres', 'redis') 180
 
     Write-Host '=== schema bootstrap (Flyway, isolated database) ==='
+    Add-Content -LiteralPath $startupDiagnostic 'stage=postgres-health status=started'
     # 唯一建表入口：Flyway 以迁移角色 vision_migrator 执行 V1 基线。
     # 迁移目录只读挂进 tools profile 的 flyway 服务；口令走 FLYWAY_* 环境变量，
     # 不出现在 compose 参数或日志里。
     $postgresReady = $false
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     while ([DateTime]::UtcNow -lt $deadline) {
-        $state = & docker inspect --format '{{.State.Health.Status}}' "$project-postgres-1" 2>$null
+        $healthLog = Join-Path $runDir 'postgres-health.log'
+        $code = Invoke-BoundedProcess $dockerExecutable `
+            @('inspect', '--format', '{{.State.Health.Status}}', "$project-postgres-1") $healthLog 10
+        if ($code -eq 124) { throw 'PostgreSQL health inspection timed out' }
+        $state = Get-Content -LiteralPath $healthLog
         if ($state -eq 'healthy') { $postgresReady = $true; break }
         Start-Sleep -Seconds 3
     }
     if (-not $postgresReady) {
-        Write-Host '--- postgres health log ---'
-        & docker inspect --format '{{json .State.Health}}' "$project-postgres-1" 2>&1 | ForEach-Object { Write-Host $_ }
         throw 'isolated PostgreSQL did not become healthy within 120s'
     }
+    Add-Content -LiteralPath $startupDiagnostic 'stage=postgres-health status=healthy'
     $previousFlyway = @{}
     foreach ($name in @('FLYWAY_URL', 'FLYWAY_USER', 'FLYWAY_PASSWORD')) {
         $previousFlyway[$name] = [Environment]::GetEnvironmentVariable($name)
@@ -223,11 +348,9 @@ try {
         $env:FLYWAY_PASSWORD = $migratorPassword
         # Flyway 镜像原生读取 FLYWAY_URL / FLYWAY_USER / FLYWAY_PASSWORD，
         # 不把连接串与口令写进 compose 参数（进程列表可见）。
-        & docker compose -f $composeYml -p $project --env-file $envFile --profile tools run --rm --no-deps `
-            -e FLYWAY_URL -e FLYWAY_USER -e FLYWAY_PASSWORD flyway `
-            -locations=filesystem:/flyway/sql -validateOnMigrate=true -cleanDisabled=true migrate `
-            *> (Join-Path $runDir 'flyway-migrate.log')
-        if ($LASTEXITCODE -ne 0) { throw 'Flyway migrate failed (see flyway-migrate.log)' }
+        Invoke-StartupCompose 'flyway-migrate' @('--profile', 'tools', 'run', '--rm', '--no-deps',
+            '-e', 'FLYWAY_URL', '-e', 'FLYWAY_USER', '-e', 'FLYWAY_PASSWORD', 'flyway',
+            '-locations=filesystem:/flyway/sql', '-validateOnMigrate=true', '-cleanDisabled=true', 'migrate') 180
     } finally {
         foreach ($name in $previousFlyway.Keys) { [Environment]::SetEnvironmentVariable($name, $previousFlyway[$name]) }
     }
@@ -237,14 +360,15 @@ try {
     $expectedTables = [regex]::Matches($baselineSql, '(?m)^CREATE TABLE ').Count
     if ($expectedTables -eq 0) { throw 'FAIL: no CREATE TABLE statements found in the Flyway baseline' }
     $tableCountSql = "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'flyway_schema_history'"
-    $createdTables = ("$(& docker compose -f $composeYml -p $project --env-file $envFile exec -T `
-        -e "PGPASSWORD=$dbPassword" postgres psql --no-psqlrc -tA -U vision_app -d "vs45_$nonce" -c $tableCountSql 2>$null)" -replace '\s', '')
+    Invoke-StartupCompose 'schema-check' @('exec', '-T', '-e', "PGPASSWORD=$dbPassword",
+        'postgres', 'psql', '--no-psqlrc', '-tA', '-U', 'vision_app', '-d', "vs45_$nonce", '-c', $tableCountSql) 30
+    $createdTables = (Get-Content -Raw -LiteralPath (Join-Path $runDir 'schema-check.log')) -replace '\s', ''
     if ($createdTables -ne "$expectedTables") {
         throw "FAIL: schema bootstrap incomplete (expected $expectedTables tables, found '$createdTables')"
     }
     Write-Host "PASS: schema-bootstrap ($expectedTables tables via Flyway)"
 
-    Invoke-Compose @('up', '-d', 'backend')
+    Invoke-StartupCompose 'backend-up' @('up', '-d', 'backend') 120
 
     # ---- 验收 1：容器实际 UID 与写权限 ----
     Write-Host '=== [2/4] identity & writable paths ==='
@@ -431,8 +555,15 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
             Write-Host 'SKIP: no non-loopback IPv4 address on this runner; LAN refusal not probed'
         }
     } finally {
-        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile down -v --remove-orphans *> (Join-Path $runDir 'host-access-down.log')
-        Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
+        $results['host-access-cleanup'] = 'FAIL'
+        try {
+            if (-not (Remove-ContainerCandidate $hostProject $hostEnvFile $hostAccessYml)) {
+                throw 'host-access override stack cleanup failed'
+            }
+            $results['host-access-cleanup'] = 'PASS'
+        } finally {
+            Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     # ---- 验收 4：健康状态与依赖故障（PostgreSQL/Redis 故障、恢复、延迟启动、重试耗尽）----
@@ -511,30 +642,34 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
 } catch {
     $results['execution'] = 'BLOCKED_ENV'
     Write-Host "BLOCKED_ENV/ERROR: $_"
-    # 失败诊断：容器日志与状态落到本轮目录并回显尾部，避免只看到超时结果。
-    try {
-        foreach ($service in @('backend', 'postgres', 'redis')) {
-            & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "failure-$service.log")
-        }
-        & docker compose -f $composeYml -p $project --env-file $envFile ps *> (Join-Path $runDir 'failure-ps.txt')
-        Write-Host '--- backend log tail (last 120 lines) ---'
-        Get-Content -LiteralPath (Join-Path $runDir 'failure-backend.log') -Tail 120 | ForEach-Object { Write-Host $_ }
-    } catch {
-        Write-Host "diagnostics unavailable: $_"
-    }
+    Write-Host "local diagnostics: $runDir"
     exit 2
 } finally {
-    Write-Host '=== cleanup: removing only this run''s resources ==='
-    # 清理前保留完整日志，作为每轮证据；失败时无需重跑即可定位。
-    foreach ($service in @('backend', 'postgres', 'redis')) {
-        & docker compose -f $composeYml -p $project --env-file $envFile logs --no-color $service *> (Join-Path $runDir "$service.log")
+    $results['cleanup'] = 'NOT_RUN'
+    if ($dockerAvailable) {
+        Write-Host '=== cleanup: removing only this run''s resources ==='
+        if ($results['execution'] -ne 'PASS') {
+            try { Write-StartupSnapshot } catch {
+                Add-Content -LiteralPath $startupDiagnostic 'snapshot status=unavailable' -ErrorAction SilentlyContinue
+            }
+        }
+        # 清理前保留完整日志，供本地排查。
+        foreach ($service in @('backend', 'postgres', 'redis')) {
+            try { [void](Invoke-BoundedCompose @('logs', '--no-color', $service) (Join-Path $runDir "$service.log") 10) } catch {
+                Write-Host "local logs unavailable: $service"
+            }
+        }
+        $results['cleanup'] = 'FAIL'
+        try {
+            if ((Remove-ContainerCandidate) -and $results['host-access-cleanup'] -ne 'FAIL') {
+                $results['cleanup'] = 'PASS'
+            }
+        } catch { Write-Host 'container cleanup unavailable' }
     }
-    & docker compose -f $composeYml -p $project --env-file $envFile down -v --remove-orphans *> (Join-Path $runDir 'down.log')
-    $results['cleanup'] = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
-    $reportDir = Join-Path $repo 'target/container-verification'
-    New-Item -ItemType Directory -Force $reportDir | Out-Null
+    New-Item -ItemType Directory -Force $diagnosticsDir | Out-Null
+    Copy-Item -LiteralPath $startupDiagnostic -Destination $diagnosticsDir
     @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $reportDir 'summary.json')
-    if ($results['cleanup'] -ne 'PASS') { exit 1 }
+    if ($results['cleanup'] -eq 'FAIL') { exit 1 }
 }

@@ -119,10 +119,22 @@ class HttpBoardProposalDualInstanceTest extends BoardProposalHttpFixture {
                 "--vs.instance-id-file="+logs.resolve(UUID.randomUUID()+".instance"),"--vision-space.board-proposal.writes-enabled="+!rollback,
                 "--vs.acceptance.proposal-crash-after-commit="+crash)
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
-        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(90);
-        while(!Files.exists(ready)&&process.isAlive()&&System.nanoTime()<deadline) Thread.sleep(100);
-        if(!Files.exists(ready)){process.destroyForcibly();fail("Second instance not ready: "+log);}
-        return new Instance(process,ready,Integer.parseInt(Files.readString(ready).strip()),crash);
+        boolean readyToUse = false;
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+            while (!Files.exists(ready) && process.isAlive() && System.nanoTime() < deadline) {
+                Thread.sleep(100);
+            }
+            assertTrue(Files.exists(ready), "Second instance did not publish a port");
+            int servicePort = Integer.parseInt(Files.readString(ready).strip());
+            assertTrue(servicePort > 0 && servicePort <= 65535, "Second instance published an invalid port");
+            readyToUse = true;
+            return new Instance(process, ready, servicePort, crash);
+        } finally {
+            if (!readyToUse) {
+                process.destroyForcibly();
+            }
+        }
     }
     private record Instance(Process process,Path ready,int port,boolean crash) implements AutoCloseable {
         public void close() throws Exception {

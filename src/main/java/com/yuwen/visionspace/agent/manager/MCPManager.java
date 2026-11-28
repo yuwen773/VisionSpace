@@ -18,6 +18,7 @@ import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.client.transport.customizer.McpAsyncHttpClientRequestCustomizer;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpSchema;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -42,11 +43,21 @@ public class MCPManager {
 
     private static final String TOOLS_CACHE_PREFIX = "mcp:tools:";
     private static final long TOOLS_CACHE_TTL_MINUTES = 5;
+    private static final int MAX_CONCURRENT_DISCOVERIES = 16;
+    private static final long DISCOVERY_TIMEOUT_SECONDS = 30;
 
     private final StringRedisTemplate redisTemplate;
     private final McpCapabilityGuard capabilityGuard;
     private final OutboundPolicy outboundPolicy;
-    private final ExecutorService mcpExecutor = Executors.newCachedThreadPool();
+    // 无排队，避免请求超时之后再连接 MCP。阻塞/不响应中断的操作仍计入全局上限。
+    private final ExecutorService mcpExecutor = new ThreadPoolExecutor(
+            0, MAX_CONCURRENT_DISCOVERIES, 60, TimeUnit.SECONDS, new SynchronousQueue<>(),
+            Thread.ofPlatform().name("mcp-discovery-", 0).factory());
+
+    @PreDestroy
+    void shutdownDiscovery() {
+        mcpExecutor.shutdownNow();
+    }
 
     /**
      * 创建 MCP 客户端（支持 SSE + Streamable HTTP）。
@@ -119,9 +130,18 @@ public class MCPManager {
             .capabilities(McpSchema.ClientCapabilities.builder().roots(true).build())
             .build();
 
-        // draw.io 需要先初始化 session
-        client.initialize();
-        return client;
+        // draw.io 需要先初始化 session。连接失败或被中断时，客户端尚未交给调用方。
+        try {
+            client.initialize();
+            return client;
+        } catch (RuntimeException e) {
+            try {
+                client.close();
+            } catch (RuntimeException closeError) {
+                e.addSuppressed(closeError);
+            }
+            throw e;
+        }
     }
 
     private McpSyncClient buildSseClient(String url) {
@@ -159,35 +179,78 @@ public class MCPManager {
      * 获取工具列表。缓存按「用户 + 服务」隔离，且读取缓存前调用方已确认归属与启用状态。
      */
     public List<McpTool> getTools(McpServer entity) {
+        CompletableFuture<List<McpTool>> discovery = getToolsAsync(entity);
+        try {
+            return discovery.get();
+        } catch (InterruptedException e) {
+            discovery.cancel(true);
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                return List.of();
+            }
+            if (e.getCause() instanceof RuntimeException failure) {
+                throw failure;
+            }
+            throw new CompletionException(e.getCause());
+        }
+    }
+
+    /** 保留每个服务的发现超时，允许同一会话并发等待独立服务。 */
+    public CompletableFuture<List<McpTool>> getToolsAsync(McpServer entity) {
         if (entity == null || !Integer.valueOf(McpServerAccess.STATUS_ENABLED).equals(entity.getStatus())) {
-            return Collections.emptyList();
+            return CompletableFuture.completedFuture(List.of());
         }
 
+        var result = new CompletableFuture<List<McpTool>>();
+        Future<?> task;
+        try {
+            task = mcpExecutor.submit(() -> {
+                try {
+                    result.complete(discoverTools(entity, result));
+                } catch (Throwable e) {
+                    result.completeExceptionally(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.debug("MCP discovery at capacity: serverCode={}", entity.getMcpServerCode());
+            return CompletableFuture.completedFuture(List.of());
+        }
+        result.whenComplete((tools, error) -> {
+            if (error instanceof TimeoutException || result.isCancelled()) {
+                task.cancel(true);
+            }
+            if (error instanceof TimeoutException) {
+                log.warn("MCP discovery timed out: serverCode={}", entity.getMcpServerCode());
+            }
+        });
+        return result.orTimeout(DISCOVERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private List<McpTool> discoverTools(McpServer entity, CompletableFuture<List<McpTool>> result) {
         String cacheKey = cacheKey(entity);
         String cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
             return JsonUtils.fromJson(cached, new TypeReference<List<McpTool>>() {});
         }
-
+        if (result.isDone()) {
+            return List.of();
+        }
         try {
-            List<McpTool> tools = CompletableFuture
-                    .supplyAsync(() -> fetchTools(entity), mcpExecutor)
-                    .get(30, TimeUnit.SECONDS);
-            if (tools != null && !tools.isEmpty()) {
+            List<McpTool> tools = fetchTools(entity);
+            if (!result.isDone() && !tools.isEmpty()) {
                 redisTemplate.opsForValue().set(cacheKey, JsonUtils.toJson(tools),
                         TOOLS_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
             }
             return tools;
-        } catch (ExecutionException e) {
-            // 策略拒绝与能力禁用必须让调用方看到：吞掉会变成"这个服务没有工具"
-            if (e.getCause() instanceof BusinessException business) {
-                throw business;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            if (!result.isDone()) {
+                log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), e);
             }
-            log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), e);
-            return Collections.emptyList();
-        } catch (Exception e) {
-            log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), e);
-            return Collections.emptyList();
+            return List.of();
         }
     }
 
