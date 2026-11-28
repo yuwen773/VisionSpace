@@ -4,8 +4,23 @@
 
 [![CI](https://github.com/yuwen773/VisionSpace/actions/workflows/srf.yml/badge.svg?branch=main)](https://github.com/yuwen773/VisionSpace/actions/workflows/srf.yml)
 [![Release](https://img.shields.io/github/v/release/yuwen773/VisionSpace?include_prereleases&label=release)](https://github.com/yuwen773/VisionSpace/releases)
+[![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
 当前发布线 **1.1.0**。PostgreSQL 18 迁移、原生部署模板、素材检索与候选板、公开图库、内容审核隔离已并入主线；Agent 首帧延迟与首帧前 500 仍在 [#168](https://github.com/yuwen773/VisionSpace/issues/168) / [#169](https://github.com/yuwen773/VisionSpace/issues/169) 跟踪。
+
+线上实例：<https://visionspace.space/>
+
+## 界面预览
+
+| 极光主题（暗色） | 紫漾主题（浅色） |
+|:---:|:---:|
+| ![极光主题首页](./.github/assets/screenshots/landing-aurora.webp) | ![紫漾主题首页](./.github/assets/screenshots/landing-pop.webp) |
+| ![登录页](./.github/assets/screenshots/login.webp) | ![注册页](./.github/assets/screenshots/register.webp) |
+
+截图取自线上实例，浏览器窗口 1600×1000。
 
 ## 功能特性
 
