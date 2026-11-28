@@ -7,11 +7,12 @@ import org.springframework.context.ConfigurableApplicationContext;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * #39 双实例验收的第二实例入口：真实第二 JVM 进程，共享同一隔离 MySQL/Redis。
+ * #39 双实例验收的第二实例入口：真实第二 JVM 进程，共享同一隔离 PostgreSQL/Redis。
  *
  * <p>隔离由既有机制保证（沿用 {@link IsolatedApplicationInitializer} 的强制校验）：
  * 第二实例只接受验收脚本注入的环境变量，库/Redis 标记不匹配立即失败，
@@ -34,7 +35,10 @@ public final class VipSecondInstanceMain {
             if (port == null) {
                 throw new IllegalStateException("second instance did not start on a local port");
             }
-            Files.writeString(readyFile, port, StandardCharsets.UTF_8);
+            // 轮询方一看到文件就读取端口。先写完再原子发布，避免读到空文件或半截端口。
+            Path pending = readyFile.resolveSibling(readyFile.getFileName() + ".pending");
+            Files.writeString(pending, port, StandardCharsets.UTF_8);
+            Files.move(pending, readyFile, StandardCopyOption.ATOMIC_MOVE);
             System.out.println("VipSecondInstance ready on port " + port);
             // 保持进程存活直到测试结束写 stop 文件，或 JVM 被 kill
             Path stopFile = Path.of(args[0] + ".stop");
