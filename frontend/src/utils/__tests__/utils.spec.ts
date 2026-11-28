@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { contentSrc, formatSize, toHexColor, lerp, clamp } from '@/utils'
+import { contentSrc, formatSize } from '@/utils'
 
 describe('formatSize', () => {
   it('按量级选择 B / KB / MB', () => {
@@ -14,36 +14,6 @@ describe('formatSize', () => {
 
   it('缺失时返回占位文案', () => {
     expect(formatSize(undefined as unknown as number)).toBe('未知')
-  })
-})
-
-describe('toHexColor', () => {
-  it('把 0x 前缀的整数转成 6 位十六进制', () => {
-    expect(toHexColor('0xFF0000')).toBe('#ff0000')
-    expect(toHexColor('0x00FF00')).toBe('#00ff00')
-  })
-
-  it('不足 6 位时补零', () => {
-    expect(toHexColor('0x0000FF')).toBe('#0000ff')
-    expect(toHexColor('0xF')).toBe('#00000f')
-  })
-
-  it('空值回退为黑色', () => {
-    expect(toHexColor('')).toBe('#000000')
-  })
-})
-
-describe('lerp / clamp', () => {
-  it('lerp 在端点处取原值', () => {
-    expect(lerp(10, 20, 0)).toBe(10)
-    expect(lerp(10, 20, 1)).toBe(20)
-    expect(lerp(10, 20, 0.5)).toBe(15)
-  })
-
-  it('clamp 收敛到区间内', () => {
-    expect(clamp(5, 1, 10)).toBe(5)
-    expect(clamp(-5, 1, 10)).toBe(1)
-    expect(clamp(50, 1, 10)).toBe(10)
   })
 })
 

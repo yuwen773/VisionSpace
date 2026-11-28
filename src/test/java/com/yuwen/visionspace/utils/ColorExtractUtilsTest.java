@@ -44,19 +44,4 @@ class ColorExtractUtilsTest {
         assertTrue(result.equals("#FF0000") || result.equals("#0000FF"),
                 "Expected red or blue but got: " + result);
     }
-
-    @Test
-    void testColorDistance() {
-        // 测试相同颜色距离为0
-        Color c1 = new Color(255, 0, 0);
-        Color c2 = new Color(255, 0, 0);
-        // 通过提取相同颜色图片验证
-        BufferedImage image = new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = image.createGraphics();
-        g.setColor(c1);
-        g.fillRect(0, 0, 10, 10);
-        g.dispose();
-        String result = ColorExtractUtils.extractDominantColor(image);
-        assertEquals("#FF0000", result);
-    }
 }

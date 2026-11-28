@@ -98,14 +98,6 @@ public class ChatHistoryService {
     }
 
     /**
-     * 保存工具返回结果
-     */
-    @Async("agentAsyncExecutor")
-    public void saveToolResultMessage(String sessionId, Long userId, String content) {
-        insertOwned(sessionId, userId, "ASSISTANT", "tool-result", content, null);
-    }
-
-    /**
      * 保存工具确认消息
      */
     @Async("agentAsyncExecutor")
@@ -163,17 +155,6 @@ public class ChatHistoryService {
     }
 
     // ==================== 辅助方法 ====================
-
-    /**
-     * 验证会话是否属于指定用户
-     */
-    public boolean isSessionOwner(String sessionId, Long userId) {
-        if (sessionId == null || userId == null) {
-            return false;
-        }
-        AgentSession session = sessionMapper.selectBySessionId(sessionId);
-        return session != null && userId.equals(session.getUserId());
-    }
 
     /**
      * 带归属的消息写入。会话不属于该用户时 SQL 不产生任何行。

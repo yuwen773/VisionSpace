@@ -174,17 +174,6 @@ public interface AgentRunStateMapper extends BaseMapper<AgentRunState> {
                             @Param("backupError") String backupError);
 
     /**
-     * 把状态标记为「仅有旧轻量归档」：可查看历史，但不能当作完整恢复点。
-     */
-    @Update("UPDATE agent_run_state SET legacy_archive_only = 1, run_status = #{runStatus}, " +
-            "state_payload = NULL, checkpoint_id = NULL, next_node_id = NULL, " +
-            "update_time = statement_timestamp() " +
-            "WHERE thread_id = #{threadId} AND user_id = #{userId}")
-    int markLegacyArchiveOnly(@Param("threadId") String threadId,
-                              @Param("userId") Long userId,
-                              @Param("runStatus") String runStatus);
-
-    /**
      * 释放会话时清理状态行。运行计数（步骤计数等进程内资源）与状态行一起释放，
      * 避免无界增长；不属于该用户时影响 0 行。
      */

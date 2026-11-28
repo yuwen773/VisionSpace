@@ -17,17 +17,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
-import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.FileImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Iterator;
 
 @Service
 @Slf4j
@@ -122,23 +118,6 @@ public class PicturePreviewServiceImpl implements PicturePreviewService {
             if (!previewTempFile.delete()) {
                 log.warn(Thread.currentThread().getName(),"failed to delete preview temp file: {}", previewTempFile.getAbsolutePath());
             }
-        }
-    }
-
-    /**
-     * WebP 写入（Java 21+ 原生支持，暂未使用）
-     */
-    private void writeWebp(BufferedImage image, File targetFile) throws IOException {
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
-        if (!writers.hasNext()) {
-            throw new IOException("no webp writer available");
-        }
-        ImageWriter writer = writers.next();
-        try (FileImageOutputStream outputStream = new FileImageOutputStream(targetFile)) {
-            writer.setOutput(outputStream);
-            writer.write(null, new IIOImage(image, null, null), null);
-        } finally {
-            writer.dispose();
         }
     }
 

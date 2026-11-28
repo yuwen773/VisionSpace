@@ -39,22 +39,6 @@ export const SPACE_TYPE_MAP: Record<number, string> = {
   1: '团队空间',
 }
 
-// 空间类型选项映射
-export const SPACE_TYPE_OPTIONS = Object.keys(SPACE_TYPE_MAP).map((key) => {
-  const value = Number(key) // 将字符串 key 转换为数字
-  return {
-    label: SPACE_TYPE_MAP[value],
-    value,
-  }
-})
-
-// 空间角色枚举
-export const SPACE_ROLE_ENUM = {
-  VIEWER: 'viewer',
-  EDITOR: 'editor',
-  ADMIN: 'admin',
-} as const
-
 // 空间角色文本映射
 export const SPACE_ROLE_MAP: Record<string, string> = {
   viewer: '浏览者',

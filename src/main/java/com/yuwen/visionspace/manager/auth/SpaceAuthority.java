@@ -228,13 +228,6 @@ public class SpaceAuthority {
                 && (isOwner(space, viewer) || userService.isAdmin(viewer));
     }
 
-    /**
-     * 平台管理身份判定。调用方只在平台管理职责处使用，不应用于私人内容。
-     */
-    public boolean isPlatformAdmin(User viewer) {
-        return userService.isAdmin(viewer);
-    }
-
     private boolean isOwner(Space space, User viewer) {
         return space.getUserId() != null && space.getUserId().equals(viewer.getId());
     }

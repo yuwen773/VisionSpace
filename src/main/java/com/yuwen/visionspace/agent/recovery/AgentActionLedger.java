@@ -96,10 +96,10 @@ public class AgentActionLedger {
                     threadId, userId, actionId);
         }
 
-        // 不能用「影响行数」判断是否抢到：MySQL Connector/J 默认按匹配行数返回，
-        // 「命中但值没变」也会是非零，四个并发认领会全部以为自己是赢家
-        // （真实 MySQL 验收用例 concurrentClaimsOnRealMySqlLetOnlyOneOwnerIn 复现过）。
-        // 唯一可靠的证据是读回的 claimToken 是不是本次生成的。
+        // 不能用「影响行数」判断是否抢到：在旧 MySQL 链路上 Connector/J 默认按匹配行数返回，
+        // 「命中但值没变」也会是非零，四个并发认领会全部以为自己是赢家。
+        // 当前 PostgreSQL 的 INSERT ... ON CONFLICT 虽然返回 1，仍统一以读回的 claimToken
+        // 是不是本次生成的作为唯一可靠证据。
         AgentActionRecord record;
         try {
             record = mapper.selectForClaim(threadId, userId, actionId);

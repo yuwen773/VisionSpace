@@ -211,7 +211,7 @@ function Complete-VsDockerRun {
 
     $registryEntries = @(Get-VsDockerRegistryEntries)
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        # native-explicit 模式（-MySqlBin/-RedisBin）不创建任何 Docker 资源。
+        # 隔离服务只有 Docker 一条路；没有 docker 时，残留清点必须为零才算干净。
         if ($registryEntries.Count -eq 0) { return $true }
         return $false
     }

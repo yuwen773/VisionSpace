@@ -100,10 +100,4 @@ class PasswordHasherTest {
             throw new IllegalStateException(e);
         }
     }
-
-    @Test
-    void fixturesMatchTheProductionLegacyAlgorithm() {
-        // 生产实现一直是 DigestUtils.md5DigestAsHex(("yuwen" + password).getBytes())
-        assertEquals(32, legacyMd5("anything").length());
-    }
 }

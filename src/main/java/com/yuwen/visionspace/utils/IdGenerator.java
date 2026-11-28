@@ -13,11 +13,4 @@ public class IdGenerator {
     public static String idStr() {
         return UUID.randomUUID().toString().replace("-", "");
     }
-
-    /**
-     * Generate a simple UUID string (with dashes)
-     */
-    public static String uuid() {
-        return UUID.randomUUID().toString();
-    }
 }
