@@ -159,36 +159,49 @@ public class MCPManager {
      * 获取工具列表。缓存按「用户 + 服务」隔离，且读取缓存前调用方已确认归属与启用状态。
      */
     public List<McpTool> getTools(McpServer entity) {
+        CompletableFuture<List<McpTool>> discovery = getToolsAsync(entity);
+        try {
+            return discovery.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof BusinessException business) {
+                throw business;
+            }
+            throw new CompletionException(e.getCause());
+        }
+    }
+
+    /** 保留每个服务的发现超时，允许同一会话并发等待独立服务。 */
+    public CompletableFuture<List<McpTool>> getToolsAsync(McpServer entity) {
         if (entity == null || !Integer.valueOf(McpServerAccess.STATUS_ENABLED).equals(entity.getStatus())) {
-            return Collections.emptyList();
+            return CompletableFuture.completedFuture(List.of());
         }
 
         String cacheKey = cacheKey(entity);
         String cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
-            return JsonUtils.fromJson(cached, new TypeReference<List<McpTool>>() {});
+            return CompletableFuture.completedFuture(
+                    JsonUtils.fromJson(cached, new TypeReference<List<McpTool>>() {}));
         }
 
-        try {
-            List<McpTool> tools = CompletableFuture
-                    .supplyAsync(() -> fetchTools(entity), mcpExecutor)
-                    .get(30, TimeUnit.SECONDS);
-            if (tools != null && !tools.isEmpty()) {
-                redisTemplate.opsForValue().set(cacheKey, JsonUtils.toJson(tools),
-                        TOOLS_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-            }
-            return tools;
-        } catch (ExecutionException e) {
-            // 策略拒绝与能力禁用必须让调用方看到：吞掉会变成"这个服务没有工具"
-            if (e.getCause() instanceof BusinessException business) {
-                throw business;
-            }
-            log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), e);
-            return Collections.emptyList();
-        } catch (Exception e) {
-            log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), e);
-            return Collections.emptyList();
-        }
+        return CompletableFuture.supplyAsync(() -> fetchTools(entity), mcpExecutor)
+                .orTimeout(30, TimeUnit.SECONDS)
+                .thenApply(tools -> {
+                    if (!tools.isEmpty()) {
+                        redisTemplate.opsForValue().set(cacheKey, JsonUtils.toJson(tools),
+                                TOOLS_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                    }
+                    return tools;
+                })
+                .exceptionally(error -> {
+                    if (error.getCause() instanceof BusinessException business) {
+                        throw business;
+                    }
+                    log.error("Failed to get MCP tools for server: {}", entity.getMcpServerCode(), error);
+                    return List.of();
+                });
     }
 
     private List<McpTool> fetchTools(McpServer entity) {

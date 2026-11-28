@@ -25,8 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class ControlledMcpServer implements AutoCloseable {
 
-    private static final String TOOL_NAME = "echo";
-
     /** 一个最小的合法 PNG，供 URL 上传路径使用。 */
     private static final byte[] IMAGE_BYTES = java.util.Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
@@ -37,13 +35,21 @@ public final class ControlledMcpServer implements AutoCloseable {
     private final List<String> rawRequests = new CopyOnWriteArrayList<>();
     private final AtomicReference<OutputStream> eventStream = new AtomicReference<>();
     private final String toolText;
+    private final String toolName;
+    private final Runnable beforeToolList;
 
     public ControlledMcpServer() throws IOException {
         this("controlled-mcp-result");
     }
 
     public ControlledMcpServer(String toolText) throws IOException {
+        this(toolText, "echo", () -> {});
+    }
+
+    ControlledMcpServer(String toolText, String toolName, Runnable beforeToolList) throws IOException {
         this.toolText = toolText;
+        this.toolName = toolName;
+        this.beforeToolList = beforeToolList;
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/sse", this::handleSse);
         server.createContext("/message", this::handleMessage);
@@ -131,9 +137,12 @@ public final class ControlledMcpServer implements AutoCloseable {
         String result = switch (method == null ? "" : method) {
             case "initialize" -> """
                     {"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"controlled","version":"1"}}""";
-            case "tools/list" -> """
-                    {"tools":[{"name":"%s","description":"controlled echo","inputSchema":{"type":"object","properties":{}}}]}"""
-                    .formatted(TOOL_NAME);
+            case "tools/list" -> {
+                beforeToolList.run();
+                yield """
+                        {"tools":[{"name":"%s","description":"controlled echo","inputSchema":{"type":"object","properties":{}}}]}"""
+                        .formatted(toolName);
+            }
             case "tools/call" -> {
                 toolCalls.incrementAndGet();
                 yield """

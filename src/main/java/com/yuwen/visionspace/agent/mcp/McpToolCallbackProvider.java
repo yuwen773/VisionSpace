@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 把当前用户已启用的 MCP 服务解析成工具回调。
@@ -22,6 +23,8 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class McpToolCallbackProvider {
+
+    private static final int DISCOVERY_BATCH_SIZE = 4;
 
     private final MCPManager mcpManager;
     private final McpServerAccess serverAccess;
@@ -38,27 +41,41 @@ public class McpToolCallbackProvider {
         }
 
         List<ToolCallback> callbacks = new ArrayList<>();
-        for (McpServer entity : servers) {
-            // 被禁用的能力不进入工具列表：UI 与服务端用同一份判定
-            if (!capabilityGuard.isInstallTypeAllowed(entity.getInstallType())) {
-                log.info("跳过被禁用的 MCP 能力: serverCode={}, installType={}",
-                        entity.getMcpServerCode(), entity.getInstallType());
-                continue;
-            }
-            try {
-                List<McpTool> tools = mcpManager.getTools(entity);
-                if (tools != null) {
-                    for (McpTool tool : tools) {
-                        callbacks.add(new McpToolCallback(mcpManager, serverAccess,
-                                entity.getMcpServerCode(), userId, tool));
-                    }
+        // 分批发起授权范围内的发现请求，再按原顺序汇总，避免冷缓存把等待时间逐个相加。
+        for (int start = 0; start < servers.size(); start += DISCOVERY_BATCH_SIZE) {
+            int end = Math.min(start + DISCOVERY_BATCH_SIZE, servers.size());
+            var discoveries = servers.subList(start, end).stream()
+                    .map(this::discoverTools)
+                    .toList();
+            for (int index = start; index < end; index++) {
+                McpServer server = servers.get(index);
+                for (McpTool tool : discoveries.get(index - start).join()) {
+                    callbacks.add(new McpToolCallback(mcpManager, serverAccess,
+                            server.getMcpServerCode(), userId, tool));
                 }
-            } catch (Exception e) {
-                // 单个服务失败不影响其他服务
-                log.warn("MCP 工具解析失败: serverCode={}", entity.getMcpServerCode());
             }
         }
 
         return callbacks.toArray(new ToolCallback[0]);
+    }
+
+    private CompletableFuture<List<McpTool>> discoverTools(McpServer server) {
+        if (!capabilityGuard.isInstallTypeAllowed(server.getInstallType())) {
+            log.info("跳过被禁用的 MCP 能力: serverCode={}, installType={}",
+                    server.getMcpServerCode(), server.getInstallType());
+            return CompletableFuture.completedFuture(List.of());
+        }
+        try {
+            return mcpManager.getToolsAsync(server).handle((tools, error) -> {
+                if (error != null) {
+                    log.warn("MCP 工具解析失败: serverCode={}", server.getMcpServerCode());
+                }
+                return tools == null ? List.of() : tools;
+            });
+        } catch (RuntimeException e) {
+            // 缓存读取可以在提交发现任务之前失败；其它服务仍继续解析。
+            log.warn("MCP 工具解析失败: serverCode={}", server.getMcpServerCode());
+            return CompletableFuture.completedFuture(List.of());
+        }
     }
 }

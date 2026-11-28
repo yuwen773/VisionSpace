@@ -35,6 +35,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,6 +48,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/agent")
 public class AgentController {
+
+    private static final MediaType AGENT_STREAM_TYPE =
+            new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -157,7 +161,7 @@ public class AgentController {
                 var result = assetSearchAgent.search(request, resolveThreadId(request.getThreadId()), viewer);
                 var event = java.util.Map.of("schemaVersion", 1, "eventId", "search:" + result.resultId(),
                         "type", "SEARCH_RESULTS_READY", "payload", java.util.Map.of("resultId", result.resultId()));
-                return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
+                return ResponseEntity.ok().contentType(AGENT_STREAM_TYPE)
                         .header("Cache-Control", "no-store")
                         .body(Flux.just(ServerSentEvent.builder(toJson(event)).build(),
                                 AgentSseFrames.done()));
@@ -184,14 +188,17 @@ public class AgentController {
             attachments = agentAttachmentService.bind(threadId, userId, resourceIds);
         } catch (BusinessException e) {
             return writeJsonError(e);
+        } catch (RuntimeException e) {
+            log.error("初始化流式对话失败", e);
+            return writeJsonError(new BusinessException(ErrorCode.SYSTEM_ERROR, AgentSseFrames.ERROR_CONTENT));
         }
 
         log.info("Agent 流式对话请求, threadId={}, userId={}, enabledMcpServers={}, disableMcpDefault={}",
                 threadId, userId, request.getEnabledMcpServers(), request.getDisableMcpDefault());
 
         Flux<ServerSentEvent<String>> stream =
-                imageAgent.stream(request.getMessage(), attachments, threadId, userId,
-                request.getEnabledMcpServers(), request.getDisableMcpDefault())
+                Flux.defer(() -> imageAgent.stream(request.getMessage(), attachments, threadId, userId,
+                        request.getEnabledMcpServers(), request.getDisableMcpDefault()))
                 .filter(Objects::nonNull)
                 .map(data -> ServerSentEvent.<String>builder()
                         .data(toJson(data))
@@ -206,7 +213,7 @@ public class AgentController {
                 });
 
         return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .contentType(AGENT_STREAM_TYPE)
                 .body(stream);
     }
 

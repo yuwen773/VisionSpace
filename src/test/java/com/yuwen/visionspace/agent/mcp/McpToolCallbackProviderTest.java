@@ -11,6 +11,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +41,7 @@ class McpToolCallbackProviderTest {
         ToolCallback[] callbacks = provider.getCallbacks(List.of("foreign"), 7L);
 
         assertEquals(0, callbacks.length);
-        verify(mcpManager, never()).getTools(any());
+        verify(mcpManager, never()).getToolsAsync(any());
     }
 
     @Test
@@ -52,7 +53,7 @@ class McpToolCallbackProviderTest {
         ToolCallback[] callbacks = provider.getCallbacks(List.of("local-stdio"), 7L);
 
         assertEquals(0, callbacks.length);
-        verify(mcpManager, never()).getTools(any());
+        verify(mcpManager, never()).getToolsAsync(any());
     }
 
     @Test
@@ -61,10 +62,28 @@ class McpToolCallbackProviderTest {
         when(serverAccess.findEnabled(List.of("remote"), 7L)).thenReturn(List.of(entity));
         McpTool tool = new McpTool();
         tool.setName("echo");
-        when(mcpManager.getTools(entity)).thenReturn(List.of(tool));
+        when(mcpManager.getToolsAsync(entity)).thenReturn(CompletableFuture.completedFuture(List.of(tool)));
         McpToolCallbackProvider provider = provider("local");
 
         ToolCallback[] callbacks = provider.getCallbacks(List.of("remote"), 7L);
+
+        assertEquals(1, callbacks.length);
+        assertEquals("echo", callbacks[0].getToolDefinition().name());
+    }
+
+    @Test
+    void failedDiscoveryDoesNotDiscardOtherAuthorizedTools() {
+        McpServer unavailable = server("unavailable", "SSE");
+        McpServer available = server("available", "SSE");
+        List<String> codes = List.of("unavailable", "available");
+        when(serverAccess.findEnabled(codes, 7L)).thenReturn(List.of(unavailable, available));
+        when(mcpManager.getToolsAsync(unavailable)).thenReturn(
+                CompletableFuture.failedFuture(new IllegalStateException("fixture discovery failed")));
+        McpTool tool = new McpTool();
+        tool.setName("echo");
+        when(mcpManager.getToolsAsync(available)).thenReturn(CompletableFuture.completedFuture(List.of(tool)));
+
+        ToolCallback[] callbacks = provider("prod").getCallbacks(codes, 7L);
 
         assertEquals(1, callbacks.length);
         assertEquals("echo", callbacks[0].getToolDefinition().name());
