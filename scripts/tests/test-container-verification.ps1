@@ -243,6 +243,53 @@ try {
         Write-Host 'PASS: bounded startup timeout, partial local log and safe public snapshot'
     }
 
+    & {
+        $startupDiagnostic = Join-Path $runDir 'cleanup-test.log'
+        $expectedProject = $project
+        $expectedEnv = $envFile
+        $expectedOverride = ''
+        function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds,
+                [string]$ProjectName, [string]$ProjectEnv, [string]$OverrideFile) {
+            if (($ExtraArgs -join ' ') -ne '--profile tools down -v --remove-orphans') {
+                throw 'Cleanup must include the profile that owns the running Flyway container.'
+            }
+            if ($ProjectName -ne $expectedProject -or $ProjectEnv -ne $expectedEnv -or $OverrideFile -ne $expectedOverride) {
+                throw 'Cleanup must use the Compose configuration and environment of the stack under test.'
+            }
+            return $downExit
+        }
+        function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [string]$Log, [int]$Seconds) {
+            if ($Arguments[4] -ne "label=com.docker.compose.project=$expectedProject") {
+                throw 'Cleanup verification must be scoped to this Compose project.'
+            }
+            if ($Arguments[0] -eq 'container' -and '--all' -notin $Arguments) {
+                throw 'Cleanup verification must include stopped containers.'
+            }
+            Set-Content -LiteralPath $Log -Value $(if ($Arguments[0] -eq $remainingKind) { 'fixture-id' })
+            return $(if ($Arguments[0] -eq $unavailableKind) { 124 } else { 0 })
+        }
+        $downExit = 0
+        foreach ($remainingKind in @('container', 'network', 'volume')) {
+            if (Remove-ContainerCandidate) { throw "Cleanup accepted a residual $remainingKind." }
+        }
+        $remainingKind = ''
+        $unavailableKind = 'container'
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted an unavailable Docker resource listing.' }
+        $unavailableKind = ''
+        $downExit = 124
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted a timed-out shutdown.' }
+        $downExit = 0
+        if (-not (Remove-ContainerCandidate)) { throw 'Cleanup rejected an empty Compose project.' }
+        $expectedProject = 'vs45-host-fixture'
+        $expectedEnv = 'host.env'
+        $expectedOverride = 'host-compose.yml'
+        $remainingKind = 'volume'
+        if (Remove-ContainerCandidate $expectedProject $expectedEnv $expectedOverride) {
+            throw 'Cleanup accepted a residual host-access project volume.'
+        }
+        Write-Host 'PASS: cleanup includes Flyway and rejects residual or unverified resources'
+    }
+
     foreach ($case in @(
         @{ Name = 'nonzero-exit'; Scenario = $exhaustScenario; Expected = $true },
         @{ Name = 'running-unhealthy'; Scenario = $exhaustScenario; Expected = $false; RejectedBy = 'A4-exhausted-retries-fail-clearly' },

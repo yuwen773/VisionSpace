@@ -71,9 +71,33 @@ function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [strin
     } finally { $stdout.Dispose() }
 }
 
-function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds) {
-    Invoke-BoundedProcess $dockerExecutable `
-        (@('compose', '-f', $composeYml, '-p', $project, '--env-file', $envFile) + $ExtraArgs) $Log $Seconds
+function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds,
+        [string]$ProjectName = $project, [string]$ProjectEnv = $envFile, [string]$OverrideFile) {
+    $arguments = @('compose', '-f', $composeYml)
+    if ($OverrideFile) { $arguments += @('-f', $OverrideFile) }
+    $arguments += @('-p', $ProjectName, '--env-file', $ProjectEnv)
+    Invoke-BoundedProcess $dockerExecutable ($arguments + $ExtraArgs) $Log $Seconds
+}
+
+function Remove-ContainerCandidate([string]$ProjectName = $project, [string]$ProjectEnv = $envFile,
+        [string]$OverrideFile) {
+    $prefix = if ($OverrideFile) { 'host-access-cleanup' } else { 'cleanup' }
+    # 运行中的 compose run 容器需要启用其 profile，--remove-orphans 本身不会清除它。
+    $code = Invoke-BoundedCompose @('--profile', 'tools', 'down', '-v', '--remove-orphans') `
+        (Join-Path $runDir "$prefix-down.log") 45 $ProjectName $ProjectEnv $OverrideFile
+    Add-Content -LiteralPath $startupDiagnostic "$prefix-down exit=$code"
+    $clean = $code -eq 0
+    $projectFilter = "label=com.docker.compose.project=$ProjectName"
+    foreach ($kind in @('container', 'network', 'volume')) {
+        $log = Join-Path $runDir "$prefix-$kind.log"
+        $arguments = @($kind, 'ls', '-q', '--filter', $projectFilter)
+        if ($kind -eq 'container') { $arguments += '--all' }
+        $code = Invoke-BoundedProcess $dockerExecutable $arguments $log 10
+        $remaining = @(Get-Content -LiteralPath $log | Where-Object { $_.Trim() }).Count
+        Add-Content -LiteralPath $startupDiagnostic "$prefix-resource=$kind exit=$code remaining=$remaining"
+        if ($code -ne 0 -or $remaining -gt 0) { $clean = $false }
+    }
+    return $clean
 }
 
 function Invoke-StartupCompose([string]$Stage, [string[]]$ExtraArgs, [int]$Seconds) {
@@ -513,8 +537,15 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
             Write-Host 'SKIP: no non-loopback IPv4 address on this runner; LAN refusal not probed'
         }
     } finally {
-        & docker compose -f $composeYml -f $hostAccessYml -p $hostProject --env-file $hostEnvFile down -v --remove-orphans *> (Join-Path $runDir 'host-access-down.log')
-        Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
+        $results['host-access-cleanup'] = 'FAIL'
+        try {
+            if (-not (Remove-ContainerCandidate $hostProject $hostEnvFile $hostAccessYml)) {
+                throw 'host-access override stack cleanup failed'
+            }
+            $results['host-access-cleanup'] = 'PASS'
+        } finally {
+            Remove-Item -LiteralPath $hostEnvFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     # ---- 验收 4：健康状态与依赖故障（PostgreSQL/Redis 故障、恢复、延迟启动、重试耗尽）----
@@ -612,8 +643,9 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         }
         $results['cleanup'] = 'FAIL'
         try {
-            $code = Invoke-BoundedCompose @('down', '-v', '--remove-orphans') (Join-Path $runDir 'down.log') 45
-            if ($code -eq 0) { $results['cleanup'] = 'PASS' }
+            if ((Remove-ContainerCandidate) -and $results['host-access-cleanup'] -ne 'FAIL') {
+                $results['cleanup'] = 'PASS'
+            }
         } catch { Write-Host 'container cleanup unavailable' }
     }
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
