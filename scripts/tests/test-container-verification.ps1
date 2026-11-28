@@ -248,17 +248,33 @@ try {
         $expectedProject = $project
         $expectedEnv = $envFile
         $expectedOverride = ''
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $fixtureFlywayExit = 0
+        $flywayId = 'abc12345' * 8
         function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds,
                 [string]$ProjectName, [string]$ProjectEnv, [string]$OverrideFile) {
-            if (($ExtraArgs -join ' ') -ne '--profile tools down -v --remove-orphans') {
-                throw 'Cleanup must include the profile that owns the running Flyway container.'
-            }
             if ($ProjectName -ne $expectedProject -or $ProjectEnv -ne $expectedEnv -or $OverrideFile -ne $expectedOverride) {
                 throw 'Cleanup must use the Compose configuration and environment of the stack under test.'
             }
+            $calls.Add(($ExtraArgs -join ' '))
             return $downExit
         }
         function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [string]$Log, [int]$Seconds) {
+            if ($Arguments[1] -eq 'rm') {
+                if (($Arguments -join ' ') -ne "container rm --force --volumes $flywayId") {
+                    throw 'Cleanup must remove only the listed Flyway one-off container.'
+                }
+                $calls.Add('remove-flyway')
+                return $fixtureFlywayExit
+            }
+            if ('--no-trunc' -in $Arguments) {
+                foreach ($selector in @("label=com.docker.compose.project=$expectedProject",
+                        'label=com.docker.compose.service=flyway', 'label=com.docker.compose.oneoff=True')) {
+                    if ($selector -notin $Arguments) { throw 'Flyway lookup must be scoped by all three labels.' }
+                }
+                Set-Content -LiteralPath $Log -Value $flywayId
+                return 0
+            }
             if ($Arguments[4] -ne "label=com.docker.compose.project=$expectedProject") {
                 throw 'Cleanup verification must be scoped to this Compose project.'
             }
@@ -280,6 +296,13 @@ try {
         if (Remove-ContainerCandidate) { throw 'Cleanup accepted a timed-out shutdown.' }
         $downExit = 0
         if (-not (Remove-ContainerCandidate)) { throw 'Cleanup rejected an empty Compose project.' }
+        if ($calls[-2] -ne 'remove-flyway' -or
+            $calls[-1] -ne '--profile tools down -v --remove-orphans') {
+            throw 'Cleanup must remove the Flyway container before removing project resources.'
+        }
+        $fixtureFlywayExit = 124
+        if (Remove-ContainerCandidate) { throw 'Cleanup accepted a timed-out Flyway removal.' }
+        $fixtureFlywayExit = 0
         $expectedProject = 'vs45-host-fixture'
         $expectedEnv = 'host.env'
         $expectedOverride = 'host-compose.yml'

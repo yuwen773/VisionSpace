@@ -82,12 +82,30 @@ function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds
 function Remove-ContainerCandidate([string]$ProjectName = $project, [string]$ProjectEnv = $envFile,
         [string]$OverrideFile) {
     $prefix = if ($OverrideFile) { 'host-access-cleanup' } else { 'cleanup' }
-    # 运行中的 compose run 容器需要启用其 profile，--remove-orphans 本身不会清除它。
+    $projectFilter = "label=com.docker.compose.project=$ProjectName"
+    # 先收回中断的 Flyway 一次性容器，避免 down 并行删卷时容器还占着卷。
+    # compose rm 仅筛选常规服务容器，按项目、服务和 oneoff 标签精确定位。
+    $flywayLog = Join-Path $runDir "$prefix-flyway-list.log"
+    $flywayExit = Invoke-BoundedProcess $dockerExecutable @('container', 'ls', '--all', '--quiet', '--no-trunc',
+        '--filter', $projectFilter, '--filter', 'label=com.docker.compose.service=flyway',
+        '--filter', 'label=com.docker.compose.oneoff=True') $flywayLog 10
+    Add-Content -LiteralPath $startupDiagnostic "$prefix-flyway-list exit=$flywayExit"
+    $clean = $flywayExit -eq 0
+    if ($clean) {
+        $flywayIds = @(Get-Content -LiteralPath $flywayLog | Where-Object { $_.Trim() })
+        if ($flywayIds -cnotmatch '^[0-9a-f]{64}$') {
+            $clean = $false
+        } elseif ($flywayIds.Count -gt 0) {
+            $flywayExit = Invoke-BoundedProcess $dockerExecutable (@('container', 'rm', '--force', '--volumes') + $flywayIds) `
+                (Join-Path $runDir "$prefix-flyway-remove.log") 30
+            Add-Content -LiteralPath $startupDiagnostic "$prefix-flyway-remove exit=$flywayExit"
+            $clean = $flywayExit -eq 0
+        }
+    }
     $code = Invoke-BoundedCompose @('--profile', 'tools', 'down', '-v', '--remove-orphans') `
         (Join-Path $runDir "$prefix-down.log") 45 $ProjectName $ProjectEnv $OverrideFile
     Add-Content -LiteralPath $startupDiagnostic "$prefix-down exit=$code"
-    $clean = $code -eq 0
-    $projectFilter = "label=com.docker.compose.project=$ProjectName"
+    $clean = $clean -and $code -eq 0
     foreach ($kind in @('container', 'network', 'volume')) {
         $log = Join-Path $runDir "$prefix-$kind.log"
         $arguments = @($kind, 'ls', '-q', '--filter', $projectFilter)
