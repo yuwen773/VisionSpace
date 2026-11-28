@@ -50,9 +50,9 @@ function Invoke-BoundedProcess([string]$Executable, [string[]]$Arguments, [strin
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
-    $stdout = [IO.File]::Create($Log)
+    $stdout = [IO.FileStream]::new($Log, 'Create', 'Write', 'Read')
     try {
-        $stderr = [IO.File]::Create("$Log.stderr")
+        $stderr = [IO.FileStream]::new("$Log.stderr", 'Create', 'Write', 'Read')
         try {
             $process = [Diagnostics.Process]::Start($start)
             try {
@@ -220,8 +220,7 @@ function Wait-BackendExit([int]$TimeoutSeconds) {
 $results = [ordered]@{}
 $reportDir = Join-Path $repo 'target/container-verification'
 $diagnosticsDir = Join-Path $reportDir 'diagnostics'
-New-Item -ItemType Directory -Force $diagnosticsDir | Out-Null
-$startupDiagnostic = Join-Path $diagnosticsDir 'container-startup.log'
+$startupDiagnostic = Join-Path $runDir 'container-startup.log'
 Set-Content -LiteralPath $startupDiagnostic 'container candidate startup'
 $backendPort = Free-Port
 
@@ -602,7 +601,7 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         Write-Host '=== cleanup: removing only this run''s resources ==='
         if ($results['execution'] -ne 'PASS') {
             try { Write-StartupSnapshot } catch {
-                Add-Content -LiteralPath $startupDiagnostic 'snapshot status=unavailable'
+                Add-Content -LiteralPath $startupDiagnostic 'snapshot status=unavailable' -ErrorAction SilentlyContinue
             }
         }
         # 清理前保留完整日志，供本地排查。
@@ -618,6 +617,8 @@ VISION_SPACE_DEFAULT_PASSWORD=$defaultPassword
         } catch { Write-Host 'container cleanup unavailable' }
     }
     Remove-Item -LiteralPath $envFile -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $diagnosticsDir | Out-Null
+    Copy-Item -LiteralPath $startupDiagnostic -Destination $diagnosticsDir
     @{ head = (git rev-parse HEAD); runId = $(if ($env:VS_SRF_RUN_ID) { $env:VS_SRF_RUN_ID } else { [Guid]::NewGuid().ToString('N') }); infrastructure = 'docker'; results = $results; productionAcceptance = 'NOT_RUN' } |
         ConvertTo-Json | Set-Content (Join-Path $reportDir 'summary.json')
     if ($results['cleanup'] -eq 'FAIL') { exit 1 }
