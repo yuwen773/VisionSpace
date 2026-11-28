@@ -10,7 +10,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * 把当前用户已启用的 MCP 服务解析成工具回调。
@@ -49,9 +51,20 @@ public class McpToolCallbackProvider {
                     .toList();
             for (int index = start; index < end; index++) {
                 McpServer server = servers.get(index);
-                for (McpTool tool : discoveries.get(index - start).join()) {
-                    callbacks.add(new McpToolCallback(mcpManager, serverAccess,
-                            server.getMcpServerCode(), userId, tool));
+                try {
+                    List<McpTool> tools = discoveries.get(index - start).get();
+                    if (tools != null) {
+                        for (McpTool tool : tools) {
+                            callbacks.add(new McpToolCallback(mcpManager, serverAccess,
+                                    server.getMcpServerCode(), userId, tool));
+                        }
+                    }
+                } catch (ExecutionException | CancellationException e) {
+                    log.warn("MCP 工具解析失败: serverCode={}", server.getMcpServerCode());
+                } catch (InterruptedException e) {
+                    discoveries.forEach(discovery -> discovery.cancel(true));
+                    Thread.currentThread().interrupt();
+                    throw new CancellationException("MCP tool discovery interrupted");
                 }
             }
         }
@@ -66,14 +79,8 @@ public class McpToolCallbackProvider {
             return CompletableFuture.completedFuture(List.of());
         }
         try {
-            return mcpManager.getToolsAsync(server).handle((tools, error) -> {
-                if (error != null) {
-                    log.warn("MCP 工具解析失败: serverCode={}", server.getMcpServerCode());
-                }
-                return tools == null ? List.of() : tools;
-            });
+            return mcpManager.getToolsAsync(server);
         } catch (RuntimeException e) {
-            // 缓存读取可以在提交发现任务之前失败；其它服务仍继续解析。
             log.warn("MCP 工具解析失败: serverCode={}", server.getMcpServerCode());
             return CompletableFuture.completedFuture(List.of());
         }

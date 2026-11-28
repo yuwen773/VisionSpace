@@ -11,9 +11,13 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -87,6 +91,29 @@ class McpToolCallbackProviderTest {
 
         assertEquals(1, callbacks.length);
         assertEquals("echo", callbacks[0].getToolDefinition().name());
+    }
+
+    @Test
+    void interruptionCancelsTheWholeActiveBatch() {
+        McpServer first = server("first", "SSE");
+        McpServer second = server("second", "SSE");
+        List<String> codes = List.of("first", "second");
+        var firstDiscovery = new CompletableFuture<List<McpTool>>().orTimeout(5, TimeUnit.SECONDS);
+        var secondDiscovery = new CompletableFuture<List<McpTool>>().orTimeout(5, TimeUnit.SECONDS);
+        when(serverAccess.findEnabled(codes, 7L)).thenReturn(List.of(first, second));
+        when(mcpManager.getToolsAsync(first)).thenReturn(firstDiscovery);
+        when(mcpManager.getToolsAsync(second)).thenReturn(secondDiscovery);
+        var provider = provider("prod");
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThrows(CancellationException.class, () -> provider.getCallbacks(codes, 7L));
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+        assertTrue(firstDiscovery.isCancelled());
+        assertTrue(secondDiscovery.isCancelled());
     }
 
     @Test
