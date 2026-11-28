@@ -28,9 +28,16 @@ class PictureStatsEventMigrationTest {
     private static final String TABLE = "user_picture_action";
     private static final String DEDUPE_TABLE = "picture_action_event_dedupe";
 
-    /** 本轮用例独占的行为主体与图片，避免与其他用例互相干扰。 */
-    private static final long USER_ID = 88_802L;
-    private static final long PICTURE_ID = 88_803L;
+    /**
+     * 本轮用例独占的行为主体与图片，避免与其他用例互相干扰。
+     *
+     * <p>图片 ID 不能落在别的用例会批量造数的区间里（{@code HttpRecommendCandidateBoundTest}
+     * 留下 88801–88812，{@code HttpRecommendPaginationTest} 留下 88901–88912，
+     * {@code HttpPictureStatsAggregationTest} 用 88702/88703）。「孤儿待处理」分组要求
+     * 目标图片**不存在**：一旦撞上残留行，分组就是空的，用例顺序一变就变红（CI 实测如此）。
+     */
+    private static final long USER_ID = 88_770L;
+    private static final long PICTURE_ID = 88_771L;
 
     /** 本轮用例写下的事件键；台账只增不减，清理时按这些键精确删除。 */
     private static final List<String> EVENT_KEYS =
@@ -90,6 +97,9 @@ class PictureStatsEventMigrationTest {
 
     private void deleteFixtures() {
         jdbc.update("DELETE FROM " + TABLE + " WHERE user_id = ?", USER_ID);
+        // 分组判定依赖「图片不存在 / 统计行不存在」；任何残留都会让孤儿组或丢失计数组变空。
+        jdbc.update("DELETE FROM picture_stats WHERE picture_id = ?", PICTURE_ID);
+        jdbc.update("DELETE FROM picture WHERE id = ?", PICTURE_ID);
         for (String key : EVENT_KEYS) {
             jdbc.update("DELETE FROM " + DEDUPE_TABLE + " WHERE event_id = ?", key);
         }
