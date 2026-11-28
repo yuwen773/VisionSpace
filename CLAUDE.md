@@ -105,7 +105,8 @@ Multi-layered architecture with cross-cutting managers:
 - **Jakarta EE imports** — Use `jakarta.*` not `javax.*` (Spring Boot 3)
 - **Commit style** — Use `git-commit-cn` skill for Chinese conventional commits
 - **Feature development** — Create a worktree, PR to `main`, never commit directly. Fetch `origin main` first: local `main` is often stale; base the worktree on `origin/main`.
-- **Worktree test runs** — The worktree shell guard blocks `pwsh`/`cmd`. Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated PostgreSQL 18 / Redis in Docker and removes its volume on exit.
+- **Repo hygiene** — Before deleting branches, worktrees or stashes, run `python -I scripts/repo-hygiene.py` and follow `docs/agents/repo-hygiene.md`. Never delete an unpushed branch without an `archive/*` tag first.
+- **Worktree test runs** — Use `python -I scripts/drill-isolated-run.py` for single classes or `--full` for the backend suite; it provisions isolated PostgreSQL 18 / Redis in Docker and removes its volume on exit.
 - **Docker test resources** — New tests create services through `scripts/docker-test-harness.psm1` (named volumes + `vs.*` labels + run-id teardown); manual `docker run` must mount a named volume and carry the labels. Reclaim only via `scripts/docker-test-resources.ps1`; never `docker ... prune`.
 - **Before code review** — Run `python -I scripts/tests/check-review-target.py`; commit first so the review sees HEAD, not a stale index. Judgment-call standards are in `CODING_STANDARDS.md`.
 - **Design docs** — Plans saved to `docs/plans/` (gitignored, use `git add -f`)
