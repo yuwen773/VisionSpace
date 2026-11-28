@@ -1,13 +1,14 @@
 """Export an allowlisted evidence projection; raw logs/configuration stay local.
 
-Diagnostics can contain Cookie values, SQL parameters and full request bodies.
-They are deliberately not CI artifacts. JUnit keeps test identity and outcomes,
-not failure messages or system-out. This is a projection, not heuristic redaction.
+Raw diagnostics can contain cookies, SQL parameters and full request bodies.
+JUnit keeps test identity, outcomes and bounded source locations. Exception
+messages, arbitrary stack text and system-out stay local.
 """
 import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 from pathlib import Path
 
 STATES = {"PASS", "FAIL", "BLOCKED", "BLOCKED_ENV", "NOT_RUN"}
@@ -15,6 +16,57 @@ STATES = {"PASS", "FAIL", "BLOCKED", "BLOCKED_ENV", "NOT_RUN"}
 # 不允许 '=' 出现在里面——任何“键=值”形态（口令、令牌、连接串）都会被整体丢弃，
 # 这比逐个字段做脱敏更可靠。
 FAILURE_REASON = re.compile(r"[A-Za-z0-9 _.:/()\-]{1,200}")
+ROOT = Path(__file__).resolve().parents[1]
+JAVA_FRAME = re.compile(
+    r"\s*at (com\.yuwen\.visionspace\.[\w.]+)(?:\$[\w$]+)?\.[\w$<>]+"
+    r"\(([A-Za-z][A-Za-z0-9_]*\.java):([1-9]\d{0,5})\)\s*", re.ASCII
+)
+CAUSE_TYPE = re.compile(r"\s*Caused by: ([A-Za-z0-9_.$]+)(?::.*)?")
+FAILURE_TYPES = {
+    "jakarta.servlet.ServletException", "java.io.EOFException", "java.io.IOException",
+    "java.lang.AssertionError",
+    "java.lang.IllegalArgumentException", "java.lang.IllegalStateException",
+    "java.lang.NullPointerException", "java.lang.NumberFormatException",
+    "java.net.ConnectException", "java.net.SocketException",
+    "java.net.http.HttpConnectTimeoutException", "java.net.http.HttpTimeoutException",
+    "java.util.concurrent.ExecutionException", "java.util.concurrent.TimeoutException",
+    "org.assertj.core.error.AssertJMultipleFailuresError",
+    "org.opentest4j.AssertionFailedError", "org.opentest4j.MultipleFailuresError",
+    "org.postgresql.util.PSQLException",
+}
+
+
+@lru_cache(maxsize=256)
+def source_line_count(class_name, file_name):
+    name = Path(*class_name.split("."))
+    if name.with_suffix(".java").name == file_name:
+        for tree in ("test", "main"):
+            path = ROOT / "src" / tree / "java" / name.with_suffix(".java")
+            if path.is_file():
+                return len(path.read_bytes().splitlines())
+    return 0
+
+
+def project_junit_issue(node, issue):
+    kind = issue.get("type")
+    if kind in FAILURE_TYPES:
+        node.set("type", kind)
+    seen = set()
+    causes = {kind}
+    for text_line in (issue.text or "")[:32_768].splitlines():
+        cause = CAUSE_TYPE.fullmatch(text_line)
+        if cause and cause[1] in FAILURE_TYPES and cause[1] not in causes and len(causes) < 4:
+            causes.add(cause[1])
+            ET.SubElement(node, "cause", {"type": cause[1]})
+        match = JAVA_FRAME.fullmatch(text_line)
+        if not match:
+            continue
+        class_name, file_name, line = match.groups()
+        location = (file_name, line)
+        if len(seen) >= 4 or location in seen or int(line) > source_line_count(class_name, file_name):
+            continue
+        seen.add(location)
+        ET.SubElement(node, "frame", {"file": file_name, "line": line})
 
 
 def project_failures(value):
@@ -112,8 +164,11 @@ def publish(source, destination):
             for case in original.findall("testcase"):
                 node = ET.SubElement(clean, "testcase", {key: case.attrib[key] for key in ("name", "classname", "time") if key in case.attrib})
                 for state in ("failure", "error", "skipped"):
-                    if case.find(state) is not None:
-                        ET.SubElement(node, state)
+                    issue = case.find(state)
+                    if issue is not None:
+                        outcome = ET.SubElement(node, state)
+                        if state != "skipped":
+                            project_junit_issue(outcome, issue)
             content = ET.tostring(clean, encoding="unicode")
         if content is not None:
             target = destination / path.relative_to(source)

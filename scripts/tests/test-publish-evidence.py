@@ -3,12 +3,48 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublishEvidenceTest(unittest.TestCase):
+    def test_junit_failure_points_to_source_without_publishing_exception_text(self):
+        with tempfile.TemporaryDirectory(prefix="vs-junit-diagnostics-") as directory:
+            source, output = Path(directory) / "raw", Path(directory) / "public"
+            source.mkdir()
+            secret = "synthetic" + "DbPass!5925"
+            suite = ET.Element("testsuite", tests="2", failures="1", errors="1")
+            for state, kind in (("failure", "org.opentest4j.AssertionFailedError"),
+                                ("error", "java.net.http.HttpTimeoutException")):
+                case = ET.SubElement(suite, "testcase", classname="Example", name=state)
+                issue = ET.SubElement(case, state, type=kind, message="password=" + secret)
+                issue.text = (
+                    kind + ": password=" + secret + "\n"
+                    "\tat com.yuwen.visionspace.acceptance.PictureStatsEventMigrationTest."
+                    "maintenanceListIsExecutableAndOnlyReads(PictureStatsEventMigrationTest.java:130)\n"
+                    "\tat com.yuwen.visionspace.acceptance.FakeSecret.leak(FakeSecret.java:1)\n"
+                    "Caused by: java.lang.IllegalStateException: password=" + secret + "\n"
+                )
+                ET.SubElement(case, "system-out").text = secret
+            ET.ElementTree(suite).write(source / "TEST-Example.xml", encoding="unicode")
+            subprocess.run([sys.executable, "-I", "scripts/publish-evidence.py", str(source), str(output)],
+                           cwd=ROOT, check=True, capture_output=True, text=True)
+            published = (output / "TEST-Example.xml").read_text()
+            self.assertNotIn(secret, published)
+            self.assertNotIn("FakeSecret", published)
+            self.assertNotIn("system-out", published)
+            for node in ET.fromstring(published).findall("testcase/*"):
+                self.assertEqual(node.attrib["type"], suite.find(f"testcase/{node.tag}").attrib["type"])
+                self.assertEqual([frame.attrib for frame in node.findall("frame")], [
+                    {"file": "PictureStatsEventMigrationTest.java", "line": "130"},
+                ])
+                self.assertEqual([cause.attrib for cause in node.findall("cause")], [
+                    {"type": "java.lang.IllegalStateException"},
+                ])
+                self.assertIsNone(node.text)
+
     def test_only_safe_evidence_leaves_raw_directory(self):
         with tempfile.TemporaryDirectory(prefix="vs47-publish-") as directory:
             source, output = Path(directory) / "raw", Path(directory) / "public"

@@ -207,6 +207,42 @@ function docker {
 
 $failures = @()
 try {
+    & {
+        $startupDiagnostic = Join-Path $runDir 'startup-test.log'
+        $buildLog = Join-Path $runDir 'build.log'
+        $fixtureSecret = 'unpublished' + 'Canary!9631'
+        $elapsed = [Diagnostics.Stopwatch]::StartNew()
+        $code = Invoke-BoundedProcess (Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })) `
+            @('-NoProfile', '-Command', "'#7 [build fixture] $fixtureSecret'; Start-Sleep -Seconds 30") $buildLog 3
+        if ($code -ne 124 -or $elapsed.Elapsed.TotalSeconds -ge 20 -or
+            -not ((Get-Content -LiteralPath $buildLog -Raw).Contains($fixtureSecret))) {
+            throw 'Hanging command must time out and preserve its partial local log.'
+        }
+
+        function Invoke-BoundedCompose([string[]]$ExtraArgs, [string]$Log, [int]$Seconds) {
+            if ($ExtraArgs[0] -ne 'ps') { return 124 }
+            @('postgres running healthy', 'backend exited ', "backend running $fixtureSecret") |
+                Set-Content -LiteralPath $Log
+            return 0
+        }
+        Set-Content -LiteralPath (Join-Path $runDir 'flyway-migrate.log.stderr') "ERROR: $fixtureSecret"
+        try {
+            Invoke-StartupCompose 'flyway-migrate' @('run', '--rm', 'flyway') 3
+            throw 'Timed-out startup command must fail.'
+        } catch {
+            if ("$_" -notmatch 'flyway-migrate \(exit 124\)') { throw }
+        }
+        Write-StartupSnapshot
+        $snapshot = Get-Content -LiteralPath $startupDiagnostic
+        foreach ($mark in @('stage=flyway-migrate status=started', 'stage=flyway-migrate exit=124',
+                'build step=7 status=started', 'flyway-migrate status=error', 'compose-ps exit=0',
+                'service=postgres state=running health=healthy', 'service=backend state=exited health=')) {
+            if ($mark -notin $snapshot) { throw "Missing projected startup evidence: $mark" }
+        }
+        if (($snapshot -join "`n").Contains($fixtureSecret)) { throw 'Unsafe Docker output left the raw directory.' }
+        Write-Host 'PASS: bounded startup timeout, partial local log and safe public snapshot'
+    }
+
     foreach ($case in @(
         @{ Name = 'nonzero-exit'; Scenario = $exhaustScenario; Expected = $true },
         @{ Name = 'running-unhealthy'; Scenario = $exhaustScenario; Expected = $false; RejectedBy = 'A4-exhausted-retries-fail-clearly' },
