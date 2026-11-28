@@ -236,6 +236,16 @@ Media ratios are fixed: 3/4 for contact-sheet plates, 4/5 for archive frames and
 
 ## Components
 
+### Global header
+- **Structure:** a 72px sticky bar on Archive Paper with one hairline baseline (`grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)`, `max-width: 1360px`, `padding: 0 clamp(16px, 2.4vw, 32px)`), which keeps the wordmark within 30px of the Landing, Explore and archive shells. The bar is opaque: no blur, no glass, no glow.
+- **Type:** wordmark Noto Serif SC 600 at 17px/0.02em; section links Noto Sans SC 13.5px at 0.02em; account name 13px/500; the solid account button 13px/600 at 0.04em.
+- **Marker:** a 1px Archive Violet segment riding on the bottom rule, translating and resizing between sections over 420ms `cubic-bezier(0.22, 1, 0.36, 1)`; it hides when the route is not a section (picture and space detail pages).
+- **Icons:** none in the top-level links; the caret on a section with a submenu is a 5px drawn corner. Lucide icons (15-16px, 1.5-1.6 stroke) appear only in the mobile drawer and the account menu.
+- **Controls:** theme switch 52x28 with a 1px Strong Rule and a 22px Archive Violet thumb; account trigger 38px high, 2px radius, 26px square avatar; solid CTA 38px in Warm Ink; quiet sign-in as text only; 38px hairline burger at 959px and below.
+- **Popups:** account menu and section popups sit on Raised Paper with a 1px Strong Rule, 2px radius and an offset soft shadow (`0 18px 40px -28px`), never a blur.
+- **States:** scrolling strengthens the baseline rule from Hairline to Strong Rule and nothing else moves; hover lifts link text to Warm Ink; focus-visible is a 2px Archive Violet outline at 3px; `prefers-reduced-motion` cancels the marker and thumb travel.
+- **Breakpoints:** 1183px tightens link padding to 10px and type to 13px; 959px replaces the inline links with the drawer; 520px drops the wordmark and keeps the mark alone.
+
 ### Buttons
 - **Shape:** 2px radius, `min-height: 42px` (44px at 860px and below), `padding: 0 18px`, 13px/1 sans at weight 500, 9px gap, 150ms color/background/border transitions.
 - **Solid:** Archive Ink fill with Archive Paper text. Hover swaps to Archive Violet with Accent Ink text; in the light theme the hover text is #fff.
@@ -309,6 +319,7 @@ Media ratios are fixed: 3/4 for contact-sheet plates, 4/5 for archive frames and
 - **Do** use 2px radius on controls, 0 on media, and 999px only for chips and the switch.
 - **Do** show a 2px Archive Violet focus-visible outline at 3px offset on every interactive element.
 - **Do** keep primary controls at 42px desktop and 44px at 860px and below.
+- **Do** keep the global header on Archive Paper with one hairline baseline and a single accent marker for the current section.
 
 ### Don't:
 - **Don't** add box-shadows, glass panels, backdrop blur or neon glows to the archive; the atmosphere layer is the only blur.
@@ -319,3 +330,4 @@ Media ratios are fixed: 3/4 for contact-sheet plates, 4/5 for archive frames and
 - **Don't** set names, record titles or measurements in the sans or the mono.
 - **Don't** use the mono for prose or standalone decoration; it carries catalog metadata only.
 - **Don't** introduce a third theme or per-section palettes.
+- **Don't** put icons, gradient text, glass or glows in the top-level header links; icons belong to the drawer and the account menu.
