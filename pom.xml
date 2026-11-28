@@ -233,7 +233,7 @@
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson</artifactId>
-            <version>3.32.0</version>   <!-- 或最新 -->
+            <version>4.8.0</version>   <!-- 或最新 -->
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
